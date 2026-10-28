@@ -62,6 +62,10 @@
           <i class="bi bi-arrow-clockwise text-slate-500"></i> Refresh Tables
         </button>
 
+        <button type="button" onclick="document.getElementById('editSettingsModal').classList.remove('hidden')" class="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition">
+          <i class="bi bi-gear text-slate-500"></i> Settings
+        </button>
+
         <a href="http://localhost:5173/speed-networking/live?eventId={{ $event->id }}" target="_blank" class="px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200 no-underline flex items-center gap-1.5 shadow-2xs transition" title="Open in React SPA Controller">
           <i class="bi bi-box-arrow-up-right"></i> Open SPA
         </a>
@@ -94,8 +98,21 @@
 
         <div class="flex items-center gap-1.5">
           <i class="bi bi-stopwatch text-indigo-500"></i>
-          <span class="font-semibold text-slate-700">Rounds:</span>
-          <span>{{ $event->total_rounds ?? 5 }} Total &bull; {{ ceil(($event->round_duration_seconds ?? 180) / 60) }}m / round &bull; {{ $event->break_duration_seconds ?? 30 }}s break</span>
+          <span class="font-semibold text-slate-700">Rounds Mode:</span>
+          <span>
+            @php
+              $isFixedRounds = !empty($event->total_rounds) && (int) $event->total_rounds > 0;
+              $activeCount = count($participants);
+              $autoRounds = max(1, $activeCount > 1 ? ($activeCount % 2 === 0 ? $activeCount - 1 : $activeCount) : 1);
+              $plannedTotal = $isFixedRounds ? (int) $event->total_rounds : max((int) $event->current_round, $autoRounds);
+            @endphp
+            @if($isFixedRounds)
+              <strong class="text-slate-800">{{ $event->total_rounds }} Fixed Rounds</strong>
+            @else
+              <span class="text-indigo-600 font-bold">Auto-Scale</span> (~{{ $autoRounds }} rounds for {{ $activeCount }} peers)
+            @endif
+            &bull; {{ ceil(($event->round_duration_seconds ?? 180) / 60) }}m / round &bull; {{ $event->break_duration_seconds ?? 20 }}s break
+          </span>
         </div>
       </div>
 
@@ -149,27 +166,28 @@
               </span>
             @endif
 
-            <span class="text-sm font-bold text-slate-800">
-              @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
-                Round {{ max(1, $event->current_round) }} of {{ $event->total_rounds }}
+            <span class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              @if($isFixedRounds)
+                Round {{ max(1, $event->current_round) }} of {{ $plannedTotal }}
               @else
-                Round {{ max(1, $event->current_round) }}
+                Round {{ max(1, $event->current_round) }} of {{ $plannedTotal }}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Auto-Scale
+                </span>
               @endif
             </span>
           </div>
 
           <!-- Progress Bar -->
-          @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
-            <div class="w-64 md:w-80 h-2 bg-slate-100 rounded-full overflow-hidden">
-              @php
-                $roundPct = min(100, max(5, ($event->current_round / max(1, (int) $event->total_rounds)) * 100));
-              @endphp
-              <div class="h-full {{ $event->status === 'paused' ? 'bg-amber-500' : 'bg-blue-500' }} rounded-full transition-all duration-500" style="width: {{ $roundPct }}%"></div>
-            </div>
-          @endif
+          @php
+            $roundPct = min(100, max(5, ($event->current_round / max(1, $plannedTotal)) * 100));
+          @endphp
+          <div class="w-64 md:w-80 h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full {{ $event->status === 'paused' ? 'bg-amber-500' : 'bg-blue-500' }} rounded-full transition-all duration-500" style="width: {{ $roundPct }}%"></div>
+          </div>
 
           <div class="text-xs text-slate-500 font-medium">
-            Round duration: {{ ceil(($event->round_duration_seconds ?? 180) / 60) }} min &bull; Break: {{ $event->break_duration_seconds ?? 30 }}s
+            Round duration: {{ ceil(($event->round_duration_seconds ?? 180) / 60) }} min &bull; Break: {{ $event->break_duration_seconds ?? 20 }}s
           </div>
         </div>
       </div>
@@ -578,6 +596,67 @@
         No participants have joined this event yet.
       </div>
     @endforelse
+  </div>
+</div>
+
+<!-- Edit Settings Modal -->
+<div id="editSettingsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+      <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+        <i class="bi bi-gear-fill text-indigo-600"></i> Event Settings & Round Configuration
+      </h3>
+      <button type="button" onclick="document.getElementById('editSettingsModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 border-0 bg-transparent text-lg cursor-pointer">&times;</button>
+    </div>
+    <form method="POST" action="{{ route('admin.speed-networking.update', $event->id) }}" class="p-6 space-y-4 m-0 overflow-y-auto">
+      @csrf
+      @method('PUT')
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Round Time (s)</label>
+          <input type="number" name="round_duration_seconds" value="{{ $event->round_duration_seconds ?? 180 }}" min="10" max="3600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Call duration</span>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Break Time (s)</label>
+          <input type="number" name="break_duration_seconds" value="{{ $event->break_duration_seconds ?? 20 }}" min="5" max="600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Intermission</span>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            Total Rounds <span class="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <input type="number" name="total_rounds" value="{{ !empty($event->total_rounds) && (int) $event->total_rounds > 0 ? $event->total_rounds : '' }}" min="1" max="100" placeholder="Auto-scale" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Blank for Auto-Scale (N-1)</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
+          <input type="datetime-local" name="scheduled_start_time" value="{{ !empty($event->scheduled_start_time) ? (is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('Y-m-d\TH:i') : $event->scheduled_start_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled End Time</label>
+          <input type="datetime-local" name="scheduled_end_time" value="{{ !empty($event->scheduled_end_time) ? (is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('Y-m-d\TH:i') : $event->scheduled_end_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-900 flex items-start gap-2">
+        <i class="bi bi-info-circle-fill text-indigo-600 mt-0.5 shrink-0"></i>
+        <span>
+          <strong>Two Modes Supported:</strong><br>
+          &bull; <strong>Auto-Scale (Dynamic):</strong> Leave blank so the system automatically computes rounds based on registered/live attendees.<br>
+          &bull; <strong>Forced Rounds:</strong> Specify a fixed number of rounds (e.g. 5) to cap the session regardless of attendee count.
+        </span>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" onclick="document.getElementById('editSettingsModal').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold border-0 cursor-pointer shadow-2xs">Save Settings</button>
+      </div>
+    </form>
   </div>
 </div>
 

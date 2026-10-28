@@ -286,7 +286,7 @@ class SpeedNetworkingService
             'banner_url' => isset($data['banner_url']) ? (string) $data['banner_url'] : null,
             'round_duration_seconds' => (int) ($data['round_duration_seconds'] ?? config('services.speed_networking.default_round_seconds', 180)),
             'break_duration_seconds' => (int) ($data['break_duration_seconds'] ?? config('services.speed_networking.default_break_seconds', 20)),
-            'total_rounds' => (int) ($data['total_rounds'] ?? 5),
+            'total_rounds' => isset($data['total_rounds']) && $data['total_rounds'] !== '' ? max(0, (int) $data['total_rounds']) : 0,
             'scheduled_start_time' => ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null,
             'scheduled_end_time' => ! empty($data['scheduled_end_time']) ? Carbon::parse($data['scheduled_end_time']) : null,
             'actual_start_time' => ! empty($data['actual_start_time']) ? Carbon::parse($data['actual_start_time']) : null,
@@ -452,8 +452,9 @@ class SpeedNetworkingService
                 ]);
 
             $nextRound = $event->current_round + 1;
+            $effectiveRounds = $this->getEffectiveTotalRounds($event);
 
-            if ($event->total_rounds > 0 && $nextRound > $event->total_rounds) {
+            if ($nextRound > $effectiveRounds) {
                 $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
                 $event->actual_end_time = Carbon::now();
                 $event->save();
@@ -525,6 +526,29 @@ class SpeedNetworkingService
 
             return $event;
         });
+    }
+
+    /**
+     * Calculate effective total rounds for an event.
+     * Mode 1: If total_rounds is explicitly configured (> 0), return that forced round count.
+     * Mode 2: If total_rounds is 0 or null (Auto-Scale), calculate dynamically based on active/joined participants:
+     *         For N participants: N even -> N - 1 rounds; N odd -> N rounds (with 1 rotation bye).
+     */
+    public function getEffectiveTotalRounds(SpeedNetworkingEvent $event): int
+    {
+        if ($event->total_rounds > 0) {
+            return (int) $event->total_rounds;
+        }
+
+        $activeCount = SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
+            ->count();
+
+        if ($activeCount <= 1) {
+            return 1;
+        }
+
+        return ($activeCount % 2 === 0) ? ($activeCount - 1) : $activeCount;
     }
 
     /**

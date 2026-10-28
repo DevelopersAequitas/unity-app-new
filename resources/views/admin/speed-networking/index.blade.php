@@ -140,7 +140,14 @@
               </td>
               <td class="p-3">
                 <div><span class="font-semibold text-slate-700">{{ $event->round_duration_seconds }}s</span> / round</div>
-                <div class="text-slate-500 text-[11px]">{{ $event->break_duration_seconds }}s break &bull; {{ $event->total_rounds ?? 5 }} rounds</div>
+                <div class="text-slate-500 text-[11px]">
+                  {{ $event->break_duration_seconds }}s break &bull;
+                  @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
+                    {{ $event->total_rounds }} rounds (Fixed)
+                  @else
+                    <span class="text-indigo-600 font-semibold">Auto-Scale</span>
+                  @endif
+                </div>
               </td>
               <td class="p-3">
                 @if(!empty($event->is_paid) && (float) ($event->ticket_price ?? 0) > 0)
@@ -229,9 +236,11 @@
           <span class="text-[10px] text-slate-400">Intermission</span>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Total Rounds</label>
-          <input type="number" name="total_rounds" value="8" min="1" max="100" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-          <span class="text-[10px] text-slate-400">Rotations</span>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            Total Rounds <span class="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <input type="number" name="total_rounds" value="" min="1" max="100" placeholder="Auto-scale (Dynamic)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Leave blank for Auto-Scale (N-1) or set fixed count</span>
         </div>
       </div>
 

@@ -122,7 +122,7 @@ class SpeedNetworkingWebController extends Controller
             'scheduled_end_time' => 'nullable|date',
             'round_duration_seconds' => 'nullable|integer|min:10|max:3600',
             'break_duration_seconds' => 'nullable|integer|min:5|max:1800',
-            'total_rounds' => 'nullable|integer|min:1|max:100',
+            'total_rounds' => 'nullable|integer|min:0|max:100',
             'ticket_price' => 'nullable|numeric|min:0',
             'is_paid' => 'nullable|boolean',
             'is_free' => 'nullable|boolean',
@@ -131,11 +131,54 @@ class SpeedNetworkingWebController extends Controller
             'circle_restricted' => 'nullable|boolean',
         ]);
 
+        $validated['total_rounds'] = ! empty($validated['total_rounds']) ? (int) $validated['total_rounds'] : 0;
+
         $event = $this->speedNetworkingService->createOrUpdateEvent($validated);
 
         return redirect()
             ->route('admin.speed-networking.show', $event->id)
             ->with('success', "Speed Networking event '{$event->title}' created successfully.");
+    }
+
+    /**
+     * Update Speed Networking event parameters / round configuration.
+     */
+    public function update(Request $request, string $id): RedirectResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
+
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'banner_url' => 'nullable|string|max:500',
+            'scheduled_start_time' => 'nullable|date',
+            'scheduled_end_time' => 'nullable|date',
+            'round_duration_seconds' => 'nullable|integer|min:10|max:3600',
+            'break_duration_seconds' => 'nullable|integer|min:5|max:1800',
+            'total_rounds' => 'nullable|integer|min:0|max:100',
+            'ticket_price' => 'nullable|numeric|min:0',
+            'is_paid' => 'nullable|boolean',
+            'is_free' => 'nullable|boolean',
+            'currency' => 'nullable|string|max:10',
+            'circle_id' => 'nullable|uuid',
+            'circle_restricted' => 'nullable|boolean',
+        ]);
+
+        if (array_key_exists('total_rounds', $validated)) {
+            $validated['total_rounds'] = ! empty($validated['total_rounds']) ? (int) $validated['total_rounds'] : 0;
+        }
+
+        $this->speedNetworkingService->createOrUpdateEvent($validated, $id);
+
+        return redirect()
+            ->route('admin.speed-networking.show', $id)
+            ->with('success', 'Event settings updated successfully.');
     }
 
     /**

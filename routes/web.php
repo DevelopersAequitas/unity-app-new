@@ -721,6 +721,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/speed-networking', [SpeedNetworkingWebController::class, 'index'])->name('speed-networking.index');
         Route::post('/speed-networking', [SpeedNetworkingWebController::class, 'store'])->name('speed-networking.store');
         Route::get('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'show'])->whereUuid('id')->name('speed-networking.show');
+        Route::put('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'update'])->whereUuid('id')->name('speed-networking.update');
         Route::post('/speed-networking/{id}/start', [SpeedNetworkingWebController::class, 'start'])->whereUuid('id')->name('speed-networking.start');
         Route::post('/speed-networking/{id}/next-round', [SpeedNetworkingWebController::class, 'nextRound'])->whereUuid('id')->name('speed-networking.next-round');
         Route::post('/speed-networking/{id}/pause', [SpeedNetworkingWebController::class, 'pause'])->whereUuid('id')->name('speed-networking.pause');
