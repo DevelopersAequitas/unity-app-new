@@ -263,9 +263,11 @@ class FileController extends BaseApiController
                     return $this->buildStreamResponse($request, $stream, $size, $mime);
                 }
 
-                $remoteFallback = $this->fetchFromRemoteProduction($id, null, 'local');
-                if ($remoteFallback) {
-                    return $remoteFallback;
+                if (! app()->isProduction()) {
+                    $remoteFallback = $this->fetchFromRemoteProduction($id, null, 'local');
+                    if ($remoteFallback) {
+                        return $remoteFallback;
+                    }
                 }
 
                 Log::warning("File API lookup failed: Database record and physical file not found for: {$id}", [
@@ -349,9 +351,11 @@ class FileController extends BaseApiController
                             Log::warning("Could not mark file {$id} as orphaned: ".$dbEx->getMessage());
                         }
 
-                        $remoteFallback = $this->fetchFromRemoteProduction($id, $file, $disk);
-                        if ($remoteFallback) {
-                            return $remoteFallback;
+                        if (! app()->isProduction()) {
+                            $remoteFallback = $this->fetchFromRemoteProduction($id, $file, $disk);
+                            if ($remoteFallback) {
+                                return $remoteFallback;
+                            }
                         }
 
                         Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
@@ -613,14 +617,36 @@ class FileController extends BaseApiController
      */
     protected function fetchFromRemoteProduction(string $id, ?File $file, string $disk)
     {
+        // 1. Never execute remote fallback in production or testing
+        if (app()->isProduction() || app()->environment('testing')) {
+            return null;
+        }
+
+        // 2. Prevent recursion: if request already originated from a dev fallback call, abort
+        if (request()->header('User-Agent') === 'PeersUnity-DevFallback/1.0') {
+            return null;
+        }
+
         try {
             $remoteBase = config('app.remote_file_fallback_url', 'https://peersunity.com');
+            if (empty($remoteBase)) {
+                return null;
+            }
+
+            // 3. Avoid calling self or loopback
+            $currentHost = strtolower((string) (request()->getHost() ?: parse_url((string) config('app.url', ''), PHP_URL_HOST)));
+            $remoteHost = strtolower((string) parse_url((string) $remoteBase, PHP_URL_HOST));
+
+            if (empty($remoteHost) || $remoteHost === $currentHost || in_array($remoteHost, ['localhost', '127.0.0.1', '::1'], true)) {
+                return null;
+            }
+
             $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
-            $remoteUrl = rtrim((string) $remoteBase, '/') . '/api/v1/files/' . $cleanId;
+            $remoteUrl = rtrim((string) $remoteBase, '/').'/api/v1/files/'.$cleanId;
 
             $ctx = stream_context_create([
                 'http' => [
-                    'timeout' => 8,
+                    'timeout' => 2,
                     'ignore_errors' => true,
                     'user_agent' => 'PeersUnity-DevFallback/1.0',
                 ],
@@ -660,7 +686,7 @@ class FileController extends BaseApiController
                 }
             }
         } catch (\Throwable $e) {
-            Log::warning("[FileController] Remote fallback failed for {$id}: " . $e->getMessage());
+            Log::warning("[FileController] Remote fallback failed for {$id}: ".$e->getMessage());
         }
 
         return null;
