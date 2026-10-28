@@ -86,7 +86,7 @@
         <div class="w-auto min-w-[130px]">
           <select class="w-full px-3 py-2 text-xs rounded-lg border bs surface t1 focus-ring" name="event_type">
             <option value="">All Types</option>
-            @foreach(['circle_meeting' => 'Circle Meeting', 'global_event' => 'Global Event', 'public_event' => 'City/Public Event'] as $type => $label)
+            @foreach(['circle_meeting' => 'Circle Meeting', 'global_event' => 'Global Event', 'public_event' => 'City/Public Event', 'speed_networking' => 'Speed Networking'] as $type => $label)
               <option value="{{ $type }}" @selected(request('event_type') === $type)>{{ $label }}</option>
             @endforeach
           </select>
@@ -162,16 +162,24 @@
                       'global_event' => 'Global Event',
                       'state_event' => 'State Event',
                       'public_event' => 'City/Public Event',
+                      'speed_networking' => 'Speed Networking',
                       'meeting' => 'Meeting',
                       'physical' => 'Physical',
                       'virtual' => 'Virtual',
                     ];
                     $rawType = (string) ($event->event_type ?? '');
                     $typeLabel = $typeMap[$rawType] ?? ucwords(str_replace(['_', '-'], ' ', $rawType));
+                    $isSpeed = method_exists($event, 'isSpeedNetworking') ? $event->isSpeedNetworking() : ($rawType === 'speed_networking');
                   @endphp
-                  <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full whitespace-nowrap inline-flex items-center">
-                    {{ $typeLabel ?: '—' }}
-                  </span>
+                  @if($isSpeed)
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-800 border-amber-200 rounded-full whitespace-nowrap inline-flex items-center gap-1">
+                      <i class="bi bi-lightning-charge-fill text-amber-500"></i> Speed Networking
+                    </span>
+                  @else
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full whitespace-nowrap inline-flex items-center">
+                      {{ $typeLabel ?: '—' }}
+                    </span>
+                  @endif
                 </td>
                 <td class="px-3 py-3 text-xs t2 whitespace-nowrap">
                   @if(!empty($event->circle?->id))
@@ -250,6 +258,11 @@
                         <span>{{ $isActive ? 'Deactivate' : 'Activate' }}</span>
                       </button>
                     </form>
+                    @if($isSpeed)
+                      <a href="{{ route('admin.speed-networking.show', $event->id) }}" class="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold no-underline transition whitespace-nowrap inline-flex items-center gap-1 shadow-2xs" title="Open Speed Networking Live Room">
+                        <i class="bi bi-lightning-charge-fill text-white"></i> Live Room
+                      </a>
+                    @endif
                     <a href="{{ route('admin.events.show', $event->id) }}" class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       View
                     </a>

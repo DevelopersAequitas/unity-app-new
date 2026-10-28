@@ -343,6 +343,10 @@ class P2pMeetingController extends BaseApiController
         $attributes = $meeting->toArray();
         $attributes['media'] = $this->expandP2pMedia($attributes['media'] ?? null);
 
+        $cleanRemarks = self::cleanP2pRemarks($attributes['remarks'] ?? $meeting->remarks ?? null);
+        $attributes['remarks'] = $cleanRemarks;
+        $attributes['meeting_title'] = $cleanRemarks ?? '';
+
         $attributes['post_id'] = $meeting->getAttribute('post_id')
             ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
 
@@ -560,11 +564,14 @@ class P2pMeetingController extends BaseApiController
                 'phone' => $initiatedTo->phone,
             ]) : null;
 
+            $cleanRemarks = self::cleanP2pRemarks($meeting->remarks);
+
             return [
                 'id' => (string) $meeting->id,
                 'initiated_by_user_id' => (string) $meeting->initiator_user_id,
                 'initiated_to_user_id' => (string) $meeting->peer_user_id,
-                'meeting_title' => $meeting->remarks ?? '',
+                'meeting_title' => $cleanRemarks ?? '',
+                'remarks' => $cleanRemarks ?? '',
                 'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
                 'meeting_time' => '',
                 'status' => 'completed',
@@ -591,5 +598,23 @@ class P2pMeetingController extends BaseApiController
                 'total' => $paginator->total(),
             ],
         ]);
+    }
+
+    /**
+     * Remove internal technical tokens like [sn_match:UUID] or auto-generated speed networking round remarks from display.
+     */
+    public static function cleanP2pRemarks(?string $remarks): ?string
+    {
+        if ($remarks === null || trim($remarks) === '') {
+            return null;
+        }
+
+        $cleaned = trim((string) preg_replace('/\s*\[(sn_)?match:[^\]]+\]/i', '', $remarks));
+
+        if (preg_match('/^Speed Networking Round\b/i', $cleaned)) {
+            return null;
+        }
+
+        return $cleaned !== '' ? $cleaned : null;
     }
 }

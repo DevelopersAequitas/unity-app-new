@@ -941,6 +941,7 @@ class SpeedNetworkingApiController extends Controller
             }
         }
 
+        $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
         $summary = $event
             ? $this->speedNetworkingService->getSessionSummary($event, $user)
             : [
@@ -950,6 +951,20 @@ class SpeedNetworkingApiController extends Controller
                 'total_rounds' => 0,
                 'rounds_completed' => 0,
                 'total_interactions_count' => 0,
+                'life_impact' => [
+                    'earned' => 0,
+                    'total' => $userLifeImpact,
+                    'balance_after' => $userLifeImpact,
+                ],
+                'life_impact_earned' => 0,
+                'life_impact_score' => $userLifeImpact,
+                'total_life_impacted' => $userLifeImpact,
+                'life_impacted_count' => $userLifeImpact,
+                'coins' => [
+                    'earned' => 0,
+                    'balance_after' => (int) ($user->coins_balance ?? 0),
+                ],
+                'coins_earned' => 0,
                 'interacted_peers' => [],
             ];
 
@@ -1136,8 +1151,9 @@ class SpeedNetworkingApiController extends Controller
         if ($event instanceof SpeedNetworkingEvent) {
             $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
         } else {
+            $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
             $meta = is_array($event->metadata) ? $event->metadata : (json_decode((string) $event->metadata, true) ?: []);
-            $totalRounds = (int) ($meta['total_rounds'] ?? 5);
+            $totalRounds = (int) ($meta['total_rounds'] ?? 0);
             $summary = [
                 'completed' => true,
                 'has_met_all_peers' => true,
@@ -1145,6 +1161,20 @@ class SpeedNetworkingApiController extends Controller
                 'total_rounds' => $totalRounds,
                 'rounds_completed' => 0,
                 'total_interactions_count' => 0,
+                'life_impact' => [
+                    'earned' => 0,
+                    'total' => $userLifeImpact,
+                    'balance_after' => $userLifeImpact,
+                ],
+                'life_impact_earned' => 0,
+                'life_impact_score' => $userLifeImpact,
+                'total_life_impacted' => $userLifeImpact,
+                'life_impacted_count' => $userLifeImpact,
+                'coins' => [
+                    'earned' => 0,
+                    'balance_after' => (int) ($user->coins_balance ?? 0),
+                ],
+                'coins_earned' => 0,
                 'interacted_peers' => [],
             ];
         }

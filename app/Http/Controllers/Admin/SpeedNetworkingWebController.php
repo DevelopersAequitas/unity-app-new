@@ -85,14 +85,13 @@ class SpeedNetworkingWebController extends Controller
             try {
                 $baseQuery = Event::where(function ($q): void {
                     $q->where('event_type', 'speed_networking')
-                        ->orWhereJsonContains('metadata->is_speed_networking', true)
                         ->orWhere('title', 'like', '%Speed%')
                         ->orWhere('title', 'like', '%speed%');
                 });
                 $totalEvents = (clone $baseQuery)->count();
-                $inProgressEvents = (clone $baseQuery)->where('metadata->speed_status', 'in_progress')->count();
-                $scheduledEvents = (clone $baseQuery)->where('metadata->speed_status', 'scheduled')->count();
-                $completedEvents = (clone $baseQuery)->where('metadata->speed_status', 'completed')->count();
+                $inProgressEvents = (clone $baseQuery)->where('event_type', 'speed_networking')->count();
+                $scheduledEvents = (clone $baseQuery)->where('event_type', 'speed_networking')->count();
+                $completedEvents = 0;
             } catch (\Throwable $e) {
                 // Ignore
             }
@@ -122,7 +121,6 @@ class SpeedNetworkingWebController extends Controller
             'scheduled_start_time' => 'nullable|date',
             'round_duration_seconds' => 'nullable|integer|min:30|max:3600',
             'break_duration_seconds' => 'nullable|integer|min:5|max:600',
-            'total_rounds' => 'nullable|integer|min:1|max:50',
         ]);
 
         $event = $this->speedNetworkingService->createOrUpdateEvent($validated);

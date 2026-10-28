@@ -354,6 +354,28 @@ class EventManagementController extends Controller
                 return $event;
             });
 
+            if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
+                try {
+                    $meta = (array) ($event->metadata ?? []);
+                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::updateOrCreate(
+                        ['id' => $event->id],
+                        [
+                            'title' => $event->title,
+                            'description' => $event->description,
+                            'banner_url' => $event->banner_url,
+                            'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
+                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
+                            'current_round' => 0,
+                            'scheduled_start_time' => $event->start_at,
+                        ]
+                    );
+                } catch (\Throwable $snEx) {
+                    Log::warning('Could not sync SpeedNetworkingEvent on store: '.$snEx->getMessage());
+                }
+            }
+
             SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
             return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
@@ -388,6 +410,28 @@ class EventManagementController extends Controller
                     ]);
                 }
             });
+
+            if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
+                try {
+                    $meta = (array) ($event->metadata ?? []);
+                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::updateOrCreate(
+                        ['id' => $event->id],
+                        [
+                            'title' => $event->title,
+                            'description' => $event->description,
+                            'banner_url' => $event->banner_url,
+                            'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
+                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
+                            'current_round' => 0,
+                            'scheduled_start_time' => $event->start_at,
+                        ]
+                    );
+                } catch (\Throwable $snEx) {
+                    Log::warning('Could not sync SpeedNetworkingEvent on update: '.$snEx->getMessage());
+                }
+            }
 
             return redirect()->route('admin.events.show', $event)->with('success', 'Event updated successfully.');
         } catch (ValidationException $e) {
@@ -600,7 +644,9 @@ class EventManagementController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'event_type' => ['required', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop'],
+            'event_type' => ['required', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop,speed_networking'],
+            'round_duration_seconds' => ['nullable', 'integer', 'min:30', 'max:3600'],
+            'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:600'],
             'circle_ids' => [Rule::requiredIf(fn () => in_array($request->input('event_type'), ['global_event', 'state_event'], true)), 'array', 'min:1'],
             'circle_ids.*' => ['uuid', 'distinct', 'exists:circles,id'],
             'state_name' => [Rule::requiredIf(fn () => $request->input('event_type') === 'state_event'), 'nullable', 'string', 'max:255'],
@@ -735,6 +781,16 @@ class EventManagementController extends Controller
             'email' => $data['organizer_email'] ?? null,
             'website' => $data['organizer_website'] ?? null,
         ];
+
+        if (($data['event_type'] ?? null) === 'speed_networking') {
+            $metadata['is_speed_networking'] = true;
+            $metadata['round_duration_seconds'] = (int) ($request->input('round_duration_seconds') ?? $metadata['round_duration_seconds'] ?? 300);
+            $metadata['break_duration_seconds'] = (int) ($request->input('break_duration_seconds') ?? $metadata['break_duration_seconds'] ?? 20);
+            $metadata['total_rounds'] = (int) ($metadata['total_rounds'] ?? 0);
+            $metadata['speed_status'] = $metadata['speed_status'] ?? 'scheduled';
+            $data['is_virtual'] = true;
+            $data['mode'] = $data['mode'] ?? 'online';
+        }
 
         $data['metadata'] = $metadata;
 
