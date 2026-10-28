@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\ActivitiesMessagesController;
 use App\Http\Controllers\Admin\ActivitiesP2PMeetingsController;
 use App\Http\Controllers\Admin\ActivitiesPeerRecommendationController;
 use App\Http\Controllers\Admin\ActivitiesReferralsController;
+use App\Http\Controllers\Admin\ReferralCampaignConfigAdminController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
@@ -759,6 +760,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/ad-bookings/{adBooking}', [AdBookingAdminWebController::class, 'show'])->whereUuid('adBooking')->name('ad-bookings.show');
         Route::post('/ad-bookings/{adBooking}/review', [AdBookingAdminWebController::class, 'review'])->whereUuid('adBooking')->name('ad-bookings.review');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
+        Route::match(['post', 'patch'], '/posts/referral-campaign/toggle', [ReferralCampaignConfigAdminController::class, 'toggle'])->name('posts.referral-campaign.toggle');
+        Route::post('/posts/referral-campaign/update', [ReferralCampaignConfigAdminController::class, 'update'])->name('posts.referral-campaign.update');
+        Route::match(['post', 'patch'], '/referral/campaign-config/toggle', [ReferralCampaignConfigAdminController::class, 'toggle'])->name('referral.campaign-config.toggle');
+        Route::post('/referral/campaign-config/update', [ReferralCampaignConfigAdminController::class, 'update'])->name('referral.campaign-config.update');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
         Route::post('/posts/impacts/{impact}/activate', [PostModerationController::class, 'activateImpact'])->whereUuid('impact')->name('posts.impacts.activate');
