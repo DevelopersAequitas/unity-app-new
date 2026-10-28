@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
@@ -399,6 +400,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
         Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
+
+        // App Tutorial Popups walkthrough routes
+        Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index'])->name('app-tutorial-popups.index');
+        Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update'])->name('app-tutorial-popups.update');
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/ai-flows', [AiPromptFlowAdminController::class, 'index'])->name('ai-flows.index');

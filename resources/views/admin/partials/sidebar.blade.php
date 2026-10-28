@@ -1347,6 +1347,13 @@
                     </a>
                 </li>
                 @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Tutorial Popups') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.app-tutorial-popups.*') ? 'active' : '' }}" href="{{ route('admin.app-tutorial-popups.index') }}" title="App Tutorial Popups">
+                        <i class="bi bi-window-stack me-2"></i><span class="menu-text">App Tutorial Popups</span>
+                    </a>
+                </li>
+                @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
                 {{-- Dynamic RBAC & Role Management Menu --}}
                 <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
