@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Admin\PermissionService;
 use App\Services\Media\BirthdayCreativeImageService;
+use App\Services\Referrals\ReferralCampaignConfigService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -297,6 +298,7 @@ class PostModerationController extends Controller
             'inlineModerationStatus' => $inlineModerationStatus,
             'inlineActive' => $inlineActive,
             'media' => $media,
+            'referralCampaign' => app(ReferralCampaignConfigService::class)->getOrCreateCurrentConfig(),
         ]);
     }
 
