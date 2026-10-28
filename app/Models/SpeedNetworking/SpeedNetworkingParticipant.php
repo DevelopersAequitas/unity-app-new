@@ -39,6 +39,8 @@ class SpeedNetworkingParticipant extends Model
         'event_id',
         'user_id',
         'status',
+        'rounds_completed',
+        'total_talk_time_seconds',
         'joined_at',
         'last_heartbeat_at',
         'break_started_at',
@@ -51,6 +53,8 @@ class SpeedNetworkingParticipant extends Model
     protected function casts(): array
     {
         return [
+            'rounds_completed' => 'integer',
+            'total_talk_time_seconds' => 'integer',
             'joined_at' => 'datetime',
             'last_heartbeat_at' => 'datetime',
             'break_started_at' => 'datetime',

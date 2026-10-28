@@ -34,9 +34,11 @@ class SpeedNetworkingMatch extends Model
         'round_number',
         'table_number',
         'channel_id',
+        'agora_token',
         'user_a_id',
         'user_b_id',
         'status',
+        'duration_seconds',
         'started_at',
         'ended_at',
     ];
@@ -49,6 +51,7 @@ class SpeedNetworkingMatch extends Model
         return [
             'round_number' => 'integer',
             'table_number' => 'integer',
+            'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
         ];
