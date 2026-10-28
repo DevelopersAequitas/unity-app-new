@@ -27,6 +27,11 @@
             @endif
         </div>
         <div class="d-flex gap-2 align-items-center">
+            @if(method_exists($event, 'isSpeedNetworking') && $event->isSpeedNetworking())
+                <a href="{{ route('admin.speed-networking.show', $event->id) }}" class="btn btn-warning text-dark fw-bold d-inline-flex align-items-center gap-1.5 shadow-sm">
+                    <i class="bi bi-lightning-charge-fill text-dark"></i> Control Room
+                </a>
+            @endif
             <a href="{{ route('admin.events.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
@@ -48,6 +53,26 @@
             <div class="col-md-3"><strong>Recurrence:</strong> {{ $event->recurrence_type ?? 'none' }}</div>
             <div class="col-md-6"><strong>Location:</strong> @if(!empty($event->metadata['google_maps_url']))<a href="{{ $event->metadata['google_maps_url'] }}" target="_blank" rel="noopener">{{ $event->location_text ?? 'Open map' }}</a>@else{{ $event->location_text ?? '-' }}@endif</div>
             <div class="col-md-6"><strong>Online:</strong> {{ $event->online_meeting_url ?? '-' }}</div>
+            @if(method_exists($event, 'isSpeedNetworking') && $event->isSpeedNetworking())
+                <div class="col-12">
+                    <div class="p-3 rounded bg-amber-50 border border-amber-200">
+                        <div class="d-flex align-items-center justify-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-lightning-charge-fill text-amber-600"></i>
+                                <strong class="text-amber-900">Speed Networking Configuration</strong>
+                            </div>
+                            <a href="{{ route('admin.speed-networking.show', $event->id) }}" class="btn btn-sm btn-warning text-dark fw-bold">
+                                Launch Live Room <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                        <div class="row g-2 small text-amber-950">
+                            <div class="col-md-4"><strong>Round Duration:</strong> {{ data_get($event->metadata, 'round_duration_seconds', 300) }}s</div>
+                            <div class="col-md-4"><strong>Break Duration:</strong> {{ data_get($event->metadata, 'break_duration_seconds', 20) }}s</div>
+                            <div class="col-md-4"><strong>Total Rounds:</strong> {{ data_get($event->metadata, 'total_rounds', 5) }}</div>
+                        </div>
+                    </div>
+                </div>
+            @endif
             <div class="col-12"><strong>Description:</strong> {{ $event->description ?? '-' }}</div>
         </div>
     </div></div>

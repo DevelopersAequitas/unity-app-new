@@ -134,6 +134,7 @@
         'global_event' => 'Global Event',
         'state_event' => 'State Event',
         'public_event' => 'City Event',
+        'speed_networking' => 'Speed Networking Event',
     ];
     $days = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
     $weeks = [1 => 'First', 2 => 'Second', 3 => 'Third', 4 => 'Fourth', 5 => 'Last'];
@@ -284,6 +285,34 @@
                         <div class="col-12">
                             <label class="form-label fw-semibold">Description</label>
                             <textarea class="form-control" name="description" rows="3" placeholder="What should attendees know about this event?">{{ old('description', $event->description ?? '') }}</textarea>
+                        </div>
+
+                        <!-- Speed Networking Specific Settings -->
+                        <div class="col-12 speed-networking-fields d-none">
+                            <div class="p-3 rounded-3 border border-indigo-200 bg-indigo-50/50">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                                    <h6 class="mb-0 fw-bold text-indigo-900">Speed Networking Configuration</h6>
+                                </div>
+                                <p class="text-muted small mb-3">Participants will be rotated through automated 1-on-1 breakout tables with live video and timers.</p>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Round Duration (Seconds)</label>
+                                        <input type="number" class="form-control" name="round_duration_seconds" value="{{ old('round_duration_seconds', data_get($metadata, 'round_duration_seconds', 300)) }}" min="30" max="3600">
+                                        <span class="text-muted small">e.g. 300 seconds = 5 minutes</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Break Duration (Seconds)</label>
+                                        <input type="number" class="form-control" name="break_duration_seconds" value="{{ old('break_duration_seconds', data_get($metadata, 'break_duration_seconds', 20)) }}" min="5" max="600">
+                                        <span class="text-muted small">Lounge / transition between rounds</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Total Rounds</label>
+                                        <input type="number" class="form-control" name="total_rounds" value="{{ old('total_rounds', data_get($metadata, 'total_rounds', 5)) }}" min="1" max="50">
+                                        <span class="text-muted small">Total 1-on-1 rotational meetings</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -908,9 +937,17 @@
         function updateEventType() {
             const type = eventType.value;
             const isMulti = type === 'global_event' || type === 'state_event';
+            const isSpeed = type === 'speed_networking';
             singleCircleField.classList.toggle('d-none', isMulti);
             multiCircleField.classList.toggle('d-none', !isMulti);
             stateEventField.classList.toggle('d-none', type !== 'state_event');
+            
+            toggle('.speed-networking-fields', isSpeed);
+            if (isSpeed && mode.value === 'offline') {
+                mode.value = 'online';
+                updateMode();
+            }
+
             singleCircleSelect.disabled = isMulti;
             stateNameSelect.disabled = type !== 'state_event';
             if (!isMulti) {

@@ -61,69 +61,85 @@ class SpeedNetworkingService
                 }
 
                 $paginated = $query->paginate($perPage);
-                if ($paginated->total() > 0) {
-                    return [
-                        'data' => $paginated->items(),
-                        'pagination' => [
-                            'total' => $paginated->total(),
-                            'per_page' => $paginated->perPage(),
-                            'current_page' => $paginated->currentPage(),
-                            'last_page' => $paginated->lastPage(),
-                        ],
-                    ];
-                }
+
+                return [
+                    'data' => $paginated->items(),
+                    'pagination' => [
+                        'total' => $paginated->total(),
+                        'per_page' => $paginated->perPage(),
+                        'current_page' => $paginated->currentPage(),
+                        'last_page' => $paginated->lastPage(),
+                    ],
+                ];
             } catch (\Throwable $e) {
-                // Table error, fallback to events table
+                Log::warning('SpeedNetworkingService::listEvents sn table query failed', ['error' => $e->getMessage()]);
             }
         }
 
         // Fallback to base events table
-        $query = Event::query()
-            ->where(function ($q): void {
-                $q->where('event_type', 'speed_networking')
-                    ->orWhereJsonContains('metadata->is_speed_networking', true)
-                    ->orWhere('title', 'like', '%Speed%')
-                    ->orWhere('title', 'like', '%speed%');
-            })
-            ->latest('created_at');
+        try {
+            $query = Event::query()
+                ->where(function ($q): void {
+                    $q->where('event_type', 'speed_networking')
+                        ->orWhere('title', 'like', '%Speed%')
+                        ->orWhere('title', 'like', '%speed%');
+                })
+                ->latest('created_at');
 
-        if (! empty($filters['search'])) {
-            $search = '%'.trim((string) $filters['search']).'%';
-            $query->where('title', 'like', $search);
-        }
+            if (! empty($filters['search'])) {
+                $search = '%'.trim((string) $filters['search']).'%';
+                $query->where('title', 'like', $search);
+            }
 
-        $paginated = $query->paginate($perPage);
+            $paginated = $query->paginate($perPage);
 
-        $mapped = collect($paginated->items())->map(function (Event $e) {
-            $meta = $e->metadata ?? [];
-            $regCount = $e->registrations()->count();
-            return (object) [
-                'id' => $e->id,
-                'title' => $e->title,
-                'description' => $e->description,
-                'status' => $meta['speed_status'] ?? 'scheduled',
-                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
-                'current_round' => (int) ($meta['current_round'] ?? 0),
-                'scheduled_start_time' => $e->start_at,
-                'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
-                'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
-                'active_participants_count' => $regCount,
-                'participants_count' => $regCount,
-                'matches_count' => (int) ceil($regCount / 2),
+            $mapped = collect($paginated->items())->map(function (Event $e) {
+                $meta = (array) ($e->metadata ?? []);
+                $regCount = 0;
+                try {
+                    $regCount = $e->registrations()->count();
+                } catch (\Throwable) {}
+
+                return (object) [
+                    'id' => $e->id,
+                    'title' => $e->title,
+                    'description' => $e->description,
+                    'status' => $meta['speed_status'] ?? 'scheduled',
+                    'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
+                    'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
+                    'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                    'current_round' => (int) ($meta['current_round'] ?? 0),
+                    'scheduled_start_time' => $e->start_at,
+                    'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
+                    'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
+                    'active_participants_count' => $regCount,
+                    'participants_count' => $regCount,
+                    'matches_count' => (int) ceil($regCount / 2),
+                ];
+            });
+
+            return [
+                'data' => $mapped->all(),
+                'pagination' => [
+                    'total' => $paginated->total(),
+                    'per_page' => $paginated->perPage(),
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                ],
             ];
-        });
+        } catch (\Throwable $e) {
+            Log::error('SpeedNetworkingService::listEvents fallback failed', ['error' => $e->getMessage()]);
 
-        return [
-            'data' => $mapped->all(),
-            'pagination' => [
-                'total' => $paginated->total(),
-                'per_page' => $paginated->perPage(),
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
-            ],
-        ];
+            return [
+                'data' => [],
+                'pagination' => [
+                    'total' => 0,
+                    'per_page' => $perPage,
+                    'current_page' => 1,
+                    'last_page' => 1,
+                ],
+            ];
+        }
     }
 
     /**
