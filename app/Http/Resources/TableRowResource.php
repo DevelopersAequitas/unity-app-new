@@ -15,6 +15,13 @@ class TableRowResource extends JsonResource
     {
         $attributes = $this->extractAttributes();
 
+        if (isset($attributes['remarks'])) {
+            $attributes['remarks'] = $this->cleanRemarks($attributes['remarks']);
+        }
+        if (isset($attributes['meeting_title'])) {
+            $attributes['meeting_title'] = $this->cleanRemarks($attributes['meeting_title']) ?? '';
+        }
+
         if (isset($attributes['media'])) {
             $attributes['media'] = $this->resolveMedia($attributes['media']);
         }
@@ -96,5 +103,20 @@ class TableRowResource extends JsonResource
         }
 
         return array_key_exists('from_user_id', $attributes) && array_key_exists('to_user_id', $attributes);
+    }
+
+    private function cleanRemarks(mixed $remarks): ?string
+    {
+        if (! is_string($remarks) || trim($remarks) === '') {
+            return null;
+        }
+
+        $cleaned = trim((string) preg_replace('/\s*\[(sn_)?match:[^\]]+\]/i', '', $remarks));
+
+        if (preg_match('/^Speed Networking Round\b/i', $cleaned)) {
+            return null;
+        }
+
+        return $cleaned !== '' ? $cleaned : null;
     }
 }
