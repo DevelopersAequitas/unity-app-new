@@ -114,6 +114,11 @@ class AdminAccess
         return (bool) array_intersect(self::SUPER_ROLE_KEYS, $roleKeys);
     }
 
+    public static function isSuperAdmin(?AdminUser $admin): bool
+    {
+        return self::isSuper($admin) || self::isGlobalAdmin($admin);
+    }
+
     public static function isGlobalAdmin(?AdminUser $admin): bool
     {
         if (! $admin) {
@@ -494,7 +499,7 @@ class AdminAccess
                         'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
                         'lead submissions', 'leads' => 'leads',
                         'industries' => 'industries',
-                        'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'unity contacts', 'support tickets', 'categories' => 'settings',
+                        'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'app tutorial popups', 'unity contacts', 'support tickets', 'categories' => 'settings',
                         'role management', 'dynamic rbac', 'role-management' => 'role-management',
                         'brand partners', 'brand-partners', 'ads', 'ad bookings', 'ad-bookings' => 'brand-partners',
                         'finance & analytics', 'finance-analytics', 'analytics' => 'finance-analytics',
