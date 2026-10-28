@@ -63,5 +63,5 @@ Schedule::command('whatsapp:journey:process')->everyFifteenMinutes()->timezone(c
 // WhatsApp Bulk Campaigns Scheduled Dispatch (checked every minute)
 Schedule::command('whatsapp:dispatch-scheduled-campaigns')->everyMinute()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
-// Speed Networking Auto-Start & Attendee Live Notification Dispatch (checked every minute)
+// Speed networking auto-start engine (checked every minute)
 Schedule::command('speed-networking:auto-start')->everyMinute()->withoutOverlapping();

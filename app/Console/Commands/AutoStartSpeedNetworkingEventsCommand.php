@@ -21,27 +21,27 @@ class AutoStartSpeedNetworkingEventsCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Auto-start scheduled Speed Networking events that have reached their start time and notify registered attendees';
+    protected $description = 'Automatically start scheduled Speed Networking events whose scheduled start time has arrived.';
 
     /**
      * Execute the console command.
      */
-    public function handle(SpeedNetworkingService $speedNetworkingService): int
+    public function handle(SpeedNetworkingService $service): int
     {
-        $this->info('Checking for scheduled speed networking events to auto-start...');
+        $this->info('Checking for scheduled Speed Networking events to auto-start...');
 
-        $started = $speedNetworkingService->checkAndAutoStartScheduledEvents();
-
+        $started = $service->checkAndAutoStartScheduledEvents();
         $count = count($started);
+
         if ($count > 0) {
-            $this->info("Successfully auto-started {$count} speed networking event(s) and notified attendees.");
+            $this->info("Successfully auto-started {$count} speed networking event(s).");
             foreach ($started as $event) {
-                $this->line(" - Event ID: {$event->id} | Title: {$event->title}");
+                $this->line(" - Started event [{$event->id}] '{$event->title}' (Round 1 generated).");
             }
         } else {
             $this->info('No speed networking events currently due for auto-start.');
         }
 
-        return self::SUCCESS;
+        return Command::SUCCESS;
     }
 }

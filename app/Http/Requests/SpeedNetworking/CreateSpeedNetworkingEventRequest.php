@@ -24,14 +24,12 @@ class CreateSpeedNetworkingEventRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'id' => ['nullable', 'uuid'],
+            'id' => ['nullable', 'uuid', 'exists:speed_networking_events,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'banner_url' => ['nullable', 'string', 'max:500'],
             'scheduled_start_time' => ['nullable', 'date'],
-            'scheduled_end_time' => ['nullable', 'date', 'after_or_equal:scheduled_start_time'],
-            'actual_start_time' => ['nullable', 'date'],
-            'actual_end_time' => ['nullable', 'date'],
+            'scheduled_end_time' => ['nullable', 'date'],
             'round_duration_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
             'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:1800'],
             'total_rounds' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -42,7 +40,6 @@ class CreateSpeedNetworkingEventRequest extends FormRequest
             'circle_id' => ['nullable', 'uuid'],
             'circle_restricted' => ['nullable', 'boolean'],
             'status' => ['nullable', 'string', 'in:draft,scheduled,lobby_open,in_progress,paused,completed'],
-            'metadata' => ['nullable', 'array'],
         ];
     }
 }

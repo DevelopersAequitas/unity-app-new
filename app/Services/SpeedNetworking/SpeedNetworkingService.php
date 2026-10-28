@@ -65,8 +65,33 @@ class SpeedNetworkingService
 
                 $paginated = $query->paginate($perPage);
 
+                $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): array {
+                    return [
+                        'id' => (string) $item->id,
+                        'title' => (string) $item->title,
+                        'description' => $item->description,
+                        'banner_url' => $item->banner_url,
+                        'status' => (string) $item->status,
+                        'round_duration_seconds' => (int) $item->round_duration_seconds,
+                        'break_duration_seconds' => (int) $item->break_duration_seconds,
+                        'total_rounds' => (int) $item->total_rounds,
+                        'current_round' => (int) $item->current_round,
+                        'scheduled_start_time' => $item->scheduled_start_time?->toIso8601String(),
+                        'actual_start_time' => $item->actual_start_time?->toIso8601String(),
+                        'ticket_price' => (float) ($item->ticket_price ?? 0),
+                        'is_paid' => (bool) ($item->is_paid ?? false),
+                        'currency' => (string) ($item->currency ?? 'INR'),
+                        'circle_id' => $item->circle_id ? (string) $item->circle_id : null,
+                        'circle_restricted' => (bool) ($item->circle_restricted ?? false),
+                        'participants_count' => (int) ($item->participants_count ?? 0),
+                        'active_participants_count' => (int) ($item->active_participants_count ?? $item->participants_count ?? 0),
+                        'matches_count' => (int) ($item->matches_count ?? 0),
+                        'created_at' => $item->created_at?->toIso8601String(),
+                    ];
+                });
+
                 return [
-                    'data' => $paginated->items(),
+                    'data' => $mapped->all(),
                     'pagination' => [
                         'total' => $paginated->total(),
                         'per_page' => $paginated->perPage(),
@@ -153,6 +178,7 @@ class SpeedNetworkingService
      */
     public function getEventDetails(SpeedNetworkingEvent $event): array
     {
+        $event->loadMissing('circle');
         $totalParticipants = $event->participants()->count();
         $activeParticipants = $event->participants()
             ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
@@ -162,6 +188,20 @@ class SpeedNetworkingService
             ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
             ->count();
 
+        $activeTablesCount = $event->matches()
+            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+            ->whereNotNull('user_b_id')
+            ->count();
+        if ($activeTablesCount === 0 && $event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS) {
+            $activeTablesCount = (int) ceil($activeParticipants / 2);
+        }
+
+        $byStatus = $event->participants()
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+
         return [
             'event' => $event,
             'stats' => [
@@ -169,6 +209,14 @@ class SpeedNetworkingService
                 'active_participants' => $activeParticipants,
                 'total_matches' => $totalMatches,
                 'active_matches' => $activeMatches,
+                'active_tables_count' => $activeTablesCount,
+                'participants_by_status' => [
+                    'in_call' => (int) ($byStatus['in_call'] ?? 0),
+                    'break' => (int) ($byStatus['break'] ?? 0),
+                    'left' => (int) ($byStatus['left'] ?? 0),
+                    'lobby' => (int) ($byStatus['lobby'] ?? 0),
+                    'registered' => (int) ($byStatus['registered'] ?? 0),
+                ],
             ],
         ];
     }
@@ -1069,24 +1117,29 @@ class SpeedNetworkingService
             }
         }
 
-        $regList = EventRegistration::where('event_id', $event->id)->with('user')->get();
-        foreach ($regList as $reg) {
-            $u = $reg->user;
-            if ($u && ! isset($participantsMap[(string) $u->id])) {
-                $uid = (string) $u->id;
-                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
-                if (empty($name)) {
-                    $name = $u->name ?? 'Participant';
+        if (Schema::hasTable('event_registrations')) {
+            try {
+                $regList = EventRegistration::where('event_id', $event->id)->with('user')->get();
+                foreach ($regList as $reg) {
+                    $u = $reg->user;
+                    if ($u && ! isset($participantsMap[(string) $u->id])) {
+                        $uid = (string) $u->id;
+                        $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                        if (empty($name)) {
+                            $name = $u->name ?? 'Participant';
+                        }
+                        $participantsMap[$uid] = [
+                            'id' => $uid,
+                            'name' => $name,
+                            'company' => (string) ($u->company_name ?? 'Peers Member'),
+                            'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                            'city' => (string) ($u->city ?? 'Peers Global'),
+                            'avatar_url' => $u->profile_photo_url ?? null,
+                            'status' => 'in_call',
+                        ];
+                    }
                 }
-                $participantsMap[$uid] = [
-                    'id' => $uid,
-                    'name' => $name,
-                    'company' => (string) ($u->company_name ?? 'Peers Member'),
-                    'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
-                    'city' => (string) ($u->city ?? 'Peers Global'),
-                    'avatar_url' => $u->profile_photo_url ?? null,
-                    'status' => 'in_call',
-                ];
+            } catch (\Throwable) {
             }
         }
 
