@@ -97,17 +97,23 @@
             @endif
 
             <span class="text-sm font-bold text-slate-800">
-              Round {{ max(1, $event->current_round) }} of {{ $event->total_rounds }}
+              @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
+                Round {{ max(1, $event->current_round) }} of {{ $event->total_rounds }}
+              @else
+                Round {{ max(1, $event->current_round) }}
+              @endif
             </span>
           </div>
 
           <!-- Progress Bar -->
-          <div class="w-64 md:w-80 h-2 bg-slate-100 rounded-full overflow-hidden">
-            @php
-              $roundPct = min(100, max(5, ($event->current_round / max(1, $event->total_rounds)) * 100));
-            @endphp
-            <div class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width: {{ $roundPct }}%"></div>
-          </div>
+          @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
+            <div class="w-64 md:w-80 h-2 bg-slate-100 rounded-full overflow-hidden">
+              @php
+                $roundPct = min(100, max(5, ($event->current_round / max(1, (int) $event->total_rounds)) * 100));
+              @endphp
+              <div class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width: {{ $roundPct }}%"></div>
+            </div>
+          @endif
 
           <div class="text-xs text-slate-500 font-medium">
             Round duration: {{ ceil($event->round_duration_seconds / 60) }} min &bull; Break: {{ $event->break_duration_seconds }}s

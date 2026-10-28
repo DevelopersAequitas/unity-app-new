@@ -69,7 +69,7 @@ class EventAdminController extends BaseApiController
                 $meta = $event->metadata ?? [];
                 $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
                 $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
-                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+                $totalRounds = (int) ($meta['total_rounds'] ?? 0);
 
                 $meta['round_duration_seconds'] = $roundDuration;
                 $meta['break_duration_seconds'] = $breakDuration;
@@ -120,7 +120,7 @@ class EventAdminController extends BaseApiController
                 $meta = $event->metadata ?? [];
                 $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
                 $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
-                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+                $totalRounds = (int) ($meta['total_rounds'] ?? 0);
 
                 $meta['round_duration_seconds'] = $roundDuration;
                 $meta['break_duration_seconds'] = $breakDuration;

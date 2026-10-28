@@ -123,7 +123,7 @@
               <td class="p-3">
                 @if($event->status === 'in_progress')
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Round {{ $event->current_round }} / {{ $event->total_rounds }}
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Round {{ $event->current_round }}
                   </span>
                 @elseif($event->status === 'completed')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Completed</span>
@@ -137,7 +137,7 @@
               </td>
               <td class="p-3">
                 <div><span class="font-semibold text-slate-700">{{ $event->round_duration_seconds }}s</span> / round</div>
-                <div class="text-slate-500 text-[11px]">{{ $event->break_duration_seconds }}s break &bull; {{ $event->total_rounds }} rounds</div>
+                <div class="text-slate-500 text-[11px]">{{ $event->break_duration_seconds }}s break</div>
               </td>
               <td class="p-3">
                 <div class="font-semibold text-slate-800">{{ $event->active_participants_count ?? $event->participants_count ?? 0 }} active</div>
@@ -215,15 +215,9 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Total Rounds</label>
-          <input type="number" name="total_rounds" value="5" min="1" max="50" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
-          <input type="datetime-local" name="scheduled_start_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-        </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
+        <input type="datetime-local" name="scheduled_start_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
       </div>
 
       <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">

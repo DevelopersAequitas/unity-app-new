@@ -57,7 +57,6 @@ class UpsertAdminEventRequest extends FormRequest
             'event_category' => ['nullable', 'string', 'max:100'],
             'round_duration_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
             'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:600'],
-            'total_rounds' => ['nullable', 'integer', 'min:1', 'max:50'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
             'revenue_target' => ['nullable', 'numeric', 'min:0'],

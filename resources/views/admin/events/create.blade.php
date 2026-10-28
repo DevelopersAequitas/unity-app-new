@@ -296,20 +296,15 @@
                                 </div>
                                 <p class="text-muted small mb-3">Participants will be rotated through automated 1-on-1 breakout tables with live video and timers.</p>
                                 <div class="row g-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label fw-semibold">Round Duration (Seconds)</label>
                                         <input type="number" class="form-control" name="round_duration_seconds" value="{{ old('round_duration_seconds', data_get($metadata, 'round_duration_seconds', 300)) }}" min="30" max="3600">
                                         <span class="text-muted small">e.g. 300 seconds = 5 minutes</span>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label fw-semibold">Break Duration (Seconds)</label>
                                         <input type="number" class="form-control" name="break_duration_seconds" value="{{ old('break_duration_seconds', data_get($metadata, 'break_duration_seconds', 20)) }}" min="5" max="600">
                                         <span class="text-muted small">Lounge / transition between rounds</span>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold">Total Rounds</label>
-                                        <input type="number" class="form-control" name="total_rounds" value="{{ old('total_rounds', data_get($metadata, 'total_rounds', 5)) }}" min="1" max="50">
-                                        <span class="text-muted small">Total 1-on-1 rotational meetings</span>
                                     </div>
                                 </div>
                             </div>

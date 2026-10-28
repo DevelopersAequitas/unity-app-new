@@ -269,7 +269,7 @@ class SpeedNetworkingService
             'banner_url' => isset($data['banner_url']) ? (string) $data['banner_url'] : null,
             'round_duration_seconds' => (int) ($data['round_duration_seconds'] ?? config('services.speed_networking.default_round_seconds', 300)),
             'break_duration_seconds' => (int) ($data['break_duration_seconds'] ?? config('services.speed_networking.default_break_seconds', 20)),
-            'total_rounds' => (int) ($data['total_rounds'] ?? 5),
+            'total_rounds' => (int) ($data['total_rounds'] ?? 0),
             'scheduled_start_time' => ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null,
         ];
 
@@ -385,7 +385,7 @@ class SpeedNetworkingService
 
             $nextRound = $event->current_round + 1;
 
-            if ($nextRound > $event->total_rounds) {
+            if ($event->total_rounds > 0 && $nextRound > $event->total_rounds) {
                 $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
                 $event->save();
 

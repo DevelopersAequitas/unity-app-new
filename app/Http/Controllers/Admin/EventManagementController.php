@@ -366,7 +366,7 @@ class EventManagementController extends Controller
                             'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
                             'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
                             'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
-                            'total_rounds' => (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
                         ]
@@ -423,7 +423,7 @@ class EventManagementController extends Controller
                             'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
                             'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
                             'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
-                            'total_rounds' => (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
                         ]
@@ -647,7 +647,6 @@ class EventManagementController extends Controller
             'event_type' => ['required', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop,speed_networking'],
             'round_duration_seconds' => ['nullable', 'integer', 'min:30', 'max:3600'],
             'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:600'],
-            'total_rounds' => ['nullable', 'integer', 'min:1', 'max:50'],
             'circle_ids' => [Rule::requiredIf(fn () => in_array($request->input('event_type'), ['global_event', 'state_event'], true)), 'array', 'min:1'],
             'circle_ids.*' => ['uuid', 'distinct', 'exists:circles,id'],
             'state_name' => [Rule::requiredIf(fn () => $request->input('event_type') === 'state_event'), 'nullable', 'string', 'max:255'],
@@ -787,7 +786,7 @@ class EventManagementController extends Controller
             $metadata['is_speed_networking'] = true;
             $metadata['round_duration_seconds'] = (int) ($request->input('round_duration_seconds') ?? $metadata['round_duration_seconds'] ?? 300);
             $metadata['break_duration_seconds'] = (int) ($request->input('break_duration_seconds') ?? $metadata['break_duration_seconds'] ?? 20);
-            $metadata['total_rounds'] = (int) ($request->input('total_rounds') ?? $metadata['total_rounds'] ?? 5);
+            $metadata['total_rounds'] = (int) ($metadata['total_rounds'] ?? 0);
             $metadata['speed_status'] = $metadata['speed_status'] ?? 'scheduled';
             $data['is_virtual'] = true;
             $data['mode'] = $data['mode'] ?? 'online';

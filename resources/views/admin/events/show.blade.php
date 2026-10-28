@@ -66,9 +66,8 @@
                             </a>
                         </div>
                         <div class="row g-2 small text-amber-950">
-                            <div class="col-md-4"><strong>Round Duration:</strong> {{ data_get($event->metadata, 'round_duration_seconds', 300) }}s</div>
-                            <div class="col-md-4"><strong>Break Duration:</strong> {{ data_get($event->metadata, 'break_duration_seconds', 20) }}s</div>
-                            <div class="col-md-4"><strong>Total Rounds:</strong> {{ data_get($event->metadata, 'total_rounds', 5) }}</div>
+                            <div class="col-md-6"><strong>Round Duration:</strong> {{ data_get($event->metadata, 'round_duration_seconds', 300) }}s</div>
+                            <div class="col-md-6"><strong>Break Duration:</strong> {{ data_get($event->metadata, 'break_duration_seconds', 20) }}s</div>
                         </div>
                     </div>
                 </div>
