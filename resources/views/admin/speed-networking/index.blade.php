@@ -106,8 +106,9 @@
             <th class="p-3">Event Details</th>
             <th class="p-3">Status</th>
             <th class="p-3">Rounds & Timers</th>
+            <th class="p-3">Pricing</th>
             <th class="p-3">Participants</th>
-            <th class="p-3">Scheduled Time</th>
+            <th class="p-3">Schedule (Start / End)</th>
             <th class="p-3 text-right">Actions</th>
           </tr>
         </thead>
@@ -131,23 +132,37 @@
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lobby Open</span>
                 @elseif($event->status === 'scheduled')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Scheduled</span>
+                @elseif($event->status === 'paused')
+                  <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Paused</span>
                 @else
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Draft</span>
                 @endif
               </td>
               <td class="p-3">
                 <div><span class="font-semibold text-slate-700">{{ $event->round_duration_seconds }}s</span> / round</div>
-                <div class="text-slate-500 text-[11px]">{{ $event->break_duration_seconds }}s break</div>
+                <div class="text-slate-500 text-[11px]">{{ $event->break_duration_seconds }}s break &bull; {{ $event->total_rounds ?? 5 }} rounds</div>
               </td>
               <td class="p-3">
-                <div class="font-semibold text-slate-800">{{ $event->active_participants_count ?? $event->participants_count ?? 0 }} active</div>
-                <div class="text-slate-500 text-[11px]">{{ $event->matches_count ?? 0 }} total matchups</div>
+                @if(!empty($event->is_paid) && (float) ($event->ticket_price ?? 0) > 0)
+                  <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">₹{{ number_format((float) $event->ticket_price, 2) }}</span>
+                @else
+                  <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Free</span>
+                @endif
+              </td>
+              <td class="p-3">
+                <div class="font-semibold text-slate-800">{{ $event->active_participants_count ?? $event->participants_count ?? 0 }} joined</div>
+                <div class="text-slate-500 text-[11px]">{{ $event->matches_count ?? 0 }} pairings</div>
               </td>
               <td class="p-3">
                 @if(!empty($event->scheduled_start_time))
-                  <div class="font-medium text-slate-700">
-                    {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('d M Y, h:i A') : $event->scheduled_start_time->format('d M Y, h:i A') }}
+                  <div class="font-medium text-slate-700 text-xs">
+                    {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('d M, h:i A') : $event->scheduled_start_time->format('d M, h:i A') }}
                   </div>
+                  @if(!empty($event->scheduled_end_time))
+                    <div class="text-slate-400 text-[11px]">
+                      to {{ is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('h:i A') : $event->scheduled_end_time->format('h:i A') }}
+                    </div>
+                  @endif
                 @else
                   <span class="text-slate-400">Manual Start</span>
                 @endif
@@ -169,7 +184,7 @@
             </tr>
           @empty
             <tr>
-              <td colspan="6" class="p-8 text-center text-slate-400 text-sm">
+              <td colspan="7" class="p-8 text-center text-slate-400 text-sm">
                 <i class="bi bi-lightning text-3xl text-slate-300 block mb-2"></i>
                 No Speed Networking events found. Click "Create Speed Event" above to create one.
               </td>
@@ -183,14 +198,14 @@
 
 <!-- Create Event Modal -->
 <div id="createEventModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
       <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
         <i class="bi bi-lightning-charge-fill text-amber-500"></i> Create Speed Networking Event
       </h3>
       <button type="button" onclick="document.getElementById('createEventModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 border-0 bg-transparent text-lg cursor-pointer">&times;</button>
     </div>
-    <form method="POST" action="{{ route('admin.speed-networking.store') }}" class="p-6 space-y-4 m-0">
+    <form method="POST" action="{{ route('admin.speed-networking.store') }}" class="p-6 space-y-4 m-0 overflow-y-auto">
       @csrf
       <div>
         <label class="block text-xs font-semibold text-slate-700 mb-1">Event Title *</label>
@@ -202,25 +217,50 @@
         <textarea name="description" rows="2" placeholder="Brief event briefing for participants..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"></textarea>
       </div>
 
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Round Time (s)</label>
+          <input type="number" name="round_duration_seconds" value="180" min="10" max="3600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">180s = 3 min</span>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Break Time (s)</label>
+          <input type="number" name="break_duration_seconds" value="20" min="5" max="600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Intermission</span>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Total Rounds</label>
+          <input type="number" name="total_rounds" value="8" min="1" max="100" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <span class="text-[10px] text-slate-400">Rotations</span>
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Round Duration (Seconds)</label>
-          <input type="number" name="round_duration_seconds" value="300" min="30" max="3600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-          <span class="text-[11px] text-slate-400">e.g. 300s = 5 minutes</span>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
+          <input type="datetime-local" name="scheduled_start_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Break Duration (Seconds)</label>
-          <input type="number" name="break_duration_seconds" value="20" min="5" max="600" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-          <span class="text-[11px] text-slate-400">Rest / transition time</span>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled End Time</label>
+          <input type="datetime-local" name="scheduled_end_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
       </div>
 
-      <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
-        <input type="datetime-local" name="scheduled_start_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+      <div class="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Event Access</label>
+          <select name="is_free" onchange="document.getElementById('ticketPriceField').style.display = this.value === '0' ? 'block' : 'none'" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            <option value="1" selected>Free Event</option>
+            <option value="0">Paid Event</option>
+          </select>
+        </div>
+        <div id="ticketPriceField" style="display: none;">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Ticket Price (INR)</label>
+          <input type="number" name="ticket_price" step="0.01" value="299.00" placeholder="299.00" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+        </div>
       </div>
 
-      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 shrink-0">
         <button type="button" onclick="document.getElementById('createEventModal').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 cursor-pointer bg-white">Cancel</button>
         <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 cursor-pointer border-0 shadow-2xs">Create & Launch</button>
       </div>
