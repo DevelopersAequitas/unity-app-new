@@ -114,6 +114,11 @@ class AdminAccess
         return (bool) array_intersect(self::SUPER_ROLE_KEYS, $roleKeys);
     }
 
+    public static function isSuperAdmin(?AdminUser $admin): bool
+    {
+        return self::isSuper($admin) || self::isGlobalAdmin($admin);
+    }
+
     public static function isGlobalAdmin(?AdminUser $admin): bool
     {
         if (! $admin) {

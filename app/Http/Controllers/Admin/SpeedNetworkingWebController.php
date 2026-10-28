@@ -97,9 +97,13 @@ class SpeedNetworkingWebController extends Controller
             }
         }
 
+        $events = array_map(function ($event): object {
+            return is_array($event) ? (object) $event : $event;
+        }, (array) ($eventsData['data'] ?? []));
+
         return view('admin.speed-networking.index', [
-            'events' => $eventsData['data'],
-            'pagination' => $eventsData['pagination'],
+            'events' => $events,
+            'pagination' => $eventsData['pagination'] ?? [],
             'totalEvents' => $totalEvents,
             'inProgressEvents' => $inProgressEvents,
             'scheduledEvents' => $scheduledEvents,

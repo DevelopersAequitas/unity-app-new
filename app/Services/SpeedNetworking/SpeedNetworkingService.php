@@ -65,8 +65,8 @@ class SpeedNetworkingService
 
                 $paginated = $query->paginate($perPage);
 
-                $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): array {
-                    return [
+                $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): object {
+                    return (object) [
                         'id' => (string) $item->id,
                         'title' => (string) $item->title,
                         'description' => $item->description,
@@ -77,6 +77,7 @@ class SpeedNetworkingService
                         'total_rounds' => (int) $item->total_rounds,
                         'current_round' => (int) $item->current_round,
                         'scheduled_start_time' => $item->scheduled_start_time?->toIso8601String(),
+                        'scheduled_end_time' => $item->scheduled_end_time?->toIso8601String(),
                         'actual_start_time' => $item->actual_start_time?->toIso8601String(),
                         'ticket_price' => (float) ($item->ticket_price ?? 0),
                         'is_paid' => (bool) ($item->is_paid ?? false),
