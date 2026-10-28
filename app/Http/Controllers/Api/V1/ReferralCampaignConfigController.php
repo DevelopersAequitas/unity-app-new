@@ -19,17 +19,29 @@ class ReferralCampaignConfigController extends Controller
      * Fetch Referral Campaign Configuration.
      *
      * GET /api/v1/referral/campaign-config
+     * GET /api/referral/campaign-config
      */
     public function show(): JsonResponse
     {
         try {
             $config = $this->campaignConfigService->getCampaignConfig();
 
-            return response()->json($config, 200);
+            $payload = array_merge($config, [
+                'success' => true,
+                'data' => $config,
+            ]);
+
+            return response()->json($payload, 200);
         } catch (Throwable $exception) {
             report($exception);
 
-            return response()->json($this->campaignConfigService->getDefaultConfig(), 200);
+            $default = $this->campaignConfigService->getDefaultConfig();
+            $payload = array_merge($default, [
+                'success' => true,
+                'data' => $default,
+            ]);
+
+            return response()->json($payload, 200);
         }
     }
 }

@@ -223,6 +223,8 @@ Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
 Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
+Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {

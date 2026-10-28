@@ -28,22 +28,28 @@ class ReferralCampaignConfigService
                     $isActive = (bool) $dbConfig->is_active;
                     $showFloatingBadge = $isActive && (bool) $dbConfig->show_floating_badge;
                     $autoOpenBadgeScreen = $isActive && (bool) $dbConfig->auto_open_badge_screen;
-                    $showSendInviteButton = $isActive && (bool) $dbConfig->show_send_invite_button;
 
                     return [
                         'isActive' => $isActive,
                         'is_active' => $isActive,
+                        'isCampaignActive' => $isActive,
                         'showFloatingBadge' => $showFloatingBadge,
                         'show_floating_badge' => $showFloatingBadge,
+                        'showBookCampaign' => $isActive,
+                        'show_book_campaign' => $isActive,
                         'autoOpenBadgeScreen' => $autoOpenBadgeScreen,
                         'auto_open_badge_screen' => $autoOpenBadgeScreen,
                         'floatingBadgeDelaySeconds' => (int) $dbConfig->floating_badge_delay_seconds,
                         'autoOpenDelaySeconds' => (int) $dbConfig->auto_open_delay_seconds,
-                        'rewardTitle' => (string) ($dbConfig->reward_title ?? 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book'),
-                        'rewardSubtitle' => (string) ($dbConfig->reward_subtitle ?? "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep."),
-                        'rewardImageUrl' => $dbConfig->reward_image_url !== null ? (string) $dbConfig->reward_image_url : null,
-                        'showSendInviteButton' => $showSendInviteButton,
-                        'show_send_invite_button' => $showSendInviteButton,
+                        'rewardTitle' => $isActive
+                            ? (string) ($dbConfig->reward_title ?: 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book')
+                            : null,
+                        'rewardSubtitle' => $isActive
+                            ? (string) ($dbConfig->reward_subtitle ?: "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep.")
+                            : null,
+                        'rewardImageUrl' => $isActive ? ($dbConfig->reward_image_url !== null ? (string) $dbConfig->reward_image_url : null) : null,
+                        'showSendInviteButton' => true,
+                        'show_send_invite_button' => true,
                     ];
                 }
             }
@@ -63,13 +69,15 @@ class ReferralCampaignConfigService
     {
         $showFloatingBadge = (bool) config('referrals.campaign.show_floating_badge', true);
         $autoOpenBadgeScreen = (bool) config('referrals.campaign.auto_open_badge_screen', true);
-        $showSendInviteButton = (bool) config('referrals.campaign.show_send_invite_button', true);
 
         return [
             'isActive' => true,
             'is_active' => true,
+            'isCampaignActive' => true,
             'showFloatingBadge' => $showFloatingBadge,
             'show_floating_badge' => $showFloatingBadge,
+            'showBookCampaign' => true,
+            'show_book_campaign' => true,
             'autoOpenBadgeScreen' => $autoOpenBadgeScreen,
             'auto_open_badge_screen' => $autoOpenBadgeScreen,
             'floatingBadgeDelaySeconds' => (int) config('referrals.campaign.floating_badge_delay_seconds', 10),
@@ -77,8 +85,8 @@ class ReferralCampaignConfigService
             'rewardTitle' => (string) config('referrals.campaign.reward_title', 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book'),
             'rewardSubtitle' => (string) config('referrals.campaign.reward_subtitle', "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep."),
             'rewardImageUrl' => config('referrals.campaign.reward_image_url'),
-            'showSendInviteButton' => $showSendInviteButton,
-            'show_send_invite_button' => $showSendInviteButton,
+            'showSendInviteButton' => true,
+            'show_send_invite_button' => true,
         ];
     }
 
@@ -100,7 +108,7 @@ class ReferralCampaignConfigService
                 'reward_title' => $defaults['rewardTitle'],
                 'reward_subtitle' => $defaults['rewardSubtitle'],
                 'reward_image_url' => $defaults['rewardImageUrl'],
-                'show_send_invite_button' => $defaults['showSendInviteButton'],
+                'show_send_invite_button' => true,
                 'is_active' => true,
             ]);
         }
@@ -119,6 +127,8 @@ class ReferralCampaignConfigService
         $config->update([
             'is_active' => $newState,
             'show_floating_badge' => $newState,
+            'auto_open_badge_screen' => $newState,
+            'show_send_invite_button' => true,
         ]);
 
         return $config->fresh();
