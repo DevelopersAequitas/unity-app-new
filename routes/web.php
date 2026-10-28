@@ -10,7 +10,6 @@ use App\Http\Controllers\Admin\ActivitiesMessagesController;
 use App\Http\Controllers\Admin\ActivitiesP2PMeetingsController;
 use App\Http\Controllers\Admin\ActivitiesPeerRecommendationController;
 use App\Http\Controllers\Admin\ActivitiesReferralsController;
-use App\Http\Controllers\Admin\ReferralCampaignConfigAdminController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
@@ -96,6 +95,7 @@ use App\Http\Controllers\Admin\Rbac\RoleLifespanController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\ReferralCampaignConfigAdminController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SpeedNetworkingWebController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
@@ -723,6 +723,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'show'])->whereUuid('id')->name('speed-networking.show');
         Route::post('/speed-networking/{id}/start', [SpeedNetworkingWebController::class, 'start'])->whereUuid('id')->name('speed-networking.start');
         Route::post('/speed-networking/{id}/next-round', [SpeedNetworkingWebController::class, 'nextRound'])->whereUuid('id')->name('speed-networking.next-round');
+        Route::post('/speed-networking/{id}/pause', [SpeedNetworkingWebController::class, 'pause'])->whereUuid('id')->name('speed-networking.pause');
+        Route::post('/speed-networking/{id}/resume', [SpeedNetworkingWebController::class, 'resume'])->whereUuid('id')->name('speed-networking.resume');
+        Route::post('/speed-networking/{id}/rematch', [SpeedNetworkingWebController::class, 'rematch'])->whereUuid('id')->name('speed-networking.rematch');
         Route::post('/speed-networking/{id}/end', [SpeedNetworkingWebController::class, 'end'])->whereUuid('id')->name('speed-networking.end');
         Route::delete('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'destroy'])->whereUuid('id')->name('speed-networking.destroy');
 
