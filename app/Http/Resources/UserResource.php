@@ -21,11 +21,11 @@ class UserResource extends JsonResource
         $profilePhotoId = $this->profile_photo_file_id ?? $this->profile_photo_id;
         $profilePhotoUrl = $profilePhotoId
             ? url('/api/v1/files/'.$profilePhotoId)
-            : null;
+            : ($this->profile_photo_url ?? null);
         $coverPhotoId = $this->cover_photo_file_id;
         $coverPhotoUrl = $coverPhotoId
             ? url('/api/v1/files/'.$coverPhotoId)
-            : null;
+            : ($this->cover_photo_url ?? null);
         $profileVideoId = $this->profile_video_id;
         $profileVideoUrl = $this->resolveProfileVideoUrl();
 
@@ -258,6 +258,7 @@ class UserResource extends JsonResource
             'media' => $this->mediaValue(),
             'profile_photo_url' => $profilePhotoUrl,
             'profile_image' => $profilePhotoUrl,
+            'avatar_url' => $profilePhotoUrl,
             'cover_photo_url' => $coverPhotoUrl,
             'welcome_creative_url' => $welcomeCreativeUrl,
             'address' => $this->address ?? null,

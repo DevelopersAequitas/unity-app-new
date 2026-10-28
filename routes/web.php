@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AdvertiserApplicationAdminController;
 use App\Http\Controllers\Admin\AdvertiserPackageAdminController;
 use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
+use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
@@ -104,6 +105,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\Web\JuryWebController;
 use App\Http\Controllers\Admin\Web\LeadershipAdminWebController;
 use App\Http\Controllers\Admin\Web\WebAnalyticsController;
 use App\Http\Controllers\Admin\Web\WebBlogController;
@@ -278,14 +280,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     // Jury Web Portal (Public OTP Authentication & Juror Dashboard)
     Route::prefix('web/jury')->name('web.jury.')->group(function (): void {
-        Route::get('/login', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'showLogin'])->name('login');
-        Route::post('/send-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'sendOtp'])->name('send-otp');
-        Route::post('/verify-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'verifyOtp'])->name('verify-otp');
-        Route::get('/dashboard', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'dashboard'])->name('dashboard');
-        Route::get('/nomination/{id}/details', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
-        Route::post('/review/{id}', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
-        Route::post('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout');
-        Route::get('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout.get');
+        Route::get('/login', [JuryWebController::class, 'showLogin'])->name('login');
+        Route::post('/send-otp', [JuryWebController::class, 'sendOtp'])->name('send-otp');
+        Route::post('/verify-otp', [JuryWebController::class, 'verifyOtp'])->name('verify-otp');
+        Route::get('/dashboard', [JuryWebController::class, 'dashboard'])->name('dashboard');
+        Route::get('/nomination/{id}/details', [JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
+        Route::post('/review/{id}', [JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/logout', [JuryWebController::class, 'logout'])->name('logout');
+        Route::get('/logout', [JuryWebController::class, 'logout'])->name('logout.get');
     });
 
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle', 'admin.permission'])->group(function () {
@@ -393,6 +395,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::get('/ai-flows', [AiPromptFlowAdminController::class, 'index'])->name('ai-flows.index');
+        Route::get('/ai-flows/create', [AiPromptFlowAdminController::class, 'create'])->name('ai-flows.create');
+        Route::post('/ai-flows', [AiPromptFlowAdminController::class, 'store'])->name('ai-flows.store');
+        Route::get('/ai-flows/{id}/edit', [AiPromptFlowAdminController::class, 'edit'])->name('ai-flows.edit');
+        Route::put('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'update'])->name('ai-flows.update');
+        Route::delete('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'destroy'])->name('ai-flows.destroy');
+        Route::post('/ai-flows/test', [AiPromptFlowAdminController::class, 'testPrompt'])->name('ai-flows.test');
         Route::get('/commissions', [CommissionManagementController::class, 'index'])->name('commissions.index');
         Route::put('/commissions', [CommissionManagementController::class, 'updateBulk'])->name('commissions.update-bulk');
         Route::post('/commissions', [CommissionManagementController::class, 'store'])->name('commissions.store');

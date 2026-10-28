@@ -118,9 +118,9 @@ class BrandPartnerApiController extends BaseApiController
         } catch (\Throwable $e) {
         }
 
-        // Skip logging if identical interaction occurred within 24 hours
+        // Anti-spam debounce: skip logging if identical view occurred within 5 seconds
         $exists = BrandPartnerView::where('brand_partner_id', $partner->id)
-            ->where('viewed_at', '>=', now()->subHours(24))
+            ->where('viewed_at', '>=', now()->subSeconds(5))
             ->where(function ($query) use ($userId, $ipAddress, $sessionId) {
                 if ($userId) {
                     $query->where('user_id', $userId);
@@ -174,9 +174,10 @@ class BrandPartnerApiController extends BaseApiController
         } catch (\Throwable $e) {
         }
 
-        // Skip logging if identical interaction occurred within 24 hours
+        // Anti-spam debounce: skip logging if identical click interaction occurred within 5 seconds
         $exists = BrandPartnerClick::where('brand_partner_id', $partner->id)
-            ->where('created_at', '>=', now()->subHours(24))
+            ->where('click_type', $clickType)
+            ->where('created_at', '>=', now()->subSeconds(5))
             ->where(function ($query) use ($userId, $ipAddress, $sessionId) {
                 if ($userId) {
                     $query->where('user_id', $userId);
@@ -484,6 +485,19 @@ class BrandPartnerApiController extends BaseApiController
             'stats' => $stats,
             'charts' => $charts,
         ], 'Brand partner analytics report.');
+    }
+
+    public function partnerAnalytics(string $id): JsonResponse
+    {
+        $partner = BrandPartner::find($id);
+
+        if (! $partner) {
+            return $this->error('Brand partner not found.', 404);
+        }
+
+        $analytics = $this->analyticsService->getPartnerAnalytics($partner->id);
+
+        return $this->success($analytics, 'Brand partner analytics retrieved successfully.');
     }
 
     public function storeCategory(Request $request): JsonResponse

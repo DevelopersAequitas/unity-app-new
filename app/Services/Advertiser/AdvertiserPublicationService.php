@@ -7,9 +7,12 @@ namespace App\Services\Advertiser;
 use App\Jobs\SendBulkPartnerNotificationJob;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserApplicationAsset;
+use App\Models\AdvertiserApplicationStatusHistory;
+use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -35,7 +38,7 @@ class AdvertiserPublicationService
             ]);
         }
 
-        if ($application->status !== AdvertiserApplication::STATUS_APPROVED) {
+        if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
             throw ValidationException::withMessages([
                 'publication' => ['Campaign cannot be published because the application has not been approved.'],
             ]);
@@ -48,11 +51,26 @@ class AdvertiserPublicationService
                 $partner = BrandPartner::find($application->brand_partner_id);
             }
 
-            // Find assets
+            // Find assets with robust fallback across asset types
+            $imageAssets = $application->assets->filter(function ($a) {
+                return in_array($a->asset_type, [
+                    AdvertiserApplicationAsset::TYPE_LOGO,
+                    AdvertiserApplicationAsset::TYPE_BANNER,
+                    AdvertiserApplicationAsset::TYPE_COVER,
+                    AdvertiserApplicationAsset::TYPE_CREATIVE,
+                    'image',
+                    'other'
+                ], true) || Str::startsWith((string)$a->mime_type, 'image/');
+            })->values();
+
             $logoAsset = $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_LOGO)
-                ?? $application->assets->firstWhere('asset_type', 'image');
+                ?? $application->assets->firstWhere('asset_type', 'image')
+                ?? $imageAssets->first();
+
             $bannerAsset = $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_BANNER)
-                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_COVER);
+                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_COVER)
+                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_CREATIVE)
+                ?? ($imageAssets->count() > 1 ? $imageAssets->get(1) : $imageAssets->first());
 
             // Resolve Category
             $categoryId = null;
@@ -158,6 +176,59 @@ class AdvertiserPublicationService
     }
 
     /**
+     * Extend or renew an existing brand partner subscription.
+     */
+    public function extendSubscription(
+        AdvertiserSubscription $subscription,
+        int $durationMonths = 1,
+        ?AdvertiserPackage $package = null
+    ): BrandPartner {
+        $subscription->loadMissing(['application', 'user', 'brandPartner']);
+
+        return DB::transaction(function () use ($subscription, $durationMonths, $package): BrandPartner {
+            $baseDate = ($subscription->status === AdvertiserSubscription::STATUS_ACTIVE && $subscription->expires_at && $subscription->expires_at->isFuture())
+                ? $subscription->expires_at
+                : now();
+
+            $newExpiresAt = $baseDate->copy()->addMonths($durationMonths);
+
+            // If subscription was expired or had no start date, start from now
+            if (!$subscription->starts_at || ($subscription->expires_at && $subscription->expires_at->isPast())) {
+                $subscription->starts_at = now();
+            }
+
+            $subscription->expires_at = $newExpiresAt;
+            $subscription->status = AdvertiserSubscription::STATUS_ACTIVE;
+            if ($package && $package->duration_months > 0) {
+                $subscription->duration_months = (int) $package->duration_months;
+                $subscription->package_id = $package->id;
+                $subscription->package_name_snapshot = $package->name;
+            }
+            $subscription->save();
+
+            // Update Brand Partner
+            $partner = $subscription->brandPartner;
+            if (!$partner && !empty($subscription->brand_partner_id)) {
+                $partner = BrandPartner::find($subscription->brand_partner_id);
+            }
+
+            if ($partner) {
+                $partnerUpdate = [
+                    'is_active' => true,
+                    'is_sponsored' => true,
+                    'valid_to' => $newExpiresAt,
+                ];
+                if (!$partner->valid_from || Carbon::parse($partner->valid_to)->isPast()) {
+                    $partnerUpdate['valid_from'] = now();
+                }
+                $partner->update($partnerUpdate);
+            }
+
+            return $partner ?? new BrandPartner();
+        });
+    }
+
+    /**
      * Handle expiration of a subscription.
      */
     public function expireSubscription(AdvertiserSubscription $subscription): void
@@ -188,3 +259,4 @@ class AdvertiserPublicationService
         });
     }
 }
+

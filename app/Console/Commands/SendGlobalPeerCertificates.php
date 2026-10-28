@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\GlobalPeerCertificateImageGenerator;
 use App\Services\Notifications\NotificationService;
@@ -113,6 +114,11 @@ class SendGlobalPeerCertificates extends Command
                             'url' => $imageUrl,
                         ],
                     ],
+                ]);
+
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $freshUser->id,
                 ]);
 
                 // 4. Send push notification to the peer

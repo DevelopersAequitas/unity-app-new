@@ -6,6 +6,7 @@ use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeService;
@@ -433,7 +434,7 @@ class LifeImpactService
                                 $userName = $user->name ?: 'Peer Member';
                             }
 
-                            Post::create([
+                            $post = Post::create([
                                 'user_id' => $authorUserId,
                                 'circle_id' => null,
                                 'content_text' => $caption,
@@ -451,6 +452,11 @@ class LifeImpactService
                                 'description' => $caption,
                                 'image' => $creativeImageUrl,
                                 'status' => 'active',
+                            ]);
+
+                            PostMention::firstOrCreate([
+                                'post_id' => $post->id,
+                                'peer_id' => $user->id,
                             ]);
 
                             // Native Meta WhatsApp Cloud API Award Recognition

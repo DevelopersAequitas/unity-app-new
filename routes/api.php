@@ -66,10 +66,6 @@ use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\AdBookingController;
 use App\Http\Controllers\Api\V1\AdController;
-use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
 use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
@@ -80,24 +76,30 @@ use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
 use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
+use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
-use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
-use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
+use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
+use App\Http\Controllers\Api\V1\Ai\AiController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
+use App\Http\Controllers\Api\V1\Auth\LinkedInAuthController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -232,6 +234,14 @@ Route::prefix('auth')->group(function () {
     Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+    Route::prefix('linkedin')->group(function () {
+        Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::post('profile', [LinkedInAuthController::class, 'profile']);
+        Route::post('register', [LinkedInAuthController::class, 'register']);
+        Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
+        Route::post('login', [LinkedInAuthController::class, 'callback']);
+    });
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -339,6 +349,14 @@ Route::prefix('v1')->group(function () {
         Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+        Route::prefix('linkedin')->group(function () {
+            Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::post('profile', [LinkedInAuthController::class, 'profile']);
+            Route::post('register', [LinkedInAuthController::class, 'register']);
+            Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
+            Route::post('login', [LinkedInAuthController::class, 'callback']);
+        });
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -346,6 +364,19 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    Route::prefix('ai')->group(function () {
+        Route::post('suggest-category', [AiController::class, 'suggestCategory']);
+        Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);
+        Route::post('execute/{slug}', [AiController::class, 'executeFlow']);
+        Route::get('flows', [AiController::class, 'flows']);
+        Route::post('flows', [AiController::class, 'createFlow']);
+        Route::get('flows/{id}', [AiController::class, 'getFlow']);
+        Route::put('flows/{slug}', [AiController::class, 'updateFlow']);
+        Route::delete('flows/{id}', [AiController::class, 'deleteFlow']);
+        Route::post('flows/test', [AiController::class, 'testPrompt']);
+        Route::post('test', [AiController::class, 'testPrompt']);
     });
 
     Route::prefix('ded/auth')->group(function () {
@@ -786,6 +817,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
+            Route::post('/app-config/upload-brand-asset', [AppConfigAdminController::class, 'uploadBrandAsset']);
             Route::put('/app-config/colors', [AppConfigAdminController::class, 'updateColors']);
             Route::get('/app-config/icons', [AppConfigAdminController::class, 'icons']);
             Route::put('/app-config/icons', [AppConfigAdminController::class, 'bulkUpdateIcons']);
@@ -797,9 +829,13 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
             Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
             Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/navigation/group/{menu_type}', [AppConfigAdminController::class, 'bulkUpdateNavigationGroup']);
             Route::delete('/app-config/navigation/{id}', [AppConfigAdminController::class, 'deleteNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/dashboard-widgets', [AppConfigAdminController::class, 'bulkUpdateWidgets']);
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
+            Route::put('/app-config/social-links', [AppConfigAdminController::class, 'bulkUpdateSocialLinks']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
+            Route::put('/app-config/membership-labels', [AppConfigAdminController::class, 'bulkUpdateMembershipLabels']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
             Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
             Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
@@ -1440,6 +1476,9 @@ Route::prefix('v1')->group(function () {
             // Payment Order & Verification
             Route::post('/subscriptions/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
             Route::post('/applications/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
+            Route::post('/subscriptions/{id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('id');
+            Route::post('/subscriptions/{subscription_id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('subscription_id');
+            Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
         });
@@ -1484,6 +1523,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/brand-partners/home', [BrandPartnerApiController::class, 'home']);
     Route::get('/brand-partners/search', [BrandPartnerApiController::class, 'search']);
     Route::get('/brand-partners/offers', [BrandPartnerApiController::class, 'offers']);
+    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+    Route::get('/brand-partners/{id}/analytics', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
+    Route::get('/brand-partners/{id}/stats', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
     Route::get('/brand-partners/{id}', [BrandPartnerApiController::class, 'show'])->whereUuid('id');
     Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
@@ -1500,6 +1542,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/assets/upload-url', [AdvertiserPublicApiController::class, 'uploadUrl'])->whereUuid('id');
         Route::post('/applications/{id}/assets', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/applications/{id}/assets/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
+        Route::post('/applications/{id}/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/identity/resolve', [AdvertiserPublicApiController::class, 'resolveIdentity']);
         Route::get('/banner-config', [AdvertiserPublicApiController::class, 'bannerConfig']);
         Route::get('/guest/applications/{id}', [AdvertiserPublicApiController::class, 'guestShow'])->whereUuid('id');
@@ -1829,6 +1872,8 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
+        Route::get('events/{eventId}/summary', [SpeedNetworkingApiController::class, 'summary'])->whereUuid('eventId');
+        Route::post('events/{eventId}/complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p'])->whereUuid('eventId');
     });
 }
 
@@ -1840,6 +1885,8 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
+        Route::get('summary', [SpeedNetworkingApiController::class, 'summary']);
+        Route::post('complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p']);
     });
 }
 
@@ -1889,4 +1936,3 @@ foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
         Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
     });
 }
-

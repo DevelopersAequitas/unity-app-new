@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Advertiser;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Services\Advertiser\AdvertiserAnalyticsService;
 use App\Services\Advertiser\AdvertiserApplicationService;
@@ -27,7 +28,7 @@ class AdvertiserMemberApiController extends BaseApiController
     {
         $user = $request->user();
         $query = AdvertiserApplication::where('user_id', $user->id)
-            ->with(['package', 'assets'])
+            ->with(['package', 'assets', 'subscriptions.payments'])
             ->orderByDesc('created_at');
 
         if ($request->has('status') && !empty($request->query('status'))) {
@@ -38,10 +39,31 @@ class AdvertiserMemberApiController extends BaseApiController
         $applications = $query->paginate($perPage);
 
         $transformed = $applications->through(function ($app) {
-            $nextAction = match ($app->status) {
+            $sub = $app->subscriptions->first();
+            $latestPayment = $sub?->payments->first();
+
+            $isPaid = false;
+            if (
+                $app->status === AdvertiserApplication::STATUS_ACTIVE ||
+                $sub?->status === AdvertiserSubscription::STATUS_ACTIVE ||
+                $latestPayment?->status === AdvertiserPayment::STATUS_CAPTURED
+            ) {
+                $isPaid = true;
+            }
+
+            $effectiveStatus = $isPaid ? AdvertiserApplication::STATUS_ACTIVE : $app->status;
+
+            $paymentStatus = $latestPayment?->status ?? (
+                $isPaid
+                    ? AdvertiserPayment::STATUS_CAPTURED
+                    : ($effectiveStatus === AdvertiserApplication::STATUS_APPROVED ? 'pending' : null)
+            );
+
+            $nextAction = match ($effectiveStatus) {
                 AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
                 AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
                 AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
+                AdvertiserApplication::STATUS_ACTIVE => null,
                 default => 'await_review',
             };
 
@@ -52,7 +74,12 @@ class AdvertiserMemberApiController extends BaseApiController
                 'package_name' => $app->requested_package_name,
                 'package_price' => $app->requested_package_price,
                 'currency' => $app->requested_currency,
-                'status' => $app->status,
+                'status' => $effectiveStatus,
+                'payment_status' => $paymentStatus,
+                'is_paid' => $isPaid,
+                'subscription_id' => $sub?->id,
+                'valid_from' => $sub?->starts_at?->toIso8601String(),
+                'valid_to' => $sub?->expires_at?->toIso8601String(),
                 'submitted_at' => $app->submitted_at?->toIso8601String(),
                 'next_action' => $nextAction,
             ];
@@ -68,7 +95,12 @@ class AdvertiserMemberApiController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $user = $request->user();
-        $application = AdvertiserApplication::with(['package', 'assets', 'statusHistory', 'subscriptions.payments'])->find($id);
+        $application = AdvertiserApplication::with([
+            'package',
+            'assets',
+            'statusHistory',
+            'subscriptions.payments',
+        ])->find($id);
 
         if (!$application) {
             return $this->error('Application not found.', 404);
@@ -79,17 +111,43 @@ class AdvertiserMemberApiController extends BaseApiController
             return $this->error('You are not authorized to view this application.', 403);
         }
 
-        $nextAction = match ($application->status) {
+        $sub = $application->subscriptions->first();
+        $latestPayment = $sub?->payments->first();
+
+        $isPaid = false;
+        if (
+            $application->status === AdvertiserApplication::STATUS_ACTIVE ||
+            $sub?->status === AdvertiserSubscription::STATUS_ACTIVE ||
+            $latestPayment?->status === AdvertiserPayment::STATUS_CAPTURED
+        ) {
+            $isPaid = true;
+        }
+
+        $effectiveStatus = $isPaid ? AdvertiserApplication::STATUS_ACTIVE : $application->status;
+
+        $paymentStatus = $latestPayment?->status ?? (
+            $isPaid
+                ? AdvertiserPayment::STATUS_CAPTURED
+                : ($effectiveStatus === AdvertiserApplication::STATUS_APPROVED ? 'pending' : null)
+        );
+
+        $nextAction = match ($effectiveStatus) {
             AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
             AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
             AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
+            AdvertiserApplication::STATUS_ACTIVE => null,
             default => 'await_review',
         };
 
         return $this->success([
             'application_id' => $application->id,
             'application_number' => $application->application_number,
-            'status' => $application->status,
+            'status' => $effectiveStatus,
+            'payment_status' => $paymentStatus,
+            'is_paid' => $isPaid,
+            'subscription_id' => $sub?->id,
+            'valid_from' => $sub?->starts_at?->toIso8601String(),
+            'valid_to' => $sub?->expires_at?->toIso8601String(),
             'source' => $application->source,
             'applicant' => [
                 'full_name' => $application->applicant_name,

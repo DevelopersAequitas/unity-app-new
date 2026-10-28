@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\ActivityCreative;
+use App\Models\BusinessDeal;
 use App\Models\FileModel;
+use App\Models\P2pMeeting;
+use App\Models\PostMention;
+use App\Models\Testimonial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -177,11 +181,51 @@ class ActivityCreativeController extends BaseApiController
 
             if ($existing) {
                 $existing->fill($payload)->save();
-
-                return $existing->refresh();
+                $savedCreative = $existing->refresh();
+            } else {
+                $savedCreative = ActivityCreative::create($payload);
             }
 
-            return ActivityCreative::create($payload);
+            if (! empty($postId)) {
+                $otherPeerId = null;
+                $actType = strtolower((string) $validated['activity_type']);
+                $actId = $validated['activity_id'] ?? null;
+
+                if (in_array($actType, ['p2p_meeting', 'p2pmeeting'], true) && $actId) {
+                    $meeting = P2pMeeting::find($actId);
+                    if ($meeting) {
+                        $otherPeerId = (string) $meeting->initiator_user_id === (string) $user->id
+                            ? $meeting->peer_user_id
+                            : $meeting->initiator_user_id;
+                    }
+                } elseif ($actType === 'business_deal' && $actId) {
+                    $deal = BusinessDeal::find($actId);
+                    if ($deal) {
+                        $otherPeerId = (string) $deal->from_user_id === (string) $user->id
+                            ? $deal->to_user_id
+                            : $deal->from_user_id;
+                    }
+                } elseif ($actType === 'testimonial' && $actId) {
+                    $test = Testimonial::find($actId);
+                    if ($test) {
+                        $otherPeerId = (string) $test->from_user_id === (string) $user->id
+                            ? $test->to_user_id
+                            : $test->from_user_id;
+                    }
+                }
+
+                if (! empty($otherPeerId) && (string) $otherPeerId !== (string) $user->id) {
+                    PostMention::firstOrCreate([
+                        'post_id' => $postId,
+                        'peer_id' => $otherPeerId,
+                    ]);
+                }
+
+                // Strictly ensure post author is never listed in post_mentions
+                PostMention::where('post_id', $postId)->where('peer_id', $user->id)->delete();
+            }
+
+            return $savedCreative;
         });
 
         return $this->success($creative, 'Activity creative stored successfully.');

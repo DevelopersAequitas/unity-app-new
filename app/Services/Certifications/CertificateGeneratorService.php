@@ -9,6 +9,7 @@ use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\PushNotificationService;
@@ -74,7 +75,7 @@ class CertificateGeneratorService
                     // Resolve/create system user (Peers Global Genie)
                     $systemUser = User::getSystemUser();
 
-                    Post::create([
+                    $post = Post::create([
                         'user_id' => $systemUser->id,
                         'content_text' => $postText,
                         'post_type' => 'global_peer_certificate',
@@ -91,6 +92,11 @@ class CertificateGeneratorService
                                 'url' => $fileResult['url'],
                             ],
                         ],
+                    ]);
+
+                    PostMention::firstOrCreate([
+                        'post_id' => $post->id,
+                        'peer_id' => $user->id,
                     ]);
                 }
             } catch (\Throwable $e) {

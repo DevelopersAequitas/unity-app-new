@@ -146,9 +146,9 @@ class AdController extends BaseApiController
         } catch (\Throwable $e) {
         }
 
-        // Skip logging if identical interaction occurred within 24 hours
+        // Anti-spam debounce: skip logging if identical view occurred within 5 seconds
         $exists = AdView::where('ad_id', $ad->id)
-            ->where('viewed_at', '>=', now()->subHours(24))
+            ->where('viewed_at', '>=', now()->subSeconds(5))
             ->where(function ($query) use ($userId, $ipAddress, $sessionId) {
                 if ($userId) {
                     $query->where('user_id', $userId);
@@ -197,9 +197,10 @@ class AdController extends BaseApiController
         } catch (\Throwable $e) {
         }
 
-        // Skip logging if identical interaction occurred within 24 hours
+        // Anti-spam debounce: skip logging if identical click occurred within 5 seconds
         $exists = AdClick::where('ad_id', $ad->id)
-            ->where('created_at', '>=', now()->subHours(24))
+            ->where('click_type', $clickType)
+            ->where('created_at', '>=', now()->subSeconds(5))
             ->where(function ($query) use ($userId, $ipAddress, $sessionId) {
                 if ($userId) {
                     $query->where('user_id', $userId);

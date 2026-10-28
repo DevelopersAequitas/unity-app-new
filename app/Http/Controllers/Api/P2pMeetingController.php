@@ -10,6 +10,7 @@ use App\Models\FileModel;
 use App\Models\P2pMeeting;
 use App\Models\P2PMeetingRequest;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -32,7 +33,7 @@ class P2pMeetingController extends BaseApiController
             $peerUser = $meeting->peer_user_id ? User::find($meeting->peer_user_id) : null;
             $contentText = $this->buildActivityPostMessage('p2p_meeting', $peerUser);
 
-            Post::create([
+            $post = Post::create([
                 'user_id' => $meeting->initiator_user_id,
                 'circle_id' => null,
                 'content_text' => $contentText,
@@ -46,6 +47,13 @@ class P2pMeetingController extends BaseApiController
                 'sponsored' => false,
                 'is_deleted' => false,
             ]);
+
+            if (! empty($meeting->peer_user_id)) {
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $meeting->peer_user_id,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::error('Failed to create post for P2P meeting', [
                 'p2p_meeting_id' => $meeting->id,
@@ -335,6 +343,10 @@ class P2pMeetingController extends BaseApiController
         $attributes = $meeting->toArray();
         $attributes['media'] = $this->expandP2pMedia($attributes['media'] ?? null);
 
+        $cleanRemarks = self::cleanP2pRemarks($attributes['remarks'] ?? $meeting->remarks ?? null);
+        $attributes['remarks'] = $cleanRemarks;
+        $attributes['meeting_title'] = $cleanRemarks ?? '';
+
         $attributes['post_id'] = $meeting->getAttribute('post_id')
             ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
 
@@ -552,11 +564,14 @@ class P2pMeetingController extends BaseApiController
                 'phone' => $initiatedTo->phone,
             ]) : null;
 
+            $cleanRemarks = self::cleanP2pRemarks($meeting->remarks);
+
             return [
                 'id' => (string) $meeting->id,
                 'initiated_by_user_id' => (string) $meeting->initiator_user_id,
                 'initiated_to_user_id' => (string) $meeting->peer_user_id,
-                'meeting_title' => $meeting->remarks ?? '',
+                'meeting_title' => $cleanRemarks ?? '',
+                'remarks' => $cleanRemarks ?? '',
                 'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
                 'meeting_time' => '',
                 'status' => 'completed',
@@ -566,6 +581,7 @@ class P2pMeetingController extends BaseApiController
                 'initiated_to' => $formattedInitiatedTo,
                 'given_by' => $formattedInitiatedBy,
                 'given_to' => $formattedInitiatedTo,
+                'media' => $this->expandP2pMedia($meeting->media),
             ];
         })->values()->all();
 
@@ -582,5 +598,23 @@ class P2pMeetingController extends BaseApiController
                 'total' => $paginator->total(),
             ],
         ]);
+    }
+
+    /**
+     * Remove internal technical tokens like [sn_match:UUID] or auto-generated speed networking round remarks from display.
+     */
+    public static function cleanP2pRemarks(?string $remarks): ?string
+    {
+        if ($remarks === null || trim($remarks) === '') {
+            return null;
+        }
+
+        $cleaned = trim((string) preg_replace('/\s*\[(sn_)?match:[^\]]+\]/i', '', $remarks));
+
+        if (preg_match('/^Speed Networking Round\b/i', $cleaned)) {
+            return null;
+        }
+
+        return $cleaned !== '' ? $cleaned : null;
     }
 }

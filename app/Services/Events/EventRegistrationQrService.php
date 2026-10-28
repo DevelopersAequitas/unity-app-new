@@ -21,6 +21,15 @@ class EventRegistrationQrService
     {
         $registration = $registration->fresh() ?? $registration;
 
+        if ($registration->isSpeedNetworking()) {
+            Log::info('event_registration_qr_generation_skipped_for_speed_networking', [
+                'registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+            ]);
+
+            return $registration;
+        }
+
         if (! $force && ! $this->canGenerate($registration)) {
             Log::info('event_registration_qr_generation_skipped_until_payment_complete', [
                 'registration_id' => (string) $registration->id,
@@ -136,6 +145,10 @@ class EventRegistrationQrService
 
     public function sendVisitorQrWhatsappSafely(EventRegistration $registration): void
     {
+        if ($registration->isSpeedNetworking()) {
+            return;
+        }
+
         static $inProgress = [];
         $id = (string) $registration->id;
         if (isset($inProgress[$id])) {
@@ -160,6 +173,10 @@ class EventRegistrationQrService
 
     public function sendVisitorQrEmailSafely(EventRegistration $registration): void
     {
+        if ($registration->isSpeedNetworking()) {
+            return;
+        }
+
         $registration = $registration->fresh(['event', 'occurrence', 'user']) ?? $registration;
         $recipientEmail = (string) ($registration->visitor_email ?: $registration->user?->email);
 

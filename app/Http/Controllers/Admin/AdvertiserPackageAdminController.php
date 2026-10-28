@@ -72,12 +72,12 @@ class AdvertiserPackageAdminController extends Controller
         $slug = $baseSlug;
         $counter = 1;
         while (AdvertiserPackage::where('slug', $slug)->exists()) {
-            $slug = "{$baseSlug}-" . $counter;
+            $slug = "{$baseSlug}-".$counter;
             $counter++;
         }
 
         $features = [];
-        if (!empty($validated['features_text'])) {
+        if (! empty($validated['features_text'])) {
             $features = array_values(array_filter(array_map('trim', explode("\n", $validated['features_text']))));
         }
 
@@ -121,7 +121,7 @@ class AdvertiserPackageAdminController extends Controller
         ]);
 
         $features = [];
-        if (!empty($validated['features_text'])) {
+        if (! empty($validated['features_text'])) {
             $features = array_values(array_filter(array_map('trim', explode("\n", $validated['features_text']))));
         }
 
@@ -144,7 +144,7 @@ class AdvertiserPackageAdminController extends Controller
 
     public function toggleStatus(AdvertiserPackage $package): RedirectResponse
     {
-        $package->update(['is_active' => !$package->is_active]);
+        $package->update(['is_active' => ! $package->is_active]);
 
         return redirect()->back()->with('success', 'Package status updated successfully.');
     }

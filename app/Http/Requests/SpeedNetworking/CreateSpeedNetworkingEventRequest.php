@@ -31,7 +31,8 @@ class CreateSpeedNetworkingEventRequest extends FormRequest
             'scheduled_start_time' => ['nullable', 'date'],
             'round_duration_seconds' => ['nullable', 'integer', 'min:30', 'max:3600'],
             'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:600'],
-            'total_rounds' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'ticket_price' => ['nullable', 'numeric', 'min:0'],
+            'is_paid' => ['nullable', 'boolean'],
         ];
     }
 }

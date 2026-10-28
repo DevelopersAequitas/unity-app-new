@@ -18,7 +18,7 @@ class EventRegistrationObserver
      */
     public function created(EventRegistration $registration): void
     {
-        if ($registration->status === 'registered') {
+        if ($registration->status === 'registered' && ! $registration->isSpeedNetworking()) {
             $this->whatsappService->sendNotification($registration);
         }
     }
@@ -28,7 +28,9 @@ class EventRegistrationObserver
      */
     public function updated(EventRegistration $registration): void
     {
-        if ($registration->status === 'registered' && ($registration->wasChanged('status') || $registration->wasChanged('payment_status'))) {
+        if ($registration->status === 'registered' 
+            && ($registration->wasChanged('status') || $registration->wasChanged('payment_status'))
+            && ! $registration->isSpeedNetworking()) {
             $this->whatsappService->sendNotification($registration);
         }
     }
