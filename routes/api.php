@@ -78,6 +78,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
@@ -1786,6 +1787,18 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('post-reports/{id}', [App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
     Route::post('post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
     Route::post('post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
+
+    
+    // Leads API (Entrepreneur, Leadership, Partner With Us, Become Speaker, Become Mentor, Story Submissions)
+    Route::prefix('leads')->group(function () {
+        Route::get('/counts', [LeadAdminApiController::class, 'counts']);
+        Route::get('/{type}', [LeadAdminApiController::class, 'index']);
+        Route::get('/{type}/{id}', [LeadAdminApiController::class, 'show']);
+        Route::post('/{type}', [LeadAdminApiController::class, 'store']);
+        Route::put('/{type}/{id}', [LeadAdminApiController::class, 'update']);
+        Route::patch('/{type}/{id}/status', [LeadAdminApiController::class, 'updateStatus']);
+        Route::delete('/{type}/{id}', [LeadAdminApiController::class, 'destroy']);
+    });
 
     // Consolidated Pending Moderation Queue (All 11 Streams)
     Route::get('pending-requests', [PendingRequestAdminController::class, 'index']);
