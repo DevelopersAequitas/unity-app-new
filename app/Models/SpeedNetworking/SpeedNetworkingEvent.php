@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models\SpeedNetworking;
 
+use App\Models\Circle;
+use App\Models\Event;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -22,6 +25,8 @@ class SpeedNetworkingEvent extends Model
     public const STATUS_LOBBY_OPEN = 'lobby_open';
 
     public const STATUS_IN_PROGRESS = 'in_progress';
+
+    public const STATUS_PAUSED = 'paused';
 
     public const STATUS_COMPLETED = 'completed';
 
@@ -44,7 +49,15 @@ class SpeedNetworkingEvent extends Model
         'total_rounds',
         'current_round',
         'scheduled_start_time',
+        'scheduled_end_time',
         'actual_start_time',
+        'actual_end_time',
+        'ticket_price',
+        'is_paid',
+        'currency',
+        'circle_id',
+        'circle_restricted',
+        'metadata',
     ];
 
     /**
@@ -58,7 +71,13 @@ class SpeedNetworkingEvent extends Model
             'total_rounds' => 'integer',
             'current_round' => 'integer',
             'scheduled_start_time' => 'datetime',
+            'scheduled_end_time' => 'datetime',
             'actual_start_time' => 'datetime',
+            'actual_end_time' => 'datetime',
+            'ticket_price' => 'float',
+            'is_paid' => 'boolean',
+            'circle_restricted' => 'boolean',
+            'metadata' => 'array',
         ];
     }
 
@@ -72,8 +91,9 @@ class SpeedNetworkingEvent extends Model
 
         static::deleting(function (SpeedNetworkingEvent $model): void {
             try {
-                \App\Models\Event::where('id', $model->id)->delete();
-            } catch (\Throwable $e) {}
+                Event::where('id', $model->id)->delete();
+            } catch (\Throwable $e) {
+            }
         });
     }
 
@@ -91,6 +111,14 @@ class SpeedNetworkingEvent extends Model
     public function matches(): HasMany
     {
         return $this->hasMany(SpeedNetworkingMatch::class, 'event_id');
+    }
+
+    /**
+     * @return BelongsTo<Circle, $this>
+     */
+    public function circle(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'circle_id');
     }
 
     /**
