@@ -9,6 +9,7 @@ use App\Models\AiChatMessage;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AiChatbotService
@@ -136,6 +137,21 @@ class AiChatbotService
 
         $contents = [];
 
+        $cleanBase64 = '';
+        $savedAudioUrl = null;
+        if (filled($audioBase64)) {
+            $cleanBase64 = preg_replace('/^data:audio\/[a-zA-Z0-9.+-]+;base64,/', '', (string) $audioBase64) ?: (string) $audioBase64;
+            try {
+                $decodedBytes = base64_decode($cleanBase64, true);
+                if ($decodedBytes !== false && strlen($decodedBytes) > 0) {
+                    $relPath = 'ai-chatbot/voice/'.Str::uuid().'.m4a';
+                    Storage::disk('public')->put($relPath, $decodedBytes);
+                    $savedAudioUrl = url('storage/'.$relPath);
+                }
+            } catch (\Throwable) {
+            }
+        }
+
         if (Schema::hasTable('ai_chat_messages')) {
             $hasDeleteCol = $this->ensurePeerDeleteColumn();
             $recentHistory = AiChatMessage::query()
@@ -159,12 +175,12 @@ class AiChatbotService
                 'user_id' => $user?->id,
                 'role' => 'user',
                 'content' => $userText,
+                'attachments_json' => $savedAudioUrl ? [['type' => 'voice_note', 'audio_url' => $savedAudioUrl]] : null,
             ]);
         }
 
         $userParts = [];
-        if (filled($audioBase64)) {
-            $cleanBase64 = preg_replace('/^data:audio\/[a-zA-Z0-9.+-]+;base64,/', '', (string) $audioBase64) ?: (string) $audioBase64;
+        if ($cleanBase64 !== '') {
             $userParts[] = [
                 'inlineData' => [
                     'mimeType' => filled($audioMimeType) ? (string) $audioMimeType : 'audio/mp4',
@@ -185,7 +201,7 @@ class AiChatbotService
 
         $masterPrompt = (string) ($settings->master_system_prompt ?: AiChatbotSetting::DEFAULT_MASTER_PROMPT);
         $userContext = $this->toolsService->buildUserContext($user);
-        $strictDomainGuardrail = "\n\nSTRICT DOMAIN & APP NAVIGATION GUARDRAIL:\n- You are ONLY permitted to answer questions about Peers Global Unity, its peers, B2B networking, P2P meetings, Unity Circles, Speed Networking, Events, Referrals, Coins, Lives Impacted, Business Deals, Testimonials, Asks/Collaborations, Brand Partners, Peers Store, and official Peers Global policies.\n- If the peer asks ANY unrelated or outside question (e.g., general coding, math, recipes, politics, movies, sports, weather, or general trivia), politely refuse and reply: \"I am PG Genie, your dedicated Peers Global Unity assistant. I can only assist with Peers Global networking, finding peers, P2P meetings, Unity Circles, Speed Networking, Events, Referrals, Coins, and your Life Impact score. How can I help you within Peers Global today?\"\n- Whenever the peer asks about their Coins balance, Coin History/Ledger, Coin Claims, Life Impact history, P2P meetings history, Referrals list, Business Deals, or Testimonials, ALWAYS call `get_referral_and_impact_summary` and list the real items returned (`recent_coin_history`, `recent_coin_claims`, `recent_life_impact_history`, `recent_p2p_meetings`, `recent_referrals`, `recent_business_deals`, `recent_testimonials`) directly in your reply.\n- The peer is ALREADY inside the Peers Global Unity mobile app! NEVER tell them to \"Open the Unity App\" and NEVER invent or guess menu/tab paths like \"Navigate to Profile -> Wallet/Coins -> Transaction History\". Instead, show their real data from the tool and tell them they can tap the action button directly below your message (e.g., **My Coins**, **Claim Coins**, **P2P Meetings**, **My Referrals**, **Life Impact Score**, **Business Deals**, **Testimonials**) to open that screen immediately.\n- Always use the word 'peer' or 'peers' instead of 'member' or 'members'.\n- Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
+        $strictDomainGuardrail = "\n\nSTRICT DOMAIN & APP NAVIGATION GUARDRAIL:\n- You are ONLY permitted to answer questions about Peers Global Unity, its peers, B2B collaboration & business growth, P2P meetings, Unity Circles, Events, Referrals, Coins, Lives Impacted, Business Deals, Testimonials, Asks/Collaborations, Brand Partners, Peers Store, and official Peers Global policies.\n- If the peer asks ANY unrelated or outside question (e.g., general coding, math, recipes, politics, movies, sports, weather, or general trivia), politely refuse and reply: \"I am PG Genie, your dedicated Peers Global Unity assistant. I can only assist with Peers Global, finding peers, P2P meetings, Unity Circles, Events, Referrals, Coins, Business Deals, Testimonials, Asks, and your Life Impact score. How can I help you within Peers Global today?\"\n- Whenever the peer asks about their Coins balance, Coin History/Ledger, Coin Claims, Life Impact history, P2P meetings history, Referrals list, Business Deals, or Testimonials, ALWAYS call `get_referral_and_impact_summary` and list the real items returned (`recent_coin_history`, `recent_coin_claims`, `recent_life_impact_history`, `recent_p2p_meetings`, `recent_referrals`, `recent_business_deals`, `recent_testimonials`) directly in your reply.\n- The peer is ALREADY inside the Peers Global Unity mobile app! NEVER tell them to \"Open the Unity App\" and NEVER invent or guess menu/tab paths like \"Navigate to Profile -> Wallet/Coins -> Transaction History\". Instead, show their real data from the tool and tell them they can tap the action button directly below your message (e.g., **My Coins**, **Claim Coins**, **P2P Meetings**, **My Referrals**, **Life Impact Score**, **Business Deals**, **Testimonials**) to open that screen immediately.\n- STRICT VOCABULARY RULE: NEVER use the words 'networking', 'member', or 'members' anywhere in your response! Always use 'peer' or 'peers' instead of 'member'/'members', and use 'connections', 'collaboration', or 'business growth' instead of 'networking'.\n- Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
         $fullSystemInstruction = $masterPrompt."\n\n".$userContext.$strictDomainGuardrail;
 
         $enabledTools = is_array($settings->enabled_tools_json)
@@ -216,10 +232,15 @@ class AiChatbotService
             $replyMarkdown
         );
         $replyMarkdown = (string) preg_replace(
-            '/\b(?:within|inside|in)\s+the\s+\**(?:Peers\s+Global\s+)?Unity\s+app\**/i',
+            '/\b(?:within|inside|in|through)\s+the\s+\**(?:Peers\s+Global\s+)?Unity\s+app\**/i',
             'right here',
             $replyMarkdown
         );
+        $replyMarkdown = (string) preg_replace('/\bPeers\s+Global\s+networking\b/i', 'Peers Global', $replyMarkdown);
+        $replyMarkdown = (string) preg_replace('/\bB2B\s+networking\b/i', 'B2B collaboration', $replyMarkdown);
+        $replyMarkdown = (string) preg_replace_callback('/\b([Nn])etworking\b/', fn ($m) => $m[1] === 'N' ? 'Connections' : 'connections', $replyMarkdown);
+        $replyMarkdown = (string) preg_replace_callback('/\b([Mm])embers\b/', fn ($m) => $m[1] === 'M' ? 'Peers' : 'peers', $replyMarkdown);
+        $replyMarkdown = (string) preg_replace_callback('/\b([Mm])ember\b/', fn ($m) => $m[1] === 'M' ? 'Peer' : 'peer', $replyMarkdown);
         $attachments = array_values(array_merge(
             $collectedAttachments,
             is_array($aiResult['attachments'] ?? null) ? $aiResult['attachments'] : []
@@ -317,6 +338,13 @@ class AiChatbotService
                     $item['reply_markdown'] = (string) $m->content;
                     $item['attachments'] = $m->attachments_json ?? [];
                     $item['suggested_follow_ups'] = $m->follow_ups_json ?? [];
+                } elseif (is_array($m->attachments_json)) {
+                    foreach ($m->attachments_json as $att) {
+                        if (is_array($att) && isset($att['audio_url'])) {
+                            $item['audio_url'] = (string) $att['audio_url'];
+                            break;
+                        }
+                    }
                 }
 
                 return $item;

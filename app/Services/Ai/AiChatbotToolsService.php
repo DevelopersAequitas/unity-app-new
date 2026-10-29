@@ -419,7 +419,7 @@ CONTEXT;
             'items' => [
                 [
                     'id' => 'act_speed_networking',
-                    'title' => 'Open Speed Networking',
+                    'title' => 'Open Live Peer Sessions',
                     'route' => '/speed-networking',
                 ],
             ],
@@ -765,8 +765,8 @@ CONTEXT;
                 ['id' => 'nav_p2p', 'title' => 'P2P Meetings', 'route' => '/p2p-meetings'],
                 ['id' => 'nav_add_p2p', 'title' => 'Schedule P2P Meeting', 'route' => '/add-p2p-meeting'],
             ]],
-            ['keywords' => ['speed networking'], 'items' => [
-                ['id' => 'nav_speed', 'title' => 'Speed Networking', 'route' => '/speed-networking'],
+            ['keywords' => ['speed networking', 'live peer session'], 'items' => [
+                ['id' => 'nav_speed', 'title' => 'Live Peer Sessions', 'route' => '/speed-networking'],
             ]],
             ['keywords' => ['upcoming event', 'events near', 'register for event'], 'items' => [
                 ['id' => 'nav_events', 'title' => 'Upcoming Events', 'route' => '/events'],
