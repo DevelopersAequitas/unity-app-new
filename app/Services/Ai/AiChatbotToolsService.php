@@ -127,10 +127,6 @@ CONTEXT;
             $declarations[] = [
                 'name' => 'get_active_speed_networking',
                 'description' => 'Get scheduled or live Speed Networking sessions.',
-                'parameters' => [
-                    'type' => 'OBJECT',
-                    'properties' => (object) [],
-                ],
             ];
         }
 
@@ -138,10 +134,6 @@ CONTEXT;
             $declarations[] = [
                 'name' => 'get_referral_and_impact_summary',
                 'description' => 'Get the logged-in user referral count, P2P meeting count, coins balance, Lives Impacted score, and active referral campaign reward.',
-                'parameters' => [
-                    'type' => 'OBJECT',
-                    'properties' => (object) [],
-                ],
             ];
         }
 

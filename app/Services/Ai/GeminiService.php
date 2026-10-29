@@ -239,6 +239,12 @@ class GeminiService
                     $payload['generationConfig']['responseMimeType'] = 'application/json';
                 }
 
+                Log::info('GeminiService.generateChatWithTools: sending request', [
+                    'model' => $selectedModel,
+                    'step' => $step,
+                    'tools_count' => count($functionDeclarations),
+                ]);
+
                 $response = Http::timeout(30)
                     ->withHeaders([
                         'Content-Type' => 'application/json',
@@ -249,13 +255,40 @@ class GeminiService
                 if (! $response->successful()) {
                     $lastError = (string) ($response->json('error.message') ?? 'Gemini API request failed');
                     $statusCode = $response->status();
-                    $isRetryable = $statusCode === 404
-                        || str_contains($lastError, 'is not found')
-                        || str_contains($lastError, 'not supported');
-                    if ($isRetryable) {
-                        continue 2;
+
+                    Log::warning('GeminiService.generateChatWithTools: attempt failed', [
+                        'model' => $selectedModel,
+                        'step' => $step,
+                        'status' => $statusCode,
+                        'error' => $lastError,
+                    ]);
+
+                    // If tools declaration caused a 400 schema error, retry immediately without tools
+                    if ($statusCode === 400 && isset($payload['tools'])) {
+                        unset($payload['tools']);
+                        $payload['generationConfig']['responseMimeType'] = 'application/json';
+                        $response = Http::timeout(30)
+                            ->withHeaders([
+                                'Content-Type' => 'application/json',
+                                'x-goog-api-key' => $apiKey,
+                            ])
+                            ->post($endpoint, $payload);
                     }
-                    throw new RuntimeException("Gemini API call failed: {$lastError}");
+
+                    if (! $response->successful()) {
+                        $lastError = (string) ($response->json('error.message') ?? 'Gemini API request failed');
+                        $statusCode = $response->status();
+                        $isRetryable = $statusCode === 404
+                            || $statusCode === 429
+                            || $statusCode >= 500
+                            || str_contains($lastError, 'is not found')
+                            || str_contains($lastError, 'not supported')
+                            || str_contains($lastError, 'quota');
+                        if ($isRetryable) {
+                            continue 2;
+                        }
+                        throw new RuntimeException("Gemini API call failed: {$lastError}");
+                    }
                 }
 
                 $parts = $response->json('candidates.0.content.parts') ?? [];
@@ -280,18 +313,29 @@ class GeminiService
                     foreach ($functionCalls as $call) {
                         $fnName = (string) ($call['name'] ?? '');
                         $fnArgs = is_array($call['args'] ?? null) ? $call['args'] : [];
-                        $toolResult = $toolExecutor($fnName, $fnArgs);
+                        try {
+                            $toolResult = $toolExecutor($fnName, $fnArgs);
+                        } catch (\Throwable $toolErr) {
+                            Log::error('GeminiService.generateChatWithTools: tool execution error', [
+                                'tool' => $fnName,
+                                'error' => $toolErr->getMessage(),
+                            ]);
+                            $toolResult = ['error' => $toolErr->getMessage()];
+                        }
 
                         $responseParts[] = [
                             'functionResponse' => [
                                 'name' => $fnName,
-                                'response' => $toolResult,
+                                'response' => [
+                                    'name' => $fnName,
+                                    'content' => $toolResult,
+                                ],
                             ],
                         ];
                     }
 
                     $conversation[] = [
-                        'role' => 'user',
+                        'role' => 'function',
                         'parts' => $responseParts,
                     ];
 

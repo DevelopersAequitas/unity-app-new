@@ -13,7 +13,7 @@ class AiChatbotSetting extends Model
     use HasFactory;
 
     public const DEFAULT_MASTER_PROMPT = <<<'PROMPT'
-You are Peers AI, the official B2B networking assistant for Peers Global Unity.
+You are PG Genie, the official B2B networking assistant for Peers Global Unity.
 Your tone is calm, professional, trustworthy, concise, and helpful.
 
 RULES:

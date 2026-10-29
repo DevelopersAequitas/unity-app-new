@@ -34,17 +34,17 @@ class AiChatbotService
             'show_floating_button' => true,
             'show_app_bar_icon' => true,
             'show_home_banner' => false,
-            'button_title' => 'Peers AI',
+            'button_title' => 'PG Genie',
             'button_subtitle' => 'Ask anything about Peers Global',
-            'bot_name' => 'Peers AI Assistant',
+            'bot_name' => 'PG Genie',
             'bot_subtitle' => 'Always here to help you connect & grow',
             'bot_avatar_url' => null,
-            'welcome_title' => 'Hello, how can I assist you today?',
+            'welcome_title' => 'Hello, I am PG Genie! How can I assist you today?',
             'welcome_subtitle' => 'Ask about Peers Global guidelines, find members by category, check upcoming events, or track your impact.',
-            'empty_history_title' => 'Your AI Networking Assistant',
+            'empty_history_title' => 'PG Genie Assistant',
             'empty_history_subtitle' => 'Select any topic below or type a question to begin.',
-            'input_placeholder' => 'Ask Peers AI anything...',
-            'thinking_text' => 'Peers AI is thinking...',
+            'input_placeholder' => 'Ask PG Genie anything...',
+            'thinking_text' => 'PG Genie is thinking...',
             'model_name' => 'gemini-2.0-flash',
             'temperature' => 0.30,
             'master_system_prompt' => AiChatbotSetting::DEFAULT_MASTER_PROMPT,
@@ -63,7 +63,7 @@ class AiChatbotService
     {
         $s = $this->getSettings();
 
-        $welcomeTitle = (string) ($s->welcome_title ?: 'Hello, how can I assist you today?');
+        $welcomeTitle = (string) ($s->welcome_title ?: 'Hello, I am PG Genie! How can I assist you today?');
         if ($user) {
             $firstName = trim((string) ($user->first_name ?: explode(' ', (string) $user->display_name)[0]));
             if ($firstName !== '' && str_starts_with($welcomeTitle, 'Hello,')) {
@@ -76,17 +76,17 @@ class AiChatbotService
             'show_floating_button' => (bool) $s->show_floating_button,
             'show_app_bar_icon' => (bool) $s->show_app_bar_icon,
             'show_home_banner' => (bool) $s->show_home_banner,
-            'button_title' => (string) ($s->button_title ?: 'Peers AI'),
+            'button_title' => (string) ($s->button_title ?: 'PG Genie'),
             'button_subtitle' => (string) ($s->button_subtitle ?: 'Ask anything about Peers Global'),
-            'bot_name' => (string) ($s->bot_name ?: 'Peers AI Assistant'),
+            'bot_name' => (string) ($s->bot_name ?: 'PG Genie'),
             'bot_subtitle' => (string) ($s->bot_subtitle ?: 'Always here to help you connect & grow'),
             'bot_avatar_url' => $s->bot_avatar_url,
             'welcome_title' => $welcomeTitle,
             'welcome_subtitle' => (string) ($s->welcome_subtitle ?: 'Ask about Peers Global guidelines, find members by category, check upcoming events, or track your impact.'),
-            'empty_history_title' => (string) ($s->empty_history_title ?: 'Your AI Networking Assistant'),
+            'empty_history_title' => (string) ($s->empty_history_title ?: 'PG Genie Assistant'),
             'empty_history_subtitle' => (string) ($s->empty_history_subtitle ?: 'Select any topic below or type a question to begin.'),
-            'input_placeholder' => (string) ($s->input_placeholder ?: 'Ask Peers AI anything...'),
-            'thinking_text' => (string) ($s->thinking_text ?: 'Peers AI is thinking...'),
+            'input_placeholder' => (string) ($s->input_placeholder ?: 'Ask PG Genie anything...'),
+            'thinking_text' => (string) ($s->thinking_text ?: 'PG Genie is thinking...'),
             'inner_options' => is_array($s->inner_options_json) && $s->inner_options_json !== []
                 ? $s->inner_options_json
                 : AiChatbotSetting::DEFAULT_INNER_OPTIONS,
@@ -264,7 +264,7 @@ class AiChatbotService
     }
 
     /**
-     * Endpoint 4: Clear active chat session for user.
+     * Endpoint 4: Clear a specific chat session or all chat sessions for the user.
      */
     public function clearHistory(?User $user, ?string $sessionId = null): void
     {
@@ -280,6 +280,56 @@ class AiChatbotService
             ->when($user !== null, fn ($q) => $q->where('user_id', $user->id))
             ->when(filled($sessionId), fn ($q) => $q->where('session_id', (string) $sessionId))
             ->delete();
+    }
+
+    /**
+     * Endpoint 5: List recent chat sessions for the authenticated user.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getSessions(?User $user): array
+    {
+        if (! Schema::hasTable('ai_chat_messages') || $user === null) {
+            return [];
+        }
+
+        $messages = AiChatMessage::query()
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(200)
+            ->get();
+
+        $grouped = [];
+        foreach ($messages as $m) {
+            $sid = (string) $m->session_id;
+            if ($sid === '') {
+                continue;
+            }
+            if (! isset($grouped[$sid])) {
+                $grouped[$sid] = [
+                    'session_id' => $sid,
+                    'title' => '',
+                    'preview' => '',
+                    'message_count' => 0,
+                    'updated_at' => $m->created_at?->toIso8601String(),
+                ];
+            }
+            $grouped[$sid]['message_count']++;
+            if ($m->role === 'user' && $grouped[$sid]['title'] === '') {
+                $grouped[$sid]['title'] = Str::limit(trim((string) $m->content), 60);
+            }
+            if ($grouped[$sid]['preview'] === '') {
+                $grouped[$sid]['preview'] = Str::limit(trim((string) $m->content), 90);
+            }
+        }
+
+        foreach ($grouped as $sid => &$session) {
+            if ($session['title'] === '') {
+                $session['title'] = $session['preview'] !== '' ? $session['preview'] : 'Chat Session';
+            }
+        }
+
+        return array_values($grouped);
     }
 }
 

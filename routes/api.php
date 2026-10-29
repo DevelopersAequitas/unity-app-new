@@ -234,6 +234,7 @@ Route::prefix('ai')->group(function () {
     Route::get('chatbot/config', [AiChatbotController::class, 'config']);
     Route::post('chatbot/message', [AiChatbotController::class, 'message']);
     Route::get('chatbot/history', [AiChatbotController::class, 'history']);
+    Route::get('chatbot/sessions', [AiChatbotController::class, 'sessions']);
     Route::post('chatbot/clear', [AiChatbotController::class, 'clear']);
     Route::post('execute/{slug}', [AiController::class, 'executeFlow']);
 });
@@ -385,6 +386,7 @@ Route::prefix('v1')->group(function () {
         Route::get('chatbot/config', [AiChatbotController::class, 'config']);
         Route::post('chatbot/message', [AiChatbotController::class, 'message']);
         Route::get('chatbot/history', [AiChatbotController::class, 'history']);
+        Route::get('chatbot/sessions', [AiChatbotController::class, 'sessions']);
         Route::post('chatbot/clear', [AiChatbotController::class, 'clear']);
         Route::post('suggest-category', [AiController::class, 'suggestCategory']);
         Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);

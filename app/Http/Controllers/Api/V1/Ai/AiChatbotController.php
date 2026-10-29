@@ -80,6 +80,20 @@ class AiChatbotController extends Controller
     }
 
     /**
+     * GET /api/ai/chatbot/sessions
+     */
+    public function sessions(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user('sanctum') ?? $request->user();
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->chatbotService->getSessions($user),
+        ]);
+    }
+
+    /**
      * POST /api/ai/chatbot/clear
      */
     public function clear(Request $request): JsonResponse
