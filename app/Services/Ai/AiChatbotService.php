@@ -168,6 +168,7 @@ class AiChatbotService
             $collectedAttachments,
             is_array($aiResult['attachments'] ?? null) ? $aiResult['attachments'] : []
         ));
+        $attachments = $this->toolsService->enrichContextualButtons($userText, $replyMarkdown, $attachments);
         $followUps = is_array($aiResult['suggested_follow_ups'] ?? null) && $aiResult['suggested_follow_ups'] !== []
             ? array_values(array_map('strval', $aiResult['suggested_follow_ups']))
             : [

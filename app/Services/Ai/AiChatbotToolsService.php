@@ -154,7 +154,7 @@ CONTEXT;
                 'chunks' => $this->ragService->searchKnowledgeDocs((string) ($args['query'] ?? '')),
             ],
             'search_peers' => $this->searchPeers($args, $user, $collectedAttachments),
-            'get_upcoming_events' => $this->getUpcomingEvents($args, $collectedAttachments),
+            'get_upcoming_events' => $this->getUpcomingEvents($args, $user, $collectedAttachments),
             'get_active_speed_networking' => $this->getActiveSpeedNetworking($collectedAttachments),
             'get_referral_and_impact_summary' => $this->getReferralAndImpactSummary($user, $collectedAttachments),
             default => ['error' => "Unknown tool: {$name}"],
@@ -259,42 +259,122 @@ CONTEXT;
      * @param  array<int, array<string, mixed>>  $collectedAttachments
      * @return array<string, mixed>
      */
-    private function getUpcomingEvents(array $args, array &$collectedAttachments): array
+    private function getUpcomingEvents(array $args, ?User $user, array &$collectedAttachments): array
     {
         if (! Schema::hasTable('events')) {
             return ['events' => []];
         }
 
-        $city = trim((string) ($args['city'] ?? ''));
+        $requestedCity = trim((string) ($args['city'] ?? ''));
+        $userCity = trim((string) ($user?->city ?: ($user?->business_city ?? '')));
+        $targetCity = $requestedCity !== '' ? $requestedCity : $userCity;
 
-        $events = Event::query()
+        $baseQuery = Event::query()
             ->where('start_at', '>=', now()->subHours(2))
-            ->when($city !== '', fn ($q) => $q->where('location_text', 'like', "%{$city}%"))
-            ->orderBy('start_at', 'asc')
-            ->limit(5)
-            ->get()
-            ->map(fn (Event $e): array => [
+            ->orderBy('start_at', 'asc');
+
+        $matchedEvents = collect();
+        $usedFallbackCity = false;
+
+        if ($targetCity !== '') {
+            $matchedEvents = (clone $baseQuery)
+                ->where(function ($q) use ($targetCity): void {
+                    $q->where('location_text', 'like', "%{$targetCity}%")
+                        ->orWhere('title', 'like', "%{$targetCity}%")
+                        ->orWhere('state_name', 'like', "%{$targetCity}%");
+                })
+                ->limit(5)
+                ->get();
+        }
+
+        if ($matchedEvents->isEmpty()) {
+            $matchedEvents = (clone $baseQuery)->limit(5)->get();
+            if ($targetCity !== '' && $matchedEvents->isNotEmpty()) {
+                $usedFallbackCity = true;
+            }
+        }
+
+        $events = [];
+        $eventCards = [];
+        $actionButtons = [];
+
+        foreach ($matchedEvents as $e) {
+            $location = (string) ($e->location_text ?? ($e->is_virtual ? 'Online / Virtual' : 'Ahmedabad'));
+            $dateFormatted = $e->start_at?->format('d M Y, h:i A') ?? '';
+            $occurrenceId = '';
+            try {
+                if (Schema::hasTable('event_occurrences')) {
+                    $occurrenceId = (string) ($e->occurrences()->orderBy('start_at', 'asc')->value('id') ?? '');
+                }
+            } catch (\Throwable) {
+            }
+
+            $events[] = [
                 'id' => (string) $e->id,
+                'event_id' => (string) $e->id,
+                'occurrence_id' => $occurrenceId,
                 'title' => (string) $e->title,
                 'start_at' => $e->start_at?->toIso8601String(),
-                'location' => (string) ($e->location_text ?? ($e->is_virtual ? 'Online / Virtual' : 'TBA')),
+                'date_display' => $dateFormatted,
+                'location' => $location,
                 'is_virtual' => (bool) $e->is_virtual,
-            ])
-            ->values()
-            ->all();
+            ];
+
+            $eventParams = [
+                'event_id' => (string) $e->id,
+                'occurrence_id' => $occurrenceId,
+                'title' => (string) $e->title,
+            ];
+
+            $eventCards[] = [
+                'id' => (string) $e->id,
+                'title' => (string) $e->title,
+                'subtitle' => $location,
+                'meta' => $dateFormatted,
+                'image_url' => $e->banner_url,
+                'route' => '/event-detail',
+                'params' => $eventParams,
+                'button_label' => 'Register / View Event',
+            ];
+
+            if (count($actionButtons) < 2) {
+                $actionButtons[] = [
+                    'id' => (string) $e->id,
+                    'title' => 'Register: '.mb_substr((string) $e->title, 0, 24),
+                    'route' => '/event-detail',
+                    'params' => $eventParams,
+                ];
+            }
+        }
+
+        if ($eventCards !== []) {
+            $collectedAttachments[] = [
+                'type' => 'event_list',
+                'title' => $usedFallbackCity ? 'Upcoming Events in Other / Nearby Cities' : 'Upcoming Events',
+                'items' => $eventCards,
+            ];
+        }
+
+        $actionButtons[] = [
+            'id' => 'act_events',
+            'title' => 'View All Events',
+            'route' => '/events',
+        ];
 
         $collectedAttachments[] = [
             'type' => 'action_buttons',
-            'items' => [
-                [
-                    'id' => 'act_events',
-                    'title' => 'View Upcoming Events',
-                    'route' => '/events',
-                ],
-            ],
+            'items' => $actionButtons,
         ];
 
-        return ['events' => $events];
+        return [
+            'peer_city' => $userCity !== '' ? $userCity : null,
+            'searched_city' => $targetCity !== '' ? $targetCity : null,
+            'no_events_in_searched_city' => $usedFallbackCity,
+            'assistant_guidance' => $usedFallbackCity
+                ? "There are currently no upcoming events in {$targetCity}, but we have upcoming events in nearby/other cities (such as Ahmedabad) listed below. Explicitly mention the peer's city ({$targetCity}) and invite them to register for these events."
+                : "Found upcoming events matching {$targetCity}. Invite the peer to tap the event to view details and register directly.",
+            'events' => $events,
+        ];
     }
 
     /**
@@ -378,8 +458,13 @@ CONTEXT;
                 ],
                 [
                     'id' => 'act_coins',
-                    'title' => 'My Coins & Impact',
+                    'title' => 'My Coins',
                     'route' => '/coins',
+                ],
+                [
+                    'id' => 'act_p2p',
+                    'title' => 'P2P Meetings',
+                    'route' => '/p2p-meetings',
                 ],
             ],
         ];
@@ -392,6 +477,80 @@ CONTEXT;
             'p2p_meetings_count' => $p2pCount,
             'active_referral_campaign_reward' => $rewardTitle,
         ];
+    }
+
+    /**
+     * Build contextual navigation buttons based on user question and assistant reply.
+     *
+     * @param  array<int, array<string, mixed>>  $existingAttachments
+     * @return array<int, array<string, mixed>>
+     */
+    public function enrichContextualButtons(string $userText, string $replyMarkdown, array $existingAttachments): array
+    {
+        $combined = mb_strtolower($userText.' '.$replyMarkdown);
+        $buttons = [];
+
+        $rules = [
+            ['keywords' => ['p2p', 'peer-to-peer', '1-on-1', 'peer meeting', 'schedule a meeting', 'scheduling meetings'], 'items' => [
+                ['id' => 'nav_p2p', 'title' => 'P2P Meetings', 'route' => '/p2p-meetings'],
+                ['id' => 'nav_add_p2p', 'title' => 'Schedule P2P Meeting', 'route' => '/add-p2p-meeting'],
+            ]],
+            ['keywords' => ['speed networking'], 'items' => [
+                ['id' => 'nav_speed', 'title' => 'Speed Networking', 'route' => '/speed-networking'],
+            ]],
+            ['keywords' => ['upcoming event', 'events near', 'register for event'], 'items' => [
+                ['id' => 'nav_events', 'title' => 'Upcoming Events', 'route' => '/events'],
+            ]],
+            ['keywords' => ['unity circle', 'join a circle', 'circles'], 'items' => [
+                ['id' => 'nav_circles', 'title' => 'Unity Circles', 'route' => '/circles'],
+            ]],
+            ['keywords' => ['referral'], 'items' => [
+                ['id' => 'nav_referrals', 'title' => 'My Referrals', 'route' => '/referrals'],
+                ['id' => 'nav_add_referral', 'title' => 'Give a Referral', 'route' => '/add-referral'],
+            ]],
+            ['keywords' => ['coin'], 'items' => [
+                ['id' => 'nav_coins', 'title' => 'My Coins', 'route' => '/coins'],
+                ['id' => 'nav_claim_coins', 'title' => 'Claim Coins', 'route' => '/claim-your-coin'],
+            ]],
+            ['keywords' => ['life impact', 'lives impacted'], 'items' => [
+                ['id' => 'nav_impact', 'title' => 'Life Impact Score', 'route' => '/life-impact'],
+            ]],
+            ['keywords' => ['business deal'], 'items' => [
+                ['id' => 'nav_deals', 'title' => 'Business Deals', 'route' => '/business-deals'],
+            ]],
+            ['keywords' => ['testimonial'], 'items' => [
+                ['id' => 'nav_testimonials', 'title' => 'Testimonials', 'route' => '/testimonials'],
+            ]],
+            ['keywords' => ['ask', 'collaboration', 'requirement'], 'items' => [
+                ['id' => 'nav_asks', 'title' => 'Explore Asks', 'route' => '/open-asks'],
+            ]],
+            ['keywords' => ['support', 'ticket'], 'items' => [
+                ['id' => 'nav_support', 'title' => 'Support & Help', 'route' => '/submit-ticket'],
+            ]],
+            ['keywords' => ['search for peers', 'find peers', 'peers directory'], 'items' => [
+                ['id' => 'nav_peers', 'title' => 'Explore Peers', 'route' => '/peers'],
+            ]],
+        ];
+
+        foreach ($rules as $rule) {
+            foreach ($rule['keywords'] as $kw) {
+                if (str_contains($combined, $kw)) {
+                    foreach ($rule['items'] as $btn) {
+                        $buttons[$btn['route']] = $btn;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if ($buttons !== []) {
+            $existingAttachments[] = [
+                'type' => 'action_buttons',
+                'items' => array_slice(array_values($buttons), 0, 4),
+            ];
+        }
+
+        return $existingAttachments;
     }
 
     /**
