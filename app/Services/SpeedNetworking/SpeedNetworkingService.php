@@ -30,6 +30,20 @@ class SpeedNetworkingService
     }
 
     /**
+     * Get the configured Agora App ID.
+     */
+    public function getAgoraAppId(): ?string
+    {
+        try {
+            return $this->agoraTokenService->getAppId();
+        } catch (\Throwable) {
+            $appId = config('services.agora.app_id') ?: env('AGORA_APP_ID');
+
+            return ! empty($appId) ? (string) $appId : null;
+        }
+    }
+
+    /**
      * Get paginated list of Speed Networking events for Admin panel.
      *
      * @param  array<string, mixed>  $filters
@@ -65,8 +79,8 @@ class SpeedNetworkingService
 
                 $paginated = $query->paginate($perPage);
 
-                $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): array {
-                    return [
+                $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): object {
+                    return (object) [
                         'id' => (string) $item->id,
                         'title' => (string) $item->title,
                         'description' => $item->description,
@@ -77,6 +91,7 @@ class SpeedNetworkingService
                         'total_rounds' => (int) $item->total_rounds,
                         'current_round' => (int) $item->current_round,
                         'scheduled_start_time' => $item->scheduled_start_time?->toIso8601String(),
+                        'scheduled_end_time' => $item->scheduled_end_time?->toIso8601String(),
                         'actual_start_time' => $item->actual_start_time?->toIso8601String(),
                         'ticket_price' => (float) ($item->ticket_price ?? 0),
                         'is_paid' => (bool) ($item->is_paid ?? false),
@@ -812,6 +827,7 @@ class SpeedNetworkingService
                     'current_round' => 0,
                     'total_rounds' => (int) $lockedEvent->total_rounds,
                     'channel_id' => '',
+                    'agora_app_id' => $this->getAgoraAppId(),
                     'agora_token' => '',
                     'is_break_round' => false,
                     'is_waiting' => true,
@@ -906,6 +922,7 @@ class SpeedNetworkingService
                     'total_rounds' => (int) $lockedEvent->total_rounds,
                     'remaining_seconds' => 0,
                     'channel_id' => '',
+                    'agora_app_id' => $this->getAgoraAppId(),
                     'agora_token' => '',
                     'is_break_round' => true,
                     'peer' => null,
@@ -1072,6 +1089,7 @@ class SpeedNetworkingService
 
         return [
             'channel_id' => $channelId,
+            'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => $agoraToken,
             'peer' => [
                 'id' => (string) $peerUser->id,
@@ -1430,6 +1448,7 @@ class SpeedNetworkingService
                 'total_rounds' => (int) $event->total_rounds,
                 'remaining_seconds' => 0,
                 'channel_id' => '',
+                'agora_app_id' => $this->getAgoraAppId(),
                 'agora_token' => '',
                 'is_break_round' => true,
                 'is_waiting' => false,
@@ -1453,6 +1472,7 @@ class SpeedNetworkingService
                 'total_rounds' => (int) $event->total_rounds,
                 'remaining_seconds' => 0,
                 'channel_id' => '',
+                'agora_app_id' => $this->getAgoraAppId(),
                 'agora_token' => '',
                 'is_break_round' => true,
                 'is_waiting' => true,
@@ -1531,6 +1551,7 @@ class SpeedNetworkingService
             'total_rounds' => (int) $event->total_rounds,
             'remaining_seconds' => 0,
             'channel_id' => '',
+            'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => '',
             'is_break_round' => true,
             'is_waiting' => true,
@@ -1569,11 +1590,15 @@ class SpeedNetworkingService
 
         $token = null;
         if (! $isBreak && $match->channel_id) {
-            $token = $this->agoraTokenService->generateToken(
-                $match->channel_id,
-                0,
-                $event->round_duration_seconds + 300
-            );
+            try {
+                $token = $this->agoraTokenService->generateToken(
+                    $match->channel_id,
+                    0,
+                    $event->round_duration_seconds + 300
+                );
+            } catch (\Throwable) {
+                $token = 'demo_rtc_token_'.md5($match->channel_id.$currentUserId);
+            }
         }
 
         $peerData = null;
@@ -1675,6 +1700,7 @@ class SpeedNetworkingService
             'break_duration_seconds' => (int) $event->break_duration_seconds,
             'remaining_seconds' => $remainingSeconds,
             'channel_id' => $match->channel_id ?: '',
+            'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => $token ?: '',
             'is_break_round' => $isBreak,
             'is_waiting' => false,
@@ -1725,6 +1751,7 @@ class SpeedNetworkingService
             'total_rounds' => (int) $event->total_rounds,
             'remaining_seconds' => 0,
             'channel_id' => '',
+            'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => '',
             'is_break_round' => true,
             'is_waiting' => ! $hasMetAllPeers,

@@ -305,39 +305,13 @@ class AwardRecognitionAdminController extends Controller
                 if (! $awardInfo) {
                     throw new \InvalidArgumentException("Invalid Growth milestone: {$count}");
                 }
-                if ($phoneOverride) {
-                    $send = $this->awardService->sendAward(
-                        $user,
-                        'GROWTH',
-                        $awardInfo['title'],
-                        $count,
-                        $awardInfo['template'],
-                        $awardInfo['language'],
-                        null,
-                        $phoneOverride
-                    );
-                } else {
-                    $send = $this->awardService->handleGrowthAward($user, $count);
-                }
+                $send = $this->awardService->handleGrowthAward($user, $count, null, $phoneOverride);
             } else {
                 $awardInfo = AwardRecognitionWhatsappService::IMPACT_TRACK[$count] ?? null;
                 if (! $awardInfo) {
                     throw new \InvalidArgumentException("Invalid Life Impact milestone: {$count}");
                 }
-                if ($phoneOverride) {
-                    $send = $this->awardService->sendAward(
-                        $user,
-                        'LIFE_IMPACT',
-                        $awardInfo['title'],
-                        $count,
-                        $awardInfo['template'],
-                        $awardInfo['language'],
-                        null,
-                        $phoneOverride
-                    );
-                } else {
-                    $send = $this->awardService->handleImpactAward($user, $count);
-                }
+                $send = $this->awardService->handleImpactAward($user, $count, null, $phoneOverride);
             }
 
             $message = "Award WhatsApp '{$awardInfo['title']}' dispatched successfully to ".($phoneOverride ?: ($user->phone ?? 'recipient')).'!';

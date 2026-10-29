@@ -114,34 +114,37 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
           @forelse($events as $event)
+            @php
+              $event = is_array($event) ? (object) $event : $event;
+            @endphp
             <tr class="hover:bg-slate-50 transition">
               <td class="p-3">
-                <div class="font-bold text-slate-800 text-sm">{{ $event->title }}</div>
-                @if($event->description)
+                <div class="font-bold text-slate-800 text-sm">{{ $event->title ?? 'Untitled Event' }}</div>
+                @if(!empty($event->description))
                   <div class="text-slate-500 text-xs truncate max-w-xs">{{ $event->description }}</div>
                 @endif
               </td>
               <td class="p-3">
-                @if($event->status === 'in_progress')
+                @if(($event->status ?? '') === 'in_progress')
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Round {{ $event->current_round }}
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Round {{ $event->current_round ?? 1 }}
                   </span>
-                @elseif($event->status === 'completed')
+                @elseif(($event->status ?? '') === 'completed')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Completed</span>
-                @elseif($event->status === 'lobby_open')
+                @elseif(($event->status ?? '') === 'lobby_open')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lobby Open</span>
-                @elseif($event->status === 'scheduled')
+                @elseif(($event->status ?? '') === 'scheduled')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Scheduled</span>
-                @elseif($event->status === 'paused')
+                @elseif(($event->status ?? '') === 'paused')
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Paused</span>
                 @else
                   <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Draft</span>
                 @endif
               </td>
               <td class="p-3">
-                <div><span class="font-semibold text-slate-700">{{ $event->round_duration_seconds }}s</span> / round</div>
+                <div><span class="font-semibold text-slate-700">{{ $event->round_duration_seconds ?? 180 }}s</span> / round</div>
                 <div class="text-slate-500 text-[11px]">
-                  {{ $event->break_duration_seconds }}s break &bull;
+                  {{ $event->break_duration_seconds ?? 20 }}s break &bull;
                   @if(!empty($event->total_rounds) && (int) $event->total_rounds > 0)
                     {{ $event->total_rounds }} rounds (Fixed)
                   @else
@@ -199,6 +202,22 @@
           @endforelse
         </tbody>
       </table>
+
+      @if(!empty($pagination['last_page']) && $pagination['last_page'] > 1)
+        <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div>
+            Showing page <span class="font-semibold text-slate-700">{{ $pagination['current_page'] }}</span> of <span class="font-semibold text-slate-700">{{ $pagination['last_page'] }}</span> ({{ $pagination['total'] }} total)
+          </div>
+          <div class="flex items-center gap-2">
+            @if($pagination['current_page'] > 1)
+              <a href="{{ request()->fullUrlWithQuery(['page' => $pagination['current_page'] - 1]) }}" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium no-underline">Previous</a>
+            @endif
+            @if($pagination['current_page'] < $pagination['last_page'])
+              <a href="{{ request()->fullUrlWithQuery(['page' => $pagination['current_page'] + 1]) }}" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium no-underline">Next</a>
+            @endif
+          </div>
+        </div>
+      @endif
     </div>
 
 </div>

@@ -9,8 +9,10 @@ use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
 use App\Models\AppNavigationItem;
 use App\Models\AppSocialLink;
+use App\Models\AppTutorialStep;
 use App\Services\AppConfigService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class GreenpreneurAppConfigSeeder extends Seeder
 {
@@ -59,6 +61,20 @@ class GreenpreneurAppConfigSeeder extends Seeder
                     'sort_order' => $sortOrder++,
                 ]
             );
+        }
+
+        if (Schema::hasTable('app_tutorial_steps')) {
+            $stepOrder = 1;
+            foreach ($this->tutorialSteps() as $key => $enabled) {
+                AppTutorialStep::query()->updateOrCreate(
+                    ['app_instance_id' => $appInstanceId, 'step_key' => $key],
+                    [
+                        'step_name' => str($key)->replace('_', ' ')->title()->toString(),
+                        'is_enabled' => $enabled,
+                        'sort_order' => $stepOrder++,
+                    ]
+                );
+            }
         }
 
         $this->seedNavigation($appInstanceId, 'bottom_nav', [
@@ -164,7 +180,21 @@ class GreenpreneurAppConfigSeeder extends Seeder
 
     private function features(): array
     {
-        return ['events' => true, 'referrals' => true, 'business_deals' => true, 'p2p_meetings' => true, 'testimonials' => true, 'requirements' => true, 'collaborations' => true, 'collaboration_ask' => true, 'visitor_registration' => true, 'add_impact' => true, 'claim_coins' => true, 'coins_wallet' => true, 'leaderboard' => true, 'impact_score' => true, 'badges' => true, 'gratitude_score' => false, 'circles' => true, 'chat_messaging' => true, 'geo_nearby' => false, 'circulars' => true, 'gallery' => true, 'videos' => true, 'meeting_schedule' => true, 'invoices' => true, 'blocked_users' => true, 'welcome_creative' => true, 'feedback' => true, 'qr_scan' => true, 'community_feed' => true, 'leadership_form' => true, 'recommend_peer' => true, 'peers' => true];
+        return ['events' => true, 'referrals' => true, 'business_deals' => true, 'p2p_meetings' => true, 'testimonials' => true, 'requirements' => true, 'collaborations' => true, 'collaboration_ask' => true, 'visitor_registration' => true, 'add_impact' => true, 'claim_coins' => true, 'coins_wallet' => true, 'leaderboard' => true, 'impact_score' => true, 'badges' => true, 'gratitude_score' => false, 'circles' => true, 'chat_messaging' => true, 'geo_nearby' => false, 'circulars' => true, 'gallery' => true, 'videos' => true, 'meeting_schedule' => true, 'invoices' => true, 'blocked_users' => true, 'welcome_creative' => true, 'feedback' => true, 'qr_scan' => true, 'community_feed' => true, 'leadership_form' => true, 'recommend_peer' => true, 'peers' => true, 'tutorials' => true];
+    }
+
+    private function tutorialSteps(): array
+    {
+        return [
+            'peers' => true,
+            'circles' => true,
+            'shorts' => true,
+            'impact' => true,
+            'directory' => true,
+            'ask_flows' => true,
+            'quick_actions' => true,
+            'timeline' => true,
+        ];
     }
 
     private function dashboardWidgets(): array

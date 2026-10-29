@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeGenerator;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -64,7 +66,7 @@ class AwardRecognitionWhatsappService
     /**
      * Handle Track 1: Growth Award notification.
      */
-    public function handleGrowthAward(User $user, int $count, ?string $imageUrl = null): ?MemberAwardSend
+    public function handleGrowthAward(User $user, int $count, ?string $imageUrl = null, ?string $customPhone = null): ?MemberAwardSend
     {
         if (! isset(self::GROWTH_TRACK[$count])) {
             return null;
@@ -87,14 +89,15 @@ class AwardRecognitionWhatsappService
             $count,
             $award['template'],
             $award['language'],
-            $imageUrl
+            $imageUrl,
+            $customPhone
         );
     }
 
     /**
      * Handle Track 2: Life Impact Award notification.
      */
-    public function handleImpactAward(User $user, int $count, ?string $imageUrl = null): ?MemberAwardSend
+    public function handleImpactAward(User $user, int $count, ?string $imageUrl = null, ?string $customPhone = null): ?MemberAwardSend
     {
         if (! isset(self::IMPACT_TRACK[$count])) {
             return null;
@@ -117,7 +120,8 @@ class AwardRecognitionWhatsappService
             $count,
             $award['template'],
             $award['language'],
-            $imageUrl
+            $imageUrl,
+            $customPhone
         );
     }
 
@@ -142,31 +146,123 @@ class AwardRecognitionWhatsappService
             $memberName = 'Valued Peer';
         }
 
-        $baseUrl = config('app.url', 'https://peersunity.com');
-        $referralLink = rtrim($baseUrl, '/') . '/share?type=' . ($track === 'GROWTH' ? 'referrals' : 'life_impact');
+        $baseUrl = LifeImpactCreativeGenerator::getPublicBaseUrl();
 
-        // Resolve physical creative file from disk
-        $dir = $track === 'LIFE_IMPACT' ? 'life_impact_creatives' : 'member_introduce_creatives';
-        $titleFilename = ucwords(strtolower($title)) . '.png';
-        $localImageFile = public_path("images/{$dir}/{$titleFilename}");
-        if (! file_exists($localImageFile)) {
-            $localImageFile = public_path("images/{$dir}/{$title}.png");
+        if ($track === 'LIFE_IMPACT') {
+            $referralLink = "{$baseUrl}/share?type=badges&tab=lives_impacted";
+        } else {
+            // Track 1: Growth / Member Introduced Track -> Peer's Referral Link (e.g. /register?ref=HARSH94657)
+            $refCode = null;
+            try {
+                $referralService = app(\App\Services\Referrals\ReferralService::class);
+                $referralData = $referralService->generateOrGetReferral($user);
+                $refCode = $referralData['referral_code'] ?? null;
+            } catch (Throwable $refEx) {
+                Log::warning('[AwardRecognitionWhatsappService] Could not resolve user referral link: ' . $refEx->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            if (empty($refCode)) {
+                $refCode = $user->referral_code ?? $user->invite_code ?? null;
+            }
+
+            if (empty($refCode)) {
+                $cleanName = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($user->first_name ?: $user->name ?: 'PEERS')));
+                $prefix = Str::padRight(Str::substr($cleanName, 0, 5), 5, 'X');
+                $refCode = $prefix . str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
+            }
+
+            $referralLink = "{$baseUrl}/register?ref={$refCode}";
         }
-        if (! file_exists($localImageFile)) {
-            $fallbackFile = $track === 'LIFE_IMPACT' ? 'Impact Creator.png' : 'Connector.png';
-            $localImageFile = public_path("images/{$dir}/{$fallbackFile}");
+
+        // Check if imageUrl is missing or points to an unrendered raw template
+        $isRawOrEmpty = empty($imageUrl)
+            || str_contains($imageUrl, 'life_impact_creatives/')
+            || str_contains($imageUrl, 'member_introduce_creatives/')
+            || str_contains($imageUrl, 'life_impact_badges/')
+            || str_contains($imageUrl, 'member_introduce_badges/');
+
+        if ($isRawOrEmpty) {
+            try {
+                if ($track === 'LIFE_IMPACT') {
+                    $imageUrl = $this->impactCreativeGenerator->generateOrGetUrl($user, $milestoneCount, $milestoneCount);
+                } else {
+                    $imageUrl = $this->growthCreativeGenerator->generateOrGetUrl($user, $milestoneCount);
+                }
+            } catch (Throwable $e) {
+                Log::warning("[AwardRecognitionWhatsappService] Failed auto-generating personalized creative in sendAward: {$e->getMessage()}", [
+                    'user_id' => $user->id,
+                    'track' => $track,
+                    'milestone' => $milestoneCount,
+                ]);
+            }
         }
+
+        // Attempt to resolve the physical local file on disk for the personalized creative
+        $localCreativeFile = $this->resolveLocalPhysicalFile($imageUrl);
 
         $mediaId = null;
-        try {
-            $mediaId = $this->metaService->uploadMediaFromPath($localImageFile);
-        } catch (Throwable $uploadEx) {
-            Log::warning('[AwardRecognitionWhatsappService] uploadMediaFromPath fallback: ' . $uploadEx->getMessage());
+        $tempDownloadedFile = null;
+
+        if ($localCreativeFile && file_exists($localCreativeFile)) {
+            try {
+                $mediaId = $this->metaService->uploadMediaFromPath($localCreativeFile);
+            } catch (Throwable $uploadEx) {
+                Log::warning('[AwardRecognitionWhatsappService] uploadMediaFromPath for personalized creative failed: ' . $uploadEx->getMessage());
+            }
         }
 
-        $imageParam = $mediaId 
-            ? ['id' => $mediaId] 
-            : ['link' => (!empty($imageUrl) && str_starts_with($imageUrl, 'http')) ? $imageUrl : 'https://peersunity.com/images/member_introduce_creatives/Connector.png'];
+        // If local file wasn't found but imageUrl is an external HTTP/HTTPS URL, download temporarily to upload
+        if (! $mediaId && ! empty($imageUrl) && (str_starts_with($imageUrl, 'http://') || str_starts_with($imageUrl, 'https://'))) {
+            try {
+                $response = Http::timeout(10)->get($imageUrl);
+                if ($response->successful() && ! empty($response->body())) {
+                    $tempDownloadedFile = @tempnam(sys_get_temp_dir(), 'wa_creative_');
+                    if ($tempDownloadedFile) {
+                        file_put_contents($tempDownloadedFile, $response->body());
+                        $mediaId = $this->metaService->uploadMediaFromPath($tempDownloadedFile);
+                    }
+                }
+            } catch (Throwable $dlEx) {
+                Log::warning('[AwardRecognitionWhatsappService] Remote download for Meta upload fallback failed: ' . $dlEx->getMessage());
+            } finally {
+                if ($tempDownloadedFile && file_exists($tempDownloadedFile)) {
+                    @unlink($tempDownloadedFile);
+                }
+            }
+        }
+
+        $dir = $track === 'LIFE_IMPACT' ? 'life_impact_creatives' : 'member_introduce_creatives';
+        $titleFilename = ucwords(strtolower($title)) . '.png';
+
+        if ($mediaId) {
+            $imageParam = ['id' => $mediaId];
+        } elseif (! empty($imageUrl) && str_starts_with($imageUrl, 'https://') && ! preg_match('~https?://(localhost|127\.0\.0\.1)([:/]|$)~i', $imageUrl)) {
+            $imageParam = ['link' => $imageUrl];
+        } else {
+            // Absolute fallback to base template only if personalized creative could not be generated, uploaded, or linked
+            $fallbackFile = public_path("images/{$dir}/{$titleFilename}");
+            if (! file_exists($fallbackFile)) {
+                $fallbackFile = public_path("images/{$dir}/{$title}.png");
+            }
+            if (! file_exists($fallbackFile)) {
+                $defaultName = $track === 'LIFE_IMPACT' ? 'Impact Creator.png' : 'Connector.png';
+                $fallbackFile = public_path("images/{$dir}/{$defaultName}");
+            }
+
+            try {
+                if (file_exists($fallbackFile)) {
+                    $fallbackMediaId = $this->metaService->uploadMediaFromPath($fallbackFile);
+                    $imageParam = ['id' => $fallbackMediaId];
+                } else {
+                    $imageParam = ['link' => 'https://peersunity.com/images/member_introduce_creatives/Connector.png'];
+                }
+            } catch (Throwable $fbEx) {
+                Log::warning('[AwardRecognitionWhatsappService] Fallback raw template upload failed: ' . $fbEx->getMessage());
+                $imageParam = ['link' => 'https://peersunity.com/images/member_introduce_creatives/Connector.png'];
+            }
+        }
 
         // Dynamically detect placeholder count in template definition
         $placeholderCount = 3;
@@ -212,7 +308,9 @@ class AwardRecognitionWhatsappService
             ],
         ];
 
-        $displayImageUrl = "/images/{$dir}/" . basename($localImageFile);
+        $displayImageUrl = ! empty($imageUrl)
+            ? $imageUrl
+            : ("/images/{$dir}/" . basename($titleFilename));
 
         $isTest = (bool) Config::get('whatsapp.testing.test_mode', false);
 
@@ -270,5 +368,50 @@ class AwardRecognitionWhatsappService
         }
 
         return $sendRecord;
+    }
+
+    /**
+     * Resolve the physical on-disk file path for a creative image URL or storage key.
+     */
+    protected function resolveLocalPhysicalFile(?string $imageUrl): ?string
+    {
+        if (empty($imageUrl)) {
+            return null;
+        }
+
+        if (file_exists($imageUrl) && is_file($imageUrl)) {
+            return $imageUrl;
+        }
+
+        $cleaned = $imageUrl;
+        if (str_contains($cleaned, '/storage/')) {
+            $cleaned = preg_replace('~^https?://[^/]+/storage/~i', '', $cleaned);
+            $cleaned = preg_replace('~^/storage/~i', '', $cleaned);
+        } elseif (preg_match('~^https?://[^/]+/(.*)$~i', $cleaned, $matches)) {
+            $cleaned = $matches[1];
+        }
+        $cleaned = ltrim($cleaned, '/');
+
+        $candidates = [
+            storage_path('app/public/' . $cleaned),
+            public_path('storage/' . $cleaned),
+            public_path($cleaned),
+            storage_path('app/' . $cleaned),
+        ];
+
+        try {
+            if (Storage::disk('public')->exists($cleaned)) {
+                $candidates[] = Storage::disk('public')->path($cleaned);
+            }
+        } catch (Throwable) {
+        }
+
+        foreach ($candidates as $candidate) {
+            if (! empty($candidate) && file_exists($candidate) && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }

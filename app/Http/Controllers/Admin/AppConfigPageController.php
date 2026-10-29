@@ -120,6 +120,33 @@ class AppConfigPageController extends Controller
         return $this->done('Features updated successfully.', 'features');
     }
 
+    public function bulkTutorialSteps(Request $request)
+    {
+        $data = $request->validate([
+            'tutorial_steps' => ['required', 'array'],
+            'tutorial_steps.*.sort_order' => ['nullable', 'integer', 'min:0'],
+            'tutorial_steps.*.is_enabled' => ['nullable'],
+        ]);
+
+        if (Schema::hasTable('app_tutorial_steps')) {
+            foreach ($data['tutorial_steps'] as $key => $row) {
+                DB::table('app_tutorial_steps')->updateOrInsert(
+                    ['app_instance_id' => $this->appId(), 'step_key' => (string) $key],
+                    [
+                        'step_name' => str((string) $key)->replace('_', ' ')->title()->toString(),
+                        'is_enabled' => $request->boolean("tutorial_steps.$key.is_enabled"),
+                        'sort_order' => $row['sort_order'] ?? 0,
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+            AppConfigController::clearCache();
+        }
+
+        return $this->done('Tutorial steps updated successfully.', 'tutorials');
+    }
+
     public function saveNavigation(Request $request, ?string $id = null)
     {
         $data = $request->validate(['menu_type' => ['required', Rule::in(['bottom_nav', 'plus_menu', 'impact_menu', 'drawer'])], 'item_key' => ['required', 'string', 'max:150'], 'label_key' => ['nullable', 'string', 'max:150'], 'display_label' => ['required', 'string', 'max:255'], 'icon' => ['nullable', 'string', 'max:100'], 'route_name' => ['nullable', 'string', 'max:150'], 'feature_key' => ['nullable', 'string', 'max:150'], 'is_enabled' => ['nullable'], 'sort_order' => ['required', 'integer', 'min:0']]);

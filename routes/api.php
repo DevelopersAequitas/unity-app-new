@@ -223,6 +223,8 @@ Route::post('/v1/webhooks/whatsapp-meta', [App\Http\Controllers\WhatsAppWebhookC
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
+Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
 Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
@@ -334,6 +336,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('rbac')->group($registerRbacRoutes);
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
     Route::get('/coin-guidelines', [CoinGuidelineController::class, 'index']);
     Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
@@ -843,6 +846,8 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/labels/{label_key}', [AppConfigAdminController::class, 'updateLabel']);
             Route::put('/app-config/features', [AppConfigAdminController::class, 'bulkUpdateFeatures']);
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
+            Route::put('/app-config/tutorial-steps', [AppConfigAdminController::class, 'bulkUpdateTutorialSteps']);
+            Route::put('/app-config/tutorial-steps/{step_key}', [AppConfigAdminController::class, 'updateTutorialStep']);
             Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
             Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
             Route::put('/app-config/navigation/group/{menu_type}', [AppConfigAdminController::class, 'bulkUpdateNavigationGroup']);

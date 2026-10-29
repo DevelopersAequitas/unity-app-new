@@ -29,6 +29,8 @@ use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\AppTutorialPopupsController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\AskManagementController;
@@ -200,6 +202,10 @@ Route::get('/join/{code?}', function (Request $request, ?string $code = null) {
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+// Public App Config
+Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 
 // WhatsApp Webhook (Publicly accessible, exempt from CSRF)
 Route::get('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
@@ -396,6 +402,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
 
+        // App Tutorial Popups walkthrough routes
+        Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index'])->name('app-tutorial-popups.index');
+        Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update'])->name('app-tutorial-popups.update');
+
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/ai-flows', [AiPromptFlowAdminController::class, 'index'])->name('ai-flows.index');
         Route::get('/ai-flows/create', [AiPromptFlowAdminController::class, 'create'])->name('ai-flows.create');
@@ -427,6 +437,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/app-config/upload-brand-asset', [AppConfigPageController::class, 'uploadBrandAsset'])->name('app-config.upload-brand-asset');
         Route::put('/app-config/labels', [AppConfigPageController::class, 'bulkLabels'])->name('app-config.labels');
         Route::put('/app-config/features', [AppConfigPageController::class, 'bulkFeatures'])->name('app-config.features');
+        Route::put('/app-config/tutorial-steps', [AppConfigPageController::class, 'bulkTutorialSteps'])->name('app-config.tutorial-steps');
         Route::put('/app-config/icons', [AppConfigPageController::class, 'bulkIcons'])->name('app-config.icons');
         Route::post('/app-config/icons/upload', [AppConfigPageController::class, 'uploadIconAsset'])->name('app-config.icons.upload');
         Route::post('/app-config/navigation', [AppConfigPageController::class, 'saveNavigation'])->name('app-config.navigation.store');

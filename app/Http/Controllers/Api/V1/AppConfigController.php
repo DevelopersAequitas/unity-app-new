@@ -12,8 +12,11 @@ use App\Models\AppIconAsset;
 use App\Models\AppInstance;
 use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
+use App\Models\AppNavigationItem;
 use App\Models\AppSocialLink;
+use App\Models\AppTutorialStep;
 use App\Services\AppConfigService;
+use App\Services\AppTutorialPopupService;
 use App\Support\GreenpreneurIconCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -84,12 +87,17 @@ class AppConfigController extends Controller
             ->latest('updated_at')
             ->first();
 
-        $features = AppFeature::query()
+        $dbFeatures = AppFeature::query()
             ->where('app_instance_id', $appInstanceId)
             ->orderBy('sort_order')
             ->pluck('is_enabled', 'feature_key')
             ->map(fn ($value) => (bool) $value)
-            ->all() ?: self::defaultFeatures();
+            ->all();
+
+        $features = array_merge(self::defaultFeatures(), $dbFeatures);
+        if (Cache::has(AppTutorialPopupService::MASTER_CACHE_KEY)) {
+            $features['tutorials'] = (bool) Cache::get(AppTutorialPopupService::MASTER_CACHE_KEY);
+        }
 
         $enabledFeatureKeys = AppFeature::query()
             ->where('app_instance_id', $appInstanceId)
@@ -105,6 +113,7 @@ class AppConfigController extends Controller
             'icons' => $icons,
             'drawer_menu' => $icons['drawer_menu'] ?? [],
             'features' => $features,
+            'tutorial_steps' => self::tutorialSteps($appInstanceId),
             'labels' => AppLabel::query()
                 ->where('app_instance_id', $appInstanceId)
                 ->where('is_active', true)
@@ -128,12 +137,18 @@ class AppConfigController extends Controller
 
     public static function defaultPublicConfig(): array
     {
+        $features = self::defaultFeatures();
+        if (Cache::has(AppTutorialPopupService::MASTER_CACHE_KEY)) {
+            $features['tutorials'] = (bool) Cache::get(AppTutorialPopupService::MASTER_CACHE_KEY);
+        }
+
         return [
             'app_info' => self::defaultAppInfo(),
             'colors' => self::defaultColors(),
             'icons' => self::defaultIcons(),
             'drawer_menu' => [],
-            'features' => self::defaultFeatures(),
+            'features' => $features,
+            'tutorial_steps' => self::defaultTutorialSteps(),
             'labels' => self::defaultLabels(),
             'navigation_menu' => [],
             'dashboard_widgets' => self::defaultDashboardWidgets(),
@@ -328,7 +343,49 @@ class AppConfigController extends Controller
             'leadership_form' => true,
             'recommend_peer' => true,
             'peers' => true,
+            'tutorials' => true,
         ];
+    }
+
+    public static function defaultTutorialSteps(): array
+    {
+        return [
+            'peers' => true,
+            'circles' => true,
+            'shorts' => true,
+            'impact' => true,
+            'directory' => true,
+            'ask_flows' => true,
+            'quick_actions' => true,
+            'timeline' => true,
+        ];
+    }
+
+    public static function tutorialSteps(?string $appInstanceId = null): array
+    {
+        if (Schema::hasTable('app_tutorial_steps')) {
+            try {
+                $query = AppTutorialStep::query();
+                if ($appInstanceId && Schema::hasColumn('app_tutorial_steps', 'app_instance_id')) {
+                    $query->where(function ($q) use ($appInstanceId) {
+                        $q->where('app_instance_id', $appInstanceId)
+                            ->orWhereNull('app_instance_id');
+                    });
+                }
+                $steps = $query->orderBy('sort_order')
+                    ->pluck('is_enabled', 'step_key')
+                    ->map(fn ($value) => (bool) $value)
+                    ->all();
+
+                if (! empty($steps)) {
+                    return array_merge(self::defaultTutorialSteps(), $steps);
+                }
+            } catch (Throwable) {
+                // Fallback to defaults
+            }
+        }
+
+        return self::defaultTutorialSteps();
     }
 
     private static function defaultDashboardWidgets(): array
