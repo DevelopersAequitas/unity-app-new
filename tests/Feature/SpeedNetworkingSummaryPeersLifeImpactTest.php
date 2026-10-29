@@ -282,6 +282,10 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
         $this->assertNotNull($rahul);
         $this->assertSame(30, $rahul['life_impacted_count']);
         $this->assertSame(30, $rahul['lives_impacted']);
+        $this->assertSame(30, $rahul['score']);
+        $this->assertSame(30, $rahul['peer_score']);
+        $this->assertSame(30, $rahul['impact_score']);
+        $this->assertSame(30, $rahul['mutual_connections_count']);
         $this->assertFalse($rahul['is_bookmark']);
         $this->assertTrue($rahul['is_following']);
 
