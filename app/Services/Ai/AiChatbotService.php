@@ -210,6 +210,16 @@ class AiChatbotService
         );
 
         $replyMarkdown = (string) ($aiResult['reply_markdown'] ?? '');
+        $replyMarkdown = (string) preg_replace(
+            '/^\s*[\*\-•\d\.]*\s*\**(?:Open|Launch|Log\s*in\s*to)\s+(?:the\s+)?(?:Peers\s+Global\s+)?(?:Unity\s+)?App\.?\**\s*\r?\n?/im',
+            '',
+            $replyMarkdown
+        );
+        $replyMarkdown = (string) preg_replace(
+            '/\b(?:within|inside|in)\s+the\s+\**(?:Peers\s+Global\s+)?Unity\s+app\**/i',
+            'right here',
+            $replyMarkdown
+        );
         $attachments = array_values(array_merge(
             $collectedAttachments,
             is_array($aiResult['attachments'] ?? null) ? $aiResult['attachments'] : []
