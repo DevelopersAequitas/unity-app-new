@@ -1245,8 +1245,8 @@ class SpeedNetworkingApiController extends Controller
             }
         }
 
-        $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
-        $summary = $event
+        $userLifeImpact = $this->speedNetworkingService->resolveUserLifeImpact($user, $event instanceof SpeedNetworkingEvent ? $event : null);
+        $summary = $event instanceof SpeedNetworkingEvent
             ? $this->speedNetworkingService->getSessionSummary($event, $user)
             : [
                 'completed' => true,
@@ -1264,6 +1264,9 @@ class SpeedNetworkingApiController extends Controller
                 'life_impact_score' => $userLifeImpact,
                 'total_life_impacted' => $userLifeImpact,
                 'life_impacted_count' => $userLifeImpact,
+                'life_impact_count' => $userLifeImpact,
+                'lives_impacted' => $userLifeImpact,
+                'lives_impacted_count' => $userLifeImpact,
                 'coins' => [
                     'earned' => 0,
                     'balance_after' => (int) ($user->coins_balance ?? 0),
@@ -1469,7 +1472,7 @@ class SpeedNetworkingApiController extends Controller
         if ($event instanceof SpeedNetworkingEvent) {
             $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
         } else {
-            $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
+            $userLifeImpact = $this->speedNetworkingService->resolveUserLifeImpact($user);
             $meta = is_array($event->metadata) ? $event->metadata : (json_decode((string) $event->metadata, true) ?: []);
             $totalRounds = (int) ($meta['total_rounds'] ?? 0);
             $summary = [
@@ -1488,6 +1491,9 @@ class SpeedNetworkingApiController extends Controller
                 'life_impact_score' => $userLifeImpact,
                 'total_life_impacted' => $userLifeImpact,
                 'life_impacted_count' => $userLifeImpact,
+                'life_impact_count' => $userLifeImpact,
+                'lives_impacted' => $userLifeImpact,
+                'lives_impacted_count' => $userLifeImpact,
                 'coins' => [
                     'earned' => 0,
                     'balance_after' => (int) ($user->coins_balance ?? 0),

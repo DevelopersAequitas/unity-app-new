@@ -180,7 +180,7 @@ class SpeedNetworkingP2pService
 
             // 6. Increase Life Impact for BOTH users
             try {
-                $impactPoints = (int) config('impact.activity_rewards.p2p_meeting', 5);
+                $impactPoints = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
                 if ($impactPoints <= 0) {
                     $impactPoints = 5;
                 }
