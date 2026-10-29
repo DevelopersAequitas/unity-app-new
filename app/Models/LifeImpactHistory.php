@@ -53,11 +53,13 @@ class LifeImpactHistory extends Model
     {
         parent::__construct($attributes);
 
-        $schema = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
-        $schema = trim((string) explode(',', $schema)[0], " \t\n\r\0\x0B\"");
+        if (config('database.default') === 'pgsql') {
+            $schema = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
+            $schema = trim((string) explode(',', $schema)[0], " \t\n\r\0\x0B\"");
 
-        if ($schema !== '') {
-            $this->table = $schema.'.life_impact_histories';
+            if ($schema !== '') {
+                $this->table = $schema.'.life_impact_histories';
+            }
         }
     }
 

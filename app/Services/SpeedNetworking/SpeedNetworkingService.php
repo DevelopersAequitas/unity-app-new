@@ -1858,6 +1858,52 @@ class SpeedNetworkingService
         $interactedPeers = [];
         $seenPeerIds = [];
 
+        // Auth user bookmarks
+        $authUserBookmarks = (array) ($user->bookmarks ?? []);
+        $bookmarkIds = array_map('strval', $authUserBookmarks);
+
+        // Pre-query followed peers using correct user_follows columns (follower_id, following_id)
+        $followedPeerIds = [];
+        if (Schema::hasTable('user_follows')) {
+            try {
+                $candidatePeerIds = $matches->map(function (SpeedNetworkingMatch $m) use ($userId): ?string {
+                    $pid = (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id);
+
+                    return $pid !== '' ? $pid : null;
+                })->filter()->unique()->values()->all();
+
+                if (! empty($candidatePeerIds)) {
+                    $followedPeerIds = DB::table('user_follows')
+                        ->where('follower_id', $userId)
+                        ->whereIn('following_id', $candidatePeerIds)
+                        ->whereIn('status', ['accepted', 'pending'])
+                        ->pluck('following_id')
+                        ->map(fn ($id): string => (string) $id)
+                        ->all();
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // Pre-query user's approved connection IDs once instead of per match
+        $authConnIds = [];
+        if (Schema::hasTable('connections')) {
+            try {
+                $authConnIds = DB::table('connections')
+                    ->where(function ($q) use ($userId): void {
+                        $q->where('requester_id', $userId)->orWhere('addressee_id', $userId);
+                    })
+                    ->where('is_approved', true)
+                    ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$userId])
+                    ->pluck('conn_id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->toArray();
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
         foreach ($matches as $match) {
             /** @var User|null $peer */
             $peer = $match->user_a_id === $userId ? $match->userB : $match->userA;
@@ -1895,13 +1941,56 @@ class SpeedNetworkingService
             })->first();
 
             $connectionStatus = 'none';
+            $isConnected = false;
+            $isRequested = false;
+            $canSendConnectionRequest = true;
+
             if ($connection) {
+                $isConnected = (bool) ($connection->is_approved ?? false);
                 if (isset($connection->status) && in_array($connection->status, ['connected', 'pending', 'none'], true)) {
                     $connectionStatus = (string) $connection->status;
                 } else {
-                    $connectionStatus = ! empty($connection->is_approved) ? 'connected' : 'pending';
+                    $connectionStatus = $isConnected ? 'connected' : 'pending';
+                }
+                $isRequested = ! $isConnected && (string) $connection->requester_id === $userId;
+                $canSendConnectionRequest = ! $isConnected && ! $isRequested;
+            }
+
+            $isFollowing = in_array((string) $peer->id, $followedPeerIds, true);
+            $isBookmark = in_array((string) $peer->id, $bookmarkIds, true);
+
+            $mutualCount = 0;
+            if (! empty($authConnIds) && Schema::hasTable('connections')) {
+                try {
+                    $peerIdStr = (string) $peer->id;
+                    $peerConnIds = DB::table('connections')
+                        ->where(function ($q) use ($peerIdStr): void {
+                            $q->where('requester_id', $peerIdStr)->orWhere('addressee_id', $peerIdStr);
+                        })
+                        ->where('is_approved', true)
+                        ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$peerIdStr])
+                        ->pluck('conn_id')
+                        ->map(fn ($id): string => (string) $id)
+                        ->toArray();
+
+                    $mutualCount = count(array_diff(array_intersect($authConnIds, $peerConnIds), [$userId, $peerIdStr]));
+                } catch (\Throwable) {
+                    // ignore
                 }
             }
+
+            $introducedCount = (int) ($peer->members_introduced_count ?? 0);
+            if ($introducedCount <= 0 && Schema::hasTable('users') && Schema::hasColumn('users', 'introduced_by')) {
+                try {
+                    $introducedCount = (int) DB::table('users')->where('introduced_by', $peer->id)->count();
+                } catch (\Throwable) {
+                    // ignore
+                }
+            }
+
+            $connectionCount = method_exists($peer, 'resolveConnectionCount')
+                ? $peer->resolveConnectionCount()
+                : (int) ($peer->connection_count ?? 0);
 
             $bio = (string) ($peer->short_bio ?? '');
             if ($bio === '') {
@@ -1940,18 +2029,14 @@ class SpeedNetworkingService
 
             // Refresh peer after completing P2P meeting so life impact & profile details are fresh
             $peer = $peer->fresh() ?? $peer;
-            $peerLifeImpact = (int) ($peer->life_impacted_count ?? 0);
-            if ($peerLifeImpact === 0 && Schema::hasTable('life_impact_histories')) {
-                try {
-                    $historyTotal = (int) DB::table('life_impact_histories')
-                        ->where('user_id', $peer->id)
-                        ->sum(DB::raw('COALESCE(impact_value, life_impacted, 0)'));
-                    if ($historyTotal > 0) {
-                        $peerLifeImpact = $historyTotal;
-                    }
-                } catch (\Throwable $th) {
-                    // ignore
-                }
+            $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+            if ($impactPerMeeting <= 0) {
+                $impactPerMeeting = 5;
+            }
+
+            $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
+            if ($peerLifeImpact <= 0) {
+                $peerLifeImpact = $impactPerMeeting;
             }
 
             $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
@@ -1974,19 +2059,41 @@ class SpeedNetworkingService
                 'avatar_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_photo_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_image_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'profile_photo_image' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'city' => ! empty($peer->city) ? (string) $peer->city : null,
                 'bio' => $bio !== '' ? $bio : null,
                 'round' => (int) $match->round_number,
                 'interaction_duration_seconds' => $duration,
                 'connection_status' => $connectionStatus,
                 'is_connected' => $connectionStatus === 'connected',
+                'is_requested' => $isRequested,
+                'can_send_connection_request' => $canSendConnectionRequest,
+                'is_following' => $isFollowing,
+                'is_bookmark' => $isBookmark,
                 'is_pro' => $isPro,
                 'is_verified' => (bool) ($peer->is_verified ?? false),
+                'is_online' => (bool) ($peer->is_online ?? false),
+                'mutual_connections_count' => $mutualCount,
+                'connection_count' => $connectionCount,
+                'connections_count' => $connectionCount,
+                'introduced_count' => $introducedCount,
+                'members_introduced_count' => $introducedCount,
+
+                // Comprehensive life impact aliases for mobile client compatibility
                 'life_impacted_count' => $peerLifeImpact,
+                'life_impact_count' => $peerLifeImpact,
+                'life_impact' => $peerLifeImpact,
+                'life_impacted' => $peerLifeImpact,
+                'lives_impacted' => $peerLifeImpact,
+                'lives_impacted_count' => $peerLifeImpact,
                 'life_impact_score' => $peerLifeImpact,
                 'total_life_impacted' => $peerLifeImpact,
                 'impact_score' => $peerLifeImpact,
-                'life_impact' => $peerLifeImpact,
+                'impact_count' => $peerLifeImpact,
+                'impacts_count' => $peerLifeImpact,
+                'peer_life_impact' => $peerLifeImpact,
+                'peer_life_impacted_count' => $peerLifeImpact,
+
                 'p2p_meeting_id' => $p2pMeeting?->id ? (string) $p2pMeeting->id : null,
                 'creative_url' => $creativeUrl,
                 'p2p_logged' => $p2pMeeting !== null,
@@ -1997,27 +2104,18 @@ class SpeedNetworkingService
         $hasMetAllPeers = $this->hasMetAllActivePeers($event, $userId);
 
         $freshUser = $user->fresh() ?? $user;
-        $userLifeImpact = (int) ($freshUser->life_impacted_count ?? 0);
-        if ($userLifeImpact === 0 && Schema::hasTable('life_impact_histories')) {
-            try {
-                $historyTotal = (int) DB::table('life_impact_histories')
-                    ->where('user_id', $freshUser->id)
-                    ->sum(DB::raw('COALESCE(impact_value, life_impacted, 0)'));
-                if ($historyTotal > 0) {
-                    $userLifeImpact = $historyTotal;
-                }
-            } catch (\Throwable $th) {
-                // ignore
-            }
-        }
-
         $userCoins = (int) ($freshUser->coins_balance ?? 0);
-        $impactPerMeeting = (int) config('impact.activity_rewards.p2p_meeting', 5);
+        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
         if ($impactPerMeeting <= 0) {
             $impactPerMeeting = 5;
         }
         $lifeImpactEarned = count($interactedPeers) * $impactPerMeeting;
         $coinsEarned = count($interactedPeers) * 10;
+
+        $userLifeImpact = $this->resolveUserLifeImpact($freshUser, $event);
+        if ($userLifeImpact < $lifeImpactEarned) {
+            $userLifeImpact = max($userLifeImpact, $lifeImpactEarned);
+        }
 
         $message = $hasMetAllPeers
             ? 'You have met all peers in this event.'
@@ -2039,6 +2137,9 @@ class SpeedNetworkingService
             'life_impact_score' => $userLifeImpact,
             'total_life_impacted' => $userLifeImpact,
             'life_impacted_count' => $userLifeImpact,
+            'life_impact_count' => $userLifeImpact,
+            'lives_impacted' => $userLifeImpact,
+            'lives_impacted_count' => $userLifeImpact,
             'coins' => [
                 'earned' => $coinsEarned,
                 'balance_after' => $userCoins,
@@ -2046,6 +2147,152 @@ class SpeedNetworkingService
             'coins_earned' => $coinsEarned,
             'interacted_peers' => $interactedPeers,
         ];
+    }
+
+    /**
+     * Resolve the comprehensive life impact count for a user across all sources
+     * (users table, life_impact_histories, impacts, p2p_meetings, and speed networking matches).
+     */
+    public function resolveUserLifeImpact(User|string $userOrId, ?SpeedNetworkingEvent $event = null): int
+    {
+        $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
+        $user = $userOrId instanceof User ? $userOrId : User::find($userId);
+
+        $total = 0;
+
+        // 1. Check user model attribute
+        if ($user) {
+            $colValue = (int) ($user->life_impacted_count ?? 0);
+            if ($colValue > 0) {
+                $total = max($total, $colValue);
+            }
+        }
+
+        // 2. Direct column check in users table
+        if ($total <= 0 && Schema::hasTable('users')) {
+            $dbCol = (int) (DB::table('users')->where('id', $userId)->value('life_impacted_count') ?? 0);
+            if ($dbCol > 0) {
+                $total = max($total, $dbCol);
+            }
+        }
+
+        // 3. Table life_impact_histories
+        if (Schema::hasTable('life_impact_histories')) {
+            try {
+                $histQuery = DB::table('life_impact_histories')->where('user_id', $userId);
+                if (Schema::hasColumn('life_impact_histories', 'status')) {
+                    $histQuery->where(function ($q): void {
+                        $q->whereNull('status')->orWhere('status', 'approved');
+                    });
+                }
+                if (Schema::hasColumn('life_impact_histories', 'counted_in_total')) {
+                    $histQuery->where(function ($q): void {
+                        $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                    });
+                }
+                $hasVal = Schema::hasColumn('life_impact_histories', 'impact_value');
+                $hasLife = Schema::hasColumn('life_impact_histories', 'life_impacted');
+                $valExpr = ($hasVal && $hasLife)
+                    ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
+                    : ($hasVal ? 'COALESCE(NULLIF(impact_value, 0), 0)' : ($hasLife ? 'COALESCE(NULLIF(life_impacted, 0), 0)' : '0'));
+
+                $histSum = (int) $histQuery->sum(DB::raw($valExpr));
+                if ($histSum > 0) {
+                    $total = max($total, $histSum);
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // 4. Table impacts
+        if (Schema::hasTable('impacts')) {
+            try {
+                $impQuery = DB::table('impacts')->where('user_id', $userId);
+                if (Schema::hasColumn('impacts', 'deleted_at')) {
+                    $impQuery->whereNull('deleted_at');
+                }
+                if (Schema::hasColumn('impacts', 'status')) {
+                    $impQuery->where(function ($q): void {
+                        $q->whereNull('status')->orWhere('status', 'approved');
+                    });
+                }
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+                $hasImpactsValue = Schema::hasColumn('impacts', 'impact_value');
+                $impExpr = ($hasImpactsLife && $hasImpactsValue)
+                    ? 'COALESCE(NULLIF(life_impacted, 0), NULLIF(impact_value, 0), 1)'
+                    : ($hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : ($hasImpactsValue ? 'COALESCE(NULLIF(impact_value, 0), 1)' : '1'));
+
+                $impSum = (int) $impQuery->sum(DB::raw($impExpr));
+                if ($impSum > 0) {
+                    $total = max($total, $impSum);
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // 5. Table p2p_meetings
+        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+        if ($impactPerMeeting <= 0) {
+            $impactPerMeeting = 5;
+        }
+
+        if (Schema::hasTable('p2p_meetings')) {
+            try {
+                $p2pMeetingsCount = DB::table('p2p_meetings')
+                    ->where(function ($q) use ($userId): void {
+                        $q->where('initiator_user_id', $userId)
+                            ->orWhere('peer_user_id', $userId);
+                    })
+                    ->where('is_deleted', false)
+                    ->count();
+
+                if ($p2pMeetingsCount > 0) {
+                    $total = max($total, $p2pMeetingsCount * $impactPerMeeting);
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // 6. Current Speed Networking Event matches
+        if ($event && Schema::hasTable('speed_networking_matches')) {
+            try {
+                $eventMatchesCount = SpeedNetworkingMatch::where('event_id', $event->id)
+                    ->where(function ($q) use ($userId): void {
+                        $q->where('user_a_id', $userId)
+                            ->orWhere('user_b_id', $userId);
+                    })
+                    ->whereNotNull('user_b_id')
+                    ->count();
+
+                if ($eventMatchesCount > 0) {
+                    $total = max($total, $eventMatchesCount * $impactPerMeeting);
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // Ensure user's cached DB column is up-to-date
+        if ($total > 0 && Schema::hasTable('users') && Schema::hasColumn('users', 'life_impacted_count')) {
+            try {
+                DB::table('users')
+                    ->where('id', $userId)
+                    ->where(function ($q): void {
+                        $q->whereNull('life_impacted_count')->orWhere('life_impacted_count', '<', 1);
+                    })
+                    ->update([
+                        'life_impacted_count' => $total,
+                        'updated_at' => now(),
+                    ]);
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        return $total;
     }
 
     /**
