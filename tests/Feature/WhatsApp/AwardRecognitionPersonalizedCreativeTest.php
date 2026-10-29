@@ -170,6 +170,7 @@ class AwardRecognitionPersonalizedCreativeTest extends TestCase
         $this->assertSame('sent', $send->status);
         $this->assertSame($personalizedUrl, $send->creative_image_url);
         $this->assertStringNotContainsString('images/life_impact_creatives/Change Maker.png', (string) $send->creative_image_url);
+        $this->assertSame('https://peersunity.com/share?type=badges&tab=lives_impacted', $send->referral_link);
     }
 
     public function test_send_award_auto_generates_creative_if_raw_template_path_passed(): void
@@ -275,6 +276,48 @@ class AwardRecognitionPersonalizedCreativeTest extends TestCase
         $this->assertSame(1, $send->milestone_count);
         $this->assertSame($personalizedUrl, $send->creative_image_url);
         $this->assertStringNotContainsString('images/member_introduce_creatives/Connector.png', (string) $send->creative_image_url);
+        $this->assertStringStartsWith('https://peersunity.com/register?ref=', (string) $send->referral_link);
+    }
+
+    public function test_dev_server_links_for_life_impact_and_growth_referrals(): void
+    {
+        Config::set('app.url', 'https://dev.peersunity.com');
+        Config::set('app.public_url', 'https://dev.peersunity.com');
+
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Harsh',
+            'last_name' => 'Chauhan',
+            'display_name' => 'HARSH CHAUHAN',
+            'phone' => '919876543299',
+        ]);
+
+        $metaServiceMock = $this->createMock(MetaWhatsAppService::class);
+        $metaServiceMock->expects($this->exactly(2))
+            ->method('sendTemplateMessage')
+            ->willReturn(['meta_message_id' => 'wamid.dev123']);
+
+        $impactGeneratorMock = $this->createMock(LifeImpactCreativeGenerator::class);
+        $impactGeneratorMock->method('generateOrGetUrl')->willReturn('https://dev.peersunity.com/storage/uploads/impact.png');
+
+        $growthGeneratorMock = $this->createMock(IntroducedPeerCreativeGenerator::class);
+        $growthGeneratorMock->method('generateOrGetUrl')->willReturn('https://dev.peersunity.com/storage/uploads/growth.png');
+
+        $service = new AwardRecognitionWhatsappService(
+            $metaServiceMock,
+            $growthGeneratorMock,
+            $impactGeneratorMock
+        );
+
+        // 1. Life Impact Send (e.g. Impact Builder 250) -> dev badges tab link
+        $sendImpact = $service->handleImpactAward($user, 250);
+        $this->assertNotNull($sendImpact);
+        $this->assertSame('https://dev.peersunity.com/share?type=badges&tab=lives_impacted', $sendImpact->referral_link);
+
+        // 2. Growth Send (e.g. Connector 1) -> dev peer registration referral link (e.g. register?ref=HARSH...)
+        $sendGrowth = $service->handleGrowthAward($user, 1);
+        $this->assertNotNull($sendGrowth);
+        $this->assertStringStartsWith('https://dev.peersunity.com/register?ref=HARSH', (string) $sendGrowth->referral_link);
     }
 
     public function test_send_award_uploads_physical_personalized_file_when_exists(): void

@@ -146,8 +146,35 @@ class AwardRecognitionWhatsappService
             $memberName = 'Valued Peer';
         }
 
-        $baseUrl = config('app.url', 'https://peersunity.com');
-        $referralLink = rtrim($baseUrl, '/') . '/share?type=' . ($track === 'GROWTH' ? 'referrals' : 'life_impact');
+        $baseUrl = LifeImpactCreativeGenerator::getPublicBaseUrl();
+
+        if ($track === 'LIFE_IMPACT') {
+            $referralLink = "{$baseUrl}/share?type=badges&tab=lives_impacted";
+        } else {
+            // Track 1: Growth / Member Introduced Track -> Peer's Referral Link (e.g. /register?ref=HARSH94657)
+            $refCode = null;
+            try {
+                $referralService = app(\App\Services\Referrals\ReferralService::class);
+                $referralData = $referralService->generateOrGetReferral($user);
+                $refCode = $referralData['referral_code'] ?? null;
+            } catch (Throwable $refEx) {
+                Log::warning('[AwardRecognitionWhatsappService] Could not resolve user referral link: ' . $refEx->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            if (empty($refCode)) {
+                $refCode = $user->referral_code ?? $user->invite_code ?? null;
+            }
+
+            if (empty($refCode)) {
+                $cleanName = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($user->first_name ?: $user->name ?: 'PEERS')));
+                $prefix = Str::padRight(Str::substr($cleanName, 0, 5), 5, 'X');
+                $refCode = $prefix . str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
+            }
+
+            $referralLink = "{$baseUrl}/register?ref={$refCode}";
+        }
 
         // Check if imageUrl is missing or points to an unrendered raw template
         $isRawOrEmpty = empty($imageUrl)

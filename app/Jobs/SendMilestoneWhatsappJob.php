@@ -165,7 +165,15 @@ class SendMilestoneWhatsappJob implements ShouldQueue
         if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
             $baseUrl = 'https://peersunity.com';
         }
-        $referralLink = "{$baseUrl}/share?type=referrals";
+        $refCode = null;
+        try {
+            $referralData = app(\App\Services\Referrals\ReferralService::class)->generateOrGetReferral($user);
+            $refCode = $referralData['referral_code'] ?? null;
+        } catch (\Throwable) {
+        }
+        $referralLink = ! empty($refCode)
+            ? "{$baseUrl}/register?ref={$refCode}"
+            : "{$baseUrl}/register";
         $bodyParam3 = $referralLink;
 
         // 5. Header Media URL -> exact introduction_creatives.image_url

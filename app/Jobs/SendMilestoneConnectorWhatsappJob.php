@@ -239,7 +239,10 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
         // 2. Canonical Referral Link -> Body {{3}}
         $referralData = $referralService->generateOrGetReferral($user);
         $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
-        $referralLink = "{$baseUrl}/share?type=referrals";
+        $code = $referralData['referral_code'] ?? null;
+        $referralLink = ! empty($code)
+            ? "{$baseUrl}/register?ref={$code}"
+            : (! empty($referralData['referral_link']) ? $referralData['referral_link'] : "{$baseUrl}/register");
 
         // 3. Resolve Personalized Connector Creative Image URL using centralized CreativePublicUrlResolver
         $badgeImageUrl = null;

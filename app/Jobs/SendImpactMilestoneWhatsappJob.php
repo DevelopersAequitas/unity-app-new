@@ -158,7 +158,7 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
         if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
             $baseUrl = 'https://peersunity.com';
         }
-        $referralLink = "{$baseUrl}/share?type=referrals";
+        $referralLink = "{$baseUrl}/share?type=badges&tab=lives_impacted";
 
         // 6. Header Media URL -> exact life_impact_creatives.image_url (@header_media_url)
         $headerMediaUrl = trim((string) $this->imageUrl);
