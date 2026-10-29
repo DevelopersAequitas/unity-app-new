@@ -25,10 +25,10 @@ class AiChatbotToolsService
     public function buildUserContext(?User $user): string
     {
         if (! $user) {
-            return "CURRENT USER CONTEXT:\n- Guest / Unauthenticated Member";
+            return "CURRENT USER CONTEXT:\n- Guest / Unauthenticated Peer";
         }
 
-        $name = trim((string) ($user->display_name ?: ($user->first_name.' '.$user->last_name))) ?: 'Member';
+        $name = trim((string) ($user->display_name ?: ($user->first_name.' '.$user->last_name))) ?: 'Peer';
         $city = (string) ($user->city ?: ($user->business_city ?: 'Not specified'));
         $category = (string) ($user->business_sub_category ?: ($user->designation ?: 'Not specified'));
         $coins = (int) ($user->coins_balance ?? 0);
@@ -86,7 +86,7 @@ CONTEXT;
         if ($this->isToolEnabled('find_peers', 'search_peers', $enabledTools)) {
             $declarations[] = [
                 'name' => 'search_peers',
-                'description' => 'Find active Peers Global members by business category, city, or keyword.',
+                'description' => 'Find active Peers Global peers by business category, city, or keyword.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
@@ -208,9 +208,9 @@ CONTEXT;
         $cardItems = [];
 
         foreach ($query as $peer) {
-            $peerName = trim((string) ($peer->display_name ?: ($peer->first_name.' '.$peer->last_name))) ?: 'Peer Member';
+            $peerName = trim((string) ($peer->display_name ?: ($peer->first_name.' '.$peer->last_name))) ?: 'Peer';
             $company = (string) ($peer->company_name ?: 'Peers Global');
-            $role = (string) ($peer->business_sub_category ?: ($peer->designation ?: 'Member'));
+            $role = (string) ($peer->business_sub_category ?: ($peer->designation ?: 'Peer'));
             $peerCity = (string) ($peer->city ?: ($peer->business_city ?: ''));
 
             $peers[] = [

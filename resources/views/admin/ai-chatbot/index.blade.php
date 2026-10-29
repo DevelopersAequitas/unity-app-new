@@ -7,10 +7,10 @@
     $enabledTools = is_array($settings->enabled_tools_json) ? $settings->enabled_tools_json : \App\Models\AiChatbotSetting::DEFAULT_ENABLED_TOOLS;
     $availableTools = [
         'search_docs' => 'Search Knowledge Docs (RAG Policies & Rules)',
-        'find_peers' => 'Find Peers & Members (Live Users Table)',
+        'find_peers' => 'Find Peers (Live Users Table)',
         'get_events' => 'Get Upcoming Events (Live Events Table)',
         'get_speed_networking' => 'Get Speed Networking Sessions',
-        'get_my_stats' => 'Get Member Referrals, Coins & Impact Summary',
+        'get_my_stats' => 'Get Peer Referrals, Coins & Impact Summary',
     ];
     $innerOptionsJson = json_encode($settings->inner_options_json ?: \App\Models\AiChatbotSetting::DEFAULT_INNER_OPTIONS, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     $starterChipsJson = json_encode($settings->starter_chips_json ?: \App\Models\AiChatbotSetting::DEFAULT_STARTER_CHIPS, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -84,7 +84,7 @@
                             <div class="col-md-6">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" name="show_app_bar_icon" id="show_app_bar_icon" value="1" {{ $settings->show_app_bar_icon ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="show_app_bar_icon">Show Top AppBar AI Icon</label>
+                                    <label class="form-check-label" for="show_app_bar_icon">Show Floating Button in Profile Screen</label>
                                 </div>
                             </div>
                             <div class="col-md-6">

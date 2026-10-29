@@ -40,7 +40,7 @@ class AiChatbotService
             'bot_subtitle' => 'Always here to help you connect & grow',
             'bot_avatar_url' => null,
             'welcome_title' => 'Hello, I am PG Genie! How can I assist you today?',
-            'welcome_subtitle' => 'Ask about Peers Global guidelines, find members by category, check upcoming events, or track your impact.',
+            'welcome_subtitle' => 'Ask about Peers Global guidelines, find peers by category, check upcoming events, or track your impact.',
             'empty_history_title' => 'PG Genie Assistant',
             'empty_history_subtitle' => 'Select any topic below or type a question to begin.',
             'input_placeholder' => 'Ask PG Genie anything...',
@@ -82,7 +82,7 @@ class AiChatbotService
             'bot_subtitle' => (string) ($s->bot_subtitle ?: 'Always here to help you connect & grow'),
             'bot_avatar_url' => $s->bot_avatar_url,
             'welcome_title' => $welcomeTitle,
-            'welcome_subtitle' => (string) ($s->welcome_subtitle ?: 'Ask about Peers Global guidelines, find members by category, check upcoming events, or track your impact.'),
+            'welcome_subtitle' => (string) ($s->welcome_subtitle ?: 'Ask about Peers Global guidelines, find peers by category, check upcoming events, or track your impact.'),
             'empty_history_title' => (string) ($s->empty_history_title ?: 'PG Genie Assistant'),
             'empty_history_subtitle' => (string) ($s->empty_history_subtitle ?: 'Select any topic below or type a question to begin.'),
             'input_placeholder' => (string) ($s->input_placeholder ?: 'Ask PG Genie anything...'),
@@ -139,7 +139,7 @@ class AiChatbotService
 
         $masterPrompt = (string) ($settings->master_system_prompt ?: AiChatbotSetting::DEFAULT_MASTER_PROMPT);
         $userContext = $this->toolsService->buildUserContext($user);
-        $jsonInstruction = "\n\nIMPORTANT: Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
+        $jsonInstruction = "\n\nIMPORTANT: Always use the word 'peer' or 'peers' instead of 'member' or 'members'. Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
         $fullSystemInstruction = $masterPrompt."\n\n".$userContext.$jsonInstruction;
 
         $enabledTools = is_array($settings->enabled_tools_json)

@@ -29,6 +29,9 @@ class AiChatbotController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->chatbotService->getConfig($user),
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
