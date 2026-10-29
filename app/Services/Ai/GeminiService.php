@@ -214,6 +214,7 @@ class GeminiService
         foreach ($modelsToTry as $selectedModel) {
             $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
             $conversation = $contents;
+            $executedResultsSummary = [];
 
             for ($step = 0; $step < 3; $step++) {
                 $payload = [
@@ -263,10 +264,20 @@ class GeminiService
                         'error' => $lastError,
                     ]);
 
-                    // If tools declaration caused a 400 schema error, retry immediately without tools
-                    if ($statusCode === 400 && isset($payload['tools'])) {
+                    // If a 400 schema/functionCall error occurs, retry cleanly with tool results injected as text context
+                    if ($statusCode === 400) {
                         unset($payload['tools']);
                         $payload['generationConfig']['responseMimeType'] = 'application/json';
+                        if ($executedResultsSummary !== []) {
+                            $fallbackConversation = $contents;
+                            $fallbackConversation[] = [
+                                'role' => 'user',
+                                'parts' => [
+                                    ['text' => "LIVE DATABASE RESULTS:\n".json_encode($executedResultsSummary, JSON_UNESCAPED_UNICODE)],
+                                ],
+                            ];
+                            $payload['contents'] = $fallbackConversation;
+                        }
                         $response = Http::timeout(30)
                             ->withHeaders([
                                 'Content-Type' => 'application/json',
@@ -294,22 +305,27 @@ class GeminiService
                 $parts = $response->json('candidates.0.content.parts') ?? [];
                 $functionCalls = [];
                 $textParts = [];
+                $normalizedModelParts = [];
 
                 foreach ($parts as $part) {
                     if (isset($part['functionCall'])) {
                         $functionCalls[] = $part['functionCall'];
+                        $part['functionCall']['args'] = (object) (is_array($part['functionCall']['args'] ?? null) ? $part['functionCall']['args'] : []);
+                        $normalizedModelParts[] = $part;
                     } elseif (isset($part['text'])) {
                         $textParts[] = (string) $part['text'];
+                        $normalizedModelParts[] = $part;
                     }
                 }
 
                 if ($functionCalls !== []) {
                     $conversation[] = [
                         'role' => 'model',
-                        'parts' => $parts,
+                        'parts' => $normalizedModelParts,
                     ];
 
                     $responseParts = [];
+                    $executedResultsSummary = [];
                     foreach ($functionCalls as $call) {
                         $fnName = (string) ($call['name'] ?? '');
                         $fnArgs = is_array($call['args'] ?? null) ? $call['args'] : [];
@@ -323,12 +339,13 @@ class GeminiService
                             $toolResult = ['error' => $toolErr->getMessage()];
                         }
 
+                        $executedResultsSummary[$fnName] = $toolResult;
                         $responseParts[] = [
                             'functionResponse' => [
                                 'name' => $fnName,
                                 'response' => [
                                     'name' => $fnName,
-                                    'content' => $toolResult,
+                                    'content' => (object) $toolResult,
                                 ],
                             ],
                         ];
