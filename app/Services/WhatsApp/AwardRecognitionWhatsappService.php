@@ -237,10 +237,14 @@ class AwardRecognitionWhatsappService
         $dir = $track === 'LIFE_IMPACT' ? 'life_impact_creatives' : 'member_introduce_creatives';
         $titleFilename = ucwords(strtolower($title)) . '.png';
 
-        if ($mediaId) {
-            $imageParam = ['id' => $mediaId];
-        } elseif (! empty($imageUrl) && str_starts_with($imageUrl, 'https://') && ! preg_match('~https?://(localhost|127\.0\.0\.1)([:/]|$)~i', $imageUrl)) {
+        $isPublicUrl = ! empty($imageUrl)
+            && str_starts_with($imageUrl, 'https://')
+            && ! preg_match('~https?://(localhost|127\.0\.0\.1)([:/]|$)~i', $imageUrl);
+
+        if ($isPublicUrl) {
             $imageParam = ['link' => $imageUrl];
+        } elseif ($mediaId) {
+            $imageParam = ['id' => $mediaId];
         } else {
             // Absolute fallback to base template only if personalized creative could not be generated, uploaded, or linked
             $fallbackFile = public_path("images/{$dir}/{$titleFilename}");
@@ -266,19 +270,32 @@ class AwardRecognitionWhatsappService
         }
 
         // Dynamically detect placeholder count in template definition
-        $placeholderCount = 3;
-        $localTemplate = \App\Models\WhatsappTemplate::where('name', $templateName)->first();
-        if ($localTemplate && is_array($localTemplate->components)) {
-            foreach ($localTemplate->components as $comp) {
-                if (($comp['type'] ?? '') === 'BODY') {
-                    $bodyText = (string) ($comp['text'] ?? '');
-                    preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
-                    if (! empty($matches[1])) {
-                        $placeholderCount = count(array_unique($matches[1]));
+        // Contract: impact_builder_250 is 2-parameter (member_name, referral_link).
+        // Other Life Impact templates (e.g. ecosystem_builder_500, impact_architect_1000, change_maker_50) use 3 parameters.
+        $placeholderCount = ($templateName === 'impact_builder_250') ? 2 : 3;
+        try {
+            if (Schema::hasTable('whatsapp_templates')) {
+                $query = \App\Models\WhatsappTemplate::query();
+                if (Schema::hasColumn('whatsapp_templates', 'name')) {
+                    $query->where('name', $templateName);
+                } elseif (Schema::hasColumn('whatsapp_templates', 'template_key')) {
+                    $query->where('template_key', $templateName);
+                }
+                $localTemplate = $query->first();
+                if ($localTemplate && is_array($localTemplate->components)) {
+                    foreach ($localTemplate->components as $comp) {
+                        if (($comp['type'] ?? '') === 'BODY') {
+                            $bodyText = (string) ($comp['text'] ?? '');
+                            preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
+                            if (! empty($matches[1])) {
+                                $placeholderCount = count(array_unique($matches[1]));
+                            }
+                            break;
+                        }
                     }
-                    break;
                 }
             }
+        } catch (Throwable) {
         }
 
         $bodyParams = [];
