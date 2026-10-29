@@ -47,7 +47,9 @@ class AiChatbotController extends Controller
             $result = $this->chatbotService->sendMessage(
                 user: $user,
                 userText: $request->resolvedMessage(),
-                sessionId: $request->input('session_id')
+                sessionId: $request->input('session_id'),
+                audioBase64: $request->input('audio_base64'),
+                audioMimeType: $request->input('audio_mime_type')
             );
 
             return response()->json([
