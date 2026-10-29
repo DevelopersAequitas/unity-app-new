@@ -490,6 +490,13 @@ class MemberIntroducersController extends Controller
                 'peer_id' => $introducer->id,
             ]);
 
+            // Dispatch Meta WhatsApp Cloud API Award Recognition with personalized creative
+            try {
+                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleGrowthAward($introducer, (int) $count, $imageUrl);
+            } catch (\Throwable $waAwardEx) {
+                Log::error('[MemberIntroducersController] Failed triggering Meta WhatsApp growth award: '.$waAwardEx->getMessage());
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Creative posted to Timeline successfully! 🎉',

@@ -420,6 +420,20 @@ class LifeImpactRecognitionsController extends Controller
                 'peer_id' => $peer->id,
             ]);
 
+            // Dispatch Meta WhatsApp Cloud API Award Recognition with personalized creative
+            try {
+                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($peer, (int) $effectiveThreshold, $imageUrl);
+            } catch (\Throwable $waAwardEx) {
+                Log::error('[LifeImpactRecognitionsController] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
+            }
+
+            // Also trigger milestone notification workflow if configured
+            try {
+                app(\App\Services\Notifications\ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification($peer, (int) $effectiveThreshold, $imageUrl);
+            } catch (\Throwable $waEx) {
+                Log::error('[LifeImpactRecognitionsController] Failed triggering Impact WhatsApp milestone: '.$waEx->getMessage());
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Life Impact recognition posted to Timeline successfully! 🎉',

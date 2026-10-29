@@ -11,6 +11,7 @@ use App\Services\Creative\LifeImpactCreativeGenerator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
@@ -236,10 +237,14 @@ class AwardRecognitionWhatsappService
         $dir = $track === 'LIFE_IMPACT' ? 'life_impact_creatives' : 'member_introduce_creatives';
         $titleFilename = ucwords(strtolower($title)) . '.png';
 
-        if ($mediaId) {
-            $imageParam = ['id' => $mediaId];
-        } elseif (! empty($imageUrl) && str_starts_with($imageUrl, 'https://') && ! preg_match('~https?://(localhost|127\.0\.0\.1)([:/]|$)~i', $imageUrl)) {
+        $isPublicUrl = ! empty($imageUrl)
+            && str_starts_with($imageUrl, 'https://')
+            && ! preg_match('~https?://(localhost|127\.0\.0\.1)([:/]|$)~i', $imageUrl);
+
+        if ($isPublicUrl) {
             $imageParam = ['link' => $imageUrl];
+        } elseif ($mediaId) {
+            $imageParam = ['id' => $mediaId];
         } else {
             // Absolute fallback to base template only if personalized creative could not be generated, uploaded, or linked
             $fallbackFile = public_path("images/{$dir}/{$titleFilename}");
@@ -265,19 +270,32 @@ class AwardRecognitionWhatsappService
         }
 
         // Dynamically detect placeholder count in template definition
-        $placeholderCount = 3;
-        $localTemplate = \App\Models\WhatsappTemplate::where('name', $templateName)->first();
-        if ($localTemplate && is_array($localTemplate->components)) {
-            foreach ($localTemplate->components as $comp) {
-                if (($comp['type'] ?? '') === 'BODY') {
-                    $bodyText = (string) ($comp['text'] ?? '');
-                    preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
-                    if (! empty($matches[1])) {
-                        $placeholderCount = count(array_unique($matches[1]));
+        // Contract: impact_builder_250 is 2-parameter (member_name, referral_link).
+        // Other Life Impact templates (e.g. ecosystem_builder_500, impact_architect_1000, change_maker_50) use 3 parameters.
+        $placeholderCount = ($templateName === 'impact_builder_250') ? 2 : 3;
+        try {
+            if (Schema::hasTable('whatsapp_templates')) {
+                $query = \App\Models\WhatsappTemplate::query();
+                if (Schema::hasColumn('whatsapp_templates', 'name')) {
+                    $query->where('name', $templateName);
+                } elseif (Schema::hasColumn('whatsapp_templates', 'template_key')) {
+                    $query->where('template_key', $templateName);
+                }
+                $localTemplate = $query->first();
+                if ($localTemplate && is_array($localTemplate->components)) {
+                    foreach ($localTemplate->components as $comp) {
+                        if (($comp['type'] ?? '') === 'BODY') {
+                            $bodyText = (string) ($comp['text'] ?? '');
+                            preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
+                            if (! empty($matches[1])) {
+                                $placeholderCount = count(array_unique($matches[1]));
+                            }
+                            break;
+                        }
                     }
-                    break;
                 }
             }
+        } catch (Throwable) {
         }
 
         $bodyParams = [];
@@ -314,22 +332,58 @@ class AwardRecognitionWhatsappService
 
         $isTest = (bool) Config::get('whatsapp.testing.test_mode', false);
 
-        $sendRecord = MemberAwardSend::create([
-            'id' => (string) Str::uuid(),
-            'user_id' => $user->id,
-            'award_track' => $track,
-            'award_title' => $title,
-            'milestone_count' => $milestoneCount,
-            'template_name' => $templateName,
-            'language' => $language,
-            'phone_number' => $phone,
-            'creative_image_url' => $displayImageUrl,
-            'referral_link' => $referralLink,
-            'status' => 'pending',
-            'scheduled_at' => now(),
-            'payload_json' => $components,
-            'is_test' => $isTest,
-        ]);
+        if ($phone === '') {
+            Log::warning("[AwardRecognitionWhatsappService] Skipped {$templateName}: User {$user->id} has no valid phone number.");
+
+            if (Schema::hasTable('member_award_sends')) {
+                try {
+                    return MemberAwardSend::create([
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $user->id,
+                        'award_track' => $track,
+                        'award_title' => $title,
+                        'milestone_count' => $milestoneCount,
+                        'template_name' => $templateName,
+                        'language' => $language,
+                        'phone_number' => (string) $rawPhone,
+                        'creative_image_url' => $displayImageUrl,
+                        'referral_link' => $referralLink,
+                        'status' => 'failed',
+                        'error_message' => 'User has no valid phone number.',
+                        'scheduled_at' => now(),
+                        'payload_json' => $components,
+                        'is_test' => $isTest,
+                    ]);
+                } catch (Throwable) {
+                }
+            }
+
+            return null;
+        }
+
+        $sendRecord = null;
+        if (Schema::hasTable('member_award_sends')) {
+            try {
+                $sendRecord = MemberAwardSend::create([
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $user->id,
+                    'award_track' => $track,
+                    'award_title' => $title,
+                    'milestone_count' => $milestoneCount,
+                    'template_name' => $templateName,
+                    'language' => $language,
+                    'phone_number' => $phone,
+                    'creative_image_url' => $displayImageUrl,
+                    'referral_link' => $referralLink,
+                    'status' => 'pending',
+                    'scheduled_at' => now(),
+                    'payload_json' => $components,
+                    'is_test' => $isTest,
+                ]);
+            } catch (Throwable $dbEx) {
+                Log::warning('[AwardRecognitionWhatsappService] Failed creating initial member_award_sends record: ' . $dbEx->getMessage());
+            }
+        }
 
         try {
             $result = $this->metaService->sendTemplateMessage(
@@ -340,30 +394,34 @@ class AwardRecognitionWhatsappService
                 (string) $user->id
             );
 
-            $sendRecord->update([
-                'status' => 'sent',
-                'sent_at' => now(),
-                'provider_message_id' => ! empty($result['meta_message_id']) ? $result['meta_message_id'] : ($result['whatsapp_message_id'] ?? null),
-                'provider_response_json' => $result,
-            ]);
+            if ($sendRecord) {
+                $sendRecord->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'provider_message_id' => ! empty($result['meta_message_id']) ? $result['meta_message_id'] : ($result['whatsapp_message_id'] ?? null),
+                    'provider_response_json' => $result,
+                ]);
+            }
 
             Log::info("[AwardRecognitionWhatsappService] Successfully dispatched {$templateName} to {$phone}", [
                 'user_id' => $user->id,
                 'track' => $track,
                 'title' => $title,
-                'send_id' => $sendRecord->id,
+                'send_id' => $sendRecord?->id,
             ]);
         } catch (Throwable $e) {
-            $sendRecord->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-            ]);
+            if ($sendRecord) {
+                $sendRecord->update([
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage(),
+                ]);
+            }
 
             Log::error("[AwardRecognitionWhatsappService] Failed sending {$templateName} to {$phone}: " . $e->getMessage(), [
                 'user_id' => $user->id,
                 'track' => $track,
                 'title' => $title,
-                'send_id' => $sendRecord->id,
+                'send_id' => $sendRecord?->id,
             ]);
         }
 

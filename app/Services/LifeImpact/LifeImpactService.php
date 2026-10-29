@@ -467,6 +467,22 @@ class LifeImpactService
                             }
 
                             Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
+                        } else {
+                            // If the timeline post already exists, ensure the WhatsApp award was also sent
+                            if (Schema::hasTable('member_award_sends')) {
+                                $alreadySent = \App\Models\MemberAwardSend::where('user_id', $user->id)
+                                    ->where('award_track', 'LIFE_IMPACT')
+                                    ->where('milestone_count', (int) $threshold)
+                                    ->whereIn('status', ['sent', 'delivered', 'read'])
+                                    ->exists();
+                                if (! $alreadySent) {
+                                    try {
+                                        app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $existingPost->image);
+                                    } catch (\Throwable $waAwardEx) {
+                                        Log::error('[LifeImpactService] Failed triggering Meta WhatsApp impact award for existing post: '.$waAwardEx->getMessage());
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -42,9 +42,13 @@ class AwardRecognitionPersonalizedCreativeTest extends TestCase
                 $table->string('phone')->nullable();
                 $table->string('secondary_mobile')->nullable();
                 $table->string('company')->nullable();
+                $table->string('company_name')->nullable();
                 $table->string('designation')->nullable();
                 $table->string('city')->nullable();
+                $table->string('email')->nullable();
+                $table->string('membership_status')->nullable();
                 $table->integer('life_impacted_count')->default(0);
+                $table->softDeletes();
                 $table->timestamps();
             });
         }
@@ -379,5 +383,140 @@ class AwardRecognitionPersonalizedCreativeTest extends TestCase
         $this->assertSame('sent', $send->status);
 
         @unlink($tempFile);
+    }
+
+    public function test_post_creative_to_timeline_triggers_whatsapp_award(): void
+    {
+        if (! Schema::hasTable('posts')) {
+            Schema::create('posts', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->nullable();
+                $table->uuid('circle_id')->nullable();
+                $table->text('content_text')->nullable();
+                $table->json('media')->nullable();
+                $table->json('tags')->nullable();
+                $table->string('visibility', 50)->default('public');
+                $table->string('moderation_status', 50)->default('approved');
+                $table->boolean('sponsored')->default(false);
+                $table->boolean('is_deleted')->default(false);
+                $table->string('source_type', 50)->nullable();
+                $table->uuid('source_id')->nullable();
+                $table->string('source_event', 100)->nullable();
+                $table->string('post_type', 50)->nullable();
+                $table->string('title')->nullable();
+                $table->text('description')->nullable();
+                $table->string('image')->nullable();
+                $table->string('status', 50)->default('active');
+                $table->boolean('active')->default(true);
+                $table->softDeletes();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('post_mentions')) {
+            Schema::create('post_mentions', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('post_id');
+                $table->uuid('peer_id');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('admin_users')) {
+            Schema::create('admin_users', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name')->nullable();
+                $table->string('email')->unique();
+                $table->string('password')->nullable();
+                $table->string('role', 50)->default('super_admin');
+                $table->string('status', 50)->default('active');
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('roles')) {
+            Schema::create('roles', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name', 255);
+                $table->string('key', 100);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('admin_user_roles')) {
+            Schema::create('admin_user_roles', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->uuid('role_id');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('role_module_access')) {
+            Schema::create('role_module_access', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('role_id');
+                $table->string('module_key', 100);
+                $table->timestamps();
+            });
+        }
+
+        $superRole = \App\Models\Role::firstOrCreate(
+            ['key' => 'super_admin'],
+            ['id' => (string) Str::uuid(), 'name' => 'Super Admin']
+        );
+
+        $admin = \App\Models\AdminUser::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Admin User',
+            'email' => 'admin_'.Str::random(5).'@peersunity.com',
+            'role' => 'super_admin',
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+
+        DB::table('admin_user_roles')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $admin->id,
+            'role_id' => $superRole->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $peer = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Harsh',
+            'last_name' => 'Chauhan',
+            'display_name' => 'HARSH CHAUHAN',
+            'phone' => '919876543212',
+            'life_impacted_count' => 500,
+        ]);
+
+        $mockAwardService = $this->createMock(AwardRecognitionWhatsappService::class);
+        $mockAwardService->expects($this->once())
+            ->method('handleImpactAward')
+            ->with(
+                $this->callback(fn ($u) => $u->id === $peer->id),
+                500,
+                $this->isType('string')
+            );
+        $this->app->instance(AwardRecognitionWhatsappService::class, $mockAwardService);
+
+        $response = $this->actingAs($admin, 'admin')
+            ->postJson(route('admin.life-impact-recognitions.post-creative', ['id' => $peer->id]), [
+                'threshold' => 500,
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $this->assertDatabaseHas('posts', [
+            'source_type' => 'life_impact',
+            'source_id' => $peer->id,
+            'post_type' => 'life_impact_recognition',
+        ]);
     }
 }
