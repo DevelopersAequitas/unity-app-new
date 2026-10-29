@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AdvertiserApplicationAdminController;
 use App\Http\Controllers\Admin\AdvertiserPackageAdminController;
 use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
+use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
@@ -413,6 +414,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'update'])->name('ai-flows.update');
         Route::delete('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'destroy'])->name('ai-flows.destroy');
         Route::post('/ai-flows/test', [AiPromptFlowAdminController::class, 'testPrompt'])->name('ai-flows.test');
+
+        Route::get('/ai-chatbot', [AiChatbotAdminController::class, 'index'])->name('ai-chatbot.index');
+        Route::put('/ai-chatbot/settings', [AiChatbotAdminController::class, 'updateSettings'])->name('ai-chatbot.settings.update');
+        Route::post('/ai-chatbot/documents', [AiChatbotAdminController::class, 'storeDocument'])->name('ai-chatbot.documents.store');
+        Route::post('/ai-chatbot/documents/{id}/toggle', [AiChatbotAdminController::class, 'toggleDocument'])->whereUuid('id')->name('ai-chatbot.documents.toggle');
+        Route::delete('/ai-chatbot/documents/{id}', [AiChatbotAdminController::class, 'destroyDocument'])->whereUuid('id')->name('ai-chatbot.documents.destroy');
         Route::get('/commissions', [CommissionManagementController::class, 'index'])->name('commissions.index');
         Route::put('/commissions', [CommissionManagementController::class, 'updateBulk'])->name('commissions.update-bulk');
         Route::post('/commissions', [CommissionManagementController::class, 'store'])->name('commissions.store');
