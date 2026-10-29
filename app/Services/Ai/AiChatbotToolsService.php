@@ -791,8 +791,8 @@ CONTEXT;
             ['keywords' => ['testimonial'], 'items' => [
                 ['id' => 'nav_testimonials', 'title' => 'Testimonials', 'route' => '/testimonials'],
             ]],
-            ['keywords' => ['ask', 'collaboration', 'requirement'], 'items' => [
-                ['id' => 'nav_asks', 'title' => 'Explore Asks', 'route' => '/open-asks'],
+            ['keywords' => ['post an ask', 'create an ask', 'explore asks', 'open asks', 'my asks', 'collaboration ask', 'referral ask', 'help ask', 'find a collaborator'], 'items' => [
+                ['id' => 'nav_asks', 'title' => 'Explore Asks', 'route' => '/post-ask'],
             ]],
             ['keywords' => ['search for peers', 'find peers', 'peers directory'], 'items' => [
                 ['id' => 'nav_peers', 'title' => 'Explore Peers', 'route' => '/peers'],

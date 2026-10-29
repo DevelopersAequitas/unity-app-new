@@ -124,8 +124,13 @@ class AiChatbotService
      *
      * @return array<string, mixed>
      */
-    public function sendMessage(?User $user, string $userText, ?string $sessionId = null): array
-    {
+    public function sendMessage(
+        ?User $user,
+        string $userText,
+        ?string $sessionId = null,
+        ?string $audioBase64 = null,
+        ?string $audioMimeType = null
+    ): array {
         $settings = $this->getSettings();
         $resolvedSessionId = filled($sessionId) ? (string) $sessionId : 'sess_'.Str::random(12);
 
@@ -157,9 +162,25 @@ class AiChatbotService
             ]);
         }
 
+        $userParts = [];
+        if (filled($audioBase64)) {
+            $cleanBase64 = preg_replace('/^data:audio\/[a-zA-Z0-9.+-]+;base64,/', '', (string) $audioBase64) ?: (string) $audioBase64;
+            $userParts[] = [
+                'inlineData' => [
+                    'mimeType' => filled($audioMimeType) ? (string) $audioMimeType : 'audio/mp4',
+                    'data' => $cleanBase64,
+                ],
+            ];
+            $userParts[] = [
+                'text' => 'Listen carefully to this peer voice message (it may be in English, Hindi, Gujarati, or Hinglish). Understand their question, call any needed Peers Global database tools (such as get_referral_and_impact_summary, search_peers, get_upcoming_events, get_active_speed_networking, or search_knowledge_docs), and respond helpfully within Peers Global Unity scope.',
+            ];
+        } else {
+            $userParts[] = ['text' => $userText];
+        }
+
         $contents[] = [
             'role' => 'user',
-            'parts' => [['text' => $userText]],
+            'parts' => $userParts,
         ];
 
         $masterPrompt = (string) ($settings->master_system_prompt ?: AiChatbotSetting::DEFAULT_MASTER_PROMPT);
