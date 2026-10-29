@@ -148,12 +148,19 @@
     </div>
 
     @if ($isActive)
+        @php
+            $prevCoinsToRev = $deactivationPreview['coins_to_reverse'] ?? 0;
+            $prevImpactToRev = $deactivationPreview['impact_to_reverse'] ?? 0;
+            $prevCurrCoins = $deactivationPreview['current_coins'] ?? (int) ($post->user?->coins_balance ?? 0);
+            $prevCurrImpact = $deactivationPreview['current_impact'] ?? (int) ($post->user?->life_impacted_count ?? 0);
+        @endphp
         {{-- Deactivate Modal on Show Page --}}
         <div class="modal fade" id="deactivateShowModal" tabindex="-1" aria-labelledby="deactivateShowModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                     <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}">
                         @csrf
+                        <input type="hidden" name="has_options" value="1">
                         <div class="modal-header bg-white border-bottom py-3 px-4">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="rounded-3 bg-danger-subtle text-danger p-2 d-flex align-items-center justify-center">
@@ -177,24 +184,50 @@
                                 </div>
                             </div>
 
+                            {{-- Option Cards --}}
                             <div class="row g-2 mb-3 text-center">
                                 <div class="col-4">
-                                    <div class="p-2 rounded-3 border bg-warning-subtle text-warning-emphasis">
-                                        <div class="text-uppercase fw-bold" style="font-size: 10px;">Coins</div>
-                                        <div class="small fw-bold"><i class="bi bi-coin"></i> Reversal</div>
-                                    </div>
+                                    <label id="show_card_opt_coins" for="show_opt_reverse_coins" class="p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-warning-subtle border-warning text-warning-emphasis position-relative transition">
+                                        <input type="checkbox" name="reverse_coins" id="show_opt_reverse_coins" value="1" checked class="d-none">
+                                        <span id="show_check_coins" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning text-dark"><i class="bi bi-check"></i></span>
+                                        <div class="small fw-bold"><i class="bi bi-coin text-warning"></i> Reverse Coins</div>
+                                        <div id="show_badge_coins" class="badge bg-warning text-dark fw-bold mt-1 d-block">
+                                            {{ $prevCoinsToRev > 0 ? ('-' . number_format($prevCoinsToRev) . ' Coins') : '0 Coins' }}
+                                        </div>
+                                        <div id="show_preview_coins" class="text-muted mt-1" style="font-size: 10px;">
+                                            Bal: {{ number_format($prevCurrCoins) }} → {{ number_format(max(0, $prevCurrCoins - $prevCoinsToRev)) }}
+                                        </div>
+                                    </label>
                                 </div>
                                 <div class="col-4">
-                                    <div class="p-2 rounded-3 border bg-info-subtle text-info-emphasis">
-                                        <div class="text-uppercase fw-bold" style="font-size: 10px;">Life Impact</div>
-                                        <div class="small fw-bold"><i class="bi bi-stars"></i> Reversal</div>
-                                    </div>
+                                    <label id="show_card_opt_impact" for="show_opt_reverse_impact" class="p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-info-subtle border-info text-info-emphasis position-relative transition">
+                                        <input type="checkbox" name="reverse_impact" id="show_opt_reverse_impact" value="1" checked class="d-none">
+                                        <span id="show_check_impact" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-info text-dark"><i class="bi bi-check"></i></span>
+                                        <div class="small fw-bold"><i class="bi bi-stars text-info"></i> Reverse Impact</div>
+                                        <div id="show_badge_impact" class="badge bg-info text-dark fw-bold mt-1 d-block">
+                                            {{ $prevImpactToRev > 0 ? ('-' . number_format($prevImpactToRev) . ' Impact') : '0 Impact' }}
+                                        </div>
+                                        <div id="show_preview_impact" class="text-muted mt-1" style="font-size: 10px;">
+                                            Score: {{ number_format($prevCurrImpact) }} → {{ number_format(max(0, $prevCurrImpact - $prevImpactToRev)) }}
+                                        </div>
+                                    </label>
                                 </div>
                                 <div class="col-4">
-                                    <div class="p-2 rounded-3 border bg-primary-subtle text-primary-emphasis">
-                                        <div class="text-uppercase fw-bold" style="font-size: 10px;">Alert</div>
-                                        <div class="small fw-bold"><i class="bi bi-bell-fill"></i> In-App</div>
-                                    </div>
+                                    <label id="show_card_opt_notify" for="show_opt_notify_user" class="p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-primary-subtle border-primary text-primary-emphasis position-relative transition">
+                                        <input type="checkbox" name="notify_user" id="show_opt_notify_user" value="1" checked class="d-none">
+                                        <span id="show_check_notify" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-primary text-white"><i class="bi bi-check"></i></span>
+                                        <div class="small fw-bold"><i class="bi bi-bell-fill text-primary"></i> Notify User</div>
+                                        <div id="show_badge_notify" class="badge bg-primary text-white fw-bold mt-1 d-block">Push & In-App</div>
+                                        <div id="show_preview_notify" class="text-muted mt-1" style="font-size: 10px;">Alerts peer</div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {{-- Summary Box --}}
+                            <div id="show_summary_box" class="p-2.5 bg-warning-subtle text-warning-emphasis border border-warning rounded-3 small mb-3 d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle-fill text-warning fs-6"></i>
+                                <div id="show_summary_text" class="flex-grow-1">
+                                    Will deactivate post, reverse awarded rewards, and notify member.
                                 </div>
                             </div>
 
@@ -230,5 +263,94 @@
                 </div>
             </div>
         </div>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const coinsCheck = document.getElementById('show_opt_reverse_coins');
+            const impactCheck = document.getElementById('show_opt_reverse_impact');
+            const notifyCheck = document.getElementById('show_opt_notify_user');
+
+            const coinsCard = document.getElementById('show_card_opt_coins');
+            const impactCard = document.getElementById('show_card_opt_impact');
+            const notifyCard = document.getElementById('show_card_opt_notify');
+
+            const coinsBadge = document.getElementById('show_badge_coins');
+            const impactBadge = document.getElementById('show_badge_impact');
+            const notifyBadge = document.getElementById('show_badge_notify');
+
+            const coinsCheckIcon = document.getElementById('show_check_coins');
+            const impactCheckIcon = document.getElementById('show_check_impact');
+            const notifyCheckIcon = document.getElementById('show_check_notify');
+
+            const summaryText = document.getElementById('show_summary_text');
+
+            const coinsToRev = {{ (int) $prevCoinsToRev }};
+            const impactToRev = {{ (int) $prevImpactToRev }};
+            const currCoins = {{ (int) $prevCurrCoins }};
+            const currImpact = {{ (int) $prevCurrImpact }};
+            const owner = @json($ownerName ?: 'Member');
+
+            function refreshShowModalUi() {
+                if (coinsCheck && coinsCheck.checked) {
+                    coinsCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-warning-subtle border-warning text-warning-emphasis position-relative transition';
+                    if (coinsCheckIcon) coinsCheckIcon.classList.remove('d-none');
+                    if (coinsBadge) coinsBadge.textContent = coinsToRev > 0 ? ('-' + coinsToRev.toLocaleString() + ' Coins') : '0 Coins';
+                } else if (coinsCard) {
+                    coinsCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-light border-secondary-subtle text-muted position-relative opacity-75';
+                    if (coinsCheckIcon) coinsCheckIcon.classList.add('d-none');
+                    if (coinsBadge) coinsBadge.textContent = 'Keep Coins (0)';
+                }
+
+                if (impactCheck && impactCheck.checked) {
+                    impactCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-info-subtle border-info text-info-emphasis position-relative transition';
+                    if (impactCheckIcon) impactCheckIcon.classList.remove('d-none');
+                    if (impactBadge) impactBadge.textContent = impactToRev > 0 ? ('-' + impactToRev.toLocaleString() + ' Impact') : '0 Impact';
+                } else if (impactCard) {
+                    impactCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-light border-secondary-subtle text-muted position-relative opacity-75';
+                    if (impactCheckIcon) impactCheckIcon.classList.add('d-none');
+                    if (impactBadge) impactBadge.textContent = 'Keep Impact (0)';
+                }
+
+                if (notifyCheck && notifyCheck.checked) {
+                    notifyCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-primary-subtle border-primary text-primary-emphasis position-relative transition';
+                    if (notifyCheckIcon) notifyCheckIcon.classList.remove('d-none');
+                    if (notifyBadge) notifyBadge.textContent = 'Push & In-App';
+                } else if (notifyCard) {
+                    notifyCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-light border-secondary-subtle text-muted position-relative opacity-75';
+                    if (notifyCheckIcon) notifyCheckIcon.classList.add('d-none');
+                    if (notifyBadge) notifyBadge.textContent = 'No Alert';
+                }
+
+                let actions = [];
+                if (coinsCheck && coinsCheck.checked && coinsToRev > 0) {
+                    actions.push(`deduct <strong>-${coinsToRev.toLocaleString()} Coins</strong>`);
+                }
+                if (impactCheck && impactCheck.checked && impactToRev > 0) {
+                    actions.push(`deduct <strong>-${impactToRev.toLocaleString()} Life Impact</strong>`);
+                }
+
+                let msg = 'Will deactivate post';
+                if (actions.length > 0) {
+                    msg += `, ${actions.join(' and ')} from <strong>${owner}</strong>`;
+                } else {
+                    msg += ` for <strong>${owner}</strong>`;
+                }
+
+                if (notifyCheck && notifyCheck.checked) {
+                    msg += `, and send them a push & in-app notification.`;
+                } else {
+                    msg += `, without notifying member.`;
+                }
+
+                if (summaryText) summaryText.innerHTML = msg;
+            }
+
+            if (coinsCheck) coinsCheck.addEventListener('change', refreshShowModalUi);
+            if (impactCheck) impactCheck.addEventListener('change', refreshShowModalUi);
+            if (notifyCheck) notifyCheck.addEventListener('change', refreshShowModalUi);
+
+            refreshShowModalUi();
+        });
+        </script>
     @endif
 @endsection

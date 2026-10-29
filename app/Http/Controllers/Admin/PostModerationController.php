@@ -13,6 +13,7 @@ use App\Services\Admin\PermissionService;
 use App\Services\Media\BirthdayCreativeImageService;
 use App\Services\Referrals\ReferralCampaignConfigService;
 use App\Support\AdminAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -259,6 +260,20 @@ class PostModerationController extends Controller
             ->get()
             ->keyBy(fn (Impact $impact) => (string) $impact->id);
 
+        try {
+            $deactivationService = app(\App\Services\Posts\PostDeactivationService::class);
+            $previews = $deactivationService->getBatchDeactivationPreviews($postsById, $impactsById);
+
+            foreach ($postsById as $id => $post) {
+                $post->deactivation_preview = $previews['posts'][$id] ?? null;
+            }
+            foreach ($impactsById as $id => $impact) {
+                $impact->deactivation_preview = $previews['impacts'][$id] ?? null;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[PostModerationController] Could not precalculate deactivation previews: ' . $e->getMessage());
+        }
+
         $items = $this->hydrateTimelineRows($pageRows, $postsById, $impactsById);
 
         $posts = new LengthAwarePaginator(
@@ -354,6 +369,8 @@ class PostModerationController extends Controller
                 'media' => [],
                 'timeline_posted_at' => $impact->timeline_posted_at,
                 'created_at' => $impact->timeline_posted_at ?? $impact->approved_at ?? $impact->created_at,
+                'life_impacted' => $impact->life_impacted ?? 1,
+                'deactivation_preview' => $impact->deactivation_preview ?? null,
             ];
         })->filter()->values();
     }
@@ -421,8 +438,16 @@ class PostModerationController extends Controller
             }
         }
 
+        $deactivationPreview = null;
+        try {
+            $deactivationPreview = app(\App\Services\Posts\PostDeactivationService::class)->getDeactivationPreview($post);
+        } catch (\Throwable $e) {
+            // non-blocking
+        }
+
         return view('admin.posts.show', [
             'post' => $post,
+            'deactivationPreview' => $deactivationPreview,
         ]);
     }
 
@@ -448,14 +473,29 @@ class PostModerationController extends Controller
 
         $validated = $request->validate([
             'remarks' => ['required', 'string', 'min:3', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
         ], [
             'remarks.required' => 'Please provide remarks or reason for deactivating this post.',
             'remarks.min' => 'Deactivation remarks must be at least 3 characters.',
         ]);
 
+        $hasOptions = $request->has('has_options');
+        $reverseCoins = $hasOptions ? $request->boolean('reverse_coins') : true;
+        $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
+
         $admin = Auth::guard('admin')->user();
         $service = app(\App\Services\Posts\PostDeactivationService::class);
-        $result = $service->deactivatePost($post, $validated['remarks'], $admin?->id);
+        $result = $service->deactivatePost(
+            $post,
+            $validated['remarks'],
+            $admin?->id,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser
+        );
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($result);
@@ -468,24 +508,88 @@ class PostModerationController extends Controller
         return redirect()->back()->with('success', $result['message']);
     }
 
-    public function deactivateImpact(string $impactId): RedirectResponse
+    public function deactivateImpact(Request $request, string $impactId): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->ensureGlobalAdmin();
 
         $impact = Impact::query()->find($impactId);
 
         if (! $impact) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Impact post not found.'], 404);
+            }
             return redirect()->back()->withErrors('Impact post not found.');
         }
 
         if ($impact->status !== 'approved') {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Only approved impact posts can be deactivated from All Posts.'], 422);
+            }
             return redirect()->back()->withErrors('Only approved impact posts can be deactivated from All Posts.');
         }
 
-        $impact->timeline_posted_at = null;
-        $impact->save();
+        $validated = $request->validate([
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
+        ]);
 
-        return redirect()->back()->with('success', 'Impact post deactivated successfully.');
+        $remarks = trim((string) ($validated['remarks'] ?? 'Impact post deactivated by admin.'));
+        $hasOptions = $request->has('has_options');
+        $reverseCoins = $hasOptions ? $request->boolean('reverse_coins') : false;
+        $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
+
+        $admin = Auth::guard('admin')->user();
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $result = $service->deactivateImpact(
+            $impact,
+            $remarks,
+            $admin?->id,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser
+        );
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        if (! empty($result['already_deactivated'])) {
+            return redirect()->back()->with('warning', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
+    }
+
+    public function previewDeactivation(Post $post): JsonResponse
+    {
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $preview = $service->getDeactivationPreview($post);
+
+        return response()->json([
+            'success' => true,
+            'preview' => $preview,
+        ]);
+    }
+
+    public function previewImpactDeactivation(string $impactId): JsonResponse
+    {
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $impact = Impact::query()->with('user')->find($impactId);
+        if (! $impact) {
+            return response()->json(['success' => false, 'message' => 'Impact post not found.'], 404);
+        }
+
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $preview = $service->getImpactDeactivationPreview($impact);
+
+        return response()->json([
+            'success' => true,
+            'preview' => $preview,
+        ]);
     }
 
     public function activateImpact(string $impactId): RedirectResponse
