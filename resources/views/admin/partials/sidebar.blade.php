@@ -1250,6 +1250,13 @@
                 </a>
             </li>
             @endif
+            @if (Route::has('admin.ai-chatbot.index'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.ai-chatbot.*') ? 'active' : '' }}" href="{{ route('admin.ai-chatbot.index') }}" title="Peers AI Chatbot">
+                    <i class="bi bi-chat-dots-fill me-2 text-primary"></i><span class="menu-text">Peers AI Chatbot</span>
+                </a>
+            </li>
+            @endif
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Commission Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSuper($adminUser))
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('admin.commissions.*') ? 'active' : '' }}" href="{{ route('admin.commissions.index') }}" title="Commission Management">

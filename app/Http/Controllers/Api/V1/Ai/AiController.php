@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api\V1\Ai;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ai\AiCategorySuggestionRequest;
 use App\Models\AiPromptFlow;
+use App\Models\User;
+use App\Services\Ai\AiChatbotService;
 use App\Services\Ai\AiPromptFlowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +19,8 @@ use Throwable;
 class AiController extends Controller
 {
     public function __construct(
-        protected AiPromptFlowService $aiPromptFlowService
+        protected AiPromptFlowService $aiPromptFlowService,
+        protected AiChatbotService $aiChatbotService
     ) {}
 
     /**
@@ -48,6 +51,20 @@ class AiController extends Controller
     public function executeFlow(string $slug, Request $request): JsonResponse
     {
         try {
+            if ($slug === 'peers_chatbot') {
+                /** @var User|null $user */
+                $user = $request->user('sanctum') ?? $request->user();
+                $text = trim((string) ($request->input('message') ?: $request->input('prompt', '')));
+                $result = $this->aiChatbotService->sendMessage($user, $text, $request->input('session_id'));
+
+                return response()->json([
+                    'success' => true,
+                    'session_id' => $result['session_id'],
+                    'message' => $result['message'],
+                    'data' => $result['message'],
+                ]);
+            }
+
             $variables = $request->all();
             $result = $this->aiPromptFlowService->execute($slug, $variables);
 
