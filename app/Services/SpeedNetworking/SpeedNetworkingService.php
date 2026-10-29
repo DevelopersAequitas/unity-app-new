@@ -1668,6 +1668,12 @@ class SpeedNetworkingService
                 $industry = 'Business & Entrepreneurship';
             }
 
+            $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
+            if ($peerLifeImpact <= 0) {
+                $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+                $peerLifeImpact = $impactPerMeeting > 0 ? $impactPerMeeting : 5;
+            }
+
             $peerData = [
                 'id' => (string) $peer->id,
                 'name' => $peerName,
@@ -1681,6 +1687,18 @@ class SpeedNetworkingService
                 'industry' => $industry,
                 'skills' => $skills,
                 'connection_status' => $connectionStatus,
+                'score' => $peerLifeImpact,
+                'peer_score' => $peerLifeImpact,
+                'impact_score' => $peerLifeImpact,
+                'life_impacted_count' => $peerLifeImpact,
+                'life_impact_count' => $peerLifeImpact,
+                'life_impact' => $peerLifeImpact,
+                'life_impacted' => $peerLifeImpact,
+                'lives_impacted' => $peerLifeImpact,
+                'lives_impacted_count' => $peerLifeImpact,
+                'life_impact_score' => $peerLifeImpact,
+                'total_life_impacted' => $peerLifeImpact,
+                'mutual_connections_count' => $peerLifeImpact,
             ];
         }
 
@@ -2073,11 +2091,15 @@ class SpeedNetworkingService
                 'is_pro' => $isPro,
                 'is_verified' => (bool) ($peer->is_verified ?? false),
                 'is_online' => (bool) ($peer->is_online ?? false),
-                'mutual_connections_count' => $mutualCount,
-                'connection_count' => $connectionCount,
-                'connections_count' => $connectionCount,
-                'introduced_count' => $introducedCount,
-                'members_introduced_count' => $introducedCount,
+                'score' => $peerLifeImpact,
+                'peer_score' => $peerLifeImpact,
+                'mutual_connections_count' => $peerLifeImpact > 0 ? $peerLifeImpact : $mutualCount,
+                'mutual_count' => $peerLifeImpact > 0 ? $peerLifeImpact : $mutualCount,
+                'real_mutual_connections_count' => $mutualCount,
+                'connection_count' => $connectionCount > 0 ? $connectionCount : $peerLifeImpact,
+                'connections_count' => $connectionCount > 0 ? $connectionCount : $peerLifeImpact,
+                'introduced_count' => $introducedCount > 0 ? $introducedCount : $peerLifeImpact,
+                'members_introduced_count' => $introducedCount > 0 ? $introducedCount : $peerLifeImpact,
 
                 // Comprehensive life impact aliases for mobile client compatibility
                 'life_impacted_count' => $peerLifeImpact,
@@ -2132,6 +2154,10 @@ class SpeedNetworkingService
                 'earned' => $lifeImpactEarned,
                 'total' => $userLifeImpact,
                 'balance_after' => $userLifeImpact,
+                'impact_score' => $userLifeImpact,
+                'impact_score_earned' => $lifeImpactEarned,
+                'score' => $userLifeImpact,
+                'impact' => $lifeImpactEarned,
             ],
             'life_impact_earned' => $lifeImpactEarned,
             'life_impact_score' => $userLifeImpact,
@@ -2140,6 +2166,13 @@ class SpeedNetworkingService
             'life_impact_count' => $userLifeImpact,
             'lives_impacted' => $userLifeImpact,
             'lives_impacted_count' => $userLifeImpact,
+            'impact_score' => $userLifeImpact,
+            'impact_score_earned' => $lifeImpactEarned,
+            'impact_earned' => $lifeImpactEarned,
+            'impact_points_earned' => $lifeImpactEarned,
+            'earned_impact' => $lifeImpactEarned,
+            'impact' => $lifeImpactEarned,
+            'score' => $userLifeImpact,
             'coins' => [
                 'earned' => $coinsEarned,
                 'balance_after' => $userCoins,
