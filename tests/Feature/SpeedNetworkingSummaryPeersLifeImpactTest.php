@@ -44,6 +44,7 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
             $table->integer('coins_balance')->default(0);
             $table->integer('life_impacted_count')->default(0);
             $table->integer('members_introduced_count')->default(0);
+            $table->json('bookmarks')->nullable();
             $table->string('status')->default('active');
             $table->boolean('is_verified')->default(true);
             $table->timestamps();
@@ -136,6 +137,14 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
             $table->boolean('is_deleted')->default(false);
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        Schema::create('user_follows', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('follower_id');
+            $table->string('following_id');
+            $table->string('status')->default('accepted');
+            $table->timestamps();
         });
     }
 
@@ -235,6 +244,19 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
             ]);
         }
 
+        // Bookmark peer1 and follow peer2
+        $user->bookmarks = [(string) $peer1->id];
+        $user->save();
+
+        \Illuminate\Support\Facades\DB::table('user_follows')->insert([
+            'id' => (string) Str::uuid(),
+            'follower_id' => (string) $user->id,
+            'following_id' => (string) $peer2->id,
+            'status' => 'accepted',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         Sanctum::actingAs($user);
 
         $response = $this->getJson("/api/v1/speed-networking/events/{$event->id}/summary");
@@ -253,11 +275,15 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
         $this->assertSame(45, $avinash['life_impacted_count']);
         $this->assertSame(45, $avinash['lives_impacted']);
         $this->assertSame(45, $avinash['life_impact_count']);
+        $this->assertTrue($avinash['is_bookmark']);
+        $this->assertFalse($avinash['is_following']);
 
         $rahul = collect($interactedPeers)->firstWhere('id', (string) $peer2->id);
         $this->assertNotNull($rahul);
         $this->assertSame(30, $rahul['life_impacted_count']);
         $this->assertSame(30, $rahul['lives_impacted']);
+        $this->assertFalse($rahul['is_bookmark']);
+        $this->assertTrue($rahul['is_following']);
 
         $chirag = collect($interactedPeers)->firstWhere('id', (string) $peer3->id);
         $this->assertNotNull($chirag);

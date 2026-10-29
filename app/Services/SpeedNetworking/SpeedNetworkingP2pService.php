@@ -120,7 +120,7 @@ class SpeedNetworkingP2pService
         $remarks = "Speed Networking Round {$match->round_number} - {$event->title} [sn_match:{$match->id}]";
 
         // 4. Create P2pMeeting (Without Timeline Feed Post)
-        return DB::transaction(function () use ($userA, $userB, $meetingDate, $meetingPlace, $remarks, $media, $match, $event): P2pMeeting {
+        $meeting = DB::transaction(function () use ($userA, $userB, $meetingDate, $meetingPlace, $remarks, $media, $match): P2pMeeting {
             // Concurrency lock check
             $lockedExisting = P2pMeeting::query()
                 ->where(function ($q) use ($userA, $userB): void {
@@ -143,7 +143,7 @@ class SpeedNetworkingP2pService
                 return $lockedExisting;
             }
 
-            $meeting = P2pMeeting::create([
+            return P2pMeeting::create([
                 'initiator_user_id' => (string) $userA->id,
                 'peer_user_id' => (string) $userB->id,
                 'meeting_date' => $meetingDate,
@@ -152,93 +152,97 @@ class SpeedNetworkingP2pService
                 'media' => $media,
                 'is_deleted' => false,
             ]);
-
-            // 5. Reward Coins for P2P Meeting to BOTH users
-            try {
-                $this->coinsService->rewardForActivity(
-                    $userA,
-                    'p2p_meeting',
-                    null,
-                    'Speed Networking P2P Meeting',
-                    (string) $userA->id,
-                    'p2p_meeting',
-                    (string) $meeting->id
-                );
-
-                $this->coinsService->rewardForActivity(
-                    $userB,
-                    'p2p_meeting',
-                    null,
-                    'Speed Networking P2P Meeting',
-                    (string) $userB->id,
-                    'p2p_meeting',
-                    (string) $meeting->id
-                );
-            } catch (Throwable $coinEx) {
-                Log::warning('Could not award coins for speed networking P2P meeting: '.$coinEx->getMessage());
-            }
-
-            // 6. Increase Life Impact for BOTH users
-            try {
-                $impactPoints = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
-                if ($impactPoints <= 0) {
-                    $impactPoints = 5;
-                }
-
-                $userAName = $userA->display_name ?: $userA->name ?: 'Peer';
-                $userBName = $userB->display_name ?: $userB->name ?: 'Peer';
-
-                $this->lifeImpactService->addLifeImpact(
-                    (string) $userA->id,
-                    (string) $userB->id,
-                    'p2p_meeting',
-                    (string) $meeting->id,
-                    $impactPoints,
-                    'Speed Networking 1-on-1 Meeting',
-                    "Completed a Speed Networking 1-on-1 session with {$userBName}",
-                    [
-                        'meeting_date' => $meeting->meeting_date,
-                        'meeting_place' => $meeting->meeting_place,
-                        'remarks' => $meeting->remarks,
-                        'peer_user_id' => (string) $userB->id,
-                        'speed_networking_event_id' => (string) $event->id,
-                        'match_id' => (string) $match->id,
-                        'round_number' => $match->round_number,
-                    ]
-                );
-
-                $this->lifeImpactService->addLifeImpact(
-                    (string) $userB->id,
-                    (string) $userA->id,
-                    'p2p_meeting',
-                    (string) $meeting->id,
-                    $impactPoints,
-                    'Speed Networking 1-on-1 Meeting',
-                    "Completed a Speed Networking 1-on-1 session with {$userAName}",
-                    [
-                        'meeting_date' => $meeting->meeting_date,
-                        'meeting_place' => $meeting->meeting_place,
-                        'remarks' => $meeting->remarks,
-                        'peer_user_id' => (string) $userA->id,
-                        'speed_networking_event_id' => (string) $event->id,
-                        'match_id' => (string) $match->id,
-                        'round_number' => $match->round_number,
-                    ]
-                );
-            } catch (Throwable $impactEx) {
-                Log::warning('Could not add life impact for speed networking P2P meeting: '.$impactEx->getMessage());
-            }
-
-            // CRITICAL: Timeline post is NOT created here, ensuring it only appears in P2P history!
-            Log::info('[SpeedNetworkingP2pService] Successfully recorded P2P meeting from Speed Networking match', [
-                'meeting_id' => $meeting->id,
-                'match_id' => $match->id,
-                'user_a_id' => $userA->id,
-                'user_b_id' => $userB->id,
-            ]);
-
-            return $meeting;
         });
+
+        if (! $meeting->wasRecentlyCreated) {
+            return $meeting;
+        }
+
+        // 5. Reward Coins for P2P Meeting to BOTH users
+        try {
+            $this->coinsService->rewardForActivity(
+                $userA,
+                'p2p_meeting',
+                null,
+                'Speed Networking P2P Meeting',
+                (string) $userA->id,
+                'p2p_meeting',
+                (string) $meeting->id
+            );
+
+            $this->coinsService->rewardForActivity(
+                $userB,
+                'p2p_meeting',
+                null,
+                'Speed Networking P2P Meeting',
+                (string) $userB->id,
+                'p2p_meeting',
+                (string) $meeting->id
+            );
+        } catch (Throwable $coinEx) {
+            Log::warning('Could not award coins for speed networking P2P meeting: '.$coinEx->getMessage());
+        }
+
+        // 6. Increase Life Impact for BOTH users
+        try {
+            $impactPoints = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+            if ($impactPoints <= 0) {
+                $impactPoints = 5;
+            }
+
+            $userAName = $userA->display_name ?: $userA->name ?: 'Peer';
+            $userBName = $userB->display_name ?: $userB->name ?: 'Peer';
+
+            $this->lifeImpactService->addLifeImpact(
+                (string) $userA->id,
+                (string) $userB->id,
+                'p2p_meeting',
+                (string) $meeting->id,
+                $impactPoints,
+                'Speed Networking 1-on-1 Meeting',
+                "Completed a Speed Networking 1-on-1 session with {$userBName}",
+                [
+                    'meeting_date' => $meeting->meeting_date,
+                    'meeting_place' => $meeting->meeting_place,
+                    'remarks' => $meeting->remarks,
+                    'peer_user_id' => (string) $userB->id,
+                    'speed_networking_event_id' => (string) $event->id,
+                    'match_id' => (string) $match->id,
+                    'round_number' => $match->round_number,
+                ]
+            );
+
+            $this->lifeImpactService->addLifeImpact(
+                (string) $userB->id,
+                (string) $userA->id,
+                'p2p_meeting',
+                (string) $meeting->id,
+                $impactPoints,
+                'Speed Networking 1-on-1 Meeting',
+                "Completed a Speed Networking 1-on-1 session with {$userAName}",
+                [
+                    'meeting_date' => $meeting->meeting_date,
+                    'meeting_place' => $meeting->meeting_place,
+                    'remarks' => $meeting->remarks,
+                    'peer_user_id' => (string) $userA->id,
+                    'speed_networking_event_id' => (string) $event->id,
+                    'match_id' => (string) $match->id,
+                    'round_number' => $match->round_number,
+                ]
+            );
+        } catch (Throwable $impactEx) {
+            Log::warning('Could not add life impact for speed networking P2P meeting: '.$impactEx->getMessage());
+        }
+
+        // CRITICAL: Timeline post is NOT created here, ensuring it only appears in P2P history!
+        Log::info('[SpeedNetworkingP2pService] Successfully recorded P2P meeting from Speed Networking match', [
+            'meeting_id' => $meeting->id,
+            'match_id' => $match->id,
+            'user_a_id' => $userA->id,
+            'user_b_id' => $userB->id,
+        ]);
+
+        return $meeting;
     }
 
     /**

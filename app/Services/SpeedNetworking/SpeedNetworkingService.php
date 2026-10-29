@@ -1858,6 +1858,52 @@ class SpeedNetworkingService
         $interactedPeers = [];
         $seenPeerIds = [];
 
+        // Auth user bookmarks
+        $authUserBookmarks = (array) ($user->bookmarks ?? []);
+        $bookmarkIds = array_map('strval', $authUserBookmarks);
+
+        // Pre-query followed peers using correct user_follows columns (follower_id, following_id)
+        $followedPeerIds = [];
+        if (Schema::hasTable('user_follows')) {
+            try {
+                $candidatePeerIds = $matches->map(function (SpeedNetworkingMatch $m) use ($userId): ?string {
+                    $pid = (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id);
+
+                    return $pid !== '' ? $pid : null;
+                })->filter()->unique()->values()->all();
+
+                if (! empty($candidatePeerIds)) {
+                    $followedPeerIds = DB::table('user_follows')
+                        ->where('follower_id', $userId)
+                        ->whereIn('following_id', $candidatePeerIds)
+                        ->whereIn('status', ['accepted', 'pending'])
+                        ->pluck('following_id')
+                        ->map(fn ($id): string => (string) $id)
+                        ->all();
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // Pre-query user's approved connection IDs once instead of per match
+        $authConnIds = [];
+        if (Schema::hasTable('connections')) {
+            try {
+                $authConnIds = DB::table('connections')
+                    ->where(function ($q) use ($userId): void {
+                        $q->where('requester_id', $userId)->orWhere('addressee_id', $userId);
+                    })
+                    ->where('is_approved', true)
+                    ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$userId])
+                    ->pluck('conn_id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->toArray();
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
         foreach ($matches as $match) {
             /** @var User|null $peer */
             $peer = $match->user_a_id === $userId ? $match->userB : $match->userA;
@@ -1910,52 +1956,24 @@ class SpeedNetworkingService
                 $canSendConnectionRequest = ! $isConnected && ! $isRequested;
             }
 
-            $isFollowing = false;
-            if (Schema::hasTable('user_follows')) {
-                try {
-                    $isFollowing = DB::table('user_follows')
-                        ->where('user_id', $userId)
-                        ->where('target_user_id', $peer->id)
-                        ->exists();
-                } catch (\Throwable) {
-                    // ignore
-                }
-            }
-
-            $isBookmark = false;
-            if (Schema::hasTable('bookmarks')) {
-                try {
-                    $isBookmark = DB::table('bookmarks')
-                        ->where('user_id', $userId)
-                        ->where('target_id', $peer->id)
-                        ->exists();
-                } catch (\Throwable) {
-                    // ignore
-                }
-            }
+            $isFollowing = in_array((string) $peer->id, $followedPeerIds, true);
+            $isBookmark = in_array((string) $peer->id, $bookmarkIds, true);
 
             $mutualCount = 0;
-            if (Schema::hasTable('connections')) {
+            if (! empty($authConnIds) && Schema::hasTable('connections')) {
                 try {
-                    $authConnIds = DB::table('connections')
-                        ->where(function ($q) use ($userId): void {
-                            $q->where('requester_id', $userId)->orWhere('addressee_id', $userId);
-                        })
-                        ->where('is_approved', true)
-                        ->selectRaw("CASE WHEN requester_id = '{$userId}' THEN addressee_id ELSE requester_id END as conn_id")
-                        ->pluck('conn_id')
-                        ->toArray();
-
+                    $peerIdStr = (string) $peer->id;
                     $peerConnIds = DB::table('connections')
-                        ->where(function ($q) use ($peer): void {
-                            $q->where('requester_id', $peer->id)->orWhere('addressee_id', $peer->id);
+                        ->where(function ($q) use ($peerIdStr): void {
+                            $q->where('requester_id', $peerIdStr)->orWhere('addressee_id', $peerIdStr);
                         })
                         ->where('is_approved', true)
-                        ->selectRaw("CASE WHEN requester_id = '{$peer->id}' THEN addressee_id ELSE requester_id END as conn_id")
+                        ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$peerIdStr])
                         ->pluck('conn_id')
+                        ->map(fn ($id): string => (string) $id)
                         ->toArray();
 
-                    $mutualCount = count(array_diff(array_intersect($authConnIds, $peerConnIds), [$userId, (string) $peer->id]));
+                    $mutualCount = count(array_diff(array_intersect($authConnIds, $peerConnIds), [$userId, $peerIdStr]));
                 } catch (\Throwable) {
                     // ignore
                 }
