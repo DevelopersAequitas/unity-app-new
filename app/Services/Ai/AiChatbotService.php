@@ -7,6 +7,7 @@ namespace App\Services\Ai;
 use App\Models\AiChatbotSetting;
 use App\Models\AiChatMessage;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -16,6 +17,28 @@ class AiChatbotService
         protected GeminiService $geminiService,
         protected AiChatbotToolsService $toolsService
     ) {}
+
+    /**
+     * Ensure deleted_by_peer_at column exists on ai_chat_messages without requiring manual CLI migration.
+     */
+    private function ensurePeerDeleteColumn(): bool
+    {
+        if (! Schema::hasTable('ai_chat_messages')) {
+            return false;
+        }
+
+        if (! Schema::hasColumn('ai_chat_messages', 'deleted_by_peer_at')) {
+            try {
+                Schema::table('ai_chat_messages', function (Blueprint $table): void {
+                    $table->timestamp('deleted_by_peer_at')->nullable()->after('follow_ups_json')->index();
+                });
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+
+        return Schema::hasColumn('ai_chat_messages', 'deleted_by_peer_at');
+    }
 
     /**
      * Retrieve or initialize the singleton AiChatbotSetting record.
@@ -109,9 +132,11 @@ class AiChatbotService
         $contents = [];
 
         if (Schema::hasTable('ai_chat_messages')) {
+            $hasDeleteCol = $this->ensurePeerDeleteColumn();
             $recentHistory = AiChatMessage::query()
                 ->where('session_id', $resolvedSessionId)
                 ->when($user !== null, fn ($q) => $q->where('user_id', $user->id))
+                ->when($hasDeleteCol, fn ($q) => $q->whereNull('deleted_by_peer_at'))
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
@@ -139,8 +164,8 @@ class AiChatbotService
 
         $masterPrompt = (string) ($settings->master_system_prompt ?: AiChatbotSetting::DEFAULT_MASTER_PROMPT);
         $userContext = $this->toolsService->buildUserContext($user);
-        $jsonInstruction = "\n\nIMPORTANT: Always use the word 'peer' or 'peers' instead of 'member' or 'members'. Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
-        $fullSystemInstruction = $masterPrompt."\n\n".$userContext.$jsonInstruction;
+        $strictDomainGuardrail = "\n\nSTRICT DOMAIN GUARDRAIL:\n- You are ONLY permitted to answer questions about Peers Global Unity, its peers, B2B networking, P2P meetings, Unity Circles, Speed Networking, Events, Referrals, Coins, Lives Impacted, Business Deals, Testimonials, Asks/Collaborations, Brand Partners, Peers Store, and official Peers Global policies.\n- If the peer asks ANY unrelated or outside question (e.g., general coding, math, recipes, politics, movies, sports, weather, or general trivia), politely refuse and reply: \"I am PG Genie, your dedicated Peers Global Unity assistant. I can only assist with Peers Global networking, finding peers, P2P meetings, Unity Circles, Speed Networking, Events, Referrals, Coins, and your Life Impact score. How can I help you within Peers Global today?\"\n- Always use the word 'peer' or 'peers' instead of 'member' or 'members'.\n- Return your final response strictly as a JSON object with keys: \"reply_markdown\" (string), \"attachments\" (array), and \"suggested_follow_ups\" (array of 2-3 strings).";
+        $fullSystemInstruction = $masterPrompt."\n\n".$userContext.$strictDomainGuardrail;
 
         $enabledTools = is_array($settings->enabled_tools_json)
             ? $settings->enabled_tools_json
@@ -223,13 +248,17 @@ class AiChatbotService
             return [];
         }
 
+        $hasDeleteCol = $this->ensurePeerDeleteColumn();
+
         $query = AiChatMessage::query()
             ->when($user !== null, fn ($q) => $q->where('user_id', $user->id))
+            ->when($hasDeleteCol, fn ($q) => $q->whereNull('deleted_by_peer_at'))
             ->when(filled($sessionId), fn ($q) => $q->where('session_id', (string) $sessionId));
 
         if (blank($sessionId) && $user !== null) {
             $latestSession = AiChatMessage::query()
                 ->where('user_id', $user->id)
+                ->when($hasDeleteCol, fn ($q) => $q->whereNull('deleted_by_peer_at'))
                 ->orderBy('created_at', 'desc')
                 ->value('session_id');
 
@@ -265,7 +294,8 @@ class AiChatbotService
     }
 
     /**
-     * Endpoint 4: Clear a specific chat session or all chat sessions for the user.
+     * Endpoint 4: Soft-mark a specific chat session or all chat sessions as deleted by the peer
+     * so it disappears from the peer's mobile app while remaining visible in the Admin Panel with a "Peer Deleted" badge.
      */
     public function clearHistory(?User $user, ?string $sessionId = null): void
     {
@@ -277,14 +307,23 @@ class AiChatbotService
             return;
         }
 
-        AiChatMessage::query()
+        $hasDeleteCol = $this->ensurePeerDeleteColumn();
+
+        $query = AiChatMessage::query()
             ->when($user !== null, fn ($q) => $q->where('user_id', $user->id))
-            ->when(filled($sessionId), fn ($q) => $q->where('session_id', (string) $sessionId))
-            ->delete();
+            ->when(filled($sessionId), fn ($q) => $q->where('session_id', (string) $sessionId));
+
+        if ($hasDeleteCol) {
+            $query->whereNull('deleted_by_peer_at')->update([
+                'deleted_by_peer_at' => now(),
+            ]);
+        } else {
+            $query->delete();
+        }
     }
 
     /**
-     * Endpoint 5: List recent chat sessions for the authenticated user.
+     * Endpoint 5: List recent chat sessions for the authenticated user (excluding peer-deleted sessions).
      *
      * @return array<int, array<string, mixed>>
      */
@@ -294,8 +333,11 @@ class AiChatbotService
             return [];
         }
 
+        $hasDeleteCol = $this->ensurePeerDeleteColumn();
+
         $messages = AiChatMessage::query()
             ->where('user_id', $user->id)
+            ->when($hasDeleteCol, fn ($q) => $q->whereNull('deleted_by_peer_at'))
             ->orderBy('created_at', 'desc')
             ->limit(200)
             ->get();
@@ -331,6 +373,117 @@ class AiChatbotService
         }
 
         return array_values($grouped);
+    }
+
+    /**
+     * Admin Panel: Retrieve complete chat analytics, all peer sessions, and messages (including peer-deleted chats).
+     *
+     * @return array{
+     *   total_peers_chatted: int,
+     *   total_sessions: int,
+     *   total_messages: int,
+     *   peer_deleted_sessions: int,
+     *   sessions: array<int, array<string, mixed>>
+     * }
+     */
+    public function getAdminChatOverview(): array
+    {
+        if (! Schema::hasTable('ai_chat_messages')) {
+            return [
+                'total_peers_chatted' => 0,
+                'total_sessions' => 0,
+                'total_messages' => 0,
+                'peer_deleted_sessions' => 0,
+                'sessions' => [],
+            ];
+        }
+
+        $hasDeleteCol = $this->ensurePeerDeleteColumn();
+
+        $totalPeersChatted = (int) AiChatMessage::query()
+            ->whereNotNull('user_id')
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $totalSessions = (int) AiChatMessage::query()
+            ->distinct('session_id')
+            ->count('session_id');
+
+        $totalMessages = (int) AiChatMessage::query()->count();
+
+        $peerDeletedSessions = $hasDeleteCol
+            ? (int) AiChatMessage::query()
+                ->whereNotNull('deleted_by_peer_at')
+                ->distinct('session_id')
+                ->count('session_id')
+            : 0;
+
+        $messages = AiChatMessage::query()
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->limit(600)
+            ->get();
+
+        $grouped = [];
+        foreach ($messages as $m) {
+            $sid = (string) ($m->session_id ?: 'unknown');
+            $user = $m->user;
+            $peerName = $user
+                ? (trim((string) ($user->display_name ?: ($user->first_name.' '.$user->last_name))) ?: 'Peer')
+                : 'Guest Peer';
+            $peerContact = $user ? (string) ($user->email ?: ($user->phone ?? '')) : '';
+            $peerCity = $user ? (string) ($user->city ?: ($user->business_city ?? '')) : '';
+            $deletedAt = $hasDeleteCol && $m->deleted_by_peer_at ? $m->deleted_by_peer_at : null;
+
+            if (! isset($grouped[$sid])) {
+                $grouped[$sid] = [
+                    'session_id' => $sid,
+                    'peer_name' => $peerName,
+                    'peer_contact' => $peerContact,
+                    'peer_city' => $peerCity,
+                    'title' => '',
+                    'message_count' => 0,
+                    'is_peer_deleted' => false,
+                    'deleted_by_peer_at' => null,
+                    'updated_at' => $m->created_at?->format('d M Y, h:i A') ?? '',
+                    'messages' => [],
+                ];
+            }
+
+            $grouped[$sid]['message_count']++;
+            if ($deletedAt !== null) {
+                $grouped[$sid]['is_peer_deleted'] = true;
+                $grouped[$sid]['deleted_by_peer_at'] ??= $deletedAt->format('d M Y, h:i A');
+            }
+            if ($m->role === 'user') {
+                $grouped[$sid]['title'] = Str::limit(trim((string) $m->content), 70);
+            }
+
+            $grouped[$sid]['messages'][] = [
+                'id' => (string) $m->id,
+                'role' => (string) $m->role,
+                'content' => (string) $m->content,
+                'created_at' => $m->created_at?->format('d M Y, h:i A') ?? '',
+                'is_peer_deleted' => $deletedAt !== null,
+                'deleted_by_peer_at' => $deletedAt?->format('d M Y, h:i A'),
+            ];
+        }
+
+        foreach ($grouped as &$session) {
+            $session['messages'] = array_reverse($session['messages']);
+            if ($session['title'] === '') {
+                $firstMsg = $session['messages'][0]['content'] ?? 'Chat Session';
+                $session['title'] = Str::limit(trim((string) $firstMsg), 70);
+            }
+        }
+
+        return [
+            'total_peers_chatted' => $totalPeersChatted,
+            'total_sessions' => $totalSessions,
+            'total_messages' => $totalMessages,
+            'peer_deleted_sessions' => $peerDeletedSessions,
+            'sessions' => array_slice(array_values($grouped), 0, 100),
+        ];
     }
 }
 

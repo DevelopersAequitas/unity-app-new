@@ -524,11 +524,11 @@ CONTEXT;
             ['keywords' => ['ask', 'collaboration', 'requirement'], 'items' => [
                 ['id' => 'nav_asks', 'title' => 'Explore Asks', 'route' => '/open-asks'],
             ]],
-            ['keywords' => ['support', 'ticket'], 'items' => [
-                ['id' => 'nav_support', 'title' => 'Support & Help', 'route' => '/submit-ticket'],
-            ]],
             ['keywords' => ['search for peers', 'find peers', 'peers directory'], 'items' => [
                 ['id' => 'nav_peers', 'title' => 'Explore Peers', 'route' => '/peers'],
+            ]],
+            ['keywords' => ['submit a ticket', 'support ticket', 'raise a ticket'], 'items' => [
+                ['id' => 'nav_support', 'title' => 'Support & Help', 'route' => '/submit-ticket'],
             ]],
         ];
 

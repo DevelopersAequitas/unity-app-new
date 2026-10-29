@@ -55,6 +55,72 @@
         </div>
     @endif
 
+    @php
+        $overview = $chatOverview ?? [
+            'total_peers_chatted' => 0,
+            'total_sessions' => 0,
+            'total_messages' => 0,
+            'peer_deleted_sessions' => 0,
+            'sessions' => [],
+        ];
+    @endphp
+
+    <!-- Chat Analytics Summary KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Peers Chatted</div>
+                        <div class="h4 mb-0 fw-bold text-dark">{{ $overview['total_peers_chatted'] }}</div>
+                    </div>
+                    <span class="badge bg-primary bg-opacity-10 text-primary p-3 rounded-circle">
+                        <i class="bi bi-people-fill fs-5"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Chat Sessions</div>
+                        <div class="h4 mb-0 fw-bold text-dark">{{ $overview['total_sessions'] }}</div>
+                    </div>
+                    <span class="badge bg-info bg-opacity-10 text-info p-3 rounded-circle">
+                        <i class="bi bi-chat-left-text-fill fs-5"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Messages</div>
+                        <div class="h4 mb-0 fw-bold text-dark">{{ $overview['total_messages'] }}</div>
+                    </div>
+                    <span class="badge bg-success bg-opacity-10 text-success p-3 rounded-circle">
+                        <i class="bi bi-chat-quote-fill fs-5"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Peer-Deleted Chats</div>
+                        <div class="h4 mb-0 fw-bold text-danger">{{ $overview['peer_deleted_sessions'] }}</div>
+                    </div>
+                    <span class="badge bg-danger bg-opacity-10 text-danger p-3 rounded-circle">
+                        <i class="bi bi-trash3-fill fs-5"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
         <!-- Left Column: Chatbot Settings Form -->
         <div class="col-lg-7">
@@ -273,6 +339,119 @@
             </div>
         </div>
     </div>
+
+    <!-- All Peer Chat Sessions & Messages Table -->
+    <div class="card border-0 shadow-sm rounded-3 mt-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-0 fw-bold"><i class="bi bi-chat-square-text-fill me-2 text-primary"></i>All Peer Chat Conversations &amp; History</h6>
+                <small class="text-muted">View all PG Genie conversations across peers. Chats deleted by a peer in the app remain visible here with a <span class="badge bg-danger">Peer Deleted</span> tag.</small>
+            </div>
+            <span class="badge bg-light text-dark border">{{ count($overview['sessions']) }} Sessions</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            <th class="ps-3 py-2">Peer</th>
+                            <th>Conversation Topic</th>
+                            <th>Messages</th>
+                            <th>Status</th>
+                            <th>Last Activity</th>
+                            <th class="text-end pe-3">Transcript</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($overview['sessions'] as $idx => $chatSession)
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-semibold text-dark small">{{ $chatSession['peer_name'] }}</div>
+                                    <div class="text-muted small">
+                                        {{ $chatSession['peer_contact'] }}
+                                        @if(!empty($chatSession['peer_city']))
+                                            &bull; {{ $chatSession['peer_city'] }}
+                                        @endif
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="small text-dark fw-semibold">{{ $chatSession['title'] }}</div>
+                                    <span class="text-muted font-monospace" style="font-size: 11px;">{{ $chatSession['session_id'] }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info text-dark">{{ $chatSession['message_count'] }} msgs</span>
+                                </td>
+                                <td>
+                                    @if(!empty($chatSession['is_peer_deleted']))
+                                        <span class="badge bg-danger"><i class="bi bi-trash3 me-1"></i>Peer Deleted</span>
+                                        @if(!empty($chatSession['deleted_by_peer_at']))
+                                            <div class="text-danger mt-1" style="font-size: 11px;">Deleted: {{ $chatSession['deleted_by_peer_at'] }}</div>
+                                        @endif
+                                    @else
+                                        <span class="badge bg-success">Active</span>
+                                    @endif
+                                </td>
+                                <td class="small text-muted">{{ $chatSession['updated_at'] }}</td>
+                                <td class="text-end pe-3">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#chatModal_{{ $idx }}">
+                                        <i class="bi bi-eye me-1"></i> View Chat
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted small">
+                                    No peer chat conversations recorded yet.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transcript Modals -->
+    @foreach($overview['sessions'] as $idx => $chatSession)
+        <div class="modal fade" id="chatModal_{{ $idx }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header">
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0">
+                                <i class="bi bi-chat-dots text-primary me-1"></i>
+                                {{ $chatSession['peer_name'] }} &mdash; {{ $chatSession['title'] }}
+                            </h6>
+                            <small class="text-muted">
+                                Session: {{ $chatSession['session_id'] }}
+                                @if(!empty($chatSession['is_peer_deleted']))
+                                    <span class="badge bg-danger ms-2">Peer Deleted ({{ $chatSession['deleted_by_peer_at'] }})</span>
+                                @endif
+                            </small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body bg-light">
+                        @foreach($chatSession['messages'] as $msg)
+                            <div class="mb-3 d-flex flex-column {{ $msg['role'] === 'user' ? 'align-items-end' : 'align-items-start' }}">
+                                <div class="small text-muted mb-1">
+                                    <strong>{{ $msg['role'] === 'user' ? $chatSession['peer_name'] : 'PG Genie' }}</strong>
+                                    &bull; {{ $msg['created_at'] }}
+                                    @if(!empty($msg['is_peer_deleted']))
+                                        <span class="badge bg-danger ms-1" style="font-size: 10px;">Peer Deleted</span>
+                                    @endif
+                                </div>
+                                <div class="p-3 rounded-3 shadow-sm {{ $msg['role'] === 'user' ? 'bg-primary text-white' : 'bg-white text-dark border' }}" style="max-width: 82%; white-space: pre-wrap;">{{ $msg['content'] }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 </div>
 
 <!-- Modal: Add Knowledge Document -->

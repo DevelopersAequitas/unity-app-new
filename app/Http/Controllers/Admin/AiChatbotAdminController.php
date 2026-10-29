@@ -37,7 +37,9 @@ class AiChatbotAdminController extends Controller
                 ->get();
         }
 
-        return view('admin.ai-chatbot.index', compact('settings', 'documents'));
+        $chatOverview = $this->chatbotService->getAdminChatOverview();
+
+        return view('admin.ai-chatbot.index', compact('settings', 'documents', 'chatOverview'));
     }
 
     /**

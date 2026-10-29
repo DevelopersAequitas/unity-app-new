@@ -29,6 +29,7 @@ class AiChatMessage extends Model
         'content',
         'attachments_json',
         'follow_ups_json',
+        'deleted_by_peer_at',
     ];
 
     /**
@@ -39,6 +40,7 @@ class AiChatMessage extends Model
         return [
             'attachments_json' => 'array',
             'follow_ups_json' => 'array',
+            'deleted_by_peer_at' => 'datetime',
         ];
     }
 
