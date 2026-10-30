@@ -387,58 +387,14 @@ class LeaderPeersService
                     }
                 });
             } elseif ($role === 'industryDirector') {
-                // Restrict to Industry Director's assigned industries & circles
-                $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
-                $assignedIndustryIds = [];
-                $assignedIndustryNames = [];
-
-                if (Schema::hasTable('industry_director_assignments')) {
-                    $assignmentRows = DB::table('industry_director_assignments')
-                        ->where(function ($q) use ($adminUserIds): void {
-                            $q->whereIn('admin_user_id', $adminUserIds);
-                            if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
-                                $q->orWhereIn('user_id', $adminUserIds);
-                            }
-                        })
-                        ->where('is_active', true)
-                        ->get();
-
-                    foreach ($assignmentRows as $row) {
-                        foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
-                            if (! empty($row->{$col})) {
-                                $assignedIndustryIds[] = (string) $row->{$col};
-                            }
-                        }
-                        if (! empty($row->industry_name)) {
-                            $assignedIndustryNames[] = (string) $row->industry_name;
-                        }
-                    }
-                }
-
-                if ($user && empty($assignedIndustryIds)) {
-                    if (! empty($user->main_business_category_id)) {
-                        $assignedIndustryIds[] = (string) $user->main_business_category_id;
-                    }
-                    if (! empty($user->business_category_id)) {
-                        $assignedIndustryIds[] = (string) $user->business_category_id;
-                    }
-                }
-
-                $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
-                $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
-
+                // Strictly the peers inside circles built under the director's assigned main categories.
+                // A category without any circle contributes no peers.
                 $industryCircleIds = $scopedCircleIds ?? [];
+
                 if (empty($industryCircleIds)) {
-                    $industryCircleIds = Circle::query()->whereNull('deleted_at')
-                        ->where('industry_director_user_id', $userId)
-                        ->pluck('id')
-                        ->all();
-                }
-
-                $query->where(function (Builder $q) use ($industryCircleIds, $assignedIndustryIds, $assignedIndustryNames): void {
-                    $hasCondition = false;
-
-                    if (! empty($industryCircleIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->where(function (Builder $q) use ($industryCircleIds): void {
                         $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $industryCircleIds)->whereNull('deleted_at'))
                             ->orWhereIn('active_circle_id', $industryCircleIds)
                             ->orWhereExists(function ($sq) use ($industryCircleIds): void {
@@ -450,43 +406,8 @@ class LeaderPeersService
                                         $this->applyCircleLeadershipColumnsCondition($lq);
                                     });
                             });
-                        $hasCondition = true;
-                    }
-
-                    if (! empty($assignedIndustryIds)) {
-                        if (Schema::hasColumn('users', 'business_category_id')) {
-                            $q->orWhereIn('users.business_category_id', $assignedIndustryIds);
-                            $hasCondition = true;
-                        }
-                        if (Schema::hasColumn('users', 'main_business_category_id')) {
-                            $q->orWhereIn('users.main_business_category_id', $assignedIndustryIds);
-                            $hasCondition = true;
-                        }
-                        foreach ($assignedIndustryIds as $indId) {
-                            if (Schema::hasColumn('users', 'industry_tags')) {
-                                $q->orWhere('users.industry_tags', 'like', '%'.$indId.'%');
-                                $hasCondition = true;
-                            }
-                        }
-                    }
-
-                    foreach ($assignedIndustryNames as $indName) {
-                        $lowerName = strtolower($indName);
-                        if (Schema::hasColumn('users', 'business_sub_category')) {
-                            $q->orWhereRaw('LOWER(users.business_sub_category) LIKE ?', ['%'.$lowerName.'%']);
-                            $hasCondition = true;
-                        }
-                        if (Schema::hasColumn('users', 'industry_tags')) {
-                            $q->orWhereRaw('LOWER(CAST(users.industry_tags AS TEXT)) LIKE ?', ['%'.$lowerName.'%']);
-                            $hasCondition = true;
-                        }
-                    }
-
-                    if (! $hasCondition) {
-                        $q->whereRaw('1 = 0');
-                    }
-                });
-            } else {
+                    });
+                }            } else {
                 // Own-circle roles (circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, viceChair, secretary, member)
                 if (! empty($scopedCircleIds)) {
                     $query->where(function (Builder $q) use ($scopedCircleIds): void {
