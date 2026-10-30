@@ -406,11 +406,29 @@ class SpeedNetworkingService
                 : (5 * $roundDuration) + (4 * $breakDuration);
         }
 
-        $scheduledStart = ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null;
+        $timezone = $data['timezone']
+            ?? $data['_browser_timezone']
+            ?? request()?->input('timezone')
+            ?? request()?->input('_browser_timezone')
+            ?? request()?->header('X-Timezone')
+            ?? (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($timezone === 'UTC' && empty($data['timezone']) && empty($data['_browser_timezone']) && ! request()?->has('timezone') && ! request()?->has('_browser_timezone')) {
+            $timezone = 'Asia/Kolkata';
+        }
+
+        $scheduledStart = null;
+        if (! empty($data['scheduled_start_time'])) {
+            $rawStartStr = trim((string) $data['scheduled_start_time']);
+            $hasExplicitTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawStartStr);
+            $scheduledStart = ($hasExplicitTz ? Carbon::parse($rawStartStr) : Carbon::parse($rawStartStr, $timezone))->utc();
+        }
+
         if ($hasExplicitDuration && $scheduledStart) {
             $scheduledEnd = $scheduledStart->copy()->addSeconds($durationSeconds);
         } elseif (! empty($data['scheduled_end_time'])) {
-            $scheduledEnd = Carbon::parse($data['scheduled_end_time']);
+            $rawEndStr = trim((string) $data['scheduled_end_time']);
+            $hasExplicitEndTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawEndStr);
+            $scheduledEnd = ($hasExplicitEndTz ? Carbon::parse($rawEndStr) : Carbon::parse($rawEndStr, $timezone))->utc();
             if ($scheduledStart && $scheduledEnd->greaterThan($scheduledStart)) {
                 $durationSeconds = $scheduledEnd->diffInSeconds($scheduledStart);
             }
