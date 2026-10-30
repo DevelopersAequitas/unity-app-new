@@ -3,11 +3,14 @@
 namespace App\Services\Posts;
 
 use App\Jobs\SendPushNotificationJob;
+use App\Models\File;
 use App\Models\Impact;
+use App\Models\LifeImpactCreative;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Collection;
@@ -650,6 +653,183 @@ class PostDeactivationService
     }
 
     /**
+     * Ensure any image or media URL is a fully qualified public URL accessible by mobile devices and FCM.
+     */
+    public function normalizePublicUrl(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        $url = trim((string) $url);
+        if ($url === '') {
+            return null;
+        }
+
+        $publicBase = class_exists(LifeImpactCreativeGenerator::class)
+            ? LifeImpactCreativeGenerator::getPublicBaseUrl()
+            : 'https://peersunity.com';
+
+        // If it starts with http:// or https://
+        if (preg_match('~^https?://~i', $url)) {
+            // If it's a localhost, 127.0.0.1, or private IP, swap with public base URL
+            if (preg_match('~^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.0\.2\.2)(:\d+)?(/.*)?$~i', $url, $matches)) {
+                $path = $matches[3] ?? '';
+                $url = rtrim($publicBase, '/') . '/' . ltrim($path, '/');
+            }
+        } else {
+            // Relative path
+            $url = rtrim($publicBase, '/') . '/' . ltrim($url, '/');
+        }
+
+        // Encode spaces in URL path so FCM HTTP v1 / Android doesn't drop the image
+        return str_replace(' ', '%20', $url);
+    }
+
+    /**
+     * Resolve the best publicly accessible image URL representing the post.
+     */
+    public function resolvePostImageUrl(Post $post): ?string
+    {
+        $publicBase = class_exists(LifeImpactCreativeGenerator::class)
+            ? LifeImpactCreativeGenerator::getPublicBaseUrl()
+            : 'https://peersunity.com';
+
+        // 1. Direct post image attribute
+        if (! empty($post->image)) {
+            $normalized = $this->normalizePublicUrl((string) $post->image);
+            if ($normalized) {
+                return $normalized;
+            }
+        }
+
+        // 2. Media array (e.g. uploaded media or generated file items)
+        $mediaItems = is_array($post->media) ? $post->media : [];
+        if (! empty($mediaItems)) {
+            foreach ($mediaItems as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $fileId = $item['id'] ?? $item['file_id'] ?? null;
+                if ($fileId && Str::isUuid((string) $fileId)) {
+                    if (class_exists(File::class)) {
+                        $fileModel = File::find($fileId);
+                        if ($fileModel && ! empty($fileModel->s3_key)) {
+                            return $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
+                        }
+                    }
+
+                    return $this->normalizePublicUrl("api/v1/files/{$fileId}");
+                }
+
+                if (! empty($item['url'])) {
+                    $normalized = $this->normalizePublicUrl((string) $item['url']);
+                    if ($normalized) {
+                        return $normalized;
+                    }
+                }
+            }
+        }
+
+        // 3. Post media_url attribute
+        if (! empty($post->media_url)) {
+            $normalized = $this->normalizePublicUrl((string) $post->media_url);
+            if ($normalized) {
+                return $normalized;
+            }
+        }
+
+        // 4. Special recognition / Life Impact creative handling
+        if ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact') {
+            $targetUser = $this->resolveTargetUser($post);
+
+            $threshold = 2500;
+            if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                $threshold = (int) $matches[1];
+            } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                $threshold = (int) str_replace(',', '', $matches[1]);
+            } elseif ($targetUser && (int) ($targetUser->life_impacted_count ?? 0) > 0) {
+                $threshold = (int) $targetUser->life_impacted_count;
+            }
+
+            // Check existing LifeImpactCreative record
+            if ($targetUser && Schema::hasTable('life_impact_creatives') && class_exists(LifeImpactCreative::class)) {
+                try {
+                    $existing = LifeImpactCreative::query()
+                        ->where('user_id', $targetUser->id)
+                        ->where('threshold', $threshold)
+                        ->latest()
+                        ->first();
+                    if ($existing && ! empty($existing->image_url)) {
+                        return $this->normalizePublicUrl((string) $existing->image_url);
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+
+            // Try generating high-res personalized certificate
+            if ($targetUser && class_exists(LifeImpactCreativeGenerator::class)) {
+                try {
+                    $generator = app(LifeImpactCreativeGenerator::class);
+                    $fileModel = $generator->generate($targetUser, $threshold, $threshold);
+                    if ($fileModel && ! empty($fileModel->s3_key)) {
+                        return $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('[PostDeactivationService] Failed generating creative for deactivation notification: ' . $e->getMessage());
+                }
+            }
+
+            // Fallback to milestone badge template
+            if (class_exists(LifeImpactCreativeGenerator::class)) {
+                $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+                if (! empty($meta['badge_image'])) {
+                    return $this->normalizePublicUrl($meta['badge_image']);
+                }
+            }
+
+            return $this->normalizePublicUrl('images/life_impact_badges/Legacy Maker.png');
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve the best image URL for an Impact post.
+     */
+    public function resolveImpactImageUrl(Impact $impact): ?string
+    {
+        // 1. Proof image / media
+        if (! empty($impact->proof_image)) {
+            $normalized = $this->normalizePublicUrl((string) $impact->proof_image);
+            if ($normalized) {
+                return $normalized;
+            }
+        }
+
+        // 2. Attached media / files if relationship exists
+        if (method_exists($impact, 'files') && $impact->relationLoaded('files')) {
+            $first = $impact->files->first();
+            if ($first && ! empty($first->s3_key)) {
+                return $this->normalizePublicUrl('storage/' . ltrim($first->s3_key, '/'));
+            }
+        }
+
+        // 3. Fallback to life impact default badge
+        $threshold = max(25, (int) ($impact->life_impacted ?? 25));
+        if (class_exists(LifeImpactCreativeGenerator::class)) {
+            $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+            if (! empty($meta['badge_image'])) {
+                return $this->normalizePublicUrl($meta['badge_image']);
+            }
+        }
+
+        return $this->normalizePublicUrl('images/life_impact_badges/Impact Creator.png');
+    }
+
+    /**
      * Send in-app and push notification to the target peer.
      */
     protected function sendDeactivationNotification(
@@ -680,7 +860,11 @@ class PostDeactivationService
                 $body = "Your post was deactivated by admin. Reason: \"{$remarks}\".";
             }
 
+            $postImageUrl = $this->resolvePostImageUrl($post);
+            $postSnippet = Str::limit(trim((string) ($post->content_text ?: $post->title ?: '')), 140);
+
             // 1. AppNotification (Peers mobile app notification engine)
+            $createdAppNotif = null;
             if (class_exists(AppNotification::class) && Schema::hasTable('app_notifications')) {
                 $appData = [
                     'user_id' => $user->id,
@@ -713,26 +897,43 @@ class PostDeactivationService
                 if (Schema::hasColumn('app_notifications', 'screen')) {
                     $appData['screen'] = '/notifications';
                 }
+                if ($postImageUrl && Schema::hasColumn('app_notifications', 'image_url')) {
+                    $appData['image_url'] = $postImageUrl;
+                }
+
+                $dataPayload = [
+                    'post_id' => (string) $post->id,
+                    'remarks' => $remarks,
+                    'coins_reversed' => $reversedCoins,
+                    'impact_reversed' => $reversedImpact,
+                    'decrease_summary' => implode(' and ', $decreaseParts),
+                    'notification_type' => 'post_deactivated',
+                    'type' => 'post_deactivated',
+                    'title' => $title,
+                    'body' => $body,
+                    'screen' => '/notifications',
+                    'tap_destination' => '/notifications',
+                ];
+                if ($postImageUrl) {
+                    $dataPayload['image_url'] = $postImageUrl;
+                    $dataPayload['post_image'] = $postImageUrl;
+                    $dataPayload['media_url'] = $postImageUrl;
+                }
+                if (! empty($postSnippet)) {
+                    $dataPayload['post_content'] = $postSnippet;
+                }
+                if (! empty($post->title)) {
+                    $dataPayload['post_title'] = $post->title;
+                }
+
                 if (Schema::hasColumn('app_notifications', 'data')) {
-                    $appData['data'] = [
-                        'post_id' => (string) $post->id,
-                        'remarks' => $remarks,
-                        'coins_reversed' => $reversedCoins,
-                        'impact_reversed' => $reversedImpact,
-                        'decrease_summary' => implode(' and ', $decreaseParts),
-                        'notification_type' => 'post_deactivated',
-                        'type' => 'post_deactivated',
-                        'title' => $title,
-                        'body' => $body,
-                        'screen' => '/notifications',
-                        'tap_destination' => '/notifications',
-                    ];
+                    $appData['data'] = $dataPayload;
                 }
                 if (Schema::hasColumn('app_notifications', 'dedupe_key')) {
                     $appData['dedupe_key'] = 'post_deactivation_' . $post->id . '_' . time();
                 }
 
-                AppNotification::create($appData);
+                $createdAppNotif = AppNotification::create($appData);
             }
 
             // 2. Legacy Notification model (used by /api/notifications)
@@ -757,29 +958,37 @@ class PostDeactivationService
                 if (Schema::hasColumn('notifications', 'source_id')) {
                     $notifData['source_id'] = (string) $post->id;
                 }
+                if ($postImageUrl && Schema::hasColumn('notifications', 'image_url')) {
+                    $notifData['image_url'] = $postImageUrl;
+                }
+
+                $legacyPayload = [
+                    'post_id' => (string) $post->id,
+                    'remarks' => $remarks,
+                    'coins_reversed' => $reversedCoins,
+                    'impact_reversed' => $reversedImpact,
+                    'decrease_summary' => implode(' and ', $decreaseParts),
+                    'notification_type' => 'post_deactivated',
+                    'type' => 'post_deactivated',
+                    'title' => $title,
+                    'message' => $body,
+                    'body' => $body,
+                    'screen' => '/notifications',
+                ];
+                if ($postImageUrl) {
+                    $legacyPayload['image_url'] = $postImageUrl;
+                    $legacyPayload['post_image'] = $postImageUrl;
+                    $legacyPayload['media_url'] = $postImageUrl;
+                }
+                if (! empty($postSnippet)) {
+                    $legacyPayload['post_content'] = $postSnippet;
+                }
+
                 if (Schema::hasColumn('notifications', 'payload')) {
-                    $notifData['payload'] = [
-                        'post_id' => (string) $post->id,
-                        'remarks' => $remarks,
-                        'coins_reversed' => $reversedCoins,
-                        'impact_reversed' => $reversedImpact,
-                        'decrease_summary' => implode(' and ', $decreaseParts),
-                        'notification_type' => 'post_deactivated',
-                        'type' => 'post_deactivated',
-                        'title' => $title,
-                        'message' => $body,
-                        'body' => $body,
-                        'screen' => '/notifications',
-                    ];
+                    $notifData['payload'] = $legacyPayload;
                 }
                 if (Schema::hasColumn('notifications', 'data')) {
-                    $notifData['data'] = [
-                        'post_id' => (string) $post->id,
-                        'remarks' => $remarks,
-                        'coins_reversed' => $reversedCoins,
-                        'impact_reversed' => $reversedImpact,
-                        'message' => $body,
-                    ];
+                    $notifData['data'] = $legacyPayload;
                 }
                 if (Schema::hasColumn('notifications', 'is_read')) {
                     $notifData['is_read'] = false;
@@ -794,18 +1003,31 @@ class PostDeactivationService
             // 3. Dispatch real-time Push Notification to peer device
             try {
                 if (class_exists(SendPushNotificationJob::class)) {
+                    $pushPayload = [
+                        'post_id' => (string) $post->id,
+                        'type' => 'post_deactivated',
+                        'notification_type' => 'post_deactivated',
+                        'screen' => '/notifications',
+                        'coins_reversed' => (string) $reversedCoins,
+                        'impact_reversed' => (string) $reversedImpact,
+                    ];
+                    if ($postImageUrl) {
+                        $pushPayload['image_url'] = $postImageUrl;
+                        $pushPayload['post_image'] = $postImageUrl;
+                        $pushPayload['media_url'] = $postImageUrl;
+                    }
+                    if (! empty($postSnippet)) {
+                        $pushPayload['post_content'] = $postSnippet;
+                    }
+                    if ($createdAppNotif && $createdAppNotif->id) {
+                        $pushPayload['notification_id'] = (string) $createdAppNotif->id;
+                    }
+
                     SendPushNotificationJob::dispatch(
                         $user,
                         $title,
                         $body,
-                        [
-                            'post_id' => (string) $post->id,
-                            'type' => 'post_deactivated',
-                            'notification_type' => 'post_deactivated',
-                            'screen' => '/notifications',
-                            'coins_reversed' => (string) $reversedCoins,
-                            'impact_reversed' => (string) $reversedImpact,
-                        ]
+                        $pushPayload
                     );
                 }
             } catch (\Throwable $e) {
@@ -956,8 +1178,12 @@ class PostDeactivationService
                 $body = "Your impact post was deactivated by admin. Reason: \"{$remarks}\".";
             }
 
+            $impactImageUrl = $this->resolveImpactImageUrl($impact);
+            $impactSnippet = Str::limit(trim((string) ($impact->story_to_share ?: $impact->action ?: '')), 140);
+
+            $createdAppNotif = null;
             if (class_exists(AppNotification::class) && Schema::hasTable('app_notifications')) {
-                AppNotification::create([
+                $appData = [
                     'user_id' => $user->id,
                     'type' => 'post_deactivated',
                     'category' => 'moderation',
@@ -969,62 +1195,102 @@ class PostDeactivationService
                     'reference_type' => 'impact',
                     'reference_id' => (string) $impact->id,
                     'screen' => '/notifications',
-                    'data' => [
-                        'impact_id' => (string) $impact->id,
-                        'remarks' => $remarks,
-                        'impact_reversed' => $reversedImpact,
-                        'coins_reversed' => 0,
-                        'title' => $title,
-                        'body' => $body,
-                        'type' => 'post_deactivated',
-                        'notification_type' => 'post_deactivated',
-                        'screen' => '/notifications',
-                        'tap_destination' => '/notifications',
-                    ],
-                    'sent_at' => now(),
-                ]);
+                ];
+                if ($impactImageUrl && Schema::hasColumn('app_notifications', 'image_url')) {
+                    $appData['image_url'] = $impactImageUrl;
+                }
+
+                $dataPayload = [
+                    'impact_id' => (string) $impact->id,
+                    'remarks' => $remarks,
+                    'impact_reversed' => $reversedImpact,
+                    'coins_reversed' => 0,
+                    'title' => $title,
+                    'body' => $body,
+                    'type' => 'post_deactivated',
+                    'notification_type' => 'post_deactivated',
+                    'screen' => '/notifications',
+                    'tap_destination' => '/notifications',
+                ];
+                if ($impactImageUrl) {
+                    $dataPayload['image_url'] = $impactImageUrl;
+                    $dataPayload['post_image'] = $impactImageUrl;
+                    $dataPayload['media_url'] = $impactImageUrl;
+                }
+                if (! empty($impactSnippet)) {
+                    $dataPayload['post_content'] = $impactSnippet;
+                }
+
+                $appData['data'] = $dataPayload;
+                $appData['sent_at'] = now();
+
+                $createdAppNotif = AppNotification::create($appData);
             }
 
             if (class_exists(Notification::class) && Schema::hasTable('notifications')) {
-                Notification::create([
+                $legacyPayload = [
+                    'impact_id' => (string) $impact->id,
+                    'remarks' => $remarks,
+                    'impact_reversed' => $reversedImpact,
+                    'title' => $title,
+                    'body' => $body,
+                    'notification_type' => 'post_deactivated',
+                    'screen' => '/notifications',
+                ];
+                if ($impactImageUrl) {
+                    $legacyPayload['image_url'] = $impactImageUrl;
+                    $legacyPayload['post_image'] = $impactImageUrl;
+                    $legacyPayload['media_url'] = $impactImageUrl;
+                }
+                if (! empty($impactSnippet)) {
+                    $legacyPayload['post_content'] = $impactSnippet;
+                }
+
+                $notifData = [
                     'user_id' => $user->id,
                     'type' => 'activity_update',
                     'title' => $title,
                     'message' => $body,
                     'source_type' => 'impact',
                     'source_id' => (string) $impact->id,
-                    'payload' => [
-                        'impact_id' => (string) $impact->id,
-                        'remarks' => $remarks,
-                        'impact_reversed' => $reversedImpact,
-                        'title' => $title,
-                        'body' => $body,
-                        'notification_type' => 'post_deactivated',
-                        'screen' => '/notifications',
-                    ],
-                    'data' => [
-                        'impact_id' => (string) $impact->id,
-                        'remarks' => $remarks,
-                        'impact_reversed' => $reversedImpact,
-                    ],
+                    'payload' => $legacyPayload,
+                    'data' => $legacyPayload,
                     'is_read' => false,
                     'created_at' => now(),
-                ]);
+                ];
+                if ($impactImageUrl && Schema::hasColumn('notifications', 'image_url')) {
+                    $notifData['image_url'] = $impactImageUrl;
+                }
+
+                Notification::create($notifData);
             }
 
             try {
                 if (class_exists(SendPushNotificationJob::class)) {
+                    $pushPayload = [
+                        'impact_id' => (string) $impact->id,
+                        'type' => 'post_deactivated',
+                        'notification_type' => 'post_deactivated',
+                        'screen' => '/notifications',
+                        'impact_reversed' => (string) $reversedImpact,
+                    ];
+                    if ($impactImageUrl) {
+                        $pushPayload['image_url'] = $impactImageUrl;
+                        $pushPayload['post_image'] = $impactImageUrl;
+                        $pushPayload['media_url'] = $impactImageUrl;
+                    }
+                    if (! empty($impactSnippet)) {
+                        $pushPayload['post_content'] = $impactSnippet;
+                    }
+                    if ($createdAppNotif && $createdAppNotif->id) {
+                        $pushPayload['notification_id'] = (string) $createdAppNotif->id;
+                    }
+
                     SendPushNotificationJob::dispatch(
                         $user,
                         $title,
                         $body,
-                        [
-                            'impact_id' => (string) $impact->id,
-                            'type' => 'post_deactivated',
-                            'notification_type' => 'post_deactivated',
-                            'screen' => '/notifications',
-                            'impact_reversed' => (string) $reversedImpact,
-                        ]
+                        $pushPayload
                     );
                 }
             } catch (\Throwable $e) {
@@ -1050,12 +1316,15 @@ class PostDeactivationService
         $coinsToReverse = (int) ($coinsData['amount'] ?? 0);
         $impactToReverse = (int) ($impactData['points'] ?? 0);
 
+        $imageUrl = $this->resolvePostImageUrl($post);
+
         return [
             'item_id' => (string) $post->id,
             'item_type' => 'post',
             'user_id' => (string) ($user?->id ?? $post->user_id),
             'user_name' => $user?->display_name ?: $user?->name ?: 'Member',
             'user_company' => $user?->company_name ?? $user?->company ?? $user?->business_name ?? '—',
+            'image_url' => $imageUrl,
             'current_coins' => $currentCoins,
             'current_impact' => $currentImpact,
             'coins_to_reverse' => $coinsToReverse,
@@ -1075,6 +1344,7 @@ class PostDeactivationService
 
         $currentCoins = (int) ($user?->coins_balance ?? 0);
         $currentImpact = (int) ($user?->life_impacted_count ?? 0);
+        $imageUrl = $this->resolveImpactImageUrl($impact);
 
         return [
             'item_id' => (string) $impact->id,
@@ -1082,6 +1352,7 @@ class PostDeactivationService
             'user_id' => (string) ($user?->id ?? $impact->user_id),
             'user_name' => $user?->display_name ?: $user?->name ?: 'Member',
             'user_company' => $user?->company_name ?? $user?->company ?? $user?->business_name ?? '—',
+            'image_url' => $imageUrl,
             'current_coins' => $currentCoins,
             'current_impact' => $currentImpact,
             'coins_to_reverse' => 0,
