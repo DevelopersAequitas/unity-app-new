@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\Admin\LeadAdminApiController;
+use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
+use App\Http\Controllers\Api\V1\CircularController;
 use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAskFlowController;
 use App\Leader\Controllers\LeaderAuthController;
@@ -19,16 +22,14 @@ use Illuminate\Support\Facades\Route;
 
 // ── Public System & Auth Endpoints ──────────────────────────────────────────
 Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
+Route::get('/leaders/system/app-config', [LeaderSystemController::class, 'appConfig']);
 
-Route::prefix('leader/auth')->group(function () {
-    Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
-    Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
-});
-
-Route::prefix('leader')->group(function () {
-    Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
-    Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
-});
+foreach (['leader/auth', 'leaders/auth', 'leader', 'leaders'] as $authPrefix) {
+    Route::prefix($authPrefix)->group(function () {
+        Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
+        Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
+    });
+}
 
 // ── Protected Leader Endpoints ──────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
@@ -202,5 +203,80 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
         Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
+    });
+
+    // ── Leader Pending Approvals, Leads & Circulars ─────────────────────────
+    foreach (['leader', 'leaders'] as $lp) {
+        Route::get("/{$lp}/pending-requests", [PendingRequestAdminController::class, 'index']);
+        Route::get("/{$lp}/pending-requests/summary", [PendingRequestAdminController::class, 'summary']);
+        Route::post("/{$lp}/pending-requests/{category}/{id}/approve", [PendingRequestAdminController::class, 'approve']);
+        Route::post("/{$lp}/pending-requests/{id}/approve", [PendingRequestAdminController::class, 'approveDirect']);
+        Route::post("/{$lp}/pending-requests/{category}/{id}/reject", [PendingRequestAdminController::class, 'reject']);
+        Route::post("/{$lp}/pending-requests/{id}/reject", [PendingRequestAdminController::class, 'rejectDirect']);
+
+        Route::get("/{$lp}/leads/counts", [LeadAdminApiController::class, 'counts']);
+        Route::get("/{$lp}/leads/{type}", [LeadAdminApiController::class, 'index']);
+
+        Route::get("/{$lp}/circulars", [CircularController::class, 'index']);
+        Route::get("/{$lp}/circulars/{id}", [CircularController::class, 'show']);
+    }
+
+    // ── /leaders/... Mirror Routes for Full Compatibility ───────────────────
+    Route::prefix('leaders')->group(function (): void {
+        Route::get('profile', [LeaderAuthController::class, 'profile']);
+        Route::put('profile', [LeaderAuthController::class, 'updateProfile']);
+        Route::post('profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+        Route::post('auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+
+        Route::get('dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
+        Route::get('dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
+
+        Route::get('peers', [LeaderPeersController::class, 'index']);
+        Route::get('peers/celebrations', [LeaderPeersController::class, 'celebrations']);
+        Route::post('peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
+        Route::get('peers/{id}/meetings', [LeaderPeersController::class, 'meetings']);
+        Route::get('peers/{id}/activities', [LeaderPeersController::class, 'activities']);
+        Route::get('peers/{id}', [LeaderPeersController::class, 'show'])->whereUuid('id');
+        Route::post('peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
+
+        Route::get('teams/summary', [LeaderTeamsController::class, 'summary']);
+        Route::get('teams/industries', [LeaderTeamsController::class, 'industries']);
+        Route::get('teams/circles', [LeaderTeamsController::class, 'circles']);
+        Route::get('teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
+        Route::get('teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
+        Route::get('teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+        Route::get('teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
+
+        Route::get('finance/metrics', [LeaderFinanceController::class, 'metrics']);
+        Route::get('finance/transactions', [LeaderFinanceController::class, 'transactions']);
+        Route::put('finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+        Route::post('finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+
+        Route::get('reports', [LeaderReportsController::class, 'index']);
+        Route::post('reports', [LeaderReportsController::class, 'store']);
+        Route::get('reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('reports/{id}', [LeaderReportsController::class, 'show']);
+        Route::get('reports/{id}/download', [LeaderReportsController::class, 'download']);
+        Route::get('reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+
+        Route::get('referrals', [LeaderActivitiesController::class, 'referrals']);
+        Route::post('referrals', [LeaderActivitiesController::class, 'storeReferral']);
+        Route::get('testimonials', [LeaderActivitiesController::class, 'testimonials']);
+        Route::post('testimonials', [LeaderActivitiesController::class, 'storeTestimonial']);
+        Route::get('peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+        Route::get('impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::post('impacts', [LeaderActivitiesController::class, 'storeImpact']);
+        Route::get('p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::post('p2p-meetings', [LeaderActivitiesController::class, 'storeP2pMeeting']);
+        Route::get('business-deals', [LeaderActivitiesController::class, 'businessDeals']);
+        Route::post('business-deals', [LeaderActivitiesController::class, 'storeBusinessDeal']);
+        Route::get('requirements', [LeaderActivitiesController::class, 'requirements']);
+        Route::get('activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
+
+        Route::get('roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+        Route::put('roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+        Route::post('roles', [LeaderRoleManagementController::class, 'store']);
+        Route::put('roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+        Route::delete('roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
     });
 });
