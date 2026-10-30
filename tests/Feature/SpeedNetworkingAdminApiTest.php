@@ -553,4 +553,61 @@ class SpeedNetworkingAdminApiTest extends TestCase
         $this->assertNotNull($array['scheduled_end_time']);
         $this->assertEquals(30, $array['duration_minutes']);
     }
+
+    public function test_speed_networking_event_with_no_explicit_duration_and_null_end_time_calculates_from_rounds_and_is_never_null(): void
+    {
+        $event = new SpeedNetworkingEvent;
+        $event->setRawAttributes([
+            'id' => (string) Str::uuid(),
+            'title' => 'No Metadata Event',
+            'scheduled_start_time' => '2026-10-30 05:41:00',
+            'scheduled_end_time' => null,
+            'actual_start_time' => '2026-10-30 05:41:02',
+            'actual_end_time' => null,
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'metadata' => null,
+        ], true);
+
+        $this->assertNotNull($event->scheduled_end_time);
+        // 5 * 180 + 4 * 20 = 980 seconds (16m 20s)
+        $expected = Carbon::parse('2026-10-30 05:41:00')->addSeconds(980)->copy()->utc()->toISOString();
+        $this->assertEquals($expected, $event->scheduled_end_time->copy()->utc()->toISOString());
+
+        $array = $event->toArray();
+        $this->assertNotNull($array['scheduled_end_time']);
+        $this->assertEquals($expected, $array['scheduled_end_time']);
+    }
+
+    public function test_active_event_endpoint_never_returns_null_scheduled_end_time(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Active',
+            'last_name' => 'Member',
+            'email' => 'active_never_null@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Active Null End Event',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => Carbon::now()->addHour(),
+            'scheduled_end_time' => null,
+        ]);
+
+        $response = $this->getJson('/api/v1/speed-networking/active-event');
+        $response->assertStatus(200);
+
+        $data = $response->json('data');
+        $this->assertNotNull($data);
+        $this->assertNotNull($data['scheduled_end_time']);
+        $this->assertNotNull($data['duration_minutes']);
+        $this->assertGreaterThan(0, $data['duration_minutes']);
+    }
 }

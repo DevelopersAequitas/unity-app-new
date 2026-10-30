@@ -204,7 +204,17 @@ class SpeedNetworkingEvent extends Model
     {
         return Attribute::make(
             get: function ($value): ?Carbon {
-                $start = $this->scheduled_start_time ?? $this->actual_start_time;
+                $start = $this->scheduled_start_time
+                    ?? (! empty($this->attributes['scheduled_start_time']) ? Carbon::parse($this->attributes['scheduled_start_time']) : null)
+                    ?? $this->actual_start_time
+                    ?? (! empty($this->attributes['actual_start_time']) ? Carbon::parse($this->attributes['actual_start_time']) : null)
+                    ?? $this->created_at
+                    ?? Carbon::now();
+
+                $durSeconds = $this->calculateDurationSeconds();
+                if ($durSeconds <= 0) {
+                    $durSeconds = 1800;
+                }
 
                 $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
                 $hasExplicitDuration = ! empty($meta['duration_seconds'])
@@ -215,18 +225,18 @@ class SpeedNetworkingEvent extends Model
                     || ! empty($this->attributes['duration']);
 
                 if ($hasExplicitDuration && $start) {
-                    return $this->asDateTime($start)->copy()->addSeconds($this->calculateDurationSeconds());
+                    return $this->asDateTime($start)->copy()->addSeconds($durSeconds);
                 }
 
-                if ($value !== null) {
+                if (! empty($value)) {
                     return $this->asDateTime($value);
                 }
 
                 if ($start) {
-                    return $this->asDateTime($start)->copy()->addSeconds($this->calculateDurationSeconds());
+                    return $this->asDateTime($start)->copy()->addSeconds($durSeconds);
                 }
 
-                return null;
+                return Carbon::now()->addSeconds($durSeconds);
             },
             set: fn ($value) => $value
         );

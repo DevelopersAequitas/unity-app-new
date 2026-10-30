@@ -151,8 +151,41 @@
     $selectedCircleIds = collect(old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []))->map(fn ($id) => (string) $id)->all();
     $stateOptions = $circles->map(fn ($circle) => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null)->filter()->unique()->sort()->values();
     $eventTimezone = old('timezone', data_get($metadata, 'timezone') ?: 'Asia/Kolkata');
-    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->toIso8601String() : null);
-    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->toIso8601String() : null);
+
+    $snEvent = null;
+    if ($isEdit && \Illuminate\Support\Facades\Schema::hasTable('speed_networking_events')) {
+        try {
+            $snEvent = \App\Models\SpeedNetworking\SpeedNetworkingEvent::find($event->id);
+        } catch (\Throwable) {
+        }
+    }
+
+    $rawStart = $isEdit ? ($event->start_at ?? $snEvent?->scheduled_start_time) : null;
+    $rawEnd = $isEdit ? ($event->end_at ?? $snEvent?->scheduled_end_time) : null;
+
+    $startDateVal = '';
+    $startTimeVal = '';
+    if ($rawStart) {
+        $startCarbon = \Carbon\Carbon::parse($rawStart);
+        $startDateVal = $startCarbon->format('Y-m-d');
+        $startTimeVal = $startCarbon->format('H:i');
+    }
+
+    $resolvedDurationMinutes = 60;
+    if (! empty($metadata['duration_minutes'])) {
+        $resolvedDurationMinutes = (int) $metadata['duration_minutes'];
+    } elseif (! empty($metadata['duration_seconds'])) {
+        $resolvedDurationMinutes = (int) ceil((int) $metadata['duration_seconds'] / 60);
+    } elseif (! empty($metadata['duration'])) {
+        $resolvedDurationMinutes = (int) $metadata['duration'];
+    } elseif ($snEvent && $snEvent->duration_minutes) {
+        $resolvedDurationMinutes = (int) $snEvent->duration_minutes;
+    } elseif ($rawStart && $rawEnd) {
+        $resolvedDurationMinutes = max(1, (int) round(\Carbon\Carbon::parse($rawEnd)->diffInMinutes(\Carbon\Carbon::parse($rawStart))));
+    }
+
+    $startAtFormatted = old('start_at', $rawStart ? \Carbon\Carbon::parse($rawStart)->utc()->toISOString() : null);
+    $endAtFormatted = old('end_at', $rawEnd ? \Carbon\Carbon::parse($rawEnd)->utc()->toISOString() : ($rawStart ? \Carbon\Carbon::parse($rawStart)->addMinutes($resolvedDurationMinutes)->utc()->toISOString() : null));
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -370,17 +403,22 @@
                     <h5 class="form-section-title"><i class="bi bi-clock text-primary me-2"></i>Date & Time</h5>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold">Start Date</label>
-                            <input class="form-control @error('start_at') is-invalid @enderror" type="date" id="startDate" required placeholder="dd-mm-yyyy">
+                            <label class="form-label fw-semibold">Start Date *</label>
+                            <input class="form-control @error('start_at') is-invalid @enderror" type="date" id="startDate" name="start_date" value="{{ old('start_date', $startDateVal) }}" required placeholder="YYYY-MM-DD">
                             @error('start_at')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold">Start Time</label>
-                            <input class="form-control" type="time" id="startTime" required>
+                            <label class="form-label fw-semibold">Start Time *</label>
+                            <input class="form-control" type="time" id="startTime" name="start_time" value="{{ old('start_time', $startTimeVal) }}" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Duration</label>
                             <select class="form-select js-no-searchable-select" id="eventDuration">
+                                <option value="1">1 Minute</option>
+                                <option value="5">5 Minutes</option>
+                                <option value="10">10 Minutes</option>
+                                <option value="15">15 Minutes</option>
+                                <option value="20">20 Minutes</option>
                                 <option value="30">30 Minutes</option>
                                 <option value="45">45 Minutes</option>
                                 <option value="60" selected>1 Hour</option>
@@ -411,12 +449,14 @@
                                 </div>
                             </div>
                         </div>
+                        <input type="hidden" name="duration_minutes" id="durationMinutesHidden" value="{{ old('duration_minutes', $resolvedDurationMinutes) }}">
                         <input type="hidden" name="timezone" id="timezoneInput" value="{{ $eventTimezone }}">
                         <input type="hidden" name="start_at" id="startAtHidden" value="{{ $startAtFormatted }}">
                         <input type="hidden" name="end_at" id="endAtHidden" value="{{ $endAtFormatted }}">
                         <div class="col-12">
-                            <div class="text-muted small mt-1">
-                                <i class="bi bi-globe me-1 text-primary"></i>Times are displayed in your browser time (<span class="fw-semibold user-local-tz"></span>). Saved automatically in UTC for Flutter app.
+                            <div class="d-flex align-items-center gap-3 mt-1 small">
+                                <span class="text-muted"><i class="bi bi-clock-history me-1 text-primary"></i>Scheduled End Time: <strong id="endTimePreview" class="text-primary font-monospace">--:--</strong></span>
+                                <span class="text-muted"><i class="bi bi-info-circle me-1"></i>Times are saved and displayed in exact standard UTC.</span>
                             </div>
                             <div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div>
                         </div>
@@ -729,54 +769,49 @@
         }
 
         function initDateTimeFields() {
+            const sdInput = document.getElementById('startDate');
+            const stInput = document.getElementById('startTime');
             const startAt = document.getElementById('startAtHidden').value;
             const endAt = document.getElementById('endAtHidden').value;
-            if (startAt) { 
-                let normalized = String(startAt).trim();
-                if (!normalized.endsWith('Z') && !normalized.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(normalized)) {
-                    normalized = normalized.replace(' ', 'T') + 'Z';
-                }
-                const sDate = new Date(normalized);
-                if (!isNaN(sDate.getTime())) {
-                    const year = sDate.getFullYear();
-                    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-                    const day = String(sDate.getDate()).padStart(2, '0');
-                    const hours = String(sDate.getHours()).padStart(2, '0');
-                    const minutes = String(sDate.getMinutes()).padStart(2, '0');
 
-                    document.getElementById('startDate').value = `${year}-${month}-${day}`; 
-                    document.getElementById('startTime').value = `${hours}:${minutes}`; 
-                } else if (startAt.includes('T')) {
-                    const [d, t] = startAt.split('T'); 
-                    document.getElementById('startDate').value = d || ''; 
-                    document.getElementById('startTime').value = (t || '').slice(0, 5); 
+            // If start inputs are not populated yet, split startAt strictly without browser timezone shift
+            if ((!sdInput.value || !stInput.value) && startAt) {
+                let normalized = String(startAt).replace(/Z$/i, '').trim();
+                const parts = normalized.split(/[T ]/);
+                if (parts.length >= 2) {
+                    if (!sdInput.value) sdInput.value = parts[0];
+                    if (!stInput.value) stInput.value = parts[1].slice(0, 5);
                 }
             }
-            if (startAt && endAt) {
-                let startNorm = String(startAt).trim();
-                if (!startNorm.endsWith('Z') && !startNorm.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(startNorm)) startNorm = startNorm.replace(' ', 'T') + 'Z';
-                let endNorm = String(endAt).trim();
-                if (!endNorm.endsWith('Z') && !endNorm.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(endNorm)) endNorm = endNorm.replace(' ', 'T') + 'Z';
 
-                const sTime = new Date(startNorm).getTime();
-                const eTime = new Date(endNorm).getTime();
-                if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
-                    const diffMins = Math.round((eTime - sTime) / 60000);
-                    const durSelect = document.getElementById('eventDuration');
-                    if (durSelect) {
-                        const hasOption = Array.from(durSelect.options).some(opt => opt.value !== 'custom' && parseInt(opt.value, 10) === diffMins);
-                        if (hasOption) {
-                            durSelect.value = diffMins;
-                        } else {
-                            durSelect.value = 'custom';
-                            const hrs = Math.floor(diffMins / 60);
-                            const mins = diffMins % 60;
-                            const hInput = document.getElementById('customHours');
-                            const mInput = document.getElementById('customMinutes');
-                            if (hInput) hInput.value = hrs || '';
-                            if (mInput) mInput.value = mins || '';
-                        }
-                    }
+            const initialDurHidden = document.getElementById('durationMinutesHidden');
+            let initialDur = initialDurHidden ? parseInt(initialDurHidden.value || '0', 10) : 0;
+
+            if (initialDur <= 0 && startAt && endAt) {
+                const sDate = new Date(startAt.endsWith('Z') || startAt.endsWith('z') ? startAt : startAt + 'Z');
+                const eDate = new Date(endAt.endsWith('Z') || endAt.endsWith('z') ? endAt : endAt + 'Z');
+                if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime()) && eDate > sDate) {
+                    initialDur = Math.round((eDate.getTime() - sDate.getTime()) / 60000);
+                }
+            }
+
+            if (initialDur <= 0) {
+                initialDur = 60;
+            }
+
+            const durSelect = document.getElementById('eventDuration');
+            if (durSelect) {
+                const hasOption = Array.from(durSelect.options).some(opt => opt.value !== 'custom' && parseInt(opt.value, 10) === initialDur);
+                if (hasOption) {
+                    durSelect.value = String(initialDur);
+                } else {
+                    durSelect.value = 'custom';
+                    const hrs = Math.floor(initialDur / 60);
+                    const mins = initialDur % 60;
+                    const hInput = document.getElementById('customHours');
+                    const mInput = document.getElementById('customMinutes');
+                    if (hInput) hInput.value = hrs;
+                    if (mInput) mInput.value = mins;
                 }
             }
             toggleCustomDurationVisibility();
@@ -813,6 +848,10 @@
                     durationMinutes = parseInt(durationSelect.value || '60', 10);
                 }
             }
+            if (durationMinutes <= 0) durationMinutes = 60;
+
+            const durHidden = document.getElementById('durationMinutesHidden');
+            if (durHidden) durHidden.value = durationMinutes;
 
             if (sd) {
                 const parts = sd.split('-').map(Number);
@@ -836,17 +875,34 @@
                     [year, month, day] = parts;
                 }
                 const [hours, minutes] = st.split(':').map(Number);
-                // Create local date object in user's browser timezone
-                const startDateObj = new Date(year, month - 1, day, hours, minutes, 0);
-                if (!isNaN(startDateObj.getTime())) {
-                    const endDateObj = new Date(startDateObj.getTime() + (durationMinutes || 60) * 60 * 1000);
-                    // Store as ISO 8601 UTC string for backend storage
+
+                // Build UTC milliseconds directly, completely avoiding browser timezone shift
+                const startUtcMs = Date.UTC(year, month - 1, day, hours, minutes, 0);
+                if (!isNaN(startUtcMs)) {
+                    const startDateObj = new Date(startUtcMs);
+                    const endDateObj = new Date(startUtcMs + (durationMinutes * 60 * 1000));
+
                     document.getElementById('startAtHidden').value = startDateObj.toISOString();
                     document.getElementById('endAtHidden').value = endDateObj.toISOString();
+
+                    // Update End Time Preview
+                    const endHours = String(endDateObj.getUTCHours()).padStart(2, '0');
+                    const endMins = String(endDateObj.getUTCMinutes()).padStart(2, '0');
+                    const endDay = String(endDateObj.getUTCDate()).padStart(2, '0');
+                    const endMonth = String(endDateObj.getUTCMonth() + 1).padStart(2, '0');
+                    const endYear = endDateObj.getUTCFullYear();
+
+                    const previewEl = document.getElementById('endTimePreview');
+                    if (previewEl) {
+                        const isDifferentDay = (endDay !== String(day).padStart(2, '0') || endMonth !== String(month).padStart(2, '0'));
+                        previewEl.textContent = `${endHours}:${endMins} UTC` + (isDifferentDay ? ` (${endDay}-${endMonth}-${endYear})` : '');
+                    }
                 }
             } else {
                 document.getElementById('startAtHidden').value = '';
                 document.getElementById('endAtHidden').value = '';
+                const previewEl = document.getElementById('endTimePreview');
+                if (previewEl) previewEl.textContent = '--:--';
             }
         }
 
@@ -1078,12 +1134,9 @@
         const tzEl = document.getElementById('timezoneInput');
         try {
             const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
-            if (tzEl) {
+            if (tzEl && !tzEl.value) {
                 tzEl.value = browserTz;
             }
-            document.querySelectorAll('.user-local-tz').forEach(el => {
-                el.textContent = browserTz;
-            });
         } catch (e) {
             if (tzEl && !tzEl.value) tzEl.value = 'Asia/Kolkata';
         }

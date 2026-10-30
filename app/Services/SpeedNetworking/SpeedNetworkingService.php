@@ -80,9 +80,10 @@ class SpeedNetworkingService
                 $paginated = $query->paginate($perPage);
 
                 $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): object {
-                    $durationSec = $item->calculateDurationSeconds();
+                    $durationSec = max(60, $item->calculateDurationSeconds());
                     $durationMin = (int) ceil($durationSec / 60);
-                    $schedEnd = $item->scheduled_end_time;
+                    $schedStart = $item->scheduled_start_time ?? $item->actual_start_time ?? Carbon::now();
+                    $schedEnd = $item->scheduled_end_time ?? $schedStart->copy()->addSeconds($durationSec);
 
                     return (object) [
                         'id' => (string) $item->id,
@@ -97,9 +98,9 @@ class SpeedNetworkingService
                         'duration_seconds' => $durationSec,
                         'duration_minutes' => $durationMin,
                         'duration' => $durationMin,
-                        'scheduled_start_time' => $item->scheduled_start_time?->copy()->utc()->toISOString(),
-                        'scheduled_end_time' => $schedEnd?->copy()->utc()->toISOString(),
-                        'end_time' => $schedEnd?->copy()->utc()->toISOString(),
+                        'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                        'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                        'end_time' => $schedEnd->copy()->utc()->toISOString(),
                         'actual_start_time' => $item->actual_start_time?->copy()->utc()->toISOString(),
                         'actual_end_time' => $item->actual_end_time?->copy()->utc()->toISOString(),
                         'ticket_price' => (float) ($item->ticket_price ?? 0),
@@ -166,15 +167,19 @@ class SpeedNetworkingService
                 $durationMin = (int) ceil($durationSec / 60);
 
                 $startAt = $e->start_at ? Carbon::parse($e->start_at) : null;
-                $endAt = $e->end_at
-                    ? Carbon::parse($e->end_at)
-                    : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+                $endAt = ! empty($meta['scheduled_end_time'])
+                    ? Carbon::parse($meta['scheduled_end_time'])
+                    : (! empty($e->end_at)
+                        ? Carbon::parse($e->end_at)
+                        : ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec)));
 
                 $regCount = 0;
                 try {
                     $regCount = $e->registrations()->count();
                 } catch (\Throwable) {
                 }
+
+                $schedStart = $startAt ?? Carbon::now();
 
                 return (object) [
                     'id' => $e->id,
@@ -188,9 +193,9 @@ class SpeedNetworkingService
                     'duration_seconds' => $durationSec,
                     'duration_minutes' => $durationMin,
                     'duration' => $durationMin,
-                    'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
-                    'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
-                    'end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $endAt->copy()->utc()->toISOString(),
+                    'end_time' => $endAt->copy()->utc()->toISOString(),
                     'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
                     'actual_end_time' => $meta['actual_end_time'] ?? null,
                     'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
@@ -1320,6 +1325,11 @@ class SpeedNetworkingService
             ];
         }
 
+        $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+        $durMin = (int) ceil($durSec / 60);
+        $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+        $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
         return [
             'event' => [
                 'id' => $event->id,
@@ -1330,12 +1340,12 @@ class SpeedNetworkingService
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
                 'current_round' => (int) $event->current_round,
-                'duration_seconds' => $event->duration_seconds,
-                'duration_minutes' => $event->duration_minutes,
-                'duration' => $event->duration_minutes,
-                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
-                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'duration_seconds' => $durSec,
+                'duration_minutes' => $durMin,
+                'duration' => $durMin,
+                'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                 'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'total_participants_count' => count($participants),
@@ -2459,6 +2469,11 @@ class SpeedNetworkingService
                 $summary = $this->getSessionSummary($event, $user);
                 $peersMetCount = count($summary['interacted_peers'] ?? []);
 
+                $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+                $durMin = (int) ceil($durSec / 60);
+                $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+                $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
                 return [
                     'id' => (string) $event->id,
                     'event_id' => (string) $event->id,
@@ -2466,12 +2481,12 @@ class SpeedNetworkingService
                     'description' => $event->description,
                     'banner_url' => $event->banner_url,
                     'status' => $event->status,
-                    'duration_seconds' => $event->duration_seconds,
-                    'duration_minutes' => $event->duration_minutes,
-                    'duration' => $event->duration_minutes,
-                    'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
-                    'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
-                    'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                    'duration_seconds' => $durSec,
+                    'duration_minutes' => $durMin,
+                    'duration' => $durMin,
+                    'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                    'end_time' => $schedEnd->copy()->utc()->toISOString(),
                     'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                     'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                     'round_duration_seconds' => (int) $event->round_duration_seconds,
@@ -2554,18 +2569,23 @@ class SpeedNetworkingService
             $totalMatches = $event->matches()->count();
             $completedMatches = $event->matches()->where('status', SpeedNetworkingMatch::STATUS_COMPLETED)->count();
 
+            $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+            $durMin = (int) ceil($durSec / 60);
+            $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+            $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
             return [
                 'id' => (string) $event->id,
                 'title' => $event->title,
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status,
-                'duration_seconds' => $event->duration_seconds,
-                'duration_minutes' => $event->duration_minutes,
-                'duration' => $event->duration_minutes,
-                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
-                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'duration_seconds' => $durSec,
+                'duration_minutes' => $durMin,
+                'duration' => $durMin,
+                'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                 'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'round_duration_seconds' => (int) $event->round_duration_seconds,
@@ -2605,6 +2625,11 @@ class SpeedNetworkingService
         $completedMatches = $event->matches()->where('status', SpeedNetworkingMatch::STATUS_COMPLETED)->count();
         $avgDuration = (int) ($event->matches()->where('status', SpeedNetworkingMatch::STATUS_COMPLETED)->avg('duration_seconds') ?? 0);
 
+        $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+        $durMin = (int) ceil($durSec / 60);
+        $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+        $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
         return [
             'event' => [
                 'id' => (string) $event->id,
@@ -2612,12 +2637,12 @@ class SpeedNetworkingService
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status,
-                'duration_seconds' => $event->duration_seconds,
-                'duration_minutes' => $event->duration_minutes,
-                'duration' => $event->duration_minutes,
-                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
-                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'duration_seconds' => $durSec,
+                'duration_minutes' => $durMin,
+                'duration' => $durMin,
+                'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                 'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'round_duration_seconds' => (int) $event->round_duration_seconds,

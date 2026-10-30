@@ -746,6 +746,11 @@ class SpeedNetworkingApiController extends Controller
 
         $clientStatus = in_array($event->status, [SpeedNetworkingEvent::STATUS_IN_PROGRESS, 'live'], true) ? 'live' : $event->status;
 
+        $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+        $durMin = (int) ceil($durSec / 60);
+        $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+        $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
         return response()->json([
             'status' => true,
             'success' => true,
@@ -762,15 +767,15 @@ class SpeedNetworkingApiController extends Controller
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
                 'current_round' => (int) $event->current_round,
-                'duration_seconds' => $event->duration_seconds,
-                'duration_minutes' => $event->duration_minutes,
-                'duration' => $event->duration_minutes,
-                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
-                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'duration_seconds' => $durSec,
+                'duration_minutes' => $durMin,
+                'duration' => $durMin,
+                'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                 'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
-                'estimated_end_time' => ($event->actual_start_time ? $event->actual_start_time->copy()->addSeconds($event->calculateDurationSeconds())->utc()->toISOString() : $event->scheduled_end_time?->copy()->utc()->toISOString()),
+                'estimated_end_time' => ($event->actual_start_time ? $event->actual_start_time->copy()->addSeconds($durSec)->utc()->toISOString() : $schedEnd->copy()->utc()->toISOString()),
                 'participants_count' => $event->participants()->count(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
@@ -857,17 +862,20 @@ class SpeedNetworkingApiController extends Controller
         $startAt = $event->start_at ? Carbon::parse($event->start_at) : ($event->scheduled_start_time ?? Carbon::now());
 
         if ($event instanceof SpeedNetworkingEvent) {
-            $durationSec = $event->duration_seconds;
-            $durationMin = $event->duration_minutes;
-            $scheduledEnd = $event->scheduled_end_time;
+            $durationSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+            $durationMin = (int) ceil($durationSec / 60);
+            $scheduledEnd = $event->scheduled_end_time ?? ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec));
             $actualStart = $event->actual_start_time;
             $actualEnd = $event->actual_end_time;
         } else {
             $durationSec = ($totalRounds > 0)
                 ? (($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration))
                 : (int) ($meta['duration_seconds'] ?? (($meta['duration_minutes'] ?? 60) * 60));
+            if ($durationSec <= 0) {
+                $durationSec = 1800;
+            }
             $durationMin = (int) ceil($durationSec / 60);
-            $scheduledEnd = $event->end_at ? Carbon::parse($event->end_at) : $startAt->copy()->addSeconds($durationSec);
+            $scheduledEnd = $event->end_at ? Carbon::parse($event->end_at) : ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec));
             $actualStart = ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time']) : null;
             $actualEnd = ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time']) : null;
         }
@@ -903,8 +911,8 @@ class SpeedNetworkingApiController extends Controller
                 'duration_minutes' => $durationMin,
                 'duration' => $durationMin,
                 'scheduled_start_time' => $startAt->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $scheduledEnd?->copy()->utc()->toISOString(),
-                'end_time' => $scheduledEnd?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $scheduledEnd->copy()->utc()->toISOString(),
+                'end_time' => $scheduledEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $actualStart?->copy()->utc()->toISOString(),
                 'actual_end_time' => $actualEnd?->copy()->utc()->toISOString(),
                 'estimated_end_time' => ($actualStart ? $actualStart->copy()->addSeconds($durationSec)->utc()->toISOString() : $scheduledEnd?->copy()->utc()->toISOString()),
