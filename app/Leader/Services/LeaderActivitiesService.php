@@ -1376,6 +1376,13 @@ class LeaderActivitiesService
             }
             $cnt = (int) ($countsByUser[$uid] ?? 0);
             $amt = (float) ($amountsByUser[$uid] ?? 0.0);
+
+            // For activity-specific sections (everything except the general 'peers' directory),
+            // include only peers who actually have activity in that section ($cnt > 0 || $amt > 0).
+            if ($normalizedType !== 'peers' && $cnt <= 0 && $amt <= 0.0) {
+                continue;
+            }
+
             $amtFormatted = $amt >= 10000000
                 ? '₹'.round($amt / 10000000, 2).'Cr'
                 : ($amt >= 100000 ? '₹'.round($amt / 100000, 1).'L' : ($amt > 0 ? '₹'.number_format($amt, 0) : ''));

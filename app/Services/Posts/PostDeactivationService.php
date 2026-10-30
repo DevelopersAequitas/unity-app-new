@@ -749,7 +749,7 @@ class PostDeactivationService
         }
 
         try {
-            $hash = md5($url . '_left_clean_sharp_v1');
+            $hash = md5($url . '_whatsapp_card_radius12_v1');
             $cacheDir = storage_path('app/public/notification_banners');
             $cacheFile = "{$cacheDir}/{$hash}.png";
             $cachePublicUrl = $this->normalizePublicUrl("storage/notification_banners/{$hash}.png");
@@ -815,17 +815,36 @@ class PostDeactivationService
             $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
             imagefill($canvas, 0, 0, $transparent);
 
-            // Calculate scaled dimension to fit 100% inside 1080x608 without cropping
-            $scale = min($canvasW / $origW, $canvasH / $origH);
+            // Padding around image card matching WhatsApp notification style (Image 1)
+            $padY = 20;
+            $padLeft = 24;
+            $availH = $canvasH - ($padY * 2);
+            $availW = $canvasW - $padLeft;
+
+            // Calculate scaled dimension to fit inside available area
+            $scale = min($availW / $origW, $availH / $origH);
             $targetW = (int) round($origW * $scale);
             $targetH = (int) round($origH * $scale);
 
-            // Show the image on the LEFT side with sharp standard corners
-            $dstX = 0;
+            // Position image on the LEFT with vertical centering and left margin
+            $dstX = $padLeft;
             $dstY = (int) round(($canvasH - $targetH) / 2);
 
+            // Resample image to fitted size
+            $fittedImg = imagecreatetruecolor($targetW, $targetH);
+            imagealphablending($fittedImg, false);
+            imagesavealpha($fittedImg, true);
+            imagefill($fittedImg, 0, 0, $transparent);
+            imagecopyresampled($fittedImg, $srcImg, 0, 0, 0, 0, $targetW, $targetH, $origW, $origH);
+
+            // Apply smooth 12px equivalent border radius to all 4 corners (matches WhatsApp style)
+            $borderRadius = (int) round(12 * ($canvasH / 240)); // ~30px on 1080x608 canvas
+            $this->applyBorderRadius($fittedImg, $borderRadius);
+
+            // Draw rounded image card onto transparent canvas
             imagealphablending($canvas, true);
-            imagecopyresampled($canvas, $srcImg, $dstX, $dstY, 0, 0, $targetW, $targetH, $origW, $origH);
+            imagecopy($canvas, $fittedImg, $dstX, $dstY, 0, 0, $targetW, $targetH);
+            imagedestroy($fittedImg);
 
             if (! is_dir($cacheDir)) {
                 mkdir($cacheDir, 0755, true);
@@ -841,6 +860,52 @@ class PostDeactivationService
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('[PostDeactivationService] Failed formatting banner: ' . $e->getMessage());
             return $url;
+        }
+    }
+
+    /**
+     * Apply smooth anti-aliased border radius to an image resource.
+     */
+    protected function applyBorderRadius(&$image, int $radius): void
+    {
+        $width = imagesx($image);
+        $height = imagesy($image);
+        if ($width <= 0 || $height <= 0 || $radius <= 0) {
+            return;
+        }
+
+        $radius = min($radius, (int) floor(min($width, $height) / 2));
+        imagealphablending($image, false);
+
+        for ($x = 0; $x < $radius; $x++) {
+            for ($y = 0; $y < $radius; $y++) {
+                $dx = $radius - $x;
+                $dy = $radius - $y;
+                $dist = sqrt($dx * $dx + $dy * $dy);
+                if ($dist > $radius) {
+                    $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+                    imagesetpixel($image, $x, $y, $transparent);
+                    imagesetpixel($image, $width - 1 - $x, $y, $transparent);
+                    imagesetpixel($image, $x, $height - 1 - $y, $transparent);
+                    imagesetpixel($image, $width - 1 - $x, $height - 1 - $y, $transparent);
+                } elseif ($dist > $radius - 1) {
+                    $alpha = min(127, (int) round(($dist - ($radius - 1)) * 127));
+                    foreach ([
+                        [$x, $y],
+                        [$width - 1 - $x, $y],
+                        [$x, $height - 1 - $y],
+                        [$width - 1 - $x, $height - 1 - $y],
+                    ] as [$px, $py]) {
+                        $rgba = imagecolorat($image, $px, $py);
+                        $red = ($rgba >> 16) & 0xFF;
+                        $green = ($rgba >> 8) & 0xFF;
+                        $blue = $rgba & 0xFF;
+                        $origAlpha = ($rgba >> 24) & 0x7F;
+                        $newAlpha = max($origAlpha, $alpha);
+                        imagesetpixel($image, $px, $py, imagecolorallocatealpha($image, $red, $green, $blue, $newAlpha));
+                    }
+                }
+            }
         }
     }
 
