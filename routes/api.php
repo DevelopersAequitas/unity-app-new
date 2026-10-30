@@ -604,6 +604,8 @@ Route::prefix('v1')->group(function () {
         Route::match(['put', 'patch'], '/system/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
         Route::get('/system/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
         Route::post('/system/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::match(['put', 'patch', 'post'], '/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::match(['put', 'patch'], '/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
         Route::delete('/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
 
         Route::get('/ip-access', [AdminIpAccessController::class, 'show']);
@@ -611,6 +613,8 @@ Route::prefix('v1')->group(function () {
         Route::match(['put', 'patch'], '/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
         Route::get('/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
         Route::post('/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::match(['put', 'patch', 'post'], '/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::match(['put', 'patch'], '/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
         Route::delete('/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
 
         // Certification approval API examples:

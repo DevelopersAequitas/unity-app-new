@@ -122,6 +122,51 @@ class AdminIpAccessController extends Controller
     }
 
     /**
+     * Update an existing authorized IP address by ID.
+     */
+    public function updateIp(Request $request, string $id): JsonResponse
+    {
+        if (! $this->adminIpAccessPolicy->update($request->user())) {
+            return $this->forbiddenResponse();
+        }
+
+        $rawIp = $request->input('ip_address') ?? $request->input('ip');
+        $hasLabel = $request->exists('label');
+        $label = $hasLabel && $request->input('label') !== null ? (string) $request->input('label') : null;
+        $isActive = $request->has('is_active') ? $request->boolean('is_active') : null;
+
+        $actor = $this->adminIpAccessPolicy->resolveActorMetadata($request->user());
+        $requestIp = $this->adminIpAccessService->resolveClientIp($request);
+
+        $result = $this->adminIpAccessService->updateAllowedIp(
+            id: $id,
+            rawIp: is_string($rawIp) ? $rawIp : null,
+            label: $label,
+            hasLabel: $hasLabel,
+            isActive: $isActive,
+            actor: $actor,
+            requestIp: $requestIp,
+            userAgent: $request->userAgent()
+        );
+
+        $payload = [
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['data'],
+        ];
+
+        if (isset($result['error_code'])) {
+            $payload['error_code'] = $result['error_code'];
+        }
+
+        if (isset($result['errors'])) {
+            $payload['errors'] = $result['errors'];
+        }
+
+        return response()->json($payload, $result['status']);
+    }
+
+    /**
      * Remove an authorized IP address by ID.
      */
     public function destroyIp(Request $request, string $id): JsonResponse
