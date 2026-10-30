@@ -334,4 +334,22 @@ class LeaderActivitiesController extends Controller
             'data' => $data,
         ], 201);
     }
+
+    /**
+     * Get user-input activities list by type for Leader App Home / Activities screens.
+     */
+    public function activitiesByType(Request $request, string $type): JsonResponse
+    {
+        $data = $this->activitiesService->getActivitiesByType($request, $type);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'data' => $data,
+            'meta' => [
+                'type' => $type,
+                'total' => count($data),
+            ],
+        ]);
+    }
 }
