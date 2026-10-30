@@ -98,6 +98,7 @@ class SendMembershipExpiryRemindersTest extends TestCase
             $table->uuid('id')->primary();
             $table->string('display_name', 150)->nullable();
             $table->string('email')->nullable();
+            $table->string('status', 50)->default('active');
             $table->string('membership_status', 50)->default('visitor');
             $table->timestamp('membership_ends_at')->nullable();
             $table->timestamp('membership_expiry')->nullable();
@@ -124,13 +125,13 @@ class SendMembershipExpiryRemindersTest extends TestCase
         Mail::fake();
         Queue::fake();
 
-        // 1. Create a user whose membership has expired yesterday (STATUS_FREE)
+        // 1. Create a user whose membership has expired 3 days ago (Day 3 reminder, STATUS_FREE)
         $expiredUser = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'Expired User',
             'email' => 'expired@example.com',
             'membership_status' => User::STATUS_FREE,
-            'membership_ends_at' => Carbon::now()->subDay(),
+            'membership_ends_at' => Carbon::now()->subDays(3),
         ]);
 
         // 2. Create an active user whose membership expires tomorrow (STATUS_FREE)
@@ -157,7 +158,7 @@ class SendMembershipExpiryRemindersTest extends TestCase
             'display_name' => 'Expired Premium User',
             'email' => 'expired_premium@example.com',
             'membership_status' => 'premium',
-            'membership_ends_at' => Carbon::now()->subDay(),
+            'membership_ends_at' => Carbon::now()->subDays(3),
         ]);
 
         Artisan::call('memberships:send-expiry-reminders');
@@ -202,13 +203,13 @@ class SendMembershipExpiryRemindersTest extends TestCase
         Mail::fake();
         Queue::fake();
 
-        // Create two users with the exact same email (both expired free)
+        // Create two users with the exact same email (both expired free at Day 3)
         $user1 = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'User One',
             'email' => 'duplicate@example.com',
             'membership_status' => User::STATUS_FREE,
-            'membership_ends_at' => Carbon::now()->subDays(5),
+            'membership_ends_at' => Carbon::now()->subDays(3),
         ]);
 
         $user2 = User::query()->create([
@@ -231,6 +232,177 @@ class SendMembershipExpiryRemindersTest extends TestCase
                 ->where('type', 'system')
                 ->count()
         );
+    }
+
+    public function test_sends_emails_only_on_day_3_and_day_7(): void
+    {
+        Mail::fake();
+        Queue::fake();
+
+        // Day 0 (today)
+        $userDay0 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 0 User',
+            'email' => 'day0@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now(),
+        ]);
+
+        // Day 1
+        $userDay1 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 1 User',
+            'email' => 'day1@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDay(),
+        ]);
+
+        // Day 2
+        $userDay2 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 2 User',
+            'email' => 'day2@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(2),
+        ]);
+
+        // Day 3 (eligible)
+        $userDay3 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 3 User',
+            'email' => 'day3@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(3),
+        ]);
+
+        // Day 4
+        $userDay4 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 4 User',
+            'email' => 'day4@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(4),
+        ]);
+
+        // Day 5
+        $userDay5 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 5 User',
+            'email' => 'day5@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(5),
+        ]);
+
+        // Day 6
+        $userDay6 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 6 User',
+            'email' => 'day6@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(6),
+        ]);
+
+        // Day 7 (eligible)
+        $userDay7 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 7 User',
+            'email' => 'day7@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(7),
+        ]);
+
+        // Day 8
+        $userDay8 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 8 User',
+            'email' => 'day8@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(8),
+        ]);
+
+        // Day 9
+        $userDay9 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 9 User',
+            'email' => 'day9@example.com',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(9),
+        ]);
+
+        Artisan::call('memberships:send-expiry-reminders');
+
+        // Only Day 3 and Day 7 should have emails queued
+        Mail::assertQueued(MembershipExpiryReminderMail::class, 2);
+        Mail::assertQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay3->email));
+        Mail::assertQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay7->email));
+
+        // Other days should NOT receive emails
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay0->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay1->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay2->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay4->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay5->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay6->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay8->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay9->email));
+    }
+
+    public function test_automatically_deactivates_peers_after_10_days_without_rejoining_unity(): void
+    {
+        Mail::fake();
+        Queue::fake();
+
+        // Expired exactly 10 days ago (should be deactivated)
+        $userDay10 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 10 User',
+            'email' => 'day10@example.com',
+            'status' => 'active',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(10),
+        ]);
+
+        // Expired 15 days ago (should be deactivated)
+        $userDay15 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Day 15 User',
+            'email' => 'day15@example.com',
+            'status' => 'active',
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => Carbon::now()->subDays(15),
+        ]);
+
+        // Expired 12 days ago, but user came back to unity / renewed (status 'Only Unity Peer', ends_at future)
+        $renewedUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'display_name' => 'Renewed User',
+            'email' => 'renewed@example.com',
+            'status' => 'active',
+            'membership_status' => User::STATUS_GREEN_PEER,
+            'membership_ends_at' => Carbon::now()->addYear(),
+        ]);
+
+        Artisan::call('memberships:send-expiry-reminders');
+
+        // Refresh models (using withTrashed() because deactivated users are soft-deleted)
+        $freshDay10 = User::withTrashed()->find($userDay10->id);
+        $freshDay15 = User::withTrashed()->find($userDay15->id);
+        $freshRenewed = User::query()->find($renewedUser->id);
+
+        // Day 10 and Day 15 peers should be deactivated (status = inactive, trashed)
+        $this->assertEquals('inactive', $freshDay10->status);
+        $this->assertTrue($freshDay10->trashed());
+
+        $this->assertEquals('inactive', $freshDay15->status);
+        $this->assertTrue($freshDay15->trashed());
+
+        // Renewed user should NOT be deactivated
+        $this->assertEquals('active', $freshRenewed->status);
+        $this->assertFalse($freshRenewed->trashed());
+
+        // Day 10+ users should NOT receive emails
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay10->email));
+        Mail::assertNotQueued(MembershipExpiryReminderMail::class, fn ($mail) => $mail->hasTo($userDay15->email));
     }
 
     public function test_sends_upcoming_expiry_reminder_emails_and_notifications_to_eligible_users(): void
