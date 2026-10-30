@@ -270,13 +270,9 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
-    $brandPartnersActive = request()->routeIs('admin.brand-partners.*') || request()->routeIs('admin.advertiser.*');
+    $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
         ['label' => 'Dashboard', 'route' => 'admin.brand-partners.dashboard'],
-        ['label' => 'Applications', 'route' => 'admin.advertiser.applications.index'],
-        ['label' => 'Packages', 'route' => 'admin.advertiser.packages.index'],
-        ['label' => 'Subscriptions', 'route' => 'admin.advertiser.subscriptions.index'],
-        ['label' => 'Payments', 'route' => 'admin.advertiser.payments.index'],
         ['label' => 'All Partners', 'route' => 'admin.brand-partners.index'],
         ['label' => 'Categories', 'route' => 'admin.brand-partners.categories.index'],
         ['label' => 'Offers', 'route' => 'admin.brand-partners.offers'],
@@ -285,12 +281,15 @@
     ];
     $hasBrandPartnersRole = $isGlobalAdmin || ($adminUser?->roles?->pluck('key')->intersect(['global_admin', 'global_founder', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false);
 
-    $adsActive = request()->routeIs('admin.ads.*') || request()->routeIs('admin.ad-bookings.*');
+    $adsActive = request()->routeIs('admin.ads.*') || request()->routeIs('admin.ad-bookings.*') || request()->routeIs('admin.advertiser.*');
     $adsMenu = [
-        ['label' => 'Dashboard', 'route' => 'admin.ads.dashboard'],
-        ['label' => 'All Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.index', 'admin.ads.create', 'admin.ads.edit', 'admin.ads.show']],
-        ['label' => 'Pending Requests', 'route' => 'admin.ad-bookings.index', 'active_routes' => ['admin.ad-bookings.*']],
-        ['label' => 'Analytics', 'route' => 'admin.ads.analytics'],
+        ['label' => 'Advertiser Dashboard', 'route' => 'admin.advertiser.analytics.index'],
+        ['label' => 'Campaigns', 'route' => 'admin.advertiser.campaigns.index', 'active_routes' => ['admin.advertiser.campaigns.*']],
+        ['label' => 'Applications', 'route' => 'admin.advertiser.applications.index', 'active_routes' => ['admin.advertiser.applications.*']],
+        ['label' => 'Packages', 'route' => 'admin.advertiser.packages.index', 'active_routes' => ['admin.advertiser.packages.*']],
+        ['label' => 'Subscriptions', 'route' => 'admin.advertiser.subscriptions.index', 'active_routes' => ['admin.advertiser.subscriptions.*']],
+        ['label' => 'Payments', 'route' => 'admin.advertiser.payments.index', 'active_routes' => ['admin.advertiser.payments.*']],
+        ['label' => 'All Feed Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.index', 'admin.ads.create', 'admin.ads.edit', 'admin.ads.show']],
     ];
     $hasAdsRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
 
@@ -785,8 +784,8 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="javascript:void(0)" title="Ads">
-                        <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads</span>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="javascript:void(0)" title="Ads & Advertisers">
+                        <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads & Advertisers</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $adsActive ? 'show' : '' }}" id="adsSubmenu">

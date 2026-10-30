@@ -1504,6 +1504,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
+
+            // Campaigns Lifecycle & Scoped Analytics
+            Route::get('/campaigns', [AdvertiserMemberApiController::class, 'campaigns']);
+            Route::post('/campaigns', [AdvertiserMemberApiController::class, 'createCampaign']);
+            Route::get('/campaigns/{id}', [AdvertiserMemberApiController::class, 'campaignDetails'])->whereUuid('id');
+            Route::patch('/campaigns/{id}', [AdvertiserMemberApiController::class, 'updateCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/submit', [AdvertiserMemberApiController::class, 'submitCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/cancel', [AdvertiserMemberApiController::class, 'cancelCampaign'])->whereUuid('id');
+            Route::get('/campaigns/{id}/analytics', [AdvertiserMemberApiController::class, 'campaignAnalytics'])->whereUuid('id');
+            Route::get('/analytics/timeseries', [AdvertiserMemberApiController::class, 'analyticsTimeseries']);
         });
     });
 
@@ -1606,6 +1616,17 @@ Route::prefix('v1')->group(function () {
         // Banner configuration
         Route::get('/banner-config', [AdvertiserAdminApiController::class, 'bannerConfig']);
         Route::patch('/banner-config', [AdvertiserAdminApiController::class, 'updateBannerConfig']);
+
+        // Campaigns Management
+        Route::get('/campaigns', [AdvertiserAdminApiController::class, 'campaigns']);
+        Route::get('/campaigns/{id}', [AdvertiserAdminApiController::class, 'showCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/review', [AdvertiserAdminApiController::class, 'reviewCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/publish', [AdvertiserAdminApiController::class, 'publishCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/pause', [AdvertiserAdminApiController::class, 'pauseCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/resume', [AdvertiserAdminApiController::class, 'resumeCampaign'])->whereUuid('id');
+
+        // Analytics Summary
+        Route::get('/analytics/summary', [AdvertiserAdminApiController::class, 'analyticsSummary']);
     });
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
