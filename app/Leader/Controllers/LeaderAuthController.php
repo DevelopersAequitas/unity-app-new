@@ -47,9 +47,14 @@ class LeaderAuthController extends Controller
             ], 403);
         }
 
+        $channel = $data['channel'] ?? 'email';
+        $message = $channel === 'whatsapp'
+            ? 'OTP has been sent successfully to your WhatsApp.'
+            : 'OTP has been sent successfully to your registered email.';
+
         return response()->json([
             'success' => true,
-            'message' => 'OTP has been sent successfully to your registered email/phone.',
+            'message' => $message,
             'data' => $data,
         ]);
     }

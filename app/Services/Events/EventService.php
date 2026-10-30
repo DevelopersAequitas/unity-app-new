@@ -804,14 +804,20 @@ class EventService
         }
 
         if (! empty($data['start_at'])) {
-            $localStart = Carbon::parse($data['start_at']);
-            $data['start_at'] = $localStart->copy()->toDateTimeString();
+            $rawStartStr = trim((string) $data['start_at']);
+            $hasExplicitTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawStartStr);
+            $utcStart = ($hasExplicitTz ? Carbon::parse($rawStartStr) : Carbon::parse($rawStartStr, $timezone))->utc();
+            $data['start_at'] = $utcStart->toDateTimeString();
+            $localStart = $utcStart->copy()->setTimezone($timezone);
         } else {
+            $utcStart = null;
             $localStart = null;
         }
 
         if (! empty($data['end_at'])) {
-            $data['end_at'] = Carbon::parse($data['end_at'])->toDateTimeString();
+            $rawEndStr = trim((string) $data['end_at']);
+            $hasExplicitEndTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawEndStr);
+            $data['end_at'] = ($hasExplicitEndTz ? Carbon::parse($rawEndStr) : Carbon::parse($rawEndStr, $timezone))->utc()->toDateTimeString();
         }
 
         if ($actor && empty($data['created_by_user_id'])) {

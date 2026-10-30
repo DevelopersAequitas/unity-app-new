@@ -7,7 +7,7 @@ return [
         'business_deal' => 5,
         'referral' => 5,
         'visitor_registration' => 1,
-        'p2p_meeting' => 1,
+        'p2p_meeting' => 5,
         'requirement' => 1,
         'recommend_peer' => 1,
         'introduction_video' => 1,

@@ -1,12 +1,17 @@
 @extends('emails.layouts.email')
 
-@section('title', 'Membership Expired – Action Required')
+@section('title', isset($reminder_day) && $reminder_day == 7 ? 'Peers Global Unity: Membership Expired – Final Reminder' : (isset($reminder_day) && $reminder_day == 3 ? 'Peers Global Unity: Membership Expired – Day 3 Reminder' : 'Membership Expired – Action Required'))
 
 @section('content')
     <p style="margin:0 0 12px 0; color:#ffffff; font-size:18px; font-weight:700;">Dear {{ $user->display_name }},</p>
     <p style="margin:0 0 16px 0; color:#e2e8f0; font-size:15px; line-height:22px;">
         Your membership with Peers Global Unity has expired as of {{ $membership_ends_at }}.
     </p>
+    @if(isset($reminder_day) && $reminder_day == 7)
+    <p style="margin:0 0 16px 0; color:#f87171; font-size:15px; line-height:22px; font-weight:600;">
+        This is your final reminder. If your membership is not renewed within 10 days of expiry, your account will be automatically deactivated.
+    </p>
+    @endif
     <p style="margin:0 0 16px 0; color:#e2e8f0; font-size:15px; line-height:22px;">
         We truly appreciate your association with our community and the contributions you have made so far.
     </p>

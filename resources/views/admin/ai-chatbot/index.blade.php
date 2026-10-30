@@ -130,8 +130,11 @@
 
                 <!-- Visibility & Toggles -->
                 <div class="card border-0 shadow-sm rounded-3 mb-4">
-                    <div class="card-header bg-white py-3 border-bottom">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold"><i class="bi bi-toggles me-2 text-primary"></i>App Visibility &amp; Entry Points</h6>
+                        <button type="submit" class="btn btn-primary btn-sm px-3">
+                            <i class="bi bi-check2-circle me-1"></i> Save
+                        </button>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">

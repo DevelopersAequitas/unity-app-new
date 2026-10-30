@@ -272,20 +272,20 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
 
         $avinash = collect($interactedPeers)->firstWhere('id', (string) $peer1->id);
         $this->assertNotNull($avinash);
-        $this->assertSame(45, $avinash['life_impacted_count']);
-        $this->assertSame(45, $avinash['lives_impacted']);
-        $this->assertSame(45, $avinash['life_impact_count']);
+        $this->assertSame(50, $avinash['life_impacted_count']);
+        $this->assertSame(50, $avinash['lives_impacted']);
+        $this->assertSame(50, $avinash['life_impact_count']);
         $this->assertTrue($avinash['is_bookmark']);
         $this->assertFalse($avinash['is_following']);
 
         $rahul = collect($interactedPeers)->firstWhere('id', (string) $peer2->id);
         $this->assertNotNull($rahul);
-        $this->assertSame(30, $rahul['life_impacted_count']);
-        $this->assertSame(30, $rahul['lives_impacted']);
-        $this->assertSame(30, $rahul['score']);
-        $this->assertSame(30, $rahul['peer_score']);
-        $this->assertSame(30, $rahul['impact_score']);
-        $this->assertSame(30, $rahul['mutual_connections_count']);
+        $this->assertSame(35, $rahul['life_impacted_count']);
+        $this->assertSame(35, $rahul['lives_impacted']);
+        $this->assertSame(35, $rahul['score']);
+        $this->assertSame(35, $rahul['peer_score']);
+        $this->assertSame(35, $rahul['impact_score']);
+        $this->assertSame(35, $rahul['mutual_connections_count']);
         $this->assertFalse($rahul['is_bookmark']);
         $this->assertTrue($rahul['is_following']);
 
@@ -309,6 +309,6 @@ class SpeedNetworkingSummaryPeersLifeImpactTest extends TestCase
         $altResponse = $this->getJson("/api/v1/events/{$event->id}/speed-networking/summary");
         $altResponse->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.interacted_peers.0.life_impacted_count', 45);
+            ->assertJsonPath('data.interacted_peers.0.life_impacted_count', 50);
     }
 }

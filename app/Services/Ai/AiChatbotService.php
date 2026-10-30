@@ -170,13 +170,22 @@ class AiChatbotService
                 ];
             }
 
-            AiChatMessage::create([
-                'session_id' => $resolvedSessionId,
-                'user_id' => $user?->id,
-                'role' => 'user',
-                'content' => $userText,
-                'attachments_json' => $savedAudioUrl ? [['type' => 'voice_note', 'audio_url' => $savedAudioUrl]] : null,
-            ]);
+            $lastMsg = $recentHistory->last();
+            if ($lastMsg instanceof AiChatMessage && $lastMsg->role === 'user') {
+                $lastMsg->update([
+                    'content' => $userText,
+                    'attachments_json' => $savedAudioUrl ? [['type' => 'voice_note', 'audio_url' => $savedAudioUrl]] : $lastMsg->attachments_json,
+                ]);
+                array_pop($contents);
+            } else {
+                AiChatMessage::create([
+                    'session_id' => $resolvedSessionId,
+                    'user_id' => $user?->id,
+                    'role' => 'user',
+                    'content' => $userText,
+                    'attachments_json' => $savedAudioUrl ? [['type' => 'voice_note', 'audio_url' => $savedAudioUrl]] : null,
+                ]);
+            }
         }
 
         $userParts = [];
@@ -320,7 +329,7 @@ class AiChatbotService
             $query->where('session_id', (string) $latestSession);
         }
 
-        return $query->orderBy('created_at', 'desc')
+        $mapped = $query->orderBy('created_at', 'desc')
             ->limit(30)
             ->get()
             ->reverse()
@@ -350,6 +359,18 @@ class AiChatbotService
                 return $item;
             })
             ->all();
+
+        $deduplicated = [];
+        foreach ($mapped as $msg) {
+            $lastIdx = count($deduplicated) - 1;
+            if ($lastIdx >= 0 && ($deduplicated[$lastIdx]['role'] ?? '') === 'user' && ($msg['role'] ?? '') === 'user') {
+                $deduplicated[$lastIdx] = $msg;
+            } else {
+                $deduplicated[] = $msg;
+            }
+        }
+
+        return $deduplicated;
     }
 
     /**

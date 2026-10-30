@@ -165,4 +165,19 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted Proxies & IP Access Environment Scope
+    |--------------------------------------------------------------------------
+    |
+    | Define the reverse proxies trusted to supply X-Forwarded-For headers
+    | (defaults to local loopback 127.0.0.1 and ::1) and optional environment
+    | scope override for IP-based password login enforcement.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES', '127.0.0.1,::1'),
+
+    'ip_access_environment' => env('IP_ACCESS_ENV'),
+
 ];

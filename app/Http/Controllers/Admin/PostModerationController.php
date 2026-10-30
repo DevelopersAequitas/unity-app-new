@@ -10,9 +10,11 @@ use App\Models\Post;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Admin\PermissionService;
+use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Media\BirthdayCreativeImageService;
 use App\Services\Referrals\ReferralCampaignConfigService;
 use App\Support\AdminAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -259,6 +262,20 @@ class PostModerationController extends Controller
             ->get()
             ->keyBy(fn (Impact $impact) => (string) $impact->id);
 
+        try {
+            $deactivationService = app(\App\Services\Posts\PostDeactivationService::class);
+            $previews = $deactivationService->getBatchDeactivationPreviews($postsById, $impactsById);
+
+            foreach ($postsById as $id => $post) {
+                $post->deactivation_preview = $previews['posts'][$id] ?? null;
+            }
+            foreach ($impactsById as $id => $impact) {
+                $impact->deactivation_preview = $previews['impacts'][$id] ?? null;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[PostModerationController] Could not precalculate deactivation previews: ' . $e->getMessage());
+        }
+
         $items = $this->hydrateTimelineRows($pageRows, $postsById, $impactsById);
 
         $posts = new LengthAwarePaginator(
@@ -354,6 +371,8 @@ class PostModerationController extends Controller
                 'media' => [],
                 'timeline_posted_at' => $impact->timeline_posted_at,
                 'created_at' => $impact->timeline_posted_at ?? $impact->approved_at ?? $impact->created_at,
+                'life_impacted' => $impact->life_impacted ?? 1,
+                'deactivation_preview' => $impact->deactivation_preview ?? null,
             ];
         })->filter()->values();
     }
@@ -419,10 +438,87 @@ class PostModerationController extends Controller
                     }
                 }
             }
+        } elseif ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact') {
+            $celebratingUser = $post->source_id ? User::find($post->source_id) : $post->user;
+            if ($celebratingUser) {
+                $hasValidMedia = false;
+                $mediaItems = is_array($post->media) ? $post->media : [];
+                if (! empty($mediaItems)) {
+                    foreach ($mediaItems as $mediaItem) {
+                        $fileId = data_get($mediaItem, 'id');
+                        $url = data_get($mediaItem, 'url');
+                        if ($fileId) {
+                            $fileRecord = File::find($fileId);
+                            if ($fileRecord && $fileRecord->s3_key) {
+                                $disk = config('filesystems.default', 'public');
+                                if (Storage::disk($disk)->exists($fileRecord->s3_key) ||
+                                    Storage::disk('public')->exists($fileRecord->s3_key)) {
+                                    $hasValidMedia = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if ($url && ! str_contains($url, 'peersunity.com')) {
+                            $cleanPath = ltrim(preg_replace('#^https?://[^/]+/storage/#i', '', (string) $url), '/');
+                            if (Storage::disk('public')->exists($cleanPath) || file_exists(public_path($cleanPath))) {
+                                $hasValidMedia = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (! $hasValidMedia) {
+                    $threshold = 25;
+                    if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                        $threshold = (int) $matches[1];
+                    } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                        $threshold = (int) str_replace(',', '', $matches[1]);
+                    } elseif ((int) ($celebratingUser->life_impacted_count ?? 0) > 0) {
+                        $threshold = (int) $celebratingUser->life_impacted_count;
+                    }
+
+                    try {
+                        $generator = app(LifeImpactCreativeGenerator::class);
+                        $fileModel = $generator->generate($celebratingUser, $threshold, $threshold);
+                        $mediaUrl = url("/api/v1/files/{$fileModel->id}");
+                        $post->media = [
+                            [
+                                'id' => $fileModel->id,
+                                'type' => 'image',
+                                'url' => $mediaUrl,
+                            ],
+                        ];
+                        $post->image = $mediaUrl;
+                        $post->save();
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to dynamically generate life impact creative on View: '.$e->getMessage());
+                        $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+                        $badgeUrl = asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                        $post->media = [
+                            [
+                                'id' => (string) Str::uuid(),
+                                'type' => 'image',
+                                'url' => $badgeUrl,
+                            ],
+                        ];
+                        $post->image = $badgeUrl;
+                        $post->save();
+                    }
+                }
+            }
+        }
+
+        $deactivationPreview = null;
+        try {
+            $deactivationPreview = app(\App\Services\Posts\PostDeactivationService::class)->getDeactivationPreview($post);
+        } catch (\Throwable $e) {
+            // non-blocking
         }
 
         return view('admin.posts.show', [
             'post' => $post,
+            'deactivationPreview' => $deactivationPreview,
         ]);
     }
 
@@ -448,14 +544,38 @@ class PostModerationController extends Controller
 
         $validated = $request->validate([
             'remarks' => ['required', 'string', 'min:3', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
         ], [
             'remarks.required' => 'Please provide remarks or reason for deactivating this post.',
             'remarks.min' => 'Deactivation remarks must be at least 3 characters.',
         ]);
 
+        $hasOptions = $request->has('has_options');
+        $reverseCoins = $hasOptions ? $request->boolean('reverse_coins') : true;
+        $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
+
+        $customCoins = $request->filled('coins_amount') && is_numeric($request->input('coins_amount'))
+            ? max(0, (int) $request->input('coins_amount'))
+            : null;
+        $customImpact = $request->filled('impact_amount') && is_numeric($request->input('impact_amount'))
+            ? max(0, (int) $request->input('impact_amount'))
+            : null;
+
         $admin = Auth::guard('admin')->user();
         $service = app(\App\Services\Posts\PostDeactivationService::class);
-        $result = $service->deactivatePost($post, $validated['remarks'], $admin?->id);
+        $result = $service->deactivatePost(
+            $post,
+            $validated['remarks'],
+            $admin?->id,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser,
+            $customCoins,
+            $customImpact
+        );
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($result);
@@ -468,24 +588,93 @@ class PostModerationController extends Controller
         return redirect()->back()->with('success', $result['message']);
     }
 
-    public function deactivateImpact(string $impactId): RedirectResponse
+    public function deactivateImpact(Request $request, string $impactId): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->ensureGlobalAdmin();
 
         $impact = Impact::query()->find($impactId);
 
         if (! $impact) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Impact post not found.'], 404);
+            }
             return redirect()->back()->withErrors('Impact post not found.');
         }
 
         if ($impact->status !== 'approved') {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Only approved impact posts can be deactivated from All Posts.'], 422);
+            }
             return redirect()->back()->withErrors('Only approved impact posts can be deactivated from All Posts.');
         }
 
-        $impact->timeline_posted_at = null;
-        $impact->save();
+        $validated = $request->validate([
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
+        ]);
 
-        return redirect()->back()->with('success', 'Impact post deactivated successfully.');
+        $remarks = trim((string) ($validated['remarks'] ?? 'Impact post deactivated by admin.'));
+        $hasOptions = $request->has('has_options');
+        $reverseCoins = $hasOptions ? $request->boolean('reverse_coins') : false;
+        $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
+
+        $customImpact = $request->filled('impact_amount') && is_numeric($request->input('impact_amount'))
+            ? max(0, (int) $request->input('impact_amount'))
+            : null;
+
+        $admin = Auth::guard('admin')->user();
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $result = $service->deactivateImpact(
+            $impact,
+            $remarks,
+            $admin?->id,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser,
+            $customImpact
+        );
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        if (! empty($result['already_deactivated'])) {
+            return redirect()->back()->with('warning', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
+    }
+
+    public function previewDeactivation(Post $post): JsonResponse
+    {
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $preview = $service->getDeactivationPreview($post);
+
+        return response()->json([
+            'success' => true,
+            'preview' => $preview,
+        ]);
+    }
+
+    public function previewImpactDeactivation(string $impactId): JsonResponse
+    {
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $impact = Impact::query()->with('user')->find($impactId);
+        if (! $impact) {
+            return response()->json(['success' => false, 'message' => 'Impact post not found.'], 404);
+        }
+
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $preview = $service->getImpactDeactivationPreview($impact);
+
+        return response()->json([
+            'success' => true,
+            'preview' => $preview,
+        ]);
     }
 
     public function activateImpact(string $impactId): RedirectResponse
