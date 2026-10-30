@@ -514,7 +514,7 @@
                                                     data-owner-initials="{{ $getInitials($ownerName) }}"
                                                     data-owner-bg="{{ $getAvatarBg($ownerName) }}"
                                                     data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
-                                                    data-content="{{ $post->content_text ?: 'Impact story' }}"
+                                                    data-content="{{ preg_replace('/\s+/', ' ', (string) ($post->content_text ?: 'Impact story')) }}"
                                                     data-media="{{ $mediaUrl ?: '' }}"
                                                     data-date="{{ $post->created_at ? \Carbon\Carbon::parse($post->created_at)->format('M d, Y H:i') : '—' }}"
                                                     data-coins-to-reverse="{{ $coinsToRev }}"
@@ -554,7 +554,7 @@
                                                     data-owner-initials="{{ $getInitials($targetUserName) }}"
                                                     data-owner-bg="{{ $getAvatarBg($targetUserName) }}"
                                                     data-company="{{ $targetCompany }}"
-                                                    data-content="{{ $post->content_text ?: 'No caption' }}"
+                                                    data-content="{{ preg_replace('/\s+/', ' ', (string) ($post->content_text ?: 'No caption')) }}"
                                                     data-media="{{ $mediaUrl ?: '' }}"
                                                     data-date="{{ $post->created_at ? $post->created_at->format('M d, Y H:i') : '—' }}"
                                                     data-coins-to-reverse="{{ $coinsToRev }}"
@@ -590,7 +590,7 @@
     </div>
 
     {{-- Deactivation Confirmation Modal --}}
-    <div id="deactivatePostModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-all overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="margin: 0; padding: 1.25rem;">
+    <div id="deactivatePostModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-all overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="display: none; margin: 0; padding: 1.25rem;">
         <div class="flex min-h-full items-center justify-center text-center">
             <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-xl border border-slate-200/90 my-auto" style="box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);">
                 
@@ -948,13 +948,6 @@
             });
         }
 
-            if (summaryText) summaryText.innerHTML = summaryHtml;
-        }
-
-        if (optReverseCoins) optReverseCoins.addEventListener('change', refreshOptionCardUi);
-        if (optReverseImpact) optReverseImpact.addEventListener('change', refreshOptionCardUi);
-        if (optNotifyUser) optNotifyUser.addEventListener('change', refreshOptionCardUi);
-
         function updateCounter() {
             const len = remarksInput.value.length;
             charCounter.textContent = len + ' / 1000';
@@ -1037,12 +1030,16 @@
             }
 
             modal.classList.remove('hidden');
+            modal.style.display = 'block';
             document.body.classList.add('overflow-hidden');
-            remarksInput.focus();
+            setTimeout(function () {
+                if (remarksInput) remarksInput.focus();
+            }, 50);
         }
 
         function closeModal() {
             modal.classList.add('hidden');
+            modal.style.display = 'none';
             document.body.classList.remove('overflow-hidden');
         }
 
