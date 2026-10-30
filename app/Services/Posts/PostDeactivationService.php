@@ -749,7 +749,7 @@ class PostDeactivationService
         }
 
         try {
-            $hash = md5($url);
+            $hash = md5($url . '_left_clean_sharp_v1');
             $cacheDir = storage_path('app/public/notification_banners');
             $cacheFile = "{$cacheDir}/{$hash}.png";
             $cachePublicUrl = $this->normalizePublicUrl("storage/notification_banners/{$hash}.png");
@@ -808,31 +808,31 @@ class PostDeactivationService
             $canvasH = 608;
             $canvas = imagecreatetruecolor($canvasW, $canvasH);
 
-            // Dark navy background matching brand theme (#091424)
-            $bgColor = imagecolorallocate($canvas, 9, 20, 36);
-            imagefill($canvas, 0, 0, $bgColor);
+            // Enable clean alpha transparency so the notification card background shows through seamlessly
+            // No background stretching, no ghost copies, and no red marked duplicate wings
+            imagealphablending($canvas, false);
+            imagesavealpha($canvas, true);
+            $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+            imagefill($canvas, 0, 0, $transparent);
 
             // Calculate scaled dimension to fit 100% inside 1080x608 without cropping
             $scale = min($canvasW / $origW, $canvasH / $origH);
             $targetW = (int) round($origW * $scale);
             $targetH = (int) round($origH * $scale);
-            $dstX = (int) round(($canvasW - $targetW) / 2);
+
+            // Show the image on the LEFT side with sharp standard corners
+            $dstX = 0;
             $dstY = (int) round(($canvasH - $targetH) / 2);
 
-            // Create ambient blurred edge background if portrait
-            if ($dstX > 0) {
-                imagecopyresampled($canvas, $srcImg, 0, 0, 0, 0, $canvasW, $canvasH, $origW, $origH);
-                $overlay = imagecolorallocatealpha($canvas, 9, 20, 36, 40);
-                imagefilledrectangle($canvas, 0, 0, $canvasW, $canvasH, $overlay);
-            }
-
-            // Place fitted image in center
+            imagealphablending($canvas, true);
             imagecopyresampled($canvas, $srcImg, $dstX, $dstY, 0, 0, $targetW, $targetH, $origW, $origH);
 
             if (! is_dir($cacheDir)) {
                 mkdir($cacheDir, 0755, true);
             }
 
+            imagealphablending($canvas, false);
+            imagesavealpha($canvas, true);
             imagepng($canvas, $cacheFile, 6);
             imagedestroy($canvas);
             imagedestroy($srcImg);

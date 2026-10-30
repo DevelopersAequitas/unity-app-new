@@ -74,13 +74,29 @@ When a user logs in, the backend computes their role and returns their customize
 }
 ```
 
-#### Response (`200 OK`):
+#### Response (`200 OK` - Email):
 ```json
 {
   "success": true,
-  "message": "OTP has been sent successfully to your registered email/phone.",
+  "message": "OTP has been sent successfully to your registered email.",
   "data": {
     "is_registered": true,
+    "is_leader": true,
+    "channel": "email",
+    "otp_expiry_seconds": 300
+  }
+}
+```
+
+#### Response (`200 OK` - Phone / WhatsApp):
+```json
+{
+  "success": true,
+  "message": "OTP has been sent successfully to your WhatsApp.",
+  "data": {
+    "is_registered": true,
+    "is_leader": true,
+    "channel": "whatsapp",
     "otp_expiry_seconds": 300
   }
 }

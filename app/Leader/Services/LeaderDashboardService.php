@@ -465,14 +465,16 @@ class LeaderDashboardService
             }
         }
 
-        // Deals amounts
+        // Deals amounts & count
         $dealsSum = 0.0;
+        $dealsCount = 0;
         if (Schema::hasTable('business_deals')) {
             if ($scopedMemberUserIds === null) {
-                $dealsSum = (float) BusinessDeal::query()
+                $dealsBase = BusinessDeal::query()
                     ->whereNull('deleted_at')
-                    ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
-                    ->sum('deal_amount');
+                    ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false));
+                $dealsCount = (int) (clone $dealsBase)->count();
+                $dealsSum = (float) $dealsBase->sum('deal_amount');
             } elseif (! empty($scopedMemberUserIds)) {
                 $dealsQuery = BusinessDeal::query()
                     ->whereNull('deleted_at')
@@ -481,6 +483,7 @@ class LeaderDashboardService
                         $q->whereIn('from_user_id', $scopedMemberUserIds)
                             ->orWhereIn('to_user_id', $scopedMemberUserIds);
                     });
+                $dealsCount = (int) (clone $dealsQuery)->count();
                 $dealsSum = (float) $dealsQuery->sum('deal_amount');
             }
         }
@@ -492,6 +495,261 @@ class LeaderDashboardService
                 $coinsSum = (int) User::query()->whereNull('deleted_at')->sum('coins_balance');
             } elseif (! empty($scopedMemberUserIds)) {
                 $coinsSum = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('coins_balance');
+            }
+        }
+
+        // Requirements count
+        $requirementsCount = 0;
+        if (Schema::hasTable('requirements')) {
+            $reqQuery = DB::table('requirements');
+            if (Schema::hasColumn('requirements', 'deleted_at')) {
+                $reqQuery->whereNull('deleted_at');
+            }
+            if (Schema::hasColumn('requirements', 'is_deleted')) {
+                $reqQuery->where('is_deleted', false);
+            }
+            if ($scopedMemberUserIds === null) {
+                $requirementsCount = (int) $reqQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $requirementsCount = (int) $reqQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Visitor registrations count
+        $visitorRegistrationsCount = 0;
+        if (Schema::hasTable('visitor_registrations')) {
+            $vrQuery = DB::table('visitor_registrations');
+            if ($scopedMemberUserIds === null) {
+                $visitorRegistrationsCount = (int) $vrQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $visitorRegistrationsCount = (int) $vrQuery->where(function ($q) use ($scopedMemberUserIds): void {
+                    $q->whereIn('user_id', $scopedMemberUserIds);
+                    if (Schema::hasColumn('visitor_registrations', 'invited_by_user_id')) {
+                        $q->orWhereIn('invited_by_user_id', $scopedMemberUserIds);
+                    }
+                })->count();
+            }
+        }
+
+        // Peer recommendations count
+        $peerRecommendationsCount = 0;
+        if (Schema::hasTable('peer_recommendations')) {
+            $prQuery = DB::table('peer_recommendations');
+            if ($scopedMemberUserIds === null) {
+                $peerRecommendationsCount = (int) $prQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $peerRecommendationsCount = (int) $prQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Introduced peers count (Peers who joined via referral/introduction)
+        $introducedPeersCount = 0;
+        if (Schema::hasColumn('users', 'introduced_by')) {
+            $introQuery = User::query()->whereNull('deleted_at')->whereNotNull('introduced_by');
+            if ($scopedMemberUserIds !== null) {
+                if (empty($scopedMemberUserIds)) {
+                    $introQuery->whereRaw('1 = 0');
+                } else {
+                    $introQuery->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('introduced_by', $scopedMemberUserIds)
+                            ->orWhereIn('id', $scopedMemberUserIds);
+                    });
+                }
+            }
+            $introducedPeersCount = (int) $introQuery->count();
+        }
+
+        // 3 Core Ask Flows (Collaboration, Referral, Help)
+        $collaborationAsksCount = 0;
+        $referralAsksCount = 0;
+        $helpAsksCount = 0;
+        if (Schema::hasTable('asks') && Schema::hasTable('ask_flows')) {
+            $flows = DB::table('ask_flows')->pluck('id', 'code')->all();
+            $buildAskCount = function (?string $flowId) use ($scopedMemberUserIds): int {
+                if (! $flowId) {
+                    return 0;
+                }
+                $aq = DB::table('asks')->where('flow_id', $flowId);
+                if (Schema::hasColumn('asks', 'deleted_at')) {
+                    $aq->whereNull('deleted_at');
+                }
+                if ($scopedMemberUserIds === null) {
+                    return (int) $aq->count();
+                }
+                if (empty($scopedMemberUserIds)) {
+                    return 0;
+                }
+
+                return (int) $aq->whereIn('creator_user_id', $scopedMemberUserIds)->count();
+            };
+
+            $collaborationAsksCount = $buildAskCount($flows['collaboration'] ?? null);
+            $referralAsksCount = $buildAskCount($flows['referral'] ?? null);
+            $helpAsksCount = $buildAskCount($flows['help'] ?? null);
+        }
+        if (Schema::hasTable('collaboration_posts')) {
+            $cpQuery = DB::table('collaboration_posts');
+            if (Schema::hasColumn('collaboration_posts', 'deleted_at')) {
+                $cpQuery->whereNull('deleted_at');
+            }
+            if ($scopedMemberUserIds === null) {
+                $collaborationAsksCount += (int) $cpQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $collaborationAsksCount += (int) $cpQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Posts count
+        $postsCount = 0;
+        if (Schema::hasTable('posts')) {
+            $postsQuery = DB::table('posts');
+            if (Schema::hasColumn('posts', 'deleted_at')) {
+                $postsQuery->whereNull('deleted_at');
+            }
+            if (Schema::hasColumn('posts', 'is_deleted')) {
+                $postsQuery->where('is_deleted', false);
+            }
+            if ($scopedMemberUserIds === null) {
+                $postsCount = (int) $postsQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $postsCount = (int) $postsQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Activity Creatives count
+        $creativesCount = 0;
+        if (Schema::hasTable('activity_creatives')) {
+            $crQuery = DB::table('activity_creatives');
+            if (Schema::hasColumn('activity_creatives', 'deleted_at')) {
+                $crQuery->whereNull('deleted_at');
+            }
+            if ($scopedMemberUserIds === null) {
+                $creativesCount = (int) $crQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $creativesCount = (int) $crQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Coin Claims count
+        $coinClaimsCount = 0;
+        if (Schema::hasTable('coin_claim_requests')) {
+            $ccQuery = DB::table('coin_claim_requests');
+            if ($scopedMemberUserIds === null) {
+                $coinClaimsCount = (int) $ccQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $coinClaimsCount = (int) $ccQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Business Stories (Vyapaar Jagat / SME Stories) count
+        $storiesCount = 0;
+        if (Schema::hasTable('sme_business_story_submissions')) {
+            $stQuery = DB::table('sme_business_story_submissions');
+            if ($scopedMemberUserIds === null) {
+                $storiesCount = (int) $stQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $storiesCount = (int) $stQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Leadership Role Interest Submissions count
+        $leadershipInterestsCount = 0;
+        if (Schema::hasTable('leader_interest_submissions')) {
+            $liQuery = DB::table('leader_interest_submissions');
+            if ($scopedMemberUserIds === null) {
+                $leadershipInterestsCount = (int) $liQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $leadershipInterestsCount = (int) $liQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Become a Mentor Submissions count
+        $mentorApplicationsCount = 0;
+        if (Schema::hasTable('become_mentor_submissions')) {
+            $bmQuery = DB::table('become_mentor_submissions');
+            if ($scopedMemberUserIds === null) {
+                $mentorApplicationsCount = (int) $bmQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $scopedEmails = User::query()
+                    ->whereIn('id', $scopedMemberUserIds)
+                    ->whereNotNull('email')
+                    ->pluck('email')
+                    ->map(fn ($e) => strtolower(trim((string) $e)))
+                    ->filter()
+                    ->all();
+                $mentorApplicationsCount = empty($scopedEmails)
+                    ? 0
+                    : (int) $bmQuery->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails)->count();
+            }
+        }
+
+        // Become a Speaker Submissions count
+        $speakerApplicationsCount = 0;
+        if (Schema::hasTable('become_speaker_submissions')) {
+            $bsQuery = DB::table('become_speaker_submissions');
+            if ($scopedMemberUserIds === null) {
+                $speakerApplicationsCount = (int) $bsQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $scopedEmails = $scopedEmails ?? User::query()
+                    ->whereIn('id', $scopedMemberUserIds)
+                    ->whereNotNull('email')
+                    ->pluck('email')
+                    ->map(fn ($e) => strtolower(trim((string) $e)))
+                    ->filter()
+                    ->all();
+                $speakerApplicationsCount = empty($scopedEmails)
+                    ? 0
+                    : (int) $bsQuery->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails)->count();
+            }
+        }
+
+        // Partner With Us Inquiries count
+        $partnerInquiriesCount = 0;
+        if (Schema::hasTable('partner_with_us_submissions')) {
+            $pwQuery = DB::table('partner_with_us_submissions');
+            if ($scopedMemberUserIds === null) {
+                $partnerInquiriesCount = (int) $pwQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $scopedEmails = $scopedEmails ?? User::query()
+                    ->whereIn('id', $scopedMemberUserIds)
+                    ->whereNotNull('email')
+                    ->pluck('email')
+                    ->map(fn ($e) => strtolower(trim((string) $e)))
+                    ->filter()
+                    ->all();
+                $partnerInquiriesCount = empty($scopedEmails)
+                    ? 0
+                    : (int) $pwQuery->whereIn(DB::raw('LOWER(TRIM(email_id))'), $scopedEmails)->count();
+            }
+        }
+
+        // Certifications count
+        $certificationsCount = 0;
+        if (Schema::hasTable('certification_submissions')) {
+            $certQuery = DB::table('certification_submissions');
+            if ($scopedMemberUserIds === null) {
+                $certificationsCount = (int) $certQuery->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $certificationsCount = (int) $certQuery->whereIn('user_id', $scopedMemberUserIds)->count();
+            }
+        }
+
+        // Event Registrations & Attendance count
+        $eventRegistrationsCount = 0;
+        $eventAttendanceCount = 0;
+        if (Schema::hasTable('event_registrations')) {
+            $erQuery = DB::table('event_registrations');
+            if ($scopedMemberUserIds === null) {
+                $eventRegistrationsCount = (int) (clone $erQuery)->count();
+                if (Schema::hasColumn('event_registrations', 'checkin_status')) {
+                    $eventAttendanceCount = (int) (clone $erQuery)->where('checkin_status', 'checked_in')->count();
+                }
+            } elseif (! empty($scopedMemberUserIds)) {
+                $erScoped = $erQuery->whereIn('user_id', $scopedMemberUserIds);
+                $eventRegistrationsCount = (int) (clone $erScoped)->count();
+                if (Schema::hasColumn('event_registrations', 'checkin_status')) {
+                    $eventAttendanceCount = (int) (clone $erScoped)->where('checkin_status', 'checked_in')->count();
+                }
             }
         }
 
@@ -519,6 +777,7 @@ class LeaderDashboardService
             'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
             'deals' => $dealsFormatted,
+            'deals_count' => $dealsCount,
             'p2p_meetings' => $p2pCount,
             'total_peers' => $totalPeers,
             'total_peers_growth' => $totalPeersGrowth,
@@ -526,6 +785,24 @@ class LeaderDashboardService
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
             'pending_peers_count' => $pendingPeersCount,
+            'requirements' => $requirementsCount,
+            'visitor_registrations' => $visitorRegistrationsCount,
+            'peer_recommendations' => $peerRecommendationsCount,
+            'introduced_peers' => $introducedPeersCount,
+            'collaboration_asks' => $collaborationAsksCount,
+            'referral_asks' => $referralAsksCount,
+            'help_asks' => $helpAsksCount,
+            'posts' => $postsCount,
+            'creatives' => $creativesCount,
+            'coin_claims' => $coinClaimsCount,
+            'stories' => $storiesCount,
+            'leadership_interests' => $leadershipInterestsCount,
+            'mentor_applications' => $mentorApplicationsCount,
+            'speaker_applications' => $speakerApplicationsCount,
+            'partner_inquiries' => $partnerInquiriesCount,
+            'certifications' => $certificationsCount,
+            'event_registrations' => $eventRegistrationsCount,
+            'event_attendance' => $eventAttendanceCount,
         ];
     }
 

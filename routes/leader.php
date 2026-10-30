@@ -137,6 +137,10 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/requirements', [LeaderActivitiesController::class, 'requirements']);
     Route::get('/leader/requirement', [LeaderActivitiesController::class, 'requirements']);
 
+    // Unified Leader User-Input Activities Feed by Type (Visitor Registrations, Recommendations, Asks, Posts, Creatives, Coin Claims, Stories, Leadership Interests, Mentors, Speakers, Partners, Certifications, Events)
+    Route::get('/leader/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
+    Route::get('/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
+
     // Notifications (Leader App)
     Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
     Route::post('/leader/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
