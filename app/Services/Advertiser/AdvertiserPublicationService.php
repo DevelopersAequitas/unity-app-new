@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Services\Advertiser;
 
 use App\Jobs\SendBulkPartnerNotificationJob;
+use App\Models\Ad;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserApplicationAsset;
 use App\Models\AdvertiserApplicationStatusHistory;
+use App\Models\AdvertiserCampaign;
+use App\Models\AdvertiserCampaignAd;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -229,6 +233,114 @@ class AdvertiserPublicationService
     }
 
     /**
+     * Publish an approved campaign to the existing Ads engine.
+     */
+    public function publishCampaignAd(AdvertiserCampaign $campaign, ?User $actor = null): Ad
+    {
+        $campaign->loadMissing(['application.assets', 'subscription', 'campaignAds.ad']);
+
+        return DB::transaction(function () use ($campaign, $actor) {
+            $application = $campaign->application;
+            $subscription = $campaign->subscription;
+
+            // Resolve creative image path
+            $imagePath = null;
+            if ($application && $application->assets->isNotEmpty()) {
+                $bannerAsset = $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_BANNER)
+                    ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_CREATIVE)
+                    ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_LOGO)
+                    ?? $application->assets->first();
+
+                $imagePath = $bannerAsset?->storage_key;
+            }
+
+            // Check if an ad is already linked to avoid duplicates
+            $existingLink = $campaign->campaignAds()->where('is_primary', true)->first()
+                ?? $campaign->campaignAds()->first();
+
+            $ad = null;
+            if ($existingLink && $existingLink->ad_id) {
+                $ad = Ad::find($existingLink->ad_id);
+            }
+
+            $adData = [
+                'title' => $campaign->name,
+                'subtitle' => Str::limit((string) ($campaign->objective ?: ($application?->company_name ?? 'Sponsored')), 250),
+                'description' => $campaign->description ?: ($application?->brand_description ?? ''),
+                'redirect_url' => $campaign->destination_url ?: ($application?->company_website ?? ''),
+                'button_text' => $campaign->cta_text ?: 'Learn More',
+                'placement' => is_array($campaign->requested_placements) && !empty($campaign->requested_placements) ? $campaign->requested_placements[0] : 'feed',
+                'page_name' => 'feed',
+                'is_active' => true,
+                'starts_at' => $campaign->requested_starts_at ?: now(),
+                'ends_at' => $campaign->requested_ends_at ?: $subscription?->expires_at,
+                'created_by' => $campaign->user_id,
+            ];
+
+            if ($imagePath) {
+                $adData['image_path'] = $imagePath;
+            }
+
+            if ($ad) {
+                $ad->update($adData);
+            } else {
+                $ad = Ad::create($adData);
+            }
+
+            // Link campaign to ad
+            AdvertiserCampaignAd::updateOrCreate(
+                [
+                    'campaign_id' => $campaign->id,
+                    'ad_id' => $ad->id,
+                ],
+                [
+                    'creative_role' => AdvertiserCampaignAd::ROLE_PRIMARY,
+                    'status' => AdvertiserCampaignAd::STATUS_PUBLISHED,
+                    'is_primary' => true,
+                    'approved_by' => $actor?->id,
+                    'approved_at' => now(),
+                    'published_at' => now(),
+                ]
+            );
+
+            // Update campaign status to active/published
+            $campaign->status = AdvertiserCampaign::STATUS_ACTIVE;
+            $campaign->published_at = now();
+            $campaign->save();
+
+            return $ad;
+        });
+    }
+
+    /**
+     * Pause ads belonging to a campaign without deleting records.
+     */
+    public function pauseCampaignAds(AdvertiserCampaign $campaign): void
+    {
+        $campaignAds = AdvertiserCampaignAd::where('campaign_id', $campaign->id)->get();
+        foreach ($campaignAds as $link) {
+            $link->status = AdvertiserCampaignAd::STATUS_PAUSED;
+            $link->save();
+
+            Ad::where('id', $link->ad_id)->update(['is_active' => false]);
+        }
+    }
+
+    /**
+     * Resume ads belonging to a campaign.
+     */
+    public function resumeCampaignAds(AdvertiserCampaign $campaign): void
+    {
+        $campaignAds = AdvertiserCampaignAd::where('campaign_id', $campaign->id)->get();
+        foreach ($campaignAds as $link) {
+            $link->status = AdvertiserCampaignAd::STATUS_PUBLISHED;
+            $link->save();
+
+            Ad::where('id', $link->ad_id)->update(['is_active' => true]);
+        }
+    }
+
+    /**
      * Handle expiration of a subscription.
      */
     public function expireSubscription(AdvertiserSubscription $subscription): void
@@ -236,6 +348,18 @@ class AdvertiserPublicationService
         DB::transaction(function () use ($subscription) {
             $subscription->status = AdvertiserSubscription::STATUS_EXPIRED;
             $subscription->save();
+
+            // Deactivate linked campaigns and their ads
+            $campaigns = AdvertiserCampaign::where('subscription_id', $subscription->id)->get();
+            foreach ($campaigns as $campaign) {
+                if ($campaign->status === AdvertiserCampaign::STATUS_ACTIVE) {
+                    $campaign->status = AdvertiserCampaign::STATUS_EXPIRED;
+                    $campaign->completed_at = now();
+                    $campaign->save();
+
+                    $this->pauseCampaignAds($campaign);
+                }
+            }
 
             if ($subscription->brand_partner_id) {
                 $partner = BrandPartner::find($subscription->brand_partner_id);

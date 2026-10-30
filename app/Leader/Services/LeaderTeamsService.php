@@ -527,6 +527,58 @@ class LeaderTeamsService
     }
 
     /**
+     * Format a Circle Leader (Chair, Founder, Director) with full PeerCard-compatible fields.
+     *
+     * @return array<string, mixed>
+     */
+    private function formatCircleLeaderPeer(
+        User $u,
+        Circle $circle,
+        string $roleLabel,
+        string $fallbackCompany,
+        string $fallbackDesignation,
+    ): array {
+        $avatarUrl = $u->profile_photo_url ?? $u->avatar_url ?? null;
+        if (empty($avatarUrl) && ! empty($u->profile_picture)) {
+            $avatarUrl = Str::startsWith((string) $u->profile_picture, ['http://', 'https://'])
+                ? (string) $u->profile_picture
+                : url('/api/v1/files/'.ltrim((string) $u->profile_picture, '/'));
+        }
+        $city = trim((string) ($u->city ?? $u->city_of_residence ?? $circle->city?->name ?? $circle->location ?? 'Ahmedabad'));
+        $company = trim((string) ($u->company_name ?? $u->business_name ?? $fallbackCompany));
+        $designation = trim((string) ($u->designation ?? $fallbackDesignation));
+        $category = trim((string) ($u->business_sub_category ?: ($u->level4Category?->name ?: ($u->businessCategory?->name ?: $this->resolveCircleCategory($circle)))));
+        $impactCount = (int) ($u->life_impacted_count ?? 0);
+        $isPro = (bool) ($u->is_pro ?? ($u->membership_status === 'active'));
+
+        return [
+            'id' => (string) $u->id,
+            'user_id' => (string) $u->id,
+            'peer_id' => (string) $u->id,
+            'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? $roleLabel),
+            'role' => $roleLabel,
+            'avatar_url' => $avatarUrl,
+            'profile_photo_url' => $avatarUrl,
+            'profile_image' => $avatarUrl,
+            'company' => $company,
+            'company_name' => $company,
+            'business_name' => $company,
+            'designation' => $designation,
+            'city' => $city,
+            'location' => $city,
+            'category_level4' => $category,
+            'level_4_category' => $category,
+            'category' => $category,
+            'life_impacted_count' => $impactCount,
+            'impact_count' => $impactCount,
+            'is_verified' => $isPro,
+            'is_pro' => $isPro,
+            'phone' => (string) ($u->phone ?? '+919876543210'),
+            'email' => (string) ($u->email ?? 'leader@peersglobal.in'),
+        ];
+    }
+
+    /**
      * Resolve up to 3 circle chairs with contact and profile details.
      * Checks circle_members, direct model attributes, and circle calendar leadership JSON.
      *
@@ -583,16 +635,13 @@ class LeaderTeamsService
                     default => ($useNumberedRoles ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1)) : 'Circle Chair'),
                 };
 
-                $chairs[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Chair'),
-                    'role' => $roleLabel,
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd'),
-                    'designation' => (string) ($u->designation ?? 'Founder & CEO'),
-                    'phone' => (string) ($u->phone ?? '+919876543210'),
-                    'email' => (string) ($u->email ?? 'chair@peersglobal.in'),
-                ];
+                $chairs[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    $roleLabel,
+                    'Apex Dynamics Pvt Ltd',
+                    'Founder & CEO'
+                );
             }
         }
 
@@ -658,16 +707,13 @@ class LeaderTeamsService
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
 
-                $chairs[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Chair'),
-                    'role' => (string) $cand['role'],
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd'),
-                    'designation' => (string) ($u->designation ?? 'Founder & CEO'),
-                    'phone' => (string) ($u->phone ?? '+919876543210'),
-                    'email' => (string) ($u->email ?? 'chair@peersglobal.in'),
-                ];
+                $chairs[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    (string) $cand['role'],
+                    'Apex Dynamics Pvt Ltd',
+                    'Founder & CEO'
+                );
             }
         }
 
@@ -698,15 +744,13 @@ class LeaderTeamsService
             $u = $this->resolveUserRecord($cand);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
-                $founders[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Founder'),
-                    'role' => 'Circle Founder',
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Tech'),
-                    'phone' => (string) ($u->phone ?? '+919537639248'),
-                    'email' => (string) ($u->email ?? 'founder@peersglobal.in'),
-                ];
+                $founders[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    'Circle Founder',
+                    'Aequitas Tech',
+                    'Founder & CEO'
+                );
             }
         }
 
@@ -724,15 +768,13 @@ class LeaderTeamsService
             $u = $fm->user;
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
-                $founders[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Founder'),
-                    'role' => 'Circle Founder',
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Tech'),
-                    'phone' => (string) ($u->phone ?? '+919537639248'),
-                    'email' => (string) ($u->email ?? 'founder@peersglobal.in'),
-                ];
+                $founders[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    'Circle Founder',
+                    'Aequitas Tech',
+                    'Founder & CEO'
+                );
             }
         }
 
@@ -763,15 +805,13 @@ class LeaderTeamsService
             $u = $this->resolveUserRecord($cand);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
-                $directors[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Director'),
-                    'role' => 'Circle Director',
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas IT'),
-                    'phone' => (string) ($u->phone ?? '+919876500000'),
-                    'email' => (string) ($u->email ?? 'director@peersglobal.in'),
-                ];
+                $directors[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    'Circle Director',
+                    'Aequitas IT',
+                    'Managing Director'
+                );
             }
         }
 
@@ -789,15 +829,13 @@ class LeaderTeamsService
             $u = $dm->user;
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
-                $directors[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Director'),
-                    'role' => 'Circle Director',
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas IT'),
-                    'phone' => (string) ($u->phone ?? '+919876500000'),
-                    'email' => (string) ($u->email ?? 'director@peersglobal.in'),
-                ];
+                $directors[] = $this->formatCircleLeaderPeer(
+                    $u,
+                    $circle,
+                    'Circle Director',
+                    'Aequitas IT',
+                    'Managing Director'
+                );
             }
         }
 
@@ -923,6 +961,10 @@ class LeaderTeamsService
                 'name' => (string) $c->name,
                 'category' => $categoryName,
                 'location' => $location,
+                'description' => (string) ($c->description ?? ''),
+                'stage' => (string) ($c->stage ?: 'Active Circle'),
+                'meeting_frequency' => (string) ($c->meeting_frequency ?: 'Monthly'),
+                'meeting_mode' => (string) ($c->meeting_mode ?: 'Offline'),
                 'health_percentage' => $healthPercentage,
                 'peers_count' => $peersCount,
                 'revenue' => $revenue,
@@ -1016,6 +1058,10 @@ class LeaderTeamsService
             'name' => (string) $circle->name,
             'category' => $categoryName,
             'location' => $location,
+            'description' => (string) ($circle->description ?? ''),
+            'stage' => (string) ($circle->stage ?: 'Active Circle'),
+            'meeting_frequency' => (string) ($circle->meeting_frequency ?: 'Monthly'),
+            'meeting_mode' => (string) ($circle->meeting_mode ?: 'Offline'),
             'health_percentage' => $healthPercentage,
             'peers_count' => $peersCount,
             'revenue' => $revenue,

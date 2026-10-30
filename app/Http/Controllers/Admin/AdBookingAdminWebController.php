@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class AdBookingAdminWebController extends Controller
@@ -20,8 +21,12 @@ class AdBookingAdminWebController extends Controller
         private readonly AdBookingService $adBookingService
     ) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        if (! Schema::hasTable('ad_bookings')) {
+            return redirect()->route('admin.advertiser.applications.index')
+                ->with('info', 'Member ad requests are now managed through Advertiser Applications.');
+        }
         $status = trim((string) $request->query('status', ''));
         $search = trim((string) $request->query('q', ''));
 

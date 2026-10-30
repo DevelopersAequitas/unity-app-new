@@ -22,7 +22,9 @@ use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
+use App\Http\Controllers\Admin\AdvertiserAnalyticsAdminController;
 use App\Http\Controllers\Admin\AdvertiserApplicationAdminController;
+use App\Http\Controllers\Admin\AdvertiserCampaignAdminController;
 use App\Http\Controllers\Admin\AdvertiserPackageAdminController;
 use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
 use App\Http\Controllers\Admin\AiChatbotAdminController;
@@ -260,6 +262,19 @@ Route::post('/account-deletion-request', [AccountDeletionController::class, 'sub
 Route::get('/support', [PublicSupportController::class, 'show'])->name('support.show');
 Route::post('/support', [PublicSupportController::class, 'submit'])->name('support.submit');
 Route::post('/support/check-status', [PublicSupportController::class, 'checkStatus'])->name('support.check-status');
+
+// Ads & Advertiser API Testing Documentation (Browser View)
+Route::get('/docs/ads-api', function () {
+    $path = base_path('../Ads_Advertiser_API_Testing_Documentation.html');
+    if (! file_exists($path)) {
+        $path = base_path('Ads_Advertiser_API_Testing_Documentation.html');
+    }
+    if (file_exists($path)) {
+        return response()->file($path, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+    abort(404, 'Documentation file not found.');
+})->name('docs.ads-api');
+
 
 // Leadership Form 2 (Jury Evaluation Data Form) Public Access
 Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
@@ -1104,6 +1119,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/payments', [AdvertiserSubscriptionPaymentAdminController::class, 'payments'])->name('payments.index');
             Route::get('/payments/{payment}', [AdvertiserSubscriptionPaymentAdminController::class, 'paymentShow'])->name('payments.show');
             Route::post('/payments/{payment}/reconcile', [AdvertiserSubscriptionPaymentAdminController::class, 'reconcile'])->name('payments.reconcile');
+
+            // Campaigns Management
+            Route::get('/campaigns', [AdvertiserCampaignAdminController::class, 'index'])->name('campaigns.index');
+            Route::get('/campaigns/{campaign}', [AdvertiserCampaignAdminController::class, 'show'])->name('campaigns.show');
+            Route::post('/campaigns/{campaign}/review', [AdvertiserCampaignAdminController::class, 'review'])->name('campaigns.review');
+            Route::post('/campaigns/{campaign}/publish', [AdvertiserCampaignAdminController::class, 'publish'])->name('campaigns.publish');
+            Route::post('/campaigns/{campaign}/pause', [AdvertiserCampaignAdminController::class, 'pause'])->name('campaigns.pause');
+            Route::post('/campaigns/{campaign}/resume', [AdvertiserCampaignAdminController::class, 'resume'])->name('campaigns.resume');
+
+            // Analytics & Reports
+            Route::get('/analytics', [AdvertiserAnalyticsAdminController::class, 'index'])->name('analytics.index');
+            Route::get('/analytics/export', [AdvertiserAnalyticsAdminController::class, 'export'])->name('analytics.export');
         });
 
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
