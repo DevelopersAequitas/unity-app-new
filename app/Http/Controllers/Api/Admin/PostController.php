@@ -27,17 +27,17 @@ class PostController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
             ])
@@ -137,15 +137,15 @@ class PostController extends BaseApiController
     {
         $post = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,phone,designation,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,phone,designation,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'reports.reporter:id,first_name,last_name,display_name,email',
@@ -241,8 +241,8 @@ class PostController extends BaseApiController
         // 1. Resolve author avatar & name for regular author user
         $authorUser = $post->user;
         $authorAvatar = $authorUser?->profile_photo_url ?: $authorUser?->avatar;
-        if (! $authorAvatar && $authorUser && ($authorUser->profile_photo_file_id || $authorUser->profile_photo_id)) {
-            $authorAvatar = url('/api/v1/files/'.($authorUser->profile_photo_file_id ?? $authorUser->profile_photo_id));
+        if (! $authorAvatar && $authorUser && $authorUser->profile_photo_file_id) {
+            $authorAvatar = url('/api/v1/files/'.$authorUser->profile_photo_file_id);
         }
         if ($authorAvatar && ! Str::startsWith($authorAvatar, ['http://', 'https://'])) {
             $authorAvatar = url(ltrim($authorAvatar, '/'));
@@ -313,8 +313,8 @@ class PostController extends BaseApiController
             if ($recognizedPeer) {
                 $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '') . ' ' . ($recognizedPeer->last_name ?? ''));
                 $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
-                if (! $peerAvatar && ($recognizedPeer->profile_photo_file_id || $recognizedPeer->profile_photo_id)) {
-                    $peerAvatar = url('/api/v1/files/'.($recognizedPeer->profile_photo_file_id ?? $recognizedPeer->profile_photo_id));
+                if (! $peerAvatar && $recognizedPeer->profile_photo_file_id) {
+                    $peerAvatar = url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id);
                 }
                 if ($peerAvatar && !Str::startsWith($peerAvatar, ['http://', 'https://'])) {
                     $peerAvatar = url(ltrim($peerAvatar, '/'));
