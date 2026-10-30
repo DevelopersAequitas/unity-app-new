@@ -125,6 +125,7 @@ use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactInvitationApiController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\CountryController;
+use App\Http\Controllers\Api\V1\DeactivatedPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
@@ -495,6 +496,11 @@ Route::prefix('v1')->group(function () {
         });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
+
+    // Deactivated posts (accessible with or without Bearer token)
+    Route::get('/posts/deactivated', [DeactivatedPostController::class, 'index']);
+    Route::get('/posts/deactivated-notice', [DeactivatedPostController::class, 'notice']);
+    Route::get('/posts/deactivated/{id}', [DeactivatedPostController::class, 'show'])->whereUuid('id');
     Route::get('/app/version', [AppVersionController::class, 'show']);
     Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
@@ -1195,6 +1201,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/ad-bookings', [AdBookingController::class, 'myBookings']);
         Route::get('/ad-bookings/{id}', [AdBookingController::class, 'show'])->whereUuid('id');
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
+
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);
         Route::put('/posts/{id}', [PostController::class, 'update']);
