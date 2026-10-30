@@ -216,7 +216,7 @@ class AdminIpAccessService
         $env = $this->resolveEnvironment($environment);
 
         if (! $this->isEnforcementEnabled($env)) {
-            return true;
+            return false;
         }
 
         $clientIp = $this->resolveClientIp($request);
@@ -239,21 +239,13 @@ class AdminIpAccessService
     {
         $env = $this->resolveEnvironment($environment);
         $enabled = $this->isEnforcementEnabled($env);
-
-        if (! $enabled) {
-            return [
-                'ip_access_enabled' => false,
-                'password_login_allowed' => true,
-                'otp_login_allowed' => true,
-                'available_methods' => ['password', 'otp'],
-            ];
-        }
-
         $clientIp = $this->resolveClientIp($request);
-        $passwordAllowed = $this->isIpAuthorized($clientIp, $env);
+        $ipAuthorized = $this->isIpAuthorized($clientIp, $env);
+        $passwordAllowed = $enabled && $ipAuthorized;
 
         return [
-            'ip_access_enabled' => true,
+            'ip_access_enabled' => $enabled,
+            'ip_authorized' => $ipAuthorized,
             'password_login_allowed' => $passwordAllowed,
             'otp_login_allowed' => true,
             'available_methods' => $passwordAllowed ? ['password', 'otp'] : ['otp'],
@@ -310,7 +302,7 @@ class AdminIpAccessService
             'current_client_ip' => $currentIp,
             'current_ip_authorized' => $currentIpAuthorized,
             'allowlist_count' => $activeCount,
-            'available_methods_for_current_ip' => (! $enabled || $currentIpAuthorized) ? ['password', 'otp'] : ['otp'],
+            'available_methods_for_current_ip' => ($enabled && $currentIpAuthorized) ? ['password', 'otp'] : ['otp'],
             'updated_by_user_id' => $setting?->updated_by_user_id,
             'updated_by_email' => $setting?->updated_by_email,
             'updated_at' => $setting?->updated_at?->toIso8601String(),
@@ -405,6 +397,124 @@ class AdminIpAccessService
                 'status' => 201,
                 'success' => true,
                 'message' => 'Authorized IP address added successfully.',
+                'data' => [
+                    'ip' => $this->formatAllowlistItem($entry),
+                ],
+            ];
+        });
+    }
+
+    /**
+     * Update an existing IP address entry in the allowlist.
+     *
+     * @param  array{id: string|null, email: string|null}  $actor
+     * @return array{status: int, success: bool, message: string, error_code?: string, errors?: array<string, array<int, string>>, data: array<string, mixed>|null}
+     */
+    public function updateAllowedIp(
+        string $id,
+        ?string $rawIp,
+        ?string $label,
+        bool $hasLabel,
+        ?bool $isActive,
+        array $actor,
+        ?string $requestIp = null,
+        ?string $userAgent = null,
+        ?string $environment = null
+    ): array {
+        $env = $this->resolveEnvironment($environment);
+
+        return DB::transaction(function () use ($id, $env, $rawIp, $label, $hasLabel, $isActive, $actor, $requestIp, $userAgent): array {
+            $entry = AdminIpAllowlist::query()
+                ->where('environment', $env)
+                ->where('id', $id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $entry) {
+                return [
+                    'status' => 404,
+                    'success' => false,
+                    'error_code' => 'IP_ENTRY_NOT_FOUND',
+                    'message' => 'Authorized IP address entry not found.',
+                    'data' => null,
+                ];
+            }
+
+            $canonicalIp = (string) $entry->ip_address;
+            $ipVersion = (int) $entry->ip_version;
+
+            if ($rawIp !== null && trim($rawIp) !== '') {
+                $normalized = $this->normalizeIp($rawIp);
+                if ($normalized === null) {
+                    return [
+                        'status' => 422,
+                        'success' => false,
+                        'error_code' => 'INVALID_IP_ADDRESS',
+                        'message' => 'The provided IP address is not a valid IPv4 or IPv6 address.',
+                        'errors' => [
+                            'ip_address' => ['The provided IP address must be a valid IPv4 or IPv6 address.'],
+                        ],
+                        'data' => null,
+                    ];
+                }
+
+                $canonicalIp = $normalized['ip'];
+                $ipVersion = $normalized['version'];
+
+                $duplicate = AdminIpAllowlist::query()
+                    ->where('environment', $env)
+                    ->where('ip_address', $canonicalIp)
+                    ->where('id', '!=', $id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($duplicate) {
+                    return [
+                        'status' => 422,
+                        'success' => false,
+                        'error_code' => 'DUPLICATE_IP_ADDRESS',
+                        'message' => 'This IP address is already configured in the allowlist.',
+                        'errors' => [
+                            'ip_address' => ['This IP address is already configured in the allowlist.'],
+                        ],
+                        'data' => null,
+                    ];
+                }
+            }
+
+            $entry->ip_address = $canonicalIp;
+            $entry->ip_version = $ipVersion;
+            if ($hasLabel) {
+                $entry->label = $label !== null && trim($label) !== '' ? trim($label) : null;
+            }
+            if ($isActive !== null) {
+                $entry->is_active = $isActive;
+            }
+            $entry->updated_by_user_id = $actor['id'] ?? null;
+            $entry->updated_by_email = $actor['email'] ?? null;
+            $entry->save();
+
+            $this->recordConfigurationAudit(
+                actor: $actor,
+                action: 'ip_access.ip_updated',
+                description: "Updated authorized IPv{$ipVersion} address ({$canonicalIp}) in Admin IP Access allowlist ({$env})",
+                targetTable: 'admin_ip_allowlists',
+                targetId: (string) $entry->id,
+                details: [
+                    'environment' => $env,
+                    'ip_address' => $canonicalIp,
+                    'ip_version' => $ipVersion,
+                    'label' => $entry->label,
+                    'is_active' => (bool) $entry->is_active,
+                ],
+                requestIp: $requestIp,
+                userAgent: $userAgent
+            );
+
+            return [
+                'status' => 200,
+                'success' => true,
+                'message' => 'Authorized IP address updated successfully.',
                 'data' => [
                     'ip' => $this->formatAllowlistItem($entry),
                 ],
