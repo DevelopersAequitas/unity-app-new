@@ -238,6 +238,90 @@ class PostController extends BaseApiController
         $data['media_type'] = $mediaType;
         $data['aspect_ratio'] = '4:5';
 
+        // Check if this is a recognition / system-generated bot post
+        $currentAuthorName = (string) ($post->user?->display_name ?? $post->user?->name ?? '');
+        $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
+            || ($post->source_type ?? null) === 'life_impact'
+            || str_contains(strtolower($currentAuthorName), 'genie')
+            || str_contains(strtolower($currentAuthorName), 'peers global');
+
+        if ($isRecognition) {
+            $recognizedPeer = null;
+            if (!empty($post->source_id)) {
+                $recognizedPeer = \App\Models\User::find($post->source_id);
+            }
+            if (!$recognizedPeer && !empty($post->id)) {
+                $mention = \App\Models\PostMention::where('post_id', $post->id)->first();
+                if ($mention && $mention->peer_id) {
+                    $recognizedPeer = \App\Models\User::find($mention->peer_id);
+                }
+            }
+            if (!$recognizedPeer && !empty($post->tags) && is_array($post->tags)) {
+                foreach ($post->tags as $tag) {
+                    if (Str::isUuid((string) $tag)) {
+                        $recognizedPeer = \App\Models\User::find($tag);
+                        if ($recognizedPeer) break;
+                    }
+                }
+            }
+            if (!$recognizedPeer && (!empty($post->content_text) || !empty($post->title))) {
+                $text = $post->content_text ?: $post->title;
+                if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                }
+            }
+
+            if ($recognizedPeer) {
+                $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '') . ' ' . ($recognizedPeer->last_name ?? ''));
+                $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
+                if ($peerAvatar && !Str::startsWith($peerAvatar, ['http://', 'https://'])) {
+                    $peerAvatar = url(ltrim($peerAvatar, '/'));
+                }
+                $peerCompany = $recognizedPeer->company_name ?: ($recognizedPeer->company ?: 'Aequitas Information Technology Pvt Ltd');
+
+                $data['recognized_user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                ];
+                $data['user_name'] = $peerName;
+                $data['userName'] = $peerName;
+                $data['author_name'] = $peerName;
+                $data['authorName'] = $peerName;
+                $data['author_avatar'] = $peerAvatar;
+                $data['user_avatar'] = $peerAvatar;
+                $data['author_company'] = $peerCompany;
+                $data['company'] = $peerCompany;
+                $data['user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'first_name' => $recognizedPeer->first_name,
+                    'last_name' => $recognizedPeer->last_name,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                    'city' => $recognizedPeer->city,
+                    'circle' => $recognizedPeer->circle ? ['id' => (string) $recognizedPeer->circle->id, 'name' => $recognizedPeer->circle->name] : null,
+                ];
+            }
+        }
+
         if ($post->relationLoaded('likes')) {
             $data['likes_list'] = $post->likes->map(function ($like): array {
                 $user = $like->user;
