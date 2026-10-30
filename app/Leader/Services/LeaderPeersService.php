@@ -252,7 +252,7 @@ class LeaderPeersService
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
 
-        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['', 'all', 'global', 'all_circles', 'platform'], true)
+        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
             || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
 
         // If a specific circle is requested, filter strictly to that circle
