@@ -82,6 +82,7 @@ class SpeedNetworkingEvent extends Model
             'total_rounds' => 'integer',
             'current_round' => 'integer',
             'scheduled_start_time' => 'datetime',
+            'scheduled_end_time' => 'datetime',
             'actual_start_time' => 'datetime',
             'actual_end_time' => 'datetime',
             'ticket_price' => 'float',
@@ -100,9 +101,17 @@ class SpeedNetworkingEvent extends Model
         });
 
         static::saving(function (SpeedNetworkingEvent $model): void {
-            if (empty($model->attributes['scheduled_end_time']) && ! empty($model->attributes['scheduled_start_time'])) {
-                $start = Carbon::parse($model->attributes['scheduled_start_time']);
-                $model->attributes['scheduled_end_time'] = $start->addSeconds($model->calculateDurationSeconds());
+            $start = ! empty($model->attributes['scheduled_start_time']) ? Carbon::parse($model->attributes['scheduled_start_time']) : null;
+            $meta = is_array($model->metadata) ? $model->metadata : (json_decode((string) $model->metadata, true) ?: []);
+            $hasExplicitDuration = ! empty($meta['duration_seconds'])
+                || ! empty($model->attributes['duration_seconds'])
+                || ! empty($meta['duration_minutes'])
+                || ! empty($model->attributes['duration_minutes'])
+                || ! empty($meta['duration'])
+                || ! empty($model->attributes['duration']);
+
+            if ($start && ($hasExplicitDuration || empty($model->attributes['scheduled_end_time']))) {
+                $model->attributes['scheduled_end_time'] = $start->copy()->addSeconds($model->calculateDurationSeconds());
             }
         });
 
@@ -195,11 +204,24 @@ class SpeedNetworkingEvent extends Model
     {
         return Attribute::make(
             get: function ($value): ?Carbon {
+                $start = $this->scheduled_start_time ?? $this->actual_start_time;
+
+                $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
+                $hasExplicitDuration = ! empty($meta['duration_seconds'])
+                    || ! empty($this->attributes['duration_seconds'])
+                    || ! empty($meta['duration_minutes'])
+                    || ! empty($this->attributes['duration_minutes'])
+                    || ! empty($meta['duration'])
+                    || ! empty($this->attributes['duration']);
+
+                if ($hasExplicitDuration && $start) {
+                    return $this->asDateTime($start)->copy()->addSeconds($this->calculateDurationSeconds());
+                }
+
                 if ($value !== null) {
                     return $this->asDateTime($value);
                 }
 
-                $start = $this->scheduled_start_time ?? $this->actual_start_time;
                 if ($start) {
                     return $this->asDateTime($start)->copy()->addSeconds($this->calculateDurationSeconds());
                 }

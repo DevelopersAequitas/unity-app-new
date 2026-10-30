@@ -386,6 +386,8 @@ class SpeedNetworkingService
         $breakDuration = (int) ($data['break_duration_seconds'] ?? config('services.speed_networking.default_break_seconds', 20));
         $totalRounds = isset($data['total_rounds']) && $data['total_rounds'] !== '' ? max(0, (int) $data['total_rounds']) : 0;
 
+        $hasExplicitDuration = ! empty($data['duration_seconds']) || ! empty($data['duration_minutes']) || ! empty($data['duration']);
+
         $durationSeconds = null;
         if (! empty($data['duration_seconds'])) {
             $durationSeconds = (int) $data['duration_seconds'];
@@ -400,9 +402,16 @@ class SpeedNetworkingService
         }
 
         $scheduledStart = ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null;
-        $scheduledEnd = ! empty($data['scheduled_end_time'])
-            ? Carbon::parse($data['scheduled_end_time'])
-            : ($scheduledStart ? $scheduledStart->copy()->addSeconds($durationSeconds) : null);
+        if ($hasExplicitDuration && $scheduledStart) {
+            $scheduledEnd = $scheduledStart->copy()->addSeconds($durationSeconds);
+        } elseif (! empty($data['scheduled_end_time'])) {
+            $scheduledEnd = Carbon::parse($data['scheduled_end_time']);
+            if ($scheduledStart && $scheduledEnd->greaterThan($scheduledStart)) {
+                $durationSeconds = $scheduledEnd->diffInSeconds($scheduledStart);
+            }
+        } else {
+            $scheduledEnd = $scheduledStart ? $scheduledStart->copy()->addSeconds($durationSeconds) : null;
+        }
 
         $metadata = isset($data['metadata']) && is_array($data['metadata']) ? $data['metadata'] : [];
         $metadata['duration_seconds'] = $durationSeconds;
@@ -437,7 +446,7 @@ class SpeedNetworkingService
 
         if ($id) {
             $event = SpeedNetworkingEvent::findOrFail($id);
-            if (empty($attributes['scheduled_end_time'])) {
+            if ($hasExplicitDuration || empty($attributes['scheduled_end_time'])) {
                 $baseStart = $attributes['scheduled_start_time'] ?? $event->scheduled_start_time;
                 if ($baseStart) {
                     $attributes['scheduled_end_time'] = Carbon::parse($baseStart)->addSeconds($durationSeconds);
@@ -1321,8 +1330,14 @@ class SpeedNetworkingService
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
                 'current_round' => (int) $event->current_round,
-                'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
-                'actual_start_time' => $event->actual_start_time?->toIso8601String(),
+                'duration_seconds' => $event->duration_seconds,
+                'duration_minutes' => $event->duration_minutes,
+                'duration' => $event->duration_minutes,
+                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
+                'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'total_participants_count' => count($participants),
                 'active_tables_count' => count($tableMatches),
             ],
