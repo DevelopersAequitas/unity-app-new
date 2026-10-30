@@ -27,12 +27,13 @@ class LeaderAuthService
     /**
      * Send OTP to email or phone number.
      *
-     * @return array{is_registered: bool, otp_expiry_seconds: int}
+     * @return array{is_registered: bool, is_leader: bool, channel?: string, otp_expiry_seconds: int}
      */
     public function sendOtp(string $emailOrPhone): array
     {
         $identifier = trim($emailOrPhone);
         $isEmail = filter_var($identifier, FILTER_VALIDATE_EMAIL) !== false;
+        $channel = $isEmail ? 'email' : 'whatsapp';
 
         $user = $this->findUserByIdentifier($identifier, (bool) $isEmail);
 
@@ -40,6 +41,7 @@ class LeaderAuthService
             return [
                 'is_registered' => false,
                 'is_leader' => false,
+                'channel' => $channel,
                 'otp_expiry_seconds' => 0,
             ];
         }
@@ -50,6 +52,7 @@ class LeaderAuthService
             return [
                 'is_registered' => true,
                 'is_leader' => false,
+                'channel' => $channel,
                 'otp_expiry_seconds' => 0,
             ];
         }
@@ -65,57 +68,64 @@ class LeaderAuthService
             'id' => (string) Str::uuid(),
             'user_id' => $user->id,
             'email' => $email,
-            'channel' => $isEmail ? 'email' : 'sms',
+            'channel' => $channel,
             'code' => Hash::make($otp),
             'purpose' => 'login_otp',
             'expires_at' => $expiresAt,
             'created_at' => now(),
         ]);
 
-        // 1. Dispatch Email OTP
-        if (! empty($user->email)) {
-            try {
-                Mail::to($user->email)->send(new LoginOtpMail($otp, $user));
-            } catch (Throwable $e) {
-                Log::error('leader.auth.email_send_failed', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        // 2. Dispatch WhatsApp / SMS OTP if phone available
-        if ($phone) {
-            try {
-                $normalizedPhone = WhatsappNotificationService::normalizePhone((string) $phone);
-                if ($normalizedPhone) {
-                    $this->whatsappNotificationService->send(
-                        templateKey: 'otp_verification',
-                        phone: $normalizedPhone,
-                        payload: [
-                            'code' => $otp,
-                        ]
-                    );
+        if ($isEmail) {
+            // 1. Dispatch ONLY Email OTP when email is provided
+            $targetEmail = $user->email ?: $identifier;
+            if (! empty($targetEmail)) {
+                try {
+                    Mail::to($targetEmail)->send(new LoginOtpMail($otp, $user));
+                } catch (Throwable $e) {
+                    Log::error('leader.auth.email_send_failed', [
+                        'user_id' => $user->id,
+                        'email' => $targetEmail,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
-            } catch (Throwable $e) {
-                Log::error('leader.auth.whatsapp_send_failed', [
-                    'user_id' => $user->id,
-                    'phone' => $phone,
-                    'error' => $e->getMessage(),
-                ]);
+            }
+        } else {
+            // 2. Dispatch ONLY WhatsApp OTP when phone number is provided
+            $targetPhone = $phone ?: $identifier;
+            if ($targetPhone) {
+                try {
+                    $normalizedPhone = WhatsappNotificationService::normalizePhone((string) $targetPhone);
+                    if ($normalizedPhone) {
+                        $this->whatsappNotificationService->send(
+                            templateKey: 'otp_verification',
+                            phone: $normalizedPhone,
+                            payload: [
+                                'code' => $otp,
+                            ],
+                            userId: (string) $user->id
+                        );
+                    }
+                } catch (Throwable $e) {
+                    Log::error('leader.auth.whatsapp_send_failed', [
+                        'user_id' => $user->id,
+                        'phone' => $targetPhone,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
 
         Log::info('leader.auth.otp_sent', [
             'user_id' => $user->id,
             'identifier' => $identifier,
+            'channel' => $channel,
             'otp_preview' => app()->environment(['local', 'staging', 'testing']) ? $otp : '******',
         ]);
 
         return [
             'is_registered' => true,
             'is_leader' => true,
+            'channel' => $channel,
             'otp_expiry_seconds' => 300,
         ];
     }
