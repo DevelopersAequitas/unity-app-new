@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
@@ -21,7 +23,7 @@ class EventApiController extends BaseApiController
     {
         $validated = $request->validate([
             'circle_id' => ['nullable', 'uuid'],
-            'status' => ['nullable', 'string', Rule::in(['all', 'today', 'live', 'upcoming'])],
+            'status' => ['nullable', 'string', Rule::in(['all', 'today', 'live', 'upcoming', 'past', 'completed'])],
         ]);
 
         $circleId = $validated['circle_id'] ?? null;
@@ -65,14 +67,19 @@ class EventApiController extends BaseApiController
         $grouped = $this->groupEventItems($eventItems, $now);
 
         if ($status !== 'all') {
+            $isPast = in_array($status, ['past', 'completed'], true);
             $grouped = [
                 'today_events' => $status === 'today' ? $grouped['today_events'] : [],
                 'live_events' => $status === 'live' ? $grouped['live_events'] : [],
                 'upcoming_events' => $status === 'upcoming' ? $grouped['upcoming_events'] : [],
+                'past_events' => $isPast ? $grouped['past_events'] : [],
             ];
         }
 
-        $total = count($grouped['today_events']) + count($grouped['live_events']) + count($grouped['upcoming_events']);
+        $total = count($grouped['today_events'])
+            + count($grouped['live_events'])
+            + count($grouped['upcoming_events'])
+            + count($grouped['past_events']);
 
         return $this->success([
             'circle' => $circle ? $this->circlePayload($circle) : null,
@@ -82,6 +89,8 @@ class EventApiController extends BaseApiController
             'today_events' => $grouped['today_events'],
             'live_events' => $grouped['live_events'],
             'upcoming_events' => $grouped['upcoming_events'],
+            'past_events' => $grouped['past_events'],
+            'completed_events' => $grouped['past_events'],
         ], 'Circle events fetched successfully.');
     }
 
@@ -107,12 +116,13 @@ class EventApiController extends BaseApiController
             $eventStartUtc = $event->start_at ? Carbon::parse($event->start_at) : null;
             $isEventFuture = $eventStartUtc && $eventStartUtc->greaterThan($now);
 
-            $upcomingOccurrences = $event->occurrences->filter(function (EventOccurrence $occ) use ($now, $isEventFuture, $eventStartUtc): bool {
+            $validOccurrences = $event->occurrences->filter(function (EventOccurrence $occ): bool {
                 $status = strtolower((string) ($occ->status ?? ''));
-                if (in_array($status, ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive'], true)) {
-                    return false;
-                }
 
+                return ! in_array($status, ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive'], true);
+            });
+
+            $upcomingOccurrences = $validOccurrences->filter(function (EventOccurrence $occ) use ($now, $isEventFuture, $eventStartUtc): bool {
                 if ($isEventFuture && $occ->start_at) {
                     $occStart = Carbon::parse($occ->start_at);
                     if ($occStart->lessThan($eventStartUtc->copy()->subMinutes(15))) {
@@ -125,14 +135,36 @@ class EventApiController extends BaseApiController
                 return $end ? Carbon::parse($end)->greaterThanOrEqualTo($now->copy()->startOfDay()) : true;
             });
 
-            $selected = $upcomingOccurrences->first();
-            if ($selected) {
-                return collect([
-                    $this->eventItemPayload($event, $selected, $selected->start_at, $selected->end_at, $timezone),
-                ]);
+            $items = collect();
+
+            $selectedUpcoming = $upcomingOccurrences->first();
+            if ($selectedUpcoming) {
+                $items->push($this->eventItemPayload($event, $selectedUpcoming, $selectedUpcoming->start_at, $selectedUpcoming->end_at, $timezone));
             }
 
-            return collect();
+            $pastOccurrences = $validOccurrences->filter(function (EventOccurrence $occ) use ($now, $timezone, $selectedUpcoming): bool {
+                if ($selectedUpcoming && $occ->id === $selectedUpcoming->id) {
+                    return false;
+                }
+
+                $status = strtolower((string) ($occ->status ?? ''));
+                if ($status === 'completed' || $status === 'complete') {
+                    return true;
+                }
+
+                $end = $occ->end_at ?? $occ->start_at;
+                if (! $end) {
+                    return false;
+                }
+
+                return Carbon::parse($end)->setTimezone($timezone)->lessThan($now);
+            });
+
+            foreach ($pastOccurrences as $pastOcc) {
+                $items->push($this->eventItemPayload($event, $pastOcc, $pastOcc->start_at, $pastOcc->end_at, $timezone));
+            }
+
+            return $items;
         }
 
         return collect([
@@ -147,6 +179,7 @@ class EventApiController extends BaseApiController
         $liveEvents = [];
         $todayEvents = [];
         $upcomingEvents = [];
+        $pastEvents = [];
 
         foreach ($eventItems as $item) {
             $startAt = $item['_start_at'];
@@ -156,33 +189,67 @@ class EventApiController extends BaseApiController
                 continue;
             }
 
-            $isLive = $endAt instanceof Carbon && $startAt->lessThanOrEqualTo($now) && $endAt->greaterThanOrEqualTo($now);
             $payload = $item['payload'];
 
+            $isLive = $endAt instanceof Carbon && $startAt->lessThanOrEqualTo($now) && $endAt->greaterThanOrEqualTo($now);
             if ($isLive) {
-                $payload['group_status'] = 'live';
-                $liveEvents[] = $payload;
+                $livePayload = $payload;
+                $livePayload['group_status'] = 'live';
+                $liveEvents[] = $livePayload;
+
+                continue;
+            }
+
+            $isPast = ($endAt instanceof Carbon ? $endAt->lessThan($now) : $startAt->lessThan($now))
+                || strtolower((string) ($payload['status'] ?? '')) === 'completed';
+
+            if ($isPast) {
+                $pastPayload = $payload;
+                $pastPayload['group_status'] = 'past';
+                if (! in_array(strtolower((string) ($pastPayload['status'] ?? '')), ['cancelled', 'canceled', 'rejected'], true)) {
+                    $pastPayload['status'] = 'completed';
+                }
+                $pastEvents[] = $pastPayload;
+
+                if ($startAt->toDateString() === $today) {
+                    $todayPayload = $payload;
+                    $todayPayload['group_status'] = 'today';
+                    if (! in_array(strtolower((string) ($todayPayload['status'] ?? '')), ['cancelled', 'canceled', 'rejected'], true)) {
+                        $todayPayload['status'] = 'completed';
+                    }
+                    $todayEvents[] = $todayPayload;
+                }
 
                 continue;
             }
 
             if ($startAt->toDateString() === $today) {
-                $payload['group_status'] = 'today';
-                $todayEvents[] = $payload;
+                $todayPayload = $payload;
+                $todayPayload['group_status'] = 'today';
+                $todayEvents[] = $todayPayload;
 
                 continue;
             }
 
             if ($startAt->greaterThan($now)) {
-                $payload['group_status'] = 'upcoming';
-                $upcomingEvents[] = $payload;
+                $upcomingPayload = $payload;
+                $upcomingPayload['group_status'] = 'upcoming';
+                $upcomingEvents[] = $upcomingPayload;
             }
         }
+
+        usort($pastEvents, function (array $a, array $b): int {
+            $aTime = $a['start_at'] ?? '';
+            $bTime = $b['start_at'] ?? '';
+
+            return strcmp($bTime, $aTime);
+        });
 
         return [
             'today_events' => $todayEvents,
             'live_events' => $liveEvents,
             'upcoming_events' => $upcomingEvents,
+            'past_events' => $pastEvents,
         ];
     }
 
@@ -199,6 +266,15 @@ class EventApiController extends BaseApiController
         $responseStartAt = $this->dateTimeForResponse($startAt);
         $responseEndAt = $this->dateTimeForResponse($endAt);
 
+        $rawStatus = strtolower((string) ($occurrence?->status ?? $event->status ?? 'scheduled'));
+        $status = $rawStatus;
+        if (! in_array($rawStatus, ['cancelled', 'canceled', 'rejected'], true)) {
+            $compareEnd = $groupingEndAt ?? $groupingStartAt;
+            if ($compareEnd && $compareEnd->lessThan(now($timezone))) {
+                $status = 'completed';
+            }
+        }
+
         return [
             '_start_at' => $groupingStartAt,
             '_end_at' => $groupingEndAt,
@@ -214,7 +290,7 @@ class EventApiController extends BaseApiController
                 'end_at' => $responseEndAt?->format('Y-m-d\TH:i:s'),
                 'formatted_start_at' => $responseStartAt?->format('d M Y h:i A'),
                 'recurrence' => $event->recurrence_type,
-                'status' => $occurrence?->status ?? $event->status ?? 'scheduled',
+                'status' => $status,
                 'registered_count' => $this->registeredCount($event->id, $occurrenceId),
                 'checked_in_count' => $this->checkedInCount($event->id, $occurrenceId),
                 'image_url' => $this->imageUrl($event),

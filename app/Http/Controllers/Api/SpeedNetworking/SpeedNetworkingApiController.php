@@ -34,6 +34,20 @@ class SpeedNetworkingApiController extends Controller
     }
 
     /**
+     * Get the configured Agora App ID.
+     */
+    protected function getAgoraAppId(): ?string
+    {
+        try {
+            return $this->agoraTokenService->getAppId();
+        } catch (\Throwable) {
+            $appId = config('services.agora.app_id') ?: env('AGORA_APP_ID');
+
+            return ! empty($appId) ? (string) $appId : null;
+        }
+    }
+
+    /**
      * Check circle restriction access for speed networking events.
      * If a circle is assigned, only members of that circle may join.
      * If no circle is assigned, all users may join.
@@ -105,6 +119,10 @@ class SpeedNetworkingApiController extends Controller
     {
         if ($event instanceof Event) {
             return $event;
+        }
+
+        if (! Schema::hasTable('events')) {
+            return null;
         }
 
         return Event::find($event->id)
@@ -342,7 +360,7 @@ class SpeedNetworkingApiController extends Controller
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
         }
-        if (! $event) {
+        if (! $event && Schema::hasTable('events')) {
             $event = Event::find($eventId);
         }
         if (! $event) {
@@ -503,7 +521,7 @@ class SpeedNetworkingApiController extends Controller
         }
 
         // If no event found in speed_networking_events table, search in base events table
-        if (! $event) {
+        if (! $event && Schema::hasTable('events')) {
             $baseEvent = Event::query()
                 ->where('event_type', 'speed_networking')
                 ->where(function ($q): void {
@@ -567,11 +585,13 @@ class SpeedNetworkingApiController extends Controller
                 $actionButton = $this->resolveActionButton($status, $isRegistered, $paymentInfo, $circleAccess, $startAt);
 
                 return response()->json([
+                    'status' => 'success',
                     'success' => true,
                     'data' => [
                         'id' => (string) $baseEvent->id,
                         'event_id' => (string) $baseEvent->id,
                         'title' => (string) $baseEvent->title,
+                        'agora_app_id' => $this->getAgoraAppId(),
                         'description' => $baseEvent->description,
                         'banner_url' => $baseEvent->banner_url,
                         'status' => $status,
@@ -665,11 +685,13 @@ class SpeedNetworkingApiController extends Controller
         $actionButton = $this->resolveActionButton($event->status, $isRegistered, $paymentInfo, $circleAccess, $event->scheduled_start_time);
 
         return response()->json([
+            'status' => 'success',
             'success' => true,
             'data' => [
                 'id' => (string) $event->id,
                 'event_id' => (string) $event->id,
                 'title' => $event->title,
+                'agora_app_id' => $this->getAgoraAppId(),
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status,
@@ -732,7 +754,7 @@ class SpeedNetworkingApiController extends Controller
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
         }
-        if (! $event) {
+        if (! $event && Schema::hasTable('events')) {
             $event = Event::find($eventId);
         }
         if (! $event) {
@@ -784,6 +806,7 @@ class SpeedNetworkingApiController extends Controller
                 'event_id' => (string) $event->id,
                 'title' => (string) $event->title,
                 'event_title' => (string) $event->title,
+                'agora_app_id' => $this->getAgoraAppId(),
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status ?? ($meta['speed_status'] ?? 'scheduled'),
@@ -846,7 +869,7 @@ class SpeedNetworkingApiController extends Controller
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
         }
-        if (! $event) {
+        if (! $event && Schema::hasTable('events')) {
             $event = Event::find($eventId);
         }
         if (! $event) {
@@ -935,12 +958,32 @@ class SpeedNetworkingApiController extends Controller
         }
 
         // 4. If paid or free, proceed to join active session
+        $agoraAppId = $this->getAgoraAppId();
+
         if ($event instanceof SpeedNetworkingEvent) {
             $data = $this->speedNetworkingService->joinEvent($event, $user);
+            $isWaiting = (bool) ($data['is_waiting'] ?? false);
+            $hasMatch = ! $isWaiting && ! empty($data['channel_id']) && ! empty($data['peer']);
+
+            $match = $hasMatch ? [
+                'channel_id' => (string) ($data['channel_id'] ?? ''),
+                'agora_app_id' => $agoraAppId,
+                'agora_token' => (string) ($data['agora_token'] ?? ''),
+                'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
+                'current_round' => (int) ($data['current_round'] ?? 1),
+                'total_rounds' => (int) ($data['total_rounds'] ?? 1),
+                'peer' => $data['peer'] ?? null,
+            ] : null;
+
+            $data['agora_app_id'] = $agoraAppId;
+            $data['match'] = $match;
 
             return response()->json([
                 'status' => 'success',
                 'success' => true,
+                'is_waiting' => $isWaiting,
+                'match' => $match,
+                'message' => $data['message'] ?? ($isWaiting ? 'Waiting for the event to begin.' : 'Speed Networking session active.'),
                 'data' => $data,
             ]);
         }
@@ -976,9 +1019,21 @@ class SpeedNetworkingApiController extends Controller
             $agoraToken = 'demo_rtc_token_'.md5($channelId.(string) $user->id);
         }
 
+        $match = [
+            'channel_id' => $channelId,
+            'agora_app_id' => $agoraAppId,
+            'agora_token' => $agoraToken,
+            'remaining_seconds' => $roundDuration,
+            'current_round' => 1,
+            'total_rounds' => $totalRounds,
+            'peer' => null,
+        ];
+
         return response()->json([
             'status' => 'success',
             'success' => true,
+            'is_waiting' => false,
+            'match' => $match,
             'data' => [
                 'event_id' => (string) $baseEvent->id,
                 'title' => (string) $baseEvent->title,
@@ -992,7 +1047,9 @@ class SpeedNetworkingApiController extends Controller
                 'current_round' => 1,
                 'total_rounds' => $totalRounds,
                 'channel_id' => $channelId,
+                'agora_app_id' => $agoraAppId,
                 'agora_token' => $agoraToken,
+                'match' => $match,
                 'is_break_round' => false,
                 'is_waiting' => false,
                 'has_met_all_peers' => false,
@@ -1083,10 +1140,11 @@ class SpeedNetworkingApiController extends Controller
     public function nextMatch(Request $request, string $eventId): JsonResponse
     {
         $user = $request->user();
+        $agoraAppId = $this->getAgoraAppId();
 
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
-            if (! $event) {
+            if (! $event && Schema::hasTable('events')) {
                 $base = Event::find($eventId);
                 if ($base) {
                     $event = SpeedNetworkingEvent::where('id', $base->id)
@@ -1099,17 +1157,34 @@ class SpeedNetworkingApiController extends Controller
             if ($event) {
                 $data = $this->speedNetworkingService->getNextMatch($event, $user, $request->isMethod('get'));
                 $isCompleted = ! empty($data['completed']);
+                $isWaiting = (bool) ($data['is_waiting'] ?? false);
+                $hasMatch = ! $isWaiting && ! empty($data['channel_id']) && ! empty($data['peer']);
+
+                $match = $hasMatch ? [
+                    'channel_id' => (string) ($data['channel_id'] ?? ''),
+                    'agora_app_id' => $agoraAppId,
+                    'agora_token' => (string) ($data['agora_token'] ?? ''),
+                    'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
+                    'current_round' => (int) ($data['current_round'] ?? 1),
+                    'total_rounds' => (int) ($data['total_rounds'] ?? 1),
+                    'peer' => $data['peer'] ?? null,
+                ] : null;
+
+                $data['agora_app_id'] = $agoraAppId;
+                $data['match'] = $match;
 
                 return response()->json([
                     'status' => 'success',
                     'success' => true,
+                    'is_waiting' => $isWaiting,
+                    'match' => $match,
                     'message' => $isCompleted ? ($data['message'] ?? 'Session completed successfully') : 'Next match retrieved successfully',
                     'data' => $data,
                 ]);
             }
         }
 
-        $baseEvent = Event::find($eventId);
+        $baseEvent = Schema::hasTable('events') ? Event::find($eventId) : null;
         $channelId = 'sn_room_'.($baseEvent ? $baseEvent->id : $eventId);
         $agoraToken = '';
         try {
@@ -1118,14 +1193,25 @@ class SpeedNetworkingApiController extends Controller
             $agoraToken = 'demo_rtc_token_'.md5($channelId.(string) $user->id);
         }
 
+        $match = [
+            'channel_id' => $channelId,
+            'agora_app_id' => $agoraAppId,
+            'agora_token' => $agoraToken,
+            'peer' => null,
+        ];
+
         return response()->json([
             'status' => 'success',
             'success' => true,
+            'is_waiting' => true,
+            'match' => null,
             'data' => [
                 'event_id' => $eventId,
                 'current_round' => 1,
                 'channel_id' => $channelId,
+                'agora_app_id' => $agoraAppId,
                 'agora_token' => $agoraToken,
+                'match' => $match,
                 'is_break_round' => false,
                 'is_waiting' => true,
                 'completed' => false,
@@ -1145,7 +1231,7 @@ class SpeedNetworkingApiController extends Controller
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
-            if (! $event) {
+            if (! $event && Schema::hasTable('events')) {
                 $base = Event::find($eventId);
                 if ($base) {
                     $event = SpeedNetworkingEvent::where('id', $base->id)
@@ -1159,8 +1245,8 @@ class SpeedNetworkingApiController extends Controller
             }
         }
 
-        $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
-        $summary = $event
+        $userLifeImpact = $this->speedNetworkingService->resolveUserLifeImpact($user, $event instanceof SpeedNetworkingEvent ? $event : null);
+        $summary = $event instanceof SpeedNetworkingEvent
             ? $this->speedNetworkingService->getSessionSummary($event, $user)
             : [
                 'completed' => true,
@@ -1173,11 +1259,25 @@ class SpeedNetworkingApiController extends Controller
                     'earned' => 0,
                     'total' => $userLifeImpact,
                     'balance_after' => $userLifeImpact,
+                    'impact_score' => $userLifeImpact,
+                    'impact_score_earned' => 0,
+                    'score' => $userLifeImpact,
+                    'impact' => 0,
                 ],
                 'life_impact_earned' => 0,
                 'life_impact_score' => $userLifeImpact,
                 'total_life_impacted' => $userLifeImpact,
                 'life_impacted_count' => $userLifeImpact,
+                'life_impact_count' => $userLifeImpact,
+                'lives_impacted' => $userLifeImpact,
+                'lives_impacted_count' => $userLifeImpact,
+                'impact_score' => $userLifeImpact,
+                'impact_score_earned' => 0,
+                'impact_earned' => 0,
+                'impact_points_earned' => 0,
+                'earned_impact' => 0,
+                'impact' => 0,
+                'score' => $userLifeImpact,
                 'coins' => [
                     'earned' => 0,
                     'balance_after' => (int) ($user->coins_balance ?? 0),
@@ -1235,6 +1335,7 @@ class SpeedNetworkingApiController extends Controller
 
         $userStatus = (string) ($request->input('user_status') ?? $request->input('status') ?? '');
         $breakRemainingSeconds = (int) $request->input('break_remaining_seconds', 0);
+        $agoraAppId = $this->getAgoraAppId();
 
         if ($event) {
             $activeCount = $this->speedNetworkingService->heartbeat($event, $user, $userStatus ?: null, $breakRemainingSeconds);
@@ -1295,6 +1396,7 @@ class SpeedNetworkingApiController extends Controller
             if ($hasActiveMatch) {
                 $matchData = [
                     'channel_id' => (string) ($activeMatch['channel_id'] ?? ''),
+                    'agora_app_id' => $agoraAppId,
                     'agora_token' => (string) ($activeMatch['agora_token'] ?? ''),
                     'remaining_seconds' => (int) ($activeMatch['remaining_seconds'] ?? $event->round_duration_seconds),
                     'is_waiting' => false,
@@ -1303,6 +1405,10 @@ class SpeedNetworkingApiController extends Controller
                     'total_rounds' => (int) ($activeMatch['total_rounds'] ?? $event->total_rounds),
                     'peer' => $activeMatch['peer'] ?? null,
                 ];
+            }
+
+            if ($incomingMatch !== null && is_array($incomingMatch)) {
+                $incomingMatch['agora_app_id'] = $agoraAppId;
             }
 
             return response()->json([
@@ -1351,7 +1457,7 @@ class SpeedNetworkingApiController extends Controller
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
-            if (! $event) {
+            if (! $event && Schema::hasTable('events')) {
                 $base = Event::find($eventId);
                 if ($base) {
                     $event = SpeedNetworkingEvent::where('id', $base->id)
@@ -1377,7 +1483,7 @@ class SpeedNetworkingApiController extends Controller
         if ($event instanceof SpeedNetworkingEvent) {
             $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
         } else {
-            $userLifeImpact = (int) ($user->fresh()?->life_impacted_count ?? $user->life_impacted_count ?? 0);
+            $userLifeImpact = $this->speedNetworkingService->resolveUserLifeImpact($user);
             $meta = is_array($event->metadata) ? $event->metadata : (json_decode((string) $event->metadata, true) ?: []);
             $totalRounds = (int) ($meta['total_rounds'] ?? 0);
             $summary = [
@@ -1391,11 +1497,25 @@ class SpeedNetworkingApiController extends Controller
                     'earned' => 0,
                     'total' => $userLifeImpact,
                     'balance_after' => $userLifeImpact,
+                    'impact_score' => $userLifeImpact,
+                    'impact_score_earned' => 0,
+                    'score' => $userLifeImpact,
+                    'impact' => 0,
                 ],
                 'life_impact_earned' => 0,
                 'life_impact_score' => $userLifeImpact,
                 'total_life_impacted' => $userLifeImpact,
                 'life_impacted_count' => $userLifeImpact,
+                'life_impact_count' => $userLifeImpact,
+                'lives_impacted' => $userLifeImpact,
+                'lives_impacted_count' => $userLifeImpact,
+                'impact_score' => $userLifeImpact,
+                'impact_score_earned' => 0,
+                'impact_earned' => 0,
+                'impact_points_earned' => 0,
+                'earned_impact' => 0,
+                'impact' => 0,
+                'score' => $userLifeImpact,
                 'coins' => [
                     'earned' => 0,
                     'balance_after' => (int) ($user->coins_balance ?? 0),
@@ -1423,7 +1543,7 @@ class SpeedNetworkingApiController extends Controller
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
-            if (! $event) {
+            if (! $event && Schema::hasTable('events')) {
                 $base = Event::find($eventId);
                 if ($base) {
                     $event = SpeedNetworkingEvent::where('id', $base->id)

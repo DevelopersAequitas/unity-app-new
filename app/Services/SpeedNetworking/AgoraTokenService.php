@@ -25,17 +25,44 @@ class AgoraTokenService
     public const PRIVILEGE_PUBLISH_DATA_STREAM = 4;
 
     /**
+     * Get the configured Agora App ID.
+     */
+    public function getAppId(): ?string
+    {
+        $appId = config('services.agora.app_id') ?: env('AGORA_APP_ID');
+
+        return ! empty($appId) ? (string) $appId : null;
+    }
+
+    /**
+     * Get the configured Agora App Certificate.
+     */
+    public function getAppCertificate(): ?string
+    {
+        $certificate = config('services.agora.app_certificate') ?: env('AGORA_APP_CERTIFICATE');
+
+        return ! empty($certificate) ? (string) $certificate : null;
+    }
+
+    /**
      * Generate an Agora RTC Token for a channel and participant.
      *
      * @param  string  $channelName  The target room channel name
      * @param  int|string  $uid  The Agora user identifier (0 for wildcard / string uid)
      * @param  int  $expireSeconds  Validity window in seconds
+     * @param  string|null  $appId  Optional custom Agora App ID override
+     * @param  string|null  $appCertificate  Optional custom Agora App Certificate override
      * @return string Signed Agora RTC Token
      */
-    public function generateToken(string $channelName, int|string $uid = 0, int $expireSeconds = 600): string
-    {
-        $appId = (string) config('services.agora.app_id');
-        $appCertificate = (string) config('services.agora.app_certificate');
+    public function generateToken(
+        string $channelName,
+        int|string $uid = 0,
+        int $expireSeconds = 600,
+        ?string $appId = null,
+        ?string $appCertificate = null
+    ): string {
+        $appId = $appId ?: $this->getAppId();
+        $appCertificate = $appCertificate ?: $this->getAppCertificate();
 
         if (empty($appId) || empty($appCertificate)) {
             throw new RuntimeException('Agora credentials (AGORA_APP_ID / AGORA_APP_CERTIFICATE) are not set.');

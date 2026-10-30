@@ -94,6 +94,7 @@ use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
 use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
 use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
 use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
+use App\Http\Controllers\Api\V1\Ai\AiChatbotController;
 use App\Http\Controllers\Api\V1\Ai\AiController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
@@ -227,6 +228,16 @@ Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
 Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
+
+// Peers AI Chatbot endpoints without /v1 prefix (/api/ai/chatbot/*)
+Route::prefix('ai')->group(function () {
+    Route::get('chatbot/config', [AiChatbotController::class, 'config']);
+    Route::post('chatbot/message', [AiChatbotController::class, 'message']);
+    Route::get('chatbot/history', [AiChatbotController::class, 'history']);
+    Route::get('chatbot/sessions', [AiChatbotController::class, 'sessions']);
+    Route::post('chatbot/clear', [AiChatbotController::class, 'clear']);
+    Route::post('execute/{slug}', [AiController::class, 'executeFlow']);
+});
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
@@ -372,6 +383,11 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('ai')->group(function () {
+        Route::get('chatbot/config', [AiChatbotController::class, 'config']);
+        Route::post('chatbot/message', [AiChatbotController::class, 'message']);
+        Route::get('chatbot/history', [AiChatbotController::class, 'history']);
+        Route::get('chatbot/sessions', [AiChatbotController::class, 'sessions']);
+        Route::post('chatbot/clear', [AiChatbotController::class, 'clear']);
         Route::post('suggest-category', [AiController::class, 'suggestCategory']);
         Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);
         Route::post('execute/{slug}', [AiController::class, 'executeFlow']);

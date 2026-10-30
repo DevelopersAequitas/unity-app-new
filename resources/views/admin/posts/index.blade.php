@@ -339,8 +339,12 @@
                                 $isActive = $isImpact
                                     ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
                                     : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false);
-                                $mediaUrl = (function ($media) {
+                                $mediaUrl = (function ($media, $post) {
                                     if (empty($media)) {
+                                        if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                            $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                            return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                        }
                                         return null;
                                     }
 
@@ -352,7 +356,11 @@
                                         $items = data_get($media, 'items', []);
                                     }
 
-                                    if (! is_array($items)) {
+                                    if (! is_array($items) || empty($items)) {
+                                        if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                            $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                            return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                        }
                                         return null;
                                     }
 
@@ -364,6 +372,10 @@
                                     $url = data_get($candidate, 'url');
 
                                     if ($url) {
+                                        if (! app()->isProduction() && str_contains($url, 'peersunity.com/storage/')) {
+                                            $storageRel = explode('peersunity.com/storage/', $url)[1] ?? '';
+                                            return asset('storage/' . ltrim($storageRel, '/'));
+                                        }
                                         return $url;
                                     }
 
@@ -373,8 +385,18 @@
                                         return url('/api/v1/files/' . $id);
                                     }
 
-                                    return data_get($candidate, 'path');
-                                })($post->media ?? null);
+                                    $path = data_get($candidate, 'path');
+                                    if ($path) {
+                                        return asset(ltrim($path, '/'));
+                                    }
+
+                                    if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                        $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                        return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                    }
+
+                                    return null;
+                                })($post->media ?? null, $post);
                                 $isCompletedCollaboration = ! $isImpact
                                     && ($post->source_type ?? null) === 'collaboration_post'
                                     && ($post->source_event ?? null) === 'completed';
@@ -476,17 +498,30 @@
                                         @if($isImpact)
                                             <a href="{{ route('admin.impacts.show', $post->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
                                             @if($isActive)
+                                                @php
+                                                    $previewData = $post->deactivation_preview ?? [];
+                                                    $coinsToRev = $previewData['coins_to_reverse'] ?? 0;
+                                                    $impactToRev = $previewData['impact_to_reverse'] ?? (int) ($post->life_impacted ?? 1);
+                                                    $currCoins = $previewData['current_coins'] ?? (int) ($owner->coins_balance ?? 0);
+                                                    $currImpact = $previewData['current_impact'] ?? (int) ($owner->life_impacted_count ?? 0);
+                                                @endphp
                                                 <button type="button" 
                                                     class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring btn-open-deactivate-modal"
                                                     data-action="{{ route('admin.posts.impacts.deactivate', $post->id) }}"
+                                                    data-preview-url="{{ route('admin.posts.impacts.preview-deactivation', $post->id) }}"
                                                     data-post-id="{{ $post->id }}"
                                                     data-owner-name="{{ $ownerName ?: 'Unknown' }}"
                                                     data-owner-initials="{{ $getInitials($ownerName) }}"
                                                     data-owner-bg="{{ $getAvatarBg($ownerName) }}"
                                                     data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
-                                                    data-content="{{ $post->content_text ?: 'Impact story' }}"
+                                                    data-content="{{ preg_replace('/\s+/', ' ', (string) ($post->content_text ?: 'Impact story')) }}"
                                                     data-media="{{ $mediaUrl ?: '' }}"
-                                                    data-date="{{ $post->created_at ? \Carbon\Carbon::parse($post->created_at)->format('M d, Y H:i') : '—' }}">
+                                                    data-date="{{ $post->created_at ? \Carbon\Carbon::parse($post->created_at)->format('M d, Y H:i') : '—' }}"
+                                                    data-coins-to-reverse="{{ $coinsToRev }}"
+                                                    data-impact-to-reverse="{{ $impactToRev }}"
+                                                    data-user-coins="{{ $currCoins }}"
+                                                    data-user-impact="{{ $currImpact }}"
+                                                    data-item-type="impact">
                                                     Deactivate
                                                 </button>
                                             @else
@@ -501,17 +536,32 @@
                                             <a href="{{ route('admin.posts.show', $post) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
 
                                             @if($isActive)
+                                                @php
+                                                    $previewData = $post->deactivation_preview ?? [];
+                                                    $coinsToRev = $previewData['coins_to_reverse'] ?? 0;
+                                                    $impactToRev = $previewData['impact_to_reverse'] ?? 0;
+                                                    $currCoins = $previewData['current_coins'] ?? (int) ($owner->coins_balance ?? 0);
+                                                    $currImpact = $previewData['current_impact'] ?? (int) ($owner->life_impacted_count ?? 0);
+                                                    $targetUserName = ! empty($previewData['user_name']) && $previewData['user_name'] !== 'Member' ? $previewData['user_name'] : ($ownerName ?: 'Unknown');
+                                                    $targetCompany = ! empty($previewData['user_company']) && $previewData['user_company'] !== '—' ? $previewData['user_company'] : ($owner->company_name ?? $owner->company ?? $owner->business_name ?? '—');
+                                                @endphp
                                                 <button type="button" 
                                                     class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring btn-open-deactivate-modal"
                                                     data-action="{{ route('admin.posts.deactivate', $post) }}"
+                                                    data-preview-url="{{ route('admin.posts.preview-deactivation', $post) }}"
                                                     data-post-id="{{ $post->id }}"
-                                                    data-owner-name="{{ $ownerName ?: 'Unknown' }}"
-                                                    data-owner-initials="{{ $getInitials($ownerName) }}"
-                                                    data-owner-bg="{{ $getAvatarBg($ownerName) }}"
-                                                    data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
-                                                    data-content="{{ $post->content_text ?: 'No caption' }}"
+                                                    data-owner-name="{{ $targetUserName }}"
+                                                    data-owner-initials="{{ $getInitials($targetUserName) }}"
+                                                    data-owner-bg="{{ $getAvatarBg($targetUserName) }}"
+                                                    data-company="{{ $targetCompany }}"
+                                                    data-content="{{ preg_replace('/\s+/', ' ', (string) ($post->content_text ?: 'No caption')) }}"
                                                     data-media="{{ $mediaUrl ?: '' }}"
-                                                    data-date="{{ $post->created_at ? $post->created_at->format('M d, Y H:i') : '—' }}">
+                                                    data-date="{{ $post->created_at ? $post->created_at->format('M d, Y H:i') : '—' }}"
+                                                    data-coins-to-reverse="{{ $coinsToRev }}"
+                                                    data-impact-to-reverse="{{ $impactToRev }}"
+                                                    data-user-coins="{{ $currCoins }}"
+                                                    data-user-impact="{{ $currImpact }}"
+                                                    data-item-type="post">
                                                     Deactivate
                                                 </button>
                                             @else
@@ -540,7 +590,7 @@
     </div>
 
     {{-- Deactivation Confirmation Modal --}}
-    <div id="deactivatePostModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-all overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="margin: 0; padding: 1.25rem;">
+    <div id="deactivatePostModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-all overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="display: none; margin: 0; padding: 1.25rem;">
         <div class="flex min-h-full items-center justify-center text-center">
             <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-xl border border-slate-200/90 my-auto" style="box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);">
                 
@@ -579,29 +629,105 @@
 
                             <div class="flex gap-2.5 items-center bg-white p-2.5 rounded-lg border border-slate-200/80">
                                 <div id="modal_post_media_container" class="hidden shrink-0">
-                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs">
+                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs" onerror="this.onerror=null; this.src='{{ asset('images/life_impact_badges/Legacy Maker.png') }}';">
                                 </div>
                                 <div class="text-xs text-slate-700 flex-1 line-clamp-2 leading-relaxed border-l-2 border-indigo-400 pl-2.5 italic">
                                     "<span id="modal_post_content"></span>"
                                 </div>
                             </div>
 
-                            {{-- Action Consequences Highlight Bar --}}
-                            <div class="flex items-center justify-between gap-2 pt-0.5">
-                                <div class="flex-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-center">
-                                    <span class="text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5">
-                                        <i class="bi bi-coin text-amber-600"></i> Reverse Coins
-                                    </span>
+                            <input type="hidden" name="has_options" value="1">
+
+                            {{-- Action Options & Reward Reversal Cards --}}
+                            <div class="space-y-2.5 pt-0.5">
+                                <div class="grid grid-cols-3 gap-2">
+                                    {{-- Option 1: Reverse Coins --}}
+                                    <label id="card_opt_reverse_coins" for="opt_reverse_coins" class="relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-amber-50/90 border-amber-300 text-amber-900 shadow-2xs hover:shadow-xs">
+                                        <input type="checkbox" name="reverse_coins" id="opt_reverse_coins" value="1" checked class="hidden peer">
+                                        
+                                        {{-- Top-Right Indicator --}}
+                                        <div id="check_indicator_coins" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+                                            <i class="bi bi-check"></i>
+                                        </div>
+                                        <div id="uncheck_indicator_coins" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full border border-slate-300 text-slate-400 items-center justify-center text-[9px] hidden">
+                                            <i class="bi bi-x"></i>
+                                        </div>
+
+                                        <div class="flex items-center justify-center gap-1.5 text-xs font-bold leading-tight">
+                                            <i class="bi bi-coin text-amber-600 text-sm"></i>
+                                            <span>Reverse Coins</span>
+                                        </div>
+                                        <div class="mt-1.5 flex items-center justify-center gap-1">
+                                            <span class="text-[11px] font-bold text-amber-900">Deduct:</span>
+                                            <input type="number" name="coins_amount" id="modal_coins_amount_input" min="0" step="1"
+                                                class="w-16 px-1 py-0.5 text-xs font-black text-center rounded border border-amber-300 bg-white text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                                                value="0" onclick="event.stopPropagation();">
+                                            <span class="text-[10px] font-bold text-amber-900">Coins</span>
+                                        </div>
+                                        <div id="modal_coins_balance_preview" class="mt-1 text-[10px] text-amber-900/80 font-medium truncate">
+                                            Bal: 0 → 0
+                                        </div>
+                                    </label>
+
+                                    {{-- Option 2: Reverse Impact --}}
+                                    <label id="card_opt_reverse_impact" for="opt_reverse_impact" class="relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-purple-50/90 border-purple-300 text-purple-900 shadow-2xs hover:shadow-xs">
+                                        <input type="checkbox" name="reverse_impact" id="opt_reverse_impact" value="1" checked class="hidden peer">
+                                        
+                                        {{-- Top-Right Indicator --}}
+                                        <div id="check_indicator_impact" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+                                            <i class="bi bi-check"></i>
+                                        </div>
+                                        <div id="uncheck_indicator_impact" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full border border-slate-300 text-slate-400 items-center justify-center text-[9px] hidden">
+                                            <i class="bi bi-x"></i>
+                                        </div>
+
+                                        <div class="flex items-center justify-center gap-1.5 text-xs font-bold leading-tight">
+                                            <i class="bi bi-stars text-purple-600 text-sm"></i>
+                                            <span>Reverse Impact</span>
+                                        </div>
+                                        <div class="mt-1.5 flex items-center justify-center gap-1">
+                                            <span class="text-[11px] font-bold text-purple-900">Deduct:</span>
+                                            <input type="number" name="impact_amount" id="modal_impact_amount_input" min="0" step="1"
+                                                class="w-20 px-1 py-0.5 text-xs font-black text-center rounded border border-purple-300 bg-white text-purple-900 focus:outline-none focus:ring-1 focus:ring-purple-500 shadow-2xs"
+                                                value="0" onclick="event.stopPropagation();">
+                                            <span class="text-[10px] font-bold text-purple-900">Impact</span>
+                                        </div>
+                                        <div id="modal_impact_balance_preview" class="mt-1 text-[10px] text-purple-900/80 font-medium truncate">
+                                            Score: 0 → 0
+                                        </div>
+                                    </label>
+
+                                    {{-- Option 3: Notify User --}}
+                                    <label id="card_opt_notify_user" for="opt_notify_user" class="relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-sky-50/90 border-sky-300 text-sky-900 shadow-2xs hover:shadow-xs">
+                                        <input type="checkbox" name="notify_user" id="opt_notify_user" value="1" checked class="hidden peer">
+                                        
+                                        {{-- Top-Right Indicator --}}
+                                        <div id="check_indicator_notify" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+                                            <i class="bi bi-check"></i>
+                                        </div>
+                                        <div id="uncheck_indicator_notify" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full border border-slate-300 text-slate-400 items-center justify-center text-[9px] hidden">
+                                            <i class="bi bi-x"></i>
+                                        </div>
+
+                                        <div class="flex items-center justify-center gap-1.5 text-xs font-bold leading-tight">
+                                            <i class="bi bi-bell-fill text-sky-600 text-sm"></i>
+                                            <span>Notify User</span>
+                                        </div>
+                                        <div id="modal_notify_badge" class="mt-1.5 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5">
+                                            Push & In-App
+                                        </div>
+                                        <div id="modal_notify_preview" class="mt-1 text-[10px] text-sky-900/80 font-medium truncate">
+                                            Alert sent to peer
+                                        </div>
+                                    </label>
                                 </div>
-                                <div class="flex-1 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1.5 text-center">
-                                    <span class="text-xs font-bold text-purple-800 flex items-center justify-center gap-1.5">
-                                        <i class="bi bi-stars text-purple-600"></i> Reverse Impact
-                                    </span>
-                                </div>
-                                <div class="flex-1 bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-center">
-                                    <span class="text-xs font-bold text-sky-800 flex items-center justify-center gap-1.5">
-                                        <i class="bi bi-bell-fill text-sky-600"></i> Notify User
-                                    </span>
+
+                                {{-- Dynamic Live Impact / Summary Box --}}
+                                <div id="modal_action_summary_box" class="rounded-xl p-2.5 text-xs border border-amber-200 bg-amber-50/80 text-amber-950 flex items-start gap-2 shadow-2xs transition-all duration-200">
+                                    <i class="bi bi-info-circle-fill text-amber-600 mt-0.5 shrink-0 text-sm"></i>
+                                    <div id="modal_action_summary_text" class="leading-relaxed">
+                                        Will reverse awarded rewards & notify member.
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -688,6 +814,140 @@
         const mediaContainer = document.getElementById('modal_post_media_container');
         const mediaEl = document.getElementById('modal_post_media');
 
+        const optReverseCoins = document.getElementById('opt_reverse_coins');
+        const optReverseImpact = document.getElementById('opt_reverse_impact');
+        const optNotifyUser = document.getElementById('opt_notify_user');
+
+        const cardReverseCoins = document.getElementById('card_opt_reverse_coins');
+        const cardReverseImpact = document.getElementById('card_opt_reverse_impact');
+        const cardNotifyUser = document.getElementById('card_opt_notify_user');
+
+        const checkIndicatorCoins = document.getElementById('check_indicator_coins');
+        const uncheckIndicatorCoins = document.getElementById('uncheck_indicator_coins');
+        const checkIndicatorImpact = document.getElementById('check_indicator_impact');
+        const uncheckIndicatorImpact = document.getElementById('uncheck_indicator_impact');
+        const checkIndicatorNotify = document.getElementById('check_indicator_notify');
+        const uncheckIndicatorNotify = document.getElementById('uncheck_indicator_notify');
+
+        const coinsAmountInput = document.getElementById('modal_coins_amount_input');
+        const impactAmountInput = document.getElementById('modal_impact_amount_input');
+
+        const coinsBalancePreview = document.getElementById('modal_coins_balance_preview');
+        const impactBalancePreview = document.getElementById('modal_impact_balance_preview');
+        const notifyBadge = document.getElementById('modal_notify_badge');
+        const notifyPreview = document.getElementById('modal_notify_preview');
+
+        const summaryBox = document.getElementById('modal_action_summary_box');
+        const summaryText = document.getElementById('modal_action_summary_text');
+
+        let currentOwnerName = 'Member';
+        let currentCoinsToRev = 0;
+        let currentImpactToRev = 0;
+        let currentUserCoins = 0;
+        let currentUserImpact = 0;
+
+        function refreshOptionCardUi() {
+            // 1. Coins Card State
+            if (optReverseCoins && optReverseCoins.checked) {
+                if (cardReverseCoins) cardReverseCoins.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-amber-50/90 border-amber-300 text-amber-900 shadow-2xs hover:shadow-xs';
+                if (checkIndicatorCoins) checkIndicatorCoins.classList.remove('hidden');
+                if (uncheckIndicatorCoins) uncheckIndicatorCoins.classList.add('hidden');
+                if (coinsAmountInput) coinsAmountInput.disabled = false;
+                if (coinsBalancePreview) coinsBalancePreview.textContent = 'Bal: ' + currentUserCoins.toLocaleString() + ' → ' + Math.max(0, currentUserCoins - currentCoinsToRev).toLocaleString();
+            } else if (cardReverseCoins) {
+                cardReverseCoins.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-slate-100/70 border-slate-200 text-slate-500 opacity-70 hover:opacity-90';
+                if (checkIndicatorCoins) checkIndicatorCoins.classList.add('hidden');
+                if (uncheckIndicatorCoins) uncheckIndicatorCoins.classList.remove('hidden');
+                if (coinsAmountInput) coinsAmountInput.disabled = true;
+                if (coinsBalancePreview) coinsBalancePreview.textContent = 'Bal: ' + currentUserCoins.toLocaleString() + ' (No change)';
+            }
+
+            // 2. Impact Card State
+            if (optReverseImpact && optReverseImpact.checked) {
+                if (cardReverseImpact) cardReverseImpact.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-purple-50/90 border-purple-300 text-purple-900 shadow-2xs hover:shadow-xs';
+                if (checkIndicatorImpact) checkIndicatorImpact.classList.remove('hidden');
+                if (uncheckIndicatorImpact) uncheckIndicatorImpact.classList.add('hidden');
+                if (impactAmountInput) impactAmountInput.disabled = false;
+                if (impactBalancePreview) impactBalancePreview.textContent = 'Score: ' + currentUserImpact.toLocaleString() + ' → ' + Math.max(0, currentUserImpact - currentImpactToRev).toLocaleString();
+            } else if (cardReverseImpact) {
+                cardReverseImpact.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-slate-100/70 border-slate-200 text-slate-500 opacity-70 hover:opacity-90';
+                if (checkIndicatorImpact) checkIndicatorImpact.classList.add('hidden');
+                if (uncheckIndicatorImpact) uncheckIndicatorImpact.classList.remove('hidden');
+                if (impactAmountInput) impactAmountInput.disabled = true;
+                if (impactBalancePreview) impactBalancePreview.textContent = 'Score: ' + currentUserImpact.toLocaleString() + ' (No change)';
+            }
+
+            // 3. Notify Card State
+            if (optNotifyUser && optNotifyUser.checked) {
+                if (cardNotifyUser) cardNotifyUser.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-sky-50/90 border-sky-300 text-sky-900 shadow-2xs hover:shadow-xs';
+                if (checkIndicatorNotify) checkIndicatorNotify.classList.remove('hidden');
+                if (uncheckIndicatorNotify) uncheckIndicatorNotify.classList.add('hidden');
+                if (notifyBadge) {
+                    notifyBadge.textContent = 'Push & In-App';
+                    notifyBadge.className = 'mt-1.5 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5';
+                }
+                if (notifyPreview) notifyPreview.textContent = 'Alert sent to peer';
+            } else if (cardNotifyUser) {
+                cardNotifyUser.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-slate-100/70 border-slate-200 text-slate-500 opacity-70 hover:opacity-90';
+                if (checkIndicatorNotify) checkIndicatorNotify.classList.add('hidden');
+                if (uncheckIndicatorNotify) uncheckIndicatorNotify.classList.remove('hidden');
+                if (notifyBadge) {
+                    notifyBadge.textContent = 'Silent (No Alert)';
+                    notifyBadge.className = 'mt-1.5 text-xs font-semibold tracking-tight text-slate-600 bg-slate-200/80 rounded-md py-0.5 px-1.5';
+                }
+                if (notifyPreview) notifyPreview.textContent = 'Peer will not be alerted';
+            }
+
+            // 4. Live Summary Text
+            let actions = [];
+            const effectiveCoins = (optReverseCoins && optReverseCoins.checked) ? currentCoinsToRev : 0;
+            const effectiveImpact = (optReverseImpact && optReverseImpact.checked) ? currentImpactToRev : 0;
+
+            if (effectiveCoins > 0) {
+                actions.push(`deduct <strong class="text-amber-800">-${effectiveCoins.toLocaleString()} Peers Coins</strong>`);
+            } else if (optReverseCoins && !optReverseCoins.checked && currentCoinsToRev > 0) {
+                actions.push(`<span class="text-slate-500">keep ${currentCoinsToRev.toLocaleString()} coins intact</span>`);
+            }
+
+            if (effectiveImpact > 0) {
+                actions.push(`deduct <strong class="text-purple-800">-${effectiveImpact.toLocaleString()} Life Impact</strong>`);
+            } else if (optReverseImpact && !optReverseImpact.checked && currentImpactToRev > 0) {
+                actions.push(`<span class="text-slate-500">keep ${currentImpactToRev.toLocaleString()} life impact intact</span>`);
+            }
+
+            let summaryHtml = `Will deactivate post`;
+            if (actions.length > 0) {
+                summaryHtml += `, ${actions.join(' and ')} from <strong>${currentOwnerName}</strong>`;
+            } else {
+                summaryHtml += ` for <strong>${currentOwnerName}</strong> without decreasing coins or life impact score`;
+            }
+
+            if (optNotifyUser && optNotifyUser.checked) {
+                summaryHtml += `, and send them an in-app & push notification explaining the reason.`;
+            } else {
+                summaryHtml += `, without notifying the member.`;
+            }
+
+            if (summaryText) summaryText.innerHTML = summaryHtml;
+        }
+
+        if (optReverseCoins) optReverseCoins.addEventListener('change', refreshOptionCardUi);
+        if (optReverseImpact) optReverseImpact.addEventListener('change', refreshOptionCardUi);
+        if (optNotifyUser) optNotifyUser.addEventListener('change', refreshOptionCardUi);
+
+        if (coinsAmountInput) {
+            coinsAmountInput.addEventListener('input', function () {
+                currentCoinsToRev = Math.max(0, parseInt(this.value || '0', 10));
+                refreshOptionCardUi();
+            });
+        }
+        if (impactAmountInput) {
+            impactAmountInput.addEventListener('input', function () {
+                currentImpactToRev = Math.max(0, parseInt(this.value || '0', 10));
+                refreshOptionCardUi();
+            });
+        }
+
         function updateCounter() {
             const len = remarksInput.value.length;
             charCounter.textContent = len + ' / 1000';
@@ -718,6 +978,43 @@
             contentEl.textContent = btn.getAttribute('data-content') || 'No caption';
             dateEl.textContent = btn.getAttribute('data-date') || '—';
 
+            currentOwnerName = btn.getAttribute('data-owner-name') || 'Member';
+            currentCoinsToRev = parseInt(btn.getAttribute('data-coins-to-reverse') || '0', 10);
+            currentImpactToRev = parseInt(btn.getAttribute('data-impact-to-reverse') || '0', 10);
+            currentUserCoins = parseInt(btn.getAttribute('data-user-coins') || '0', 10);
+            currentUserImpact = parseInt(btn.getAttribute('data-user-impact') || '0', 10);
+
+            if (optReverseCoins) optReverseCoins.checked = true;
+            if (optReverseImpact) optReverseImpact.checked = true;
+            if (optNotifyUser) optNotifyUser.checked = true;
+
+            if (coinsAmountInput) coinsAmountInput.value = currentCoinsToRev;
+            if (impactAmountInput) impactAmountInput.value = currentImpactToRev;
+
+            refreshOptionCardUi();
+
+            const previewUrl = btn.getAttribute('data-preview-url');
+            if (previewUrl) {
+                fetch(previewUrl, { headers: { 'Accept': 'application/json' } })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d && d.success && d.preview) {
+                            currentCoinsToRev = parseInt(d.preview.coins_to_reverse || 0, 10);
+                            currentImpactToRev = parseInt(d.preview.impact_to_reverse || 0, 10);
+                            currentUserCoins = parseInt(d.preview.current_coins || 0, 10);
+                            currentUserImpact = parseInt(d.preview.current_impact || 0, 10);
+                            if (d.preview.user_name && d.preview.user_name !== 'Member') {
+                                currentOwnerName = d.preview.user_name;
+                                ownerEl.textContent = currentOwnerName;
+                            }
+                            if (coinsAmountInput) coinsAmountInput.value = currentCoinsToRev;
+                            if (impactAmountInput) impactAmountInput.value = currentImpactToRev;
+                            refreshOptionCardUi();
+                        }
+                    })
+                    .catch(() => {});
+            }
+
             const initials = btn.getAttribute('data-owner-initials') || 'P';
             const bg = btn.getAttribute('data-owner-bg') || '#6366f1';
             avatarEl.textContent = initials;
@@ -733,12 +1030,16 @@
             }
 
             modal.classList.remove('hidden');
+            modal.style.display = 'block';
             document.body.classList.add('overflow-hidden');
-            remarksInput.focus();
+            setTimeout(function () {
+                if (remarksInput) remarksInput.focus();
+            }, 50);
         }
 
         function closeModal() {
             modal.classList.add('hidden');
+            modal.style.display = 'none';
             document.body.classList.remove('overflow-hidden');
         }
 

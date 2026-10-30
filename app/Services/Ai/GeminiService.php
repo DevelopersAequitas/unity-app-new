@@ -135,4 +135,276 @@ class GeminiService
 
         throw new RuntimeException("Gemini API call failed: {$lastError}");
     }
+
+    /**
+     * Generate 768-float embedding vector using Gemini text-embedding-004.
+     *
+     * @return array<int, float>|null
+     */
+    public function embedText(string $text): ?array
+    {
+        $apiKey = (string) config('services.gemini.api_key');
+        if (blank($apiKey) || blank(trim($text))) {
+            return null;
+        }
+
+        try {
+            $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={$apiKey}";
+            $response = Http::timeout(15)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
+                ->post($endpoint, [
+                    'model' => 'models/text-embedding-004',
+                    'content' => [
+                        'parts' => [
+                            ['text' => mb_substr($text, 0, 8000)],
+                        ],
+                    ],
+                ]);
+
+            if ($response->successful()) {
+                $values = $response->json('embedding.values');
+                if (is_array($values) && $values !== []) {
+                    return array_map('floatval', $values);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('GeminiService.embedText failed', ['error' => $e->getMessage()]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Execute multi-turn chat with Gemini Function Calling (Live DB Tools) and return structured JSON.
+     *
+     * @param  array<int, array<string, mixed>>  $contents
+     * @param  array<int, array<string, mixed>>  $functionDeclarations
+     * @param  callable(string, array<string, mixed>): array<string, mixed>  $toolExecutor
+     * @return array<string, mixed>
+     */
+    public function generateChatWithTools(
+        array $contents,
+        ?string $systemInstruction,
+        ?string $model,
+        float $temperature,
+        array $functionDeclarations,
+        callable $toolExecutor
+    ): array {
+        $apiKey = (string) config('services.gemini.api_key');
+        if (blank($apiKey)) {
+            throw new RuntimeException('Gemini API key is not configured.');
+        }
+
+        $configuredDefault = (string) config('services.gemini.model', 'gemini-2.0-flash');
+        $rawModel = $model ?: $configuredDefault;
+        $normalizedModel = str_starts_with($rawModel, 'models/') ? substr($rawModel, 7) : $rawModel;
+        $primaryModel = self::LEGACY_MODEL_MAP[$normalizedModel] ?? $normalizedModel;
+
+        $modelsToTry = array_unique(array_filter([
+            $primaryModel,
+            'gemini-2.0-flash',
+            'gemini-2.5-flash',
+        ]));
+
+        $lastError = 'Unknown Gemini API error';
+
+        foreach ($modelsToTry as $selectedModel) {
+            $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
+            $conversation = $contents;
+            $executedResultsSummary = [];
+
+            for ($step = 0; $step < 3; $step++) {
+                $payload = [
+                    'contents' => $conversation,
+                    'generationConfig' => [
+                        'temperature' => $temperature,
+                    ],
+                ];
+
+                if (filled($systemInstruction)) {
+                    $payload['systemInstruction'] = [
+                        'parts' => [
+                            ['text' => $systemInstruction],
+                        ],
+                    ];
+                }
+
+                if ($functionDeclarations !== [] && $step < 2) {
+                    $payload['tools'] = [
+                        ['functionDeclarations' => $functionDeclarations],
+                    ];
+                } else {
+                    $payload['generationConfig']['responseMimeType'] = 'application/json';
+                }
+
+                Log::info('GeminiService.generateChatWithTools: sending request', [
+                    'model' => $selectedModel,
+                    'step' => $step,
+                    'tools_count' => count($functionDeclarations),
+                ]);
+
+                $response = Http::timeout(30)
+                    ->withHeaders([
+                        'Content-Type' => 'application/json',
+                        'x-goog-api-key' => $apiKey,
+                    ])
+                    ->post($endpoint, $payload);
+
+                if (! $response->successful()) {
+                    $lastError = (string) ($response->json('error.message') ?? 'Gemini API request failed');
+                    $statusCode = $response->status();
+
+                    Log::warning('GeminiService.generateChatWithTools: attempt failed', [
+                        'model' => $selectedModel,
+                        'step' => $step,
+                        'status' => $statusCode,
+                        'error' => $lastError,
+                    ]);
+
+                    // If a 400 schema/functionCall error occurs, retry cleanly with tool results injected as text context
+                    if ($statusCode === 400) {
+                        unset($payload['tools']);
+                        $payload['generationConfig']['responseMimeType'] = 'application/json';
+                        if ($executedResultsSummary !== []) {
+                            $fallbackConversation = $contents;
+                            $fallbackConversation[] = [
+                                'role' => 'user',
+                                'parts' => [
+                                    ['text' => "LIVE DATABASE RESULTS:\n".json_encode($executedResultsSummary, JSON_UNESCAPED_UNICODE)],
+                                ],
+                            ];
+                            $payload['contents'] = $fallbackConversation;
+                        }
+                        $response = Http::timeout(30)
+                            ->withHeaders([
+                                'Content-Type' => 'application/json',
+                                'x-goog-api-key' => $apiKey,
+                            ])
+                            ->post($endpoint, $payload);
+                    }
+
+                    if (! $response->successful()) {
+                        $lastError = (string) ($response->json('error.message') ?? 'Gemini API request failed');
+                        $statusCode = $response->status();
+                        $isRetryable = $statusCode === 404
+                            || $statusCode === 429
+                            || $statusCode >= 500
+                            || str_contains($lastError, 'is not found')
+                            || str_contains($lastError, 'not supported')
+                            || str_contains($lastError, 'quota');
+                        if ($isRetryable) {
+                            continue 2;
+                        }
+                        throw new RuntimeException("Gemini API call failed: {$lastError}");
+                    }
+                }
+
+                $parts = $response->json('candidates.0.content.parts') ?? [];
+                $functionCalls = [];
+                $textParts = [];
+                $normalizedModelParts = [];
+
+                foreach ($parts as $part) {
+                    if (isset($part['functionCall'])) {
+                        $functionCalls[] = $part['functionCall'];
+                        $part['functionCall']['args'] = (object) (is_array($part['functionCall']['args'] ?? null) ? $part['functionCall']['args'] : []);
+                        $normalizedModelParts[] = $part;
+                    } elseif (isset($part['text'])) {
+                        $textParts[] = (string) $part['text'];
+                        $normalizedModelParts[] = $part;
+                    }
+                }
+
+                if ($functionCalls !== []) {
+                    $conversation[] = [
+                        'role' => 'model',
+                        'parts' => $normalizedModelParts,
+                    ];
+
+                    $responseParts = [];
+                    $executedResultsSummary = [];
+                    foreach ($functionCalls as $call) {
+                        $fnName = (string) ($call['name'] ?? '');
+                        $fnArgs = is_array($call['args'] ?? null) ? $call['args'] : [];
+                        try {
+                            $toolResult = $toolExecutor($fnName, $fnArgs);
+                        } catch (\Throwable $toolErr) {
+                            Log::error('GeminiService.generateChatWithTools: tool execution error', [
+                                'tool' => $fnName,
+                                'error' => $toolErr->getMessage(),
+                            ]);
+                            $toolResult = ['error' => $toolErr->getMessage()];
+                        }
+
+                        $executedResultsSummary[$fnName] = $toolResult;
+                        $responseParts[] = [
+                            'functionResponse' => [
+                                'name' => $fnName,
+                                'response' => [
+                                    'name' => $fnName,
+                                    'content' => (object) $toolResult,
+                                ],
+                            ],
+                        ];
+                    }
+
+                    $conversation[] = [
+                        'role' => 'function',
+                        'parts' => $responseParts,
+                    ];
+
+                    continue;
+                }
+
+                $rawText = trim(implode("\n", $textParts));
+
+                return $this->parseStructuredReply($rawText);
+            }
+        }
+
+        throw new RuntimeException("Gemini API call failed: {$lastError}");
+    }
+
+    /**
+     * Parse raw text or JSON from Gemini into the structured Chatbot reply format.
+     *
+     * @return array{reply_markdown: string, attachments: array<int, mixed>, suggested_follow_ups: array<int, string>}
+     */
+    private function parseStructuredReply(string $rawText): array
+    {
+        $clean = trim($rawText);
+        if (str_starts_with($clean, '```json')) {
+            $clean = substr($clean, 7);
+        } elseif (str_starts_with($clean, '```')) {
+            $clean = substr($clean, 3);
+        }
+        if (str_ends_with($clean, '```')) {
+            $clean = substr($clean, 0, -3);
+        }
+        $clean = trim($clean);
+
+        $decoded = json_decode($clean, true);
+        if (! is_array($decoded) && preg_match('/\{[\s\S]*\}/', $clean, $matches)) {
+            $decoded = json_decode($matches[0], true);
+        }
+
+        if (is_array($decoded) && isset($decoded['reply_markdown'])) {
+            return [
+                'reply_markdown' => (string) $decoded['reply_markdown'],
+                'attachments' => is_array($decoded['attachments'] ?? null) ? $decoded['attachments'] : [],
+                'suggested_follow_ups' => is_array($decoded['suggested_follow_ups'] ?? null)
+                    ? array_values(array_map('strval', $decoded['suggested_follow_ups']))
+                    : [],
+            ];
+        }
+
+        return [
+            'reply_markdown' => $clean !== '' ? $clean : 'I am here to help! Could you please rephrase your question?',
+            'attachments' => [],
+            'suggested_follow_ups' => [],
+        ];
+    }
 }
