@@ -711,7 +711,13 @@ class EventManagementController extends Controller
         }
 
         if (! empty($data['start_at'])) {
-            $utcStart = Carbon::parse($data['start_at'])->utc();
+            $rawStartStr = trim((string) $data['start_at']);
+            $hasExplicitTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawStartStr);
+            $utcStart = ($hasExplicitTz ? Carbon::parse($rawStartStr) : Carbon::parse($rawStartStr, $timezone))->utc();
+            $data['start_at'] = $utcStart->toDateTimeString();
+            $localStart = $utcStart->copy()->setTimezone($timezone);
+        } elseif ($request->filled('start_date') && $request->filled('start_time')) {
+            $utcStart = Carbon::parse($request->input('start_date').' '.$request->input('start_time'), $timezone)->utc();
             $data['start_at'] = $utcStart->toDateTimeString();
             $localStart = $utcStart->copy()->setTimezone($timezone);
         } else {
@@ -720,7 +726,11 @@ class EventManagementController extends Controller
         }
 
         if (! empty($data['end_at'])) {
-            $data['end_at'] = Carbon::parse($data['end_at'])->utc()->toDateTimeString();
+            $rawEndStr = trim((string) $data['end_at']);
+            $hasExplicitEndTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawEndStr);
+            $data['end_at'] = ($hasExplicitEndTz ? Carbon::parse($rawEndStr) : Carbon::parse($rawEndStr, $timezone))->utc()->toDateTimeString();
+        } elseif ($utcStart && $request->filled('duration_minutes')) {
+            $data['end_at'] = $utcStart->copy()->addMinutes(max(1, (int) $request->input('duration_minutes')))->toDateTimeString();
         }
 
         $data['event_type'] = match ($data['event_type'] ?? null) {
@@ -777,6 +787,10 @@ class EventManagementController extends Controller
 
         $metadata = $this->normalizeMetadata($event?->metadata ?? ($data['metadata'] ?? []));
         $metadata['timezone'] = $timezone;
+        if ($request->filled('duration_minutes')) {
+            $metadata['duration_minutes'] = max(1, (int) $request->input('duration_minutes'));
+            $metadata['duration_seconds'] = $metadata['duration_minutes'] * 60;
+        }
         $metadata['what_youll_gain'] = $this->cleanGains($data['what_youll_gain'] ?? []);
         $metadata['organizer'] = [
             'name' => $data['organizer_name'] ?? null,

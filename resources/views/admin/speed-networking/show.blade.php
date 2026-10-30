@@ -80,9 +80,17 @@
           <span class="font-semibold text-slate-700">Schedule:</span>
           <span>
             @if(!empty($event->scheduled_start_time))
-              {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('M d, Y h:i A') : $event->scheduled_start_time->format('M d, Y h:i A') }}
+              @php
+                $showStartUtcIso = \Carbon\Carbon::parse($event->scheduled_start_time)->utc()->toIso8601String();
+              @endphp
+              <span class="utc-to-local" data-utc="{{ $showStartUtcIso }}">
+                {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('M d, Y h:i A') : $event->scheduled_start_time->format('M d, Y h:i A') }}
+              </span>
               @if(!empty($event->scheduled_end_time))
-                to {{ is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('h:i A') : $event->scheduled_end_time->format('h:i A') }}
+                @php
+                  $showEndUtcIso = \Carbon\Carbon::parse($event->scheduled_end_time)->utc()->toIso8601String();
+                @endphp
+                to <span class="utc-to-local" data-utc="{{ $showEndUtcIso }}">{{ is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('h:i A') : $event->scheduled_end_time->format('h:i A') }}</span>
               @endif
             @else
               Manual Start / Open Schedule
@@ -635,13 +643,13 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
-          <input type="datetime-local" name="scheduled_start_time" onchange="autoCalculateEndTime('editSettingsModal')" value="{{ !empty($event->scheduled_start_time) ? (is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('Y-m-d\TH:i') : $event->scheduled_start_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <input type="datetime-local" name="scheduled_start_time" onchange="autoCalculateEndTime('editSettingsModal')" data-utc="{{ !empty($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->utc()->toIso8601String() : '' }}" value="{{ !empty($event->scheduled_start_time) ? (is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('Y-m-d\TH:i') : $event->scheduled_start_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">
             Scheduled End Time <span class="text-slate-400 font-normal">(Auto if blank)</span>
           </label>
-          <input type="datetime-local" name="scheduled_end_time" value="{{ !empty($event->scheduled_end_time) ? (is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('Y-m-d\TH:i') : $event->scheduled_end_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <input type="datetime-local" name="scheduled_end_time" data-utc="{{ !empty($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->utc()->toIso8601String() : '' }}" value="{{ !empty($event->scheduled_end_time) ? (is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('Y-m-d\TH:i') : $event->scheduled_end_time->format('Y-m-d\TH:i')) : '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
       </div>
 

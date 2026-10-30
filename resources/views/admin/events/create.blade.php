@@ -166,7 +166,7 @@
     $startDateVal = '';
     $startTimeVal = '';
     if ($rawStart) {
-        $startCarbon = \Carbon\Carbon::parse($rawStart);
+        $startCarbon = \Carbon\Carbon::parse($rawStart)->setTimezone($eventTimezone ?: 'Asia/Kolkata');
         $startDateVal = $startCarbon->format('Y-m-d');
         $startTimeVal = $startCarbon->format('H:i');
     }
@@ -456,7 +456,7 @@
                         <div class="col-12">
                             <div class="d-flex align-items-center gap-3 mt-1 small">
                                 <span class="text-muted"><i class="bi bi-clock-history me-1 text-primary"></i>Scheduled End Time: <strong id="endTimePreview" class="text-primary font-monospace">--:--</strong></span>
-                                <span class="text-muted"><i class="bi bi-info-circle me-1"></i>Times are saved and displayed in exact standard UTC.</span>
+                                <span class="text-muted"><i class="bi bi-info-circle me-1"></i>Enter in your local time — automatically converted and saved in UTC.</span>
                             </div>
                             <div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div>
                         </div>
@@ -774,13 +774,20 @@
             const startAt = document.getElementById('startAtHidden').value;
             const endAt = document.getElementById('endAtHidden').value;
 
-            // If start inputs are not populated yet, split startAt strictly without browser timezone shift
-            if ((!sdInput.value || !stInput.value) && startAt) {
-                let normalized = String(startAt).replace(/Z$/i, '').trim();
-                const parts = normalized.split(/[T ]/);
-                if (parts.length >= 2) {
-                    if (!sdInput.value) sdInput.value = parts[0];
-                    if (!stInput.value) stInput.value = parts[1].slice(0, 5);
+            // Populate startDate and startTime in browser local time from stored UTC startAt
+            if (startAt) {
+                const utcIso = (startAt.endsWith('Z') || startAt.endsWith('z') || /[+-]\d{2}:?\d{2}$/.test(startAt))
+                    ? startAt
+                    : startAt.replace(' ', 'T') + 'Z';
+                const localDate = new Date(utcIso);
+                if (!isNaN(localDate.getTime())) {
+                    const yyyy = localDate.getFullYear();
+                    const mm = String(localDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(localDate.getDate()).padStart(2, '0');
+                    const hh = String(localDate.getHours()).padStart(2, '0');
+                    const min = String(localDate.getMinutes()).padStart(2, '0');
+                    sdInput.value = `${yyyy}-${mm}-${dd}`;
+                    stInput.value = `${hh}:${min}`;
                 }
             }
 
@@ -876,26 +883,28 @@
                 }
                 const [hours, minutes] = st.split(':').map(Number);
 
-                // Build UTC milliseconds directly, completely avoiding browser timezone shift
-                const startUtcMs = Date.UTC(year, month - 1, day, hours, minutes, 0);
-                if (!isNaN(startUtcMs)) {
-                    const startDateObj = new Date(startUtcMs);
-                    const endDateObj = new Date(startUtcMs + (durationMinutes * 60 * 1000));
+                // Construct Date in admin's local browser timezone, then convert to UTC via toISOString()
+                const startDateObj = new Date(year, month - 1, day, hours, minutes, 0);
+                const startMs = startDateObj.getTime();
+                if (!isNaN(startMs)) {
+                    const endDateObj = new Date(startMs + (durationMinutes * 60 * 1000));
 
                     document.getElementById('startAtHidden').value = startDateObj.toISOString();
                     document.getElementById('endAtHidden').value = endDateObj.toISOString();
 
-                    // Update End Time Preview
-                    const endHours = String(endDateObj.getUTCHours()).padStart(2, '0');
-                    const endMins = String(endDateObj.getUTCMinutes()).padStart(2, '0');
-                    const endDay = String(endDateObj.getUTCDate()).padStart(2, '0');
-                    const endMonth = String(endDateObj.getUTCMonth() + 1).padStart(2, '0');
-                    const endYear = endDateObj.getUTCFullYear();
+                    // Update End Time Preview in local time (with UTC reference)
+                    const endHours = String(endDateObj.getHours()).padStart(2, '0');
+                    const endMins = String(endDateObj.getMinutes()).padStart(2, '0');
+                    const endDay = String(endDateObj.getDate()).padStart(2, '0');
+                    const endMonth = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                    const endYear = endDateObj.getFullYear();
+                    const utcHours = String(endDateObj.getUTCHours()).padStart(2, '0');
+                    const utcMins = String(endDateObj.getUTCMinutes()).padStart(2, '0');
 
                     const previewEl = document.getElementById('endTimePreview');
                     if (previewEl) {
                         const isDifferentDay = (endDay !== String(day).padStart(2, '0') || endMonth !== String(month).padStart(2, '0'));
-                        previewEl.textContent = `${endHours}:${endMins} UTC` + (isDifferentDay ? ` (${endDay}-${endMonth}-${endYear})` : '');
+                        previewEl.textContent = `${endHours}:${endMins}` + (isDifferentDay ? ` (${endDay}-${endMonth}-${endYear})` : '') + ` [${utcHours}:${utcMins} UTC]`;
                     }
                 }
             } else {
