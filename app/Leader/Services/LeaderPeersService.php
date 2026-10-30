@@ -91,80 +91,77 @@ class LeaderPeersService
         }
 
         if ($role === 'industryDirector') {
-            $adminUser = AdminUser::query()->where('id', $userId)
-                ->orWhere('email', $user->email)
-                ->first();
-            $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
+            // An Industry Director only works inside the main categories (of the 18) assigned to them.
+            // Every circle built under those categories (plus circles they are explicitly set as
+            // industry director of) is in scope; multiple assigned categories are supported.
+            $assignedCategoryIds = $this->resolveIndustryDirectorCategoryIds($user);
 
-            $assignedIndustryIds = [];
-            $assignedIndustryNames = [];
-            if (Schema::hasTable('industry_director_assignments')) {
-                $assignmentRows = DB::table('industry_director_assignments')
-                    ->where(function ($q) use ($adminUserIds): void {
-                        $q->whereIn('admin_user_id', $adminUserIds);
-                        if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
-                            $q->orWhereIn('user_id', $adminUserIds);
-                        }
-                    })
-                    ->where('is_active', true)
-                    ->get();
+            $circleQuery = Circle::query()->whereNull('deleted_at')->where(function ($q) use ($userId, $assignedCategoryIds): void {
+                $q->where('industry_director_user_id', $userId);
 
-                foreach ($assignmentRows as $row) {
-                    foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
-                        if (! empty($row->{$col})) {
-                            $assignedIndustryIds[] = (string) $row->{$col};
-                        }
+                if (! empty($assignedCategoryIds)) {
+                    if (Schema::hasColumn('circles', 'circle_category_id')) {
+                        $q->orWhereIn('circle_category_id', $assignedCategoryIds);
                     }
-                    if (! empty($row->industry_name)) {
-                        $assignedIndustryNames[] = (string) $row->industry_name;
+                    if (Schema::hasTable('circle_category_mappings')) {
+                        $q->orWhereIn('circles.id', DB::table('circle_category_mappings')
+                            ->whereIn('category_id', $assignedCategoryIds)
+                            ->select('circle_id'));
                     }
                 }
-            }
+            });
 
-            if (! empty($user->main_business_category_id)) {
-                $assignedIndustryIds[] = (string) $user->main_business_category_id;
-            }
-            if (! empty($user->business_category_id)) {
-                $assignedIndustryIds[] = (string) $user->business_category_id;
-            }
-
-            $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
-            $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
-
-            $circleQuery = Circle::query()->whereNull('deleted_at')
-                ->where('industry_director_user_id', $userId);
-
-            if (! empty($assignedIndustryIds) || ! empty($assignedIndustryNames)) {
-                $circleQuery->orWhere(function ($q) use ($assignedIndustryIds, $assignedIndustryNames): void {
-                    if (Schema::hasColumn('circles', 'circle_category_id') && ! empty($assignedIndustryIds)) {
-                        $q->orWhereIn('circle_category_id', $assignedIndustryIds);
-                    }
-                    if (Schema::hasColumn('circles', 'industry_tags')) {
-                        foreach ($assignedIndustryIds as $indId) {
-                            $q->orWhere('industry_tags', 'like', '%'.$indId.'%');
-                        }
-                        foreach ($assignedIndustryNames as $indName) {
-                            $q->orWhereRaw('LOWER(CAST(industry_tags AS TEXT)) LIKE ?', ['%'.strtolower($indName).'%']);
-                        }
-                    }
-                    foreach ($assignedIndustryNames as $indName) {
-                        $q->orWhereRaw('LOWER(name) LIKE ?', ['%'.strtolower($indName).'%']);
-                    }
-                });
-            }
-
-            $circleIds = $circleQuery->pluck('id')->all();
-            if (! empty($joinedCircleIds)) {
-                $circleIds = array_values(array_unique(array_merge($circleIds, $joinedCircleIds)));
-            }
-
-            return ! empty($circleIds) ? $circleIds : [];
+            return $circleQuery->pluck('id')->map(fn ($id): string => (string) $id)->all();
         }
-
         // For circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, or any own-circle leader
         return $joinedCircleIds;
     }
 
+    /**
+     * Main categories (circle_categories ids, out of the 18) assigned to an Industry Director.
+     * Falls back to the user's own main business category only when no assignment exists.
+     *
+     * @return array<int, int>
+     */
+    public function resolveIndustryDirectorCategoryIds(User $user): array
+    {
+        $userId = (string) $user->id;
+        $adminUser = Schema::hasTable('admin_users')
+            ? AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first()
+            : null;
+        $ids = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
+
+        $categoryIds = [];
+        if (Schema::hasTable('industry_director_assignments')) {
+            $rows = DB::table('industry_director_assignments')
+                ->where(function ($q) use ($ids): void {
+                    $q->whereIn('admin_user_id', $ids);
+                    if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                        $q->orWhereIn('user_id', $ids);
+                    }
+                })
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($rows as $row) {
+                foreach (['industry_category_id', 'main_business_category_id', 'industry_id'] as $col) {
+                    if (isset($row->{$col}) && is_numeric($row->{$col})) {
+                        $categoryIds[] = (int) $row->{$col};
+                    }
+                }
+            }
+        }
+
+        if (empty($categoryIds)) {
+            foreach (['main_business_category_id', 'business_category_id'] as $col) {
+                if (! empty($user->{$col}) && is_numeric($user->{$col})) {
+                    $categoryIds[] = (int) $user->{$col};
+                }
+            }
+        }
+
+        return array_values(array_unique($categoryIds));
+    }
     /**
      * Resolve all circles a user is directly a member or leader of.
      *
@@ -418,7 +415,7 @@ class LeaderPeersService
                     }
                 }
 
-                if ($user) {
+                if ($user && empty($assignedIndustryIds)) {
                     if (! empty($user->main_business_category_id)) {
                         $assignedIndustryIds[] = (string) $user->main_business_category_id;
                     }

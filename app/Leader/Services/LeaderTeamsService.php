@@ -192,6 +192,7 @@ class LeaderTeamsService
         ?string $status = null,
     ): array {
         $isOwnCircleOrScoped = false;
+        $industryDirectorCategoryIds = null;
 
         if ($user) {
             $permissionService = app(LeaderPermissionService::class);
@@ -200,6 +201,11 @@ class LeaderTeamsService
 
             if (! in_array($role, ['superAdmin', 'countryDirector'], true)) {
                 $isOwnCircleOrScoped = true;
+            }
+
+            // Industry Directors only see the main categories assigned to them.
+            if ($role === 'industryDirector') {
+                $industryDirectorCategoryIds = array_map('strval', app(LeaderPeersService::class)->resolveIndustryDirectorCategoryIds($user));
             }
         }
 
@@ -272,6 +278,9 @@ class LeaderTeamsService
 
         foreach ($categories as $cat) {
             $catId = (string) $cat->id;
+            if ($industryDirectorCategoryIds !== null && ! in_array($catId, $industryDirectorCategoryIds, true)) {
+                continue;
+            }
             $slug = (string) ($cat->slug ?: Str::slug($cat->name));
             $categoryName = strtolower(trim((string) $cat->name));
 
@@ -363,7 +372,7 @@ class LeaderTeamsService
         }
 
         // If scoped user has circles but none matched standard 18 categories, synthesize from circle category
-        if ($isOwnCircleOrScoped && empty($results) && $circles->isNotEmpty()) {
+        if ($isOwnCircleOrScoped && $industryDirectorCategoryIds === null && empty($results) && $circles->isNotEmpty()) {
             foreach ($circles as $c) {
                 $cat = $this->resolveCircleCategory($c);
                 $peers = $c->members ? $c->members->where('status', 'approved')->count() : 0;

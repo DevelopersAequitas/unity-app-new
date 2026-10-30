@@ -1351,6 +1351,12 @@ class PendingRequestAdminController extends Controller
 
         $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
 
+        // Industry Directors receive requests for every main category assigned to them,
+        // even when no circle exists under that category yet.
+        if ($role === 'industryDirector') {
+            $categoryIds = array_merge($categoryIds, app(LeaderPeersService::class)->resolveIndustryDirectorCategoryIds($user));
+        }
+
         return [
             'role' => $role,
             'circle_ids' => array_values(array_unique(array_map('strval', $circleIds))),
