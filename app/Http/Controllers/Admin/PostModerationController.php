@@ -10,6 +10,7 @@ use App\Models\Post;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Admin\PermissionService;
+use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Media\BirthdayCreativeImageService;
 use App\Services\Referrals\ReferralCampaignConfigService;
 use App\Support\AdminAccess;
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -436,6 +438,75 @@ class PostModerationController extends Controller
                     }
                 }
             }
+        } elseif ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact') {
+            $celebratingUser = $post->source_id ? User::find($post->source_id) : $post->user;
+            if ($celebratingUser) {
+                $hasValidMedia = false;
+                $mediaItems = is_array($post->media) ? $post->media : [];
+                if (! empty($mediaItems)) {
+                    foreach ($mediaItems as $mediaItem) {
+                        $fileId = data_get($mediaItem, 'id');
+                        $url = data_get($mediaItem, 'url');
+                        if ($fileId) {
+                            $fileRecord = File::find($fileId);
+                            if ($fileRecord && $fileRecord->s3_key) {
+                                $disk = config('filesystems.default', 'public');
+                                if (Storage::disk($disk)->exists($fileRecord->s3_key) ||
+                                    Storage::disk('public')->exists($fileRecord->s3_key)) {
+                                    $hasValidMedia = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if ($url && ! str_contains($url, 'peersunity.com')) {
+                            $cleanPath = ltrim(preg_replace('#^https?://[^/]+/storage/#i', '', (string) $url), '/');
+                            if (Storage::disk('public')->exists($cleanPath) || file_exists(public_path($cleanPath))) {
+                                $hasValidMedia = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (! $hasValidMedia) {
+                    $threshold = 25;
+                    if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                        $threshold = (int) $matches[1];
+                    } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                        $threshold = (int) str_replace(',', '', $matches[1]);
+                    } elseif ((int) ($celebratingUser->life_impacted_count ?? 0) > 0) {
+                        $threshold = (int) $celebratingUser->life_impacted_count;
+                    }
+
+                    try {
+                        $generator = app(LifeImpactCreativeGenerator::class);
+                        $fileModel = $generator->generate($celebratingUser, $threshold, $threshold);
+                        $mediaUrl = url("/api/v1/files/{$fileModel->id}");
+                        $post->media = [
+                            [
+                                'id' => $fileModel->id,
+                                'type' => 'image',
+                                'url' => $mediaUrl,
+                            ],
+                        ];
+                        $post->image = $mediaUrl;
+                        $post->save();
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to dynamically generate life impact creative on View: '.$e->getMessage());
+                        $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+                        $badgeUrl = asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                        $post->media = [
+                            [
+                                'id' => (string) Str::uuid(),
+                                'type' => 'image',
+                                'url' => $badgeUrl,
+                            ],
+                        ];
+                        $post->image = $badgeUrl;
+                        $post->save();
+                    }
+                }
+            }
         }
 
         $deactivationPreview = null;
@@ -486,6 +557,13 @@ class PostModerationController extends Controller
         $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
         $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
 
+        $customCoins = $request->filled('coins_amount') && is_numeric($request->input('coins_amount'))
+            ? max(0, (int) $request->input('coins_amount'))
+            : null;
+        $customImpact = $request->filled('impact_amount') && is_numeric($request->input('impact_amount'))
+            ? max(0, (int) $request->input('impact_amount'))
+            : null;
+
         $admin = Auth::guard('admin')->user();
         $service = app(\App\Services\Posts\PostDeactivationService::class);
         $result = $service->deactivatePost(
@@ -494,7 +572,9 @@ class PostModerationController extends Controller
             $admin?->id,
             $reverseCoins,
             $reverseImpact,
-            $notifyUser
+            $notifyUser,
+            $customCoins,
+            $customImpact
         );
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -541,6 +621,10 @@ class PostModerationController extends Controller
         $reverseImpact = $hasOptions ? $request->boolean('reverse_impact') : true;
         $notifyUser = $hasOptions ? $request->boolean('notify_user') : true;
 
+        $customImpact = $request->filled('impact_amount') && is_numeric($request->input('impact_amount'))
+            ? max(0, (int) $request->input('impact_amount'))
+            : null;
+
         $admin = Auth::guard('admin')->user();
         $service = app(\App\Services\Posts\PostDeactivationService::class);
         $result = $service->deactivateImpact(
@@ -549,7 +633,8 @@ class PostModerationController extends Controller
             $admin?->id,
             $reverseCoins,
             $reverseImpact,
-            $notifyUser
+            $notifyUser,
+            $customImpact
         );
 
         if ($request->expectsJson() || $request->ajax()) {

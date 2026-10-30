@@ -12,7 +12,9 @@ use App\Models\File;
 use App\Models\FileModel;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\BirthdayCreativeImageService;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
+use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -96,8 +98,12 @@ class FileController extends BaseApiController
             if (! $file && Str::isUuid($id)) {
                 // Self-healing: check if this file ID is referenced by a timeline post and recreate the record if needed
                 try {
-                    $post = Post::where('media', 'LIKE', '%"id":"'.$id.'"%')
-                        ->orWhere('image', 'LIKE', '%'.$id.'%')
+                    $post = Post::withTrashed()
+                        ->where(function ($q) use ($id) {
+                            $q->where('media', 'LIKE', '%"id":"'.$id.'"%')
+                                ->orWhere('media', 'LIKE', '%'.$id.'%')
+                                ->orWhere('image', 'LIKE', '%'.$id.'%');
+                        })
                         ->first();
 
                     if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
@@ -140,6 +146,45 @@ class FileController extends BaseApiController
 
                             // Refresh the parent file lookup
                             $file = File::find($id);
+                        }
+                    } elseif ($post && ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact')) {
+                        $targetUser = $post->source_id ? User::find($post->source_id) : $post->user;
+                        if ($targetUser) {
+                            $threshold = 25;
+                            if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                                $threshold = (int) $matches[1];
+                            } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                                $threshold = (int) str_replace(',', '', $matches[1]);
+                            } elseif ((int) ($targetUser->life_impacted_count ?? 0) > 0) {
+                                $threshold = (int) $targetUser->life_impacted_count;
+                            }
+
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
+                            $fileModel->mime_type = 'image/png';
+                            $fileModel->save();
+
+                            try {
+                                $generator = app(LifeImpactCreativeGenerator::class);
+                                $generator->generate($targetUser, $threshold, $threshold, $fileModel);
+                            } catch (\Throwable $genEx) {
+                                Log::warning('[FileController] Creative generation failed, copying fallback badge: '.$genEx->getMessage());
+                                $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+                                $badgePath = public_path(ltrim($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png', '/'));
+                                if (file_exists($badgePath)) {
+                                    Storage::disk('public')->put($fileModel->s3_key, file_get_contents($badgePath));
+                                }
+                            }
+
+                            $file = File::find($id);
+                        }
+                    } elseif ($post && $post->post_type === 'birthday') {
+                        $targetUser = $post->source_id ? User::find($post->source_id) : $post->user;
+                        if ($targetUser && class_exists(BirthdayCreativeImageService::class)) {
+                            $imageService = app(BirthdayCreativeImageService::class);
+                            $fileModel = $imageService->generate($targetUser);
+                            $file = File::find($fileModel->id) ?: $fileModel;
                         }
                     } else {
                         // Check if referenced by user directly
@@ -287,8 +332,12 @@ class FileController extends BaseApiController
                     // Try self-healing: check if this file is a timeline creative post that can be regenerated on-the-fly
                     $regenerated = false;
                     try {
-                        $post = Post::where('media', 'LIKE', '%"id":"'.$file->id.'"%')
-                            ->orWhere('image', 'LIKE', '%'.$file->id.'%')
+                        $post = Post::withTrashed()
+                            ->where(function ($q) use ($file) {
+                                $q->where('media', 'LIKE', '%"id":"'.$file->id.'"%')
+                                    ->orWhere('media', 'LIKE', '%'.$file->id.'%')
+                                    ->orWhere('image', 'LIKE', '%'.$file->id.'%');
+                            })
                             ->first();
 
                         if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
@@ -318,6 +367,29 @@ class FileController extends BaseApiController
                                     $generator = app(WearTheBadgeImageGenerator::class);
                                     $generator->generate($user, $fileModel);
                                     $regenerated = true;
+                                }
+                            }
+                        } elseif ($post && ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact')) {
+                            $targetUser = $post->source_id ? User::find($post->source_id) : $post->user;
+                            if ($targetUser) {
+                                $threshold = 25;
+                                if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                                    $threshold = (int) $matches[1];
+                                } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                                    $threshold = (int) str_replace(',', '', $matches[1]);
+                                } elseif ((int) ($targetUser->life_impacted_count ?? 0) > 0) {
+                                    $threshold = (int) $targetUser->life_impacted_count;
+                                }
+
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    try {
+                                        $generator = app(LifeImpactCreativeGenerator::class);
+                                        $generator->generate($targetUser, $threshold, $threshold, $fileModel);
+                                        $regenerated = true;
+                                    } catch (\Throwable $genEx) {
+                                        Log::warning('[FileController] Regenerating life impact creative failed: '.$genEx->getMessage());
+                                    }
                                 }
                             }
                         }

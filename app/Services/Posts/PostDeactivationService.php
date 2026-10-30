@@ -19,6 +19,41 @@ use Illuminate\Support\Str;
 class PostDeactivationService
 {
     /**
+     * Resolve the actual peer/member targeted by the post.
+     * For automated recognition posts (life impact, milestones, honours, birthdays) created by system genie,
+     * the real recipient member is in source_id or tags.
+     */
+    public function resolveTargetUser(Post $post): ?User
+    {
+        $isRecognition = in_array($post->post_type, [
+            'life_impact_recognition',
+            'growth_honour',
+            'milestone_honour',
+            'birthday',
+            'anniversary',
+            'welcome',
+        ], true) || ($post->source_type === 'life_impact');
+
+        $isSystemAuthor = false;
+        if ($post->user) {
+            $authorEmail = strtolower((string) $post->user->email);
+            $authorName = strtolower((string) ($post->user->display_name ?: $post->user->first_name));
+            if (str_contains($authorEmail, 'peersglobal') || str_contains($authorName, 'genie') || str_contains($authorName, 'system')) {
+                $isSystemAuthor = true;
+            }
+        }
+
+        if (($isRecognition || $isSystemAuthor) && filled($post->source_id)) {
+            $celebratedUser = User::find($post->source_id);
+            if ($celebratedUser) {
+                return $celebratedUser;
+            }
+        }
+
+        return $post->user ?: User::find($post->user_id);
+    }
+
+    /**
      * Deactivate a post, reverse awarded coins & life impact score, and notify user.
      *
      * @param  Post  $post
@@ -27,6 +62,8 @@ class PostDeactivationService
      * @param  bool  $reverseCoins
      * @param  bool  $reverseImpact
      * @param  bool  $notifyUser
+     * @param  int|null  $customCoinsAmount
+     * @param  int|null  $customImpactAmount
      * @return array
      */
     public function deactivatePost(
@@ -35,7 +72,9 @@ class PostDeactivationService
         ?string $adminId = null,
         bool $reverseCoins = true,
         bool $reverseImpact = true,
-        bool $notifyUser = true
+        bool $notifyUser = true,
+        ?int $customCoinsAmount = null,
+        ?int $customImpactAmount = null
     ): array {
         $remarks = trim($remarks);
 
@@ -51,20 +90,32 @@ class PostDeactivationService
             ];
         }
 
-        $result = DB::transaction(function () use ($post, $remarks, $adminId, $reverseCoins, $reverseImpact, $notifyUser) {
-            $userId = (string) $post->user_id;
+        $result = DB::transaction(function () use ($post, $remarks, $adminId, $reverseCoins, $reverseImpact, $notifyUser, $customCoinsAmount, $customImpactAmount) {
+            // Resolve actual target member (celebrated user for recognition posts or post author)
+            $targetUser = $this->resolveTargetUser($post);
+            $userId = (string) ($targetUser?->id ?? $post->user_id);
 
-            // 2. Identify exact coins awarded for this post or source activity
-            $coinsRewardData = $this->findAwardedCoins($post);
-            $coinsToReverse = $coinsRewardData['amount'];
-            $matchedCoinTxIds = $coinsRewardData['tx_ids'];
+            // 2. Identify coins awarded for this post or source activity (or use admin custom amount)
+            if ($customCoinsAmount !== null) {
+                $coinsToReverse = max(0, $customCoinsAmount);
+                $matchedCoinTxIds = [];
+            } else {
+                $coinsRewardData = $this->findAwardedCoins($post);
+                $coinsToReverse = $coinsRewardData['amount'];
+                $matchedCoinTxIds = $coinsRewardData['tx_ids'];
+            }
 
-            // 3. Identify exact life impact points awarded for this post or source activity
-            $impactRewardData = $this->findAwardedImpactPoints($post);
-            $impactToReverse = $impactRewardData['points'];
-            $matchedImpactIds = $impactRewardData['history_ids'];
+            // 3. Identify life impact points awarded for this post or source activity (or use admin custom amount)
+            if ($customImpactAmount !== null) {
+                $impactToReverse = max(0, $customImpactAmount);
+                $matchedImpactIds = [];
+            } else {
+                $impactRewardData = $this->findAwardedImpactPoints($post);
+                $impactToReverse = $impactRewardData['points'];
+                $matchedImpactIds = $impactRewardData['history_ids'];
+            }
 
-            // 4. Reverse Coins if requested and any were awarded
+            // 4. Reverse Coins if requested and any were awarded / specified
             $reversedCoins = 0;
             if ($reverseCoins && $coinsToReverse > 0) {
                 $reversedCoins = $this->reverseCoins(
@@ -77,7 +128,7 @@ class PostDeactivationService
                 );
             }
 
-            // 5. Reverse Life Impact Points if requested and any were awarded
+            // 5. Reverse Life Impact Points if requested and any were awarded / specified
             $reversedImpact = 0;
             if ($reverseImpact && $impactToReverse > 0) {
                 $reversedImpact = $this->reverseImpactPoints(
@@ -110,18 +161,19 @@ class PostDeactivationService
                 $parts[] = number_format($reversedCoins) . ' coins';
             }
             if ($reversedImpact > 0) {
-                $parts[] = $reversedImpact . ' life impact points';
+                $parts[] = number_format($reversedImpact) . ' life impact points';
             }
 
+            $targetName = $targetUser?->display_name ?: $targetUser?->name ?: 'Member';
             $msg = 'Post deactivated successfully.';
             if (! empty($parts)) {
-                $msg .= ' Reversed ' . implode(' and ', $parts) . '.';
+                $msg .= ' Reversed ' . implode(' and ', $parts) . ' for ' . $targetName . '.';
             } else {
-                $msg .= ' Remarks recorded.';
+                $msg .= ' No coin or life impact balance deducted.';
             }
 
             if ($notifyUser) {
-                $msg .= ' Member notified.';
+                $msg .= ' ' . $targetName . ' notified.';
             }
 
             return [
@@ -135,7 +187,7 @@ class PostDeactivationService
             ];
         });
 
-        // 7. Send in-app & push notification to the post owner (after transaction successfully commits)
+        // 7. Send in-app & push notification to the target member (after transaction successfully commits)
         if ($notifyUser) {
             $this->sendDeactivationNotification(
                 $post,
@@ -165,7 +217,8 @@ class PostDeactivationService
      */
     public function findAwardedCoins(Post $post): array
     {
-        $userId = (string) $post->user_id;
+        $targetUser = $this->resolveTargetUser($post);
+        $userId = (string) ($targetUser?->id ?? $post->user_id);
         $sourceType = $post->source_type;
         $sourceId = $post->source_id;
 
@@ -198,20 +251,27 @@ class PostDeactivationService
             ->where('user_id', $userId)
             ->where('amount', '>', 0)
             ->where(function ($q) use ($post) {
+                $pId = (string) $post->id;
                 if (Schema::hasColumn('coins_ledger', 'reference_type') && Schema::hasColumn('coins_ledger', 'reference_id')) {
-                    $q->where(function ($sub) use ($post) {
-                        $sub->where('reference_type', 'POST')
-                            ->where('reference_id', (string) $post->id);
+                    $q->where(function ($sub) use ($pId) {
+                        $sub->where('reference_type', 'POST');
+                        if (Str::isUuid($pId)) {
+                            $sub->where('reference_id', $pId);
+                        }
                     });
                 }
                 if (Schema::hasColumn('coins_ledger', 'source_type') && Schema::hasColumn('coins_ledger', 'source_id')) {
-                    $q->orWhere(function ($sub) use ($post) {
-                        $sub->where('source_type', 'post')
-                            ->where('source_id', (string) $post->id);
+                    $q->orWhere(function ($sub) use ($pId) {
+                        $sub->where('source_type', 'post');
+                        if (Str::isUuid($pId)) {
+                            $sub->where('source_id', $pId);
+                        }
                     });
                 }
-                $q->orWhere('activity_id', (string) $post->id);
-                $q->orWhere('reference', 'LIKE', '%Post%'.$post->id.'%');
+                if (Str::isUuid($pId)) {
+                    $q->orWhere('activity_id', $pId);
+                }
+                $q->orWhere('reference', 'LIKE', '%Post%'.$pId.'%');
             })
             ->get();
 
@@ -228,12 +288,17 @@ class PostDeactivationService
                 ->where('user_id', $userId)
                 ->where('amount', '>', 0)
                 ->where(function ($q) use ($sourceId) {
-                    $q->where('activity_id', (string) $sourceId);
-                    if (Schema::hasColumn('coins_ledger', 'source_id')) {
-                        $q->orWhere('source_id', (string) $sourceId);
-                    }
-                    if (Schema::hasColumn('coins_ledger', 'reference_id')) {
-                        $q->orWhere('reference_id', (string) $sourceId);
+                    $sId = (string) $sourceId;
+                    if (Str::isUuid($sId)) {
+                        $q->where('activity_id', $sId);
+                        if (Schema::hasColumn('coins_ledger', 'source_id')) {
+                            $q->orWhere('source_id', $sId);
+                        }
+                        if (Schema::hasColumn('coins_ledger', 'reference_id')) {
+                            $q->orWhere('reference_id', $sId);
+                        }
+                    } else {
+                        $q->whereRaw('1 = 0');
                     }
                 })
                 ->get();
@@ -265,7 +330,8 @@ class PostDeactivationService
      */
     public function findAwardedImpactPoints(Post $post): array
     {
-        $userId = (string) $post->user_id;
+        $targetUser = $this->resolveTargetUser($post);
+        $userId = (string) ($targetUser?->id ?? $post->user_id);
         $sourceType = $post->source_type;
         $sourceId = $post->source_id;
 
@@ -277,30 +343,46 @@ class PostDeactivationService
         }
 
         $tableName = $this->getLifeImpactTable();
+        $pId = (string) $post->id;
+        $sId = (string) ($sourceId ?? '');
 
-        $alreadyReversedImpact = DB::table($tableName)
-            ->where('user_id', $userId)
-            ->where('impact_value', '<', 0)
-            ->where('activity_id', (string) $post->id)
-            ->exists();
+        if (Str::isUuid($pId)) {
+            $alreadyReversedImpact = DB::table($tableName)
+                ->where('user_id', $userId)
+                ->where('impact_value', '<', 0)
+                ->where('activity_id', $pId)
+                ->exists();
 
-        if ($alreadyReversedImpact) {
-            return ['points' => 0, 'history_ids' => []];
+            if ($alreadyReversedImpact) {
+                return ['points' => 0, 'history_ids' => []];
+            }
         }
 
         $query = DB::table($tableName)
             ->where('user_id', $userId)
             ->where('impact_value', '>', 0)
-            ->where(function ($q) use ($post, $sourceId, $sourceType) {
-                $q->where('activity_id', (string) $post->id);
-                if (filled($sourceId)) {
-                    $q->orWhere('activity_id', (string) $sourceId);
+            ->where(function ($q) use ($pId, $sId, $sourceType) {
+                $hasCond = false;
+                if (Str::isUuid($pId)) {
+                    $q->where('activity_id', $pId);
+                    $hasCond = true;
+                }
+                if (Str::isUuid($sId)) {
+                    if ($hasCond) {
+                        $q->orWhere('activity_id', $sId);
+                    } else {
+                        $q->where('activity_id', $sId);
+                        $hasCond = true;
+                    }
                     if (filled($sourceType)) {
-                        $q->orWhere(function ($sub) use ($sourceType, $sourceId) {
+                        $q->orWhere(function ($sub) use ($sourceType, $sId) {
                             $sub->where('activity_type', $sourceType)
-                                ->where('activity_id', (string) $sourceId);
+                                ->where('activity_id', $sId);
                         });
                     }
+                }
+                if (! $hasCond) {
+                    $q->whereRaw('1 = 0');
                 }
             });
 
@@ -310,6 +392,22 @@ class PostDeactivationService
             if (! in_array($ih->id, $historyIds, true)) {
                 $historyIds[] = $ih->id;
                 $totalImpact += (int) $ih->impact_value;
+            }
+        }
+
+        // Recognition posts (e.g. Life Impact Legacy Maker / 2,500 lives) fallback
+        if ($totalImpact === 0 && ($post->post_type === 'life_impact_recognition' || $sourceType === 'life_impact')) {
+            if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                $totalImpact = (int) $matches[1];
+            } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                $totalImpact = (int) str_replace(',', '', $matches[1]);
+            } elseif (is_array($post->tags)) {
+                foreach ($post->tags as $tag) {
+                    if (preg_match('/level_(\d+)/', (string) $tag, $matches)) {
+                        $totalImpact = (int) $matches[1];
+                        break;
+                    }
+                }
             }
         }
 
@@ -552,7 +650,7 @@ class PostDeactivationService
     }
 
     /**
-     * Send in-app and push notification to the post owner.
+     * Send in-app and push notification to the target peer.
      */
     protected function sendDeactivationNotification(
         Post $post,
@@ -561,7 +659,7 @@ class PostDeactivationService
         int $reversedImpact
     ): void {
         try {
-            $user = User::find($post->user_id);
+            $user = $this->resolveTargetUser($post);
             if (! $user) {
                 return;
             }
@@ -727,7 +825,8 @@ class PostDeactivationService
         ?string $adminId = null,
         bool $reverseCoins = false,
         bool $reverseImpact = true,
-        bool $notifyUser = true
+        bool $notifyUser = true,
+        ?int $customImpactAmount = null
     ): array {
         $remarks = trim($remarks);
 
@@ -742,7 +841,7 @@ class PostDeactivationService
             ];
         }
 
-        $result = DB::transaction(function () use ($impact, $remarks, $adminId, $reverseImpact, $notifyUser) {
+        $result = DB::transaction(function () use ($impact, $remarks, $adminId, $reverseImpact, $notifyUser, $customImpactAmount) {
             $userId = (string) $impact->user_id;
 
             // 1. Deactivate timeline publication
@@ -755,7 +854,7 @@ class PostDeactivationService
 
             // 2. Reverse Life Impact Points if requested
             $reversedImpact = 0;
-            $impactPoints = (int) ($impact->life_impacted ?? 1);
+            $impactPoints = $customImpactAmount !== null ? max(0, $customImpactAmount) : (int) ($impact->life_impacted ?? 1);
             if ($reverseImpact && $impactPoints > 0) {
                 $user = User::query()->where('id', $userId)->lockForUpdate()->first();
                 if ($user) {
@@ -941,7 +1040,7 @@ class PostDeactivationService
      */
     public function getDeactivationPreview(Post $post): array
     {
-        $user = $post->user ?: User::find($post->user_id);
+        $user = $this->resolveTargetUser($post);
         $coinsData = $this->findAwardedCoins($post);
         $impactData = $this->findAwardedImpactPoints($post);
 
@@ -999,9 +1098,15 @@ class PostDeactivationService
     {
         $results = ['posts' => [], 'impacts' => []];
 
+        $targetUserMap = [];
+        foreach ($posts as $p) {
+            $targetUser = $this->resolveTargetUser($p);
+            $targetUserMap[(string) $p->id] = $targetUser;
+        }
+
         $allPostIds = $posts->pluck('id')->map(fn ($id) => (string) $id)->all();
         $allSourceIds = $posts->pluck('source_id')->filter()->map(fn ($id) => (string) $id)->all();
-        $allUserIds = $posts->pluck('user_id')->merge($impacts->pluck('user_id'))->filter()->map(fn ($id) => (string) $id)->unique()->all();
+        $allUserIds = collect(array_values($targetUserMap))->filter()->pluck('id')->merge($impacts->pluck('user_id'))->filter()->map(fn ($id) => (string) $id)->unique()->all();
 
         $combinedTargetIds = array_unique(array_merge($allPostIds, $allSourceIds));
 
@@ -1055,10 +1160,19 @@ class PostDeactivationService
         foreach ($posts as $post) {
             $pId = (string) $post->id;
             $sId = (string) ($post->source_id ?? '');
+            $user = $targetUserMap[$pId] ?? $this->resolveTargetUser($post);
             $coins = $coinsByTarget[$pId] ?? ($sId ? ($coinsByTarget[$sId] ?? 0) : 0);
             $impact = $impactByTarget[$pId] ?? ($sId ? ($impactByTarget[$sId] ?? 0) : 0);
 
-            $user = $post->user;
+            // Recognition post fallback if not in impact_histories
+            if ($impact === 0 && ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact')) {
+                if (preg_match('/level_(\d+)/', (string) $post->source_event, $matches)) {
+                    $impact = (int) $matches[1];
+                } elseif (preg_match('/impacting\s*([\d,]+)\s*lives/i', (string) ($post->content_text ?: $post->title), $matches)) {
+                    $impact = (int) str_replace(',', '', $matches[1]);
+                }
+            }
+
             $currentCoins = (int) ($user?->coins_balance ?? 0);
             $currentImpact = (int) ($user?->life_impacted_count ?? 0);
 

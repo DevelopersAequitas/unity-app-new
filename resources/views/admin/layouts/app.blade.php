@@ -146,6 +146,14 @@
                 fetch(url, { method: 'HEAD' })
                     .then(response => {
                         if (!response.ok) {
+                            if (url.match(/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i)) {
+                                loader.classList.add('d-none');
+                                img.setAttribute('src', url);
+                                imgWrapper.classList.remove('d-none');
+                                downloadBtn.classList.remove('d-none');
+                                downloadBtn.setAttribute('href', url);
+                                return;
+                            }
                             throw new Error('File not found');
                         }
                         const contentType = response.headers.get('content-type') || '';
@@ -171,9 +179,17 @@
                         }
                     })
                     .catch(error => {
-                        loader.classList.add('d-none');
-                        errorDiv.classList.remove('d-none');
-                        console.error('File preview error:', error);
+                        if (url.match(/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i)) {
+                            loader.classList.add('d-none');
+                            img.setAttribute('src', url);
+                            imgWrapper.classList.remove('d-none');
+                            downloadBtn.classList.remove('d-none');
+                            downloadBtn.setAttribute('href', url);
+                        } else {
+                            loader.classList.add('d-none');
+                            errorDiv.classList.remove('d-none');
+                            console.error('File preview error:', error);
+                        }
                     });
             });
         });

@@ -14,6 +14,11 @@
     @php
         $owner = $post->user;
         $ownerName = $owner?->display_name ?: trim(($owner?->first_name ?? '') . ' ' . ($owner?->last_name ?? ''));
+        $celebratedUser = $post->source_id ? \App\Models\User::find($post->source_id) : null;
+        $celebratedName = $celebratedUser?->display_name ?: trim(($celebratedUser?->first_name ?? '') . ' ' . ($celebratedUser?->last_name ?? ''));
+        $targetName = ! empty($deactivationPreview['user_name']) && $deactivationPreview['user_name'] !== 'Member'
+            ? $deactivationPreview['user_name']
+            : ($celebratedName ?: ($ownerName ?: 'Member'));
         $isActive = $post->deleted_at === null;
         $mediaItems = is_array($post->media) ? $post->media : [];
     @endphp
@@ -39,7 +44,12 @@
                         <dt class="col-sm-4">Created At</dt>
                         <dd class="col-sm-8">{{ $post->created_at?->format('Y-m-d H:i') }}</dd>
                         <dt class="col-sm-4">Owner</dt>
-                        <dd class="col-sm-8">{{ $ownerName !== '' ? $ownerName : 'Unknown' }}</dd>
+                        <dd class="col-sm-8">
+                            {{ $ownerName !== '' ? $ownerName : 'Unknown' }}
+                            @if ($celebratedName && $celebratedName !== $ownerName)
+                                <div class="small text-muted mt-0.5">Celebrated Peer: <span class="fw-semibold text-primary">{{ $celebratedName }}</span></div>
+                            @endif
+                        </dd>
                         <dt class="col-sm-4">Circle</dt>
                         <dd class="col-sm-8">{{ $post->circle?->name ?? '—' }}</dd>
                         <dt class="col-sm-4">Visibility</dt>
@@ -110,17 +120,26 @@
                     </div>
                     @if ($mediaItems)
                         <div>
-                            <div class="text-muted small">Media</div>
+                            <div class="text-muted small mb-1">Media</div>
                             <div class="d-flex flex-wrap gap-2">
                                 @foreach ($mediaItems as $media)
                                     @php
                                         $mediaUrl = data_get($media, 'url');
+                                        if ($mediaUrl && ! app()->isProduction() && str_contains($mediaUrl, 'peersunity.com/storage/')) {
+                                            $mediaUrl = asset('storage/' . ltrim(explode('peersunity.com/storage/', $mediaUrl)[1] ?? '', '/'));
+                                        }
+                                        $fallbackBadge = asset('images/life_impact_badges/Legacy Maker.png');
                                     @endphp
                                     @if ($mediaUrl)
-                                        <img src="{{ $mediaUrl }}" alt="Post media" class="img-thumbnail" style="width: 120px; height: auto;">
+                                        <img src="{{ $mediaUrl }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto; max-height: 180px; object-fit: contain;" onerror="this.onerror=null; this.src='{{ $fallbackBadge }}';">
                                     @endif
                                 @endforeach
                             </div>
+                        </div>
+                    @elseif ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact')
+                        <div>
+                            <div class="text-muted small mb-1">Media</div>
+                            <img src="{{ asset('images/life_impact_badges/Legacy Maker.png') }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto;">
                         </div>
                     @endif
                 </div>
@@ -176,7 +195,7 @@
                         <div class="modal-body p-4">
                             <div class="p-3 bg-light rounded-3 border mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark small">{{ $ownerName ?: 'Member' }}</span>
+                                    <span class="fw-bold text-dark small">{{ $targetName }}</span>
                                     <span class="badge bg-white text-muted border small">{{ $post->created_at?->format('M d, Y') }}</span>
                                 </div>
                                 <div class="small text-secondary fst-italic border-start border-3 border-primary ps-2 py-1">
@@ -191,8 +210,13 @@
                                         <input type="checkbox" name="reverse_coins" id="show_opt_reverse_coins" value="1" checked class="d-none">
                                         <span id="show_check_coins" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning text-dark"><i class="bi bi-check"></i></span>
                                         <div class="small fw-bold"><i class="bi bi-coin text-warning"></i> Reverse Coins</div>
-                                        <div id="show_badge_coins" class="badge bg-warning text-dark fw-bold mt-1 d-block">
-                                            {{ $prevCoinsToRev > 0 ? ('-' . number_format($prevCoinsToRev) . ' Coins') : '0 Coins' }}
+                                        <div class="mt-1.5 d-flex align-items-center justify-content-center gap-1">
+                                            <span class="small fw-bold text-warning-emphasis" style="font-size: 11px;">Deduct:</span>
+                                            <input type="number" name="coins_amount" id="show_coins_amount_input" min="0" step="1"
+                                                class="form-control form-control-sm text-center fw-bold p-0 text-dark bg-white"
+                                                style="width: 65px; height: 26px; font-size: 12px;"
+                                                value="{{ $prevCoinsToRev }}" onclick="event.stopPropagation();">
+                                            <span class="small fw-bold text-warning-emphasis" style="font-size: 10px;">Coins</span>
                                         </div>
                                         <div id="show_preview_coins" class="text-muted mt-1" style="font-size: 10px;">
                                             Bal: {{ number_format($prevCurrCoins) }} → {{ number_format(max(0, $prevCurrCoins - $prevCoinsToRev)) }}
@@ -204,8 +228,13 @@
                                         <input type="checkbox" name="reverse_impact" id="show_opt_reverse_impact" value="1" checked class="d-none">
                                         <span id="show_check_impact" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-info text-dark"><i class="bi bi-check"></i></span>
                                         <div class="small fw-bold"><i class="bi bi-stars text-info"></i> Reverse Impact</div>
-                                        <div id="show_badge_impact" class="badge bg-info text-dark fw-bold mt-1 d-block">
-                                            {{ $prevImpactToRev > 0 ? ('-' . number_format($prevImpactToRev) . ' Impact') : '0 Impact' }}
+                                        <div class="mt-1.5 d-flex align-items-center justify-content-center gap-1">
+                                            <span class="small fw-bold text-info-emphasis" style="font-size: 11px;">Deduct:</span>
+                                            <input type="number" name="impact_amount" id="show_impact_amount_input" min="0" step="1"
+                                                class="form-control form-control-sm text-center fw-bold p-0 text-dark bg-white"
+                                                style="width: 70px; height: 26px; font-size: 12px;"
+                                                value="{{ $prevImpactToRev }}" onclick="event.stopPropagation();">
+                                            <span class="small fw-bold text-info-emphasis" style="font-size: 10px;">Impact</span>
                                         </div>
                                         <div id="show_preview_impact" class="text-muted mt-1" style="font-size: 10px;">
                                             Score: {{ number_format($prevCurrImpact) }} → {{ number_format(max(0, $prevCurrImpact - $prevImpactToRev)) }}
@@ -217,7 +246,7 @@
                                         <input type="checkbox" name="notify_user" id="show_opt_notify_user" value="1" checked class="d-none">
                                         <span id="show_check_notify" class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-primary text-white"><i class="bi bi-check"></i></span>
                                         <div class="small fw-bold"><i class="bi bi-bell-fill text-primary"></i> Notify User</div>
-                                        <div id="show_badge_notify" class="badge bg-primary text-white fw-bold mt-1 d-block">Push & In-App</div>
+                                        <div id="show_badge_notify" class="badge bg-primary text-white fw-bold mt-1.5 d-block">Push & In-App</div>
                                         <div id="show_preview_notify" class="text-muted mt-1" style="font-size: 10px;">Alerts peer</div>
                                     </label>
                                 </div>
@@ -274,44 +303,59 @@
             const impactCard = document.getElementById('show_card_opt_impact');
             const notifyCard = document.getElementById('show_card_opt_notify');
 
-            const coinsBadge = document.getElementById('show_badge_coins');
-            const impactBadge = document.getElementById('show_badge_impact');
-            const notifyBadge = document.getElementById('show_badge_notify');
-
-            const coinsCheckIcon = document.getElementById('show_check_coins');
-            const impactCheckIcon = document.getElementById('show_check_impact');
-            const notifyCheckIcon = document.getElementById('show_check_notify');
+            const coinsAmountInput = document.getElementById('show_coins_amount_input');
+            const impactAmountInput = document.getElementById('show_impact_amount_input');
+            const coinsPreviewEl = document.getElementById('show_preview_coins');
+            const impactPreviewEl = document.getElementById('show_preview_impact');
 
             const summaryText = document.getElementById('show_summary_text');
 
-            const coinsToRev = {{ (int) $prevCoinsToRev }};
-            const impactToRev = {{ (int) $prevImpactToRev }};
+            let coinsToRev = {{ (int) $prevCoinsToRev }};
+            let impactToRev = {{ (int) $prevImpactToRev }};
             const currCoins = {{ (int) $prevCurrCoins }};
             const currImpact = {{ (int) $prevCurrImpact }};
-            const owner = @json($ownerName ?: 'Member');
+            const owner = @json($targetName ?: 'Member');
 
             function refreshShowModalUi() {
-                if (coinsCheck && coinsCheck.checked) {
+                const isCoinsActive = coinsCheck && coinsCheck.checked;
+                const isImpactActive = impactCheck && impactCheck.checked;
+                const isNotifyActive = notifyCheck && notifyCheck.checked;
+
+                if (coinsAmountInput) {
+                    coinsAmountInput.disabled = !isCoinsActive;
+                    if (isCoinsActive) {
+                        coinsToRev = Math.max(0, parseInt(coinsAmountInput.value || '0', 10));
+                    }
+                }
+
+                if (impactAmountInput) {
+                    impactAmountInput.disabled = !isImpactActive;
+                    if (isImpactActive) {
+                        impactToRev = Math.max(0, parseInt(impactAmountInput.value || '0', 10));
+                    }
+                }
+
+                if (isCoinsActive) {
                     coinsCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-warning-subtle border-warning text-warning-emphasis position-relative transition';
                     if (coinsCheckIcon) coinsCheckIcon.classList.remove('d-none');
-                    if (coinsBadge) coinsBadge.textContent = coinsToRev > 0 ? ('-' + coinsToRev.toLocaleString() + ' Coins') : '0 Coins';
+                    if (coinsPreviewEl) coinsPreviewEl.textContent = 'Bal: ' + currCoins.toLocaleString() + ' → ' + Math.max(0, currCoins - coinsToRev).toLocaleString();
                 } else if (coinsCard) {
                     coinsCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-light border-secondary-subtle text-muted position-relative opacity-75';
                     if (coinsCheckIcon) coinsCheckIcon.classList.add('d-none');
-                    if (coinsBadge) coinsBadge.textContent = 'Keep Coins (0)';
+                    if (coinsPreviewEl) coinsPreviewEl.textContent = 'Bal: ' + currCoins.toLocaleString() + ' (No change)';
                 }
 
-                if (impactCheck && impactCheck.checked) {
+                if (isImpactActive) {
                     impactCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-info-subtle border-info text-info-emphasis position-relative transition';
                     if (impactCheckIcon) impactCheckIcon.classList.remove('d-none');
-                    if (impactBadge) impactBadge.textContent = impactToRev > 0 ? ('-' + impactToRev.toLocaleString() + ' Impact') : '0 Impact';
+                    if (impactPreviewEl) impactPreviewEl.textContent = 'Score: ' + currImpact.toLocaleString() + ' → ' + Math.max(0, currImpact - impactToRev).toLocaleString();
                 } else if (impactCard) {
                     impactCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-light border-secondary-subtle text-muted position-relative opacity-75';
                     if (impactCheckIcon) impactCheckIcon.classList.add('d-none');
-                    if (impactBadge) impactBadge.textContent = 'Keep Impact (0)';
+                    if (impactPreviewEl) impactPreviewEl.textContent = 'Score: ' + currImpact.toLocaleString() + ' (No change)';
                 }
 
-                if (notifyCheck && notifyCheck.checked) {
+                if (isNotifyActive) {
                     notifyCard.className = 'p-2.5 rounded-3 border w-100 d-block cursor-pointer select-none bg-primary-subtle border-primary text-primary-emphasis position-relative transition';
                     if (notifyCheckIcon) notifyCheckIcon.classList.remove('d-none');
                     if (notifyBadge) notifyBadge.textContent = 'Push & In-App';
@@ -322,27 +366,47 @@
                 }
 
                 let actions = [];
-                if (coinsCheck && coinsCheck.checked && coinsToRev > 0) {
-                    actions.push(`deduct <strong>-${coinsToRev.toLocaleString()} Coins</strong>`);
+                const effectiveCoins = isCoinsActive ? coinsToRev : 0;
+                const effectiveImpact = isImpactActive ? impactToRev : 0;
+
+                if (effectiveCoins > 0) {
+                    actions.push(`deduct <strong>-${effectiveCoins.toLocaleString()} Coins</strong>`);
                 }
-                if (impactCheck && impactCheck.checked && impactToRev > 0) {
-                    actions.push(`deduct <strong>-${impactToRev.toLocaleString()} Life Impact</strong>`);
+                if (effectiveImpact > 0) {
+                    actions.push(`deduct <strong>-${effectiveImpact.toLocaleString()} Life Impact</strong>`);
                 }
 
                 let msg = 'Will deactivate post';
                 if (actions.length > 0) {
                     msg += `, ${actions.join(' and ')} from <strong>${owner}</strong>`;
                 } else {
-                    msg += ` for <strong>${owner}</strong>`;
+                    msg += ` for <strong>${owner}</strong> without deducting coins or life impact`;
                 }
 
-                if (notifyCheck && notifyCheck.checked) {
+                if (isNotifyActive) {
                     msg += `, and send them a push & in-app notification.`;
                 } else {
                     msg += `, without notifying member.`;
                 }
 
                 if (summaryText) summaryText.innerHTML = msg;
+            }
+
+            if (coinsCheck) coinsCheck.addEventListener('change', refreshShowModalUi);
+            if (impactCheck) impactCheck.addEventListener('change', refreshShowModalUi);
+            if (notifyCheck) notifyCheck.addEventListener('change', refreshShowModalUi);
+
+            if (coinsAmountInput) {
+                coinsAmountInput.addEventListener('input', function () {
+                    coinsToRev = Math.max(0, parseInt(this.value || '0', 10));
+                    refreshShowModalUi();
+                });
+            }
+            if (impactAmountInput) {
+                impactAmountInput.addEventListener('input', function () {
+                    impactToRev = Math.max(0, parseInt(this.value || '0', 10));
+                    refreshShowModalUi();
+                });
             }
 
             if (coinsCheck) coinsCheck.addEventListener('change', refreshShowModalUi);

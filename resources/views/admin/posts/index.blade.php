@@ -339,8 +339,12 @@
                                 $isActive = $isImpact
                                     ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
                                     : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false);
-                                $mediaUrl = (function ($media) {
+                                $mediaUrl = (function ($media, $post) {
                                     if (empty($media)) {
+                                        if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                            $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                            return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                        }
                                         return null;
                                     }
 
@@ -352,7 +356,11 @@
                                         $items = data_get($media, 'items', []);
                                     }
 
-                                    if (! is_array($items)) {
+                                    if (! is_array($items) || empty($items)) {
+                                        if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                            $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                            return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                        }
                                         return null;
                                     }
 
@@ -364,6 +372,10 @@
                                     $url = data_get($candidate, 'url');
 
                                     if ($url) {
+                                        if (! app()->isProduction() && str_contains($url, 'peersunity.com/storage/')) {
+                                            $storageRel = explode('peersunity.com/storage/', $url)[1] ?? '';
+                                            return asset('storage/' . ltrim($storageRel, '/'));
+                                        }
                                         return $url;
                                     }
 
@@ -373,8 +385,18 @@
                                         return url('/api/v1/files/' . $id);
                                     }
 
-                                    return data_get($candidate, 'path');
-                                })($post->media ?? null);
+                                    $path = data_get($candidate, 'path');
+                                    if ($path) {
+                                        return asset(ltrim($path, '/'));
+                                    }
+
+                                    if (($post->post_type ?? null) === 'life_impact_recognition' || ($post->source_type ?? null) === 'life_impact') {
+                                        $meta = app(\App\Services\Creative\LifeImpactCreativeGenerator::class)->getRecognitionMeta(2500);
+                                        return asset($meta['badge_image'] ?? 'images/life_impact_badges/Legacy Maker.png');
+                                    }
+
+                                    return null;
+                                })($post->media ?? null, $post);
                                 $isCompletedCollaboration = ! $isImpact
                                     && ($post->source_type ?? null) === 'collaboration_post'
                                     && ($post->source_event ?? null) === 'completed';
@@ -520,16 +542,18 @@
                                                     $impactToRev = $previewData['impact_to_reverse'] ?? 0;
                                                     $currCoins = $previewData['current_coins'] ?? (int) ($owner->coins_balance ?? 0);
                                                     $currImpact = $previewData['current_impact'] ?? (int) ($owner->life_impacted_count ?? 0);
+                                                    $targetUserName = ! empty($previewData['user_name']) && $previewData['user_name'] !== 'Member' ? $previewData['user_name'] : ($ownerName ?: 'Unknown');
+                                                    $targetCompany = ! empty($previewData['user_company']) && $previewData['user_company'] !== '—' ? $previewData['user_company'] : ($owner->company_name ?? $owner->company ?? $owner->business_name ?? '—');
                                                 @endphp
                                                 <button type="button" 
                                                     class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring btn-open-deactivate-modal"
                                                     data-action="{{ route('admin.posts.deactivate', $post) }}"
                                                     data-preview-url="{{ route('admin.posts.preview-deactivation', $post) }}"
                                                     data-post-id="{{ $post->id }}"
-                                                    data-owner-name="{{ $ownerName ?: 'Unknown' }}"
-                                                    data-owner-initials="{{ $getInitials($ownerName) }}"
-                                                    data-owner-bg="{{ $getAvatarBg($ownerName) }}"
-                                                    data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
+                                                    data-owner-name="{{ $targetUserName }}"
+                                                    data-owner-initials="{{ $getInitials($targetUserName) }}"
+                                                    data-owner-bg="{{ $getAvatarBg($targetUserName) }}"
+                                                    data-company="{{ $targetCompany }}"
                                                     data-content="{{ $post->content_text ?: 'No caption' }}"
                                                     data-media="{{ $mediaUrl ?: '' }}"
                                                     data-date="{{ $post->created_at ? $post->created_at->format('M d, Y H:i') : '—' }}"
@@ -605,7 +629,7 @@
 
                             <div class="flex gap-2.5 items-center bg-white p-2.5 rounded-lg border border-slate-200/80">
                                 <div id="modal_post_media_container" class="hidden shrink-0">
-                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs">
+                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs" onerror="this.onerror=null; this.src='{{ asset('images/life_impact_badges/Legacy Maker.png') }}';">
                                 </div>
                                 <div class="text-xs text-slate-700 flex-1 line-clamp-2 leading-relaxed border-l-2 border-indigo-400 pl-2.5 italic">
                                     "<span id="modal_post_content"></span>"
@@ -633,8 +657,12 @@
                                             <i class="bi bi-coin text-amber-600 text-sm"></i>
                                             <span>Reverse Coins</span>
                                         </div>
-                                        <div id="modal_coins_decrease_badge" class="mt-1 text-xs font-black tracking-tight text-amber-800 bg-amber-200/70 rounded-md py-0.5 px-1.5">
-                                            -0 Coins
+                                        <div class="mt-1.5 flex items-center justify-center gap-1">
+                                            <span class="text-[11px] font-bold text-amber-900">Deduct:</span>
+                                            <input type="number" name="coins_amount" id="modal_coins_amount_input" min="0" step="1"
+                                                class="w-16 px-1 py-0.5 text-xs font-black text-center rounded border border-amber-300 bg-white text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                                                value="0" onclick="event.stopPropagation();">
+                                            <span class="text-[10px] font-bold text-amber-900">Coins</span>
                                         </div>
                                         <div id="modal_coins_balance_preview" class="mt-1 text-[10px] text-amber-900/80 font-medium truncate">
                                             Bal: 0 → 0
@@ -657,8 +685,12 @@
                                             <i class="bi bi-stars text-purple-600 text-sm"></i>
                                             <span>Reverse Impact</span>
                                         </div>
-                                        <div id="modal_impact_decrease_badge" class="mt-1 text-xs font-black tracking-tight text-purple-800 bg-purple-200/70 rounded-md py-0.5 px-1.5">
-                                            -0 Impact
+                                        <div class="mt-1.5 flex items-center justify-center gap-1">
+                                            <span class="text-[11px] font-bold text-purple-900">Deduct:</span>
+                                            <input type="number" name="impact_amount" id="modal_impact_amount_input" min="0" step="1"
+                                                class="w-20 px-1 py-0.5 text-xs font-black text-center rounded border border-purple-300 bg-white text-purple-900 focus:outline-none focus:ring-1 focus:ring-purple-500 shadow-2xs"
+                                                value="0" onclick="event.stopPropagation();">
+                                            <span class="text-[10px] font-bold text-purple-900">Impact</span>
                                         </div>
                                         <div id="modal_impact_balance_preview" class="mt-1 text-[10px] text-purple-900/80 font-medium truncate">
                                             Score: 0 → 0
@@ -681,7 +713,7 @@
                                             <i class="bi bi-bell-fill text-sky-600 text-sm"></i>
                                             <span>Notify User</span>
                                         </div>
-                                        <div id="modal_notify_badge" class="mt-1 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5">
+                                        <div id="modal_notify_badge" class="mt-1.5 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5">
                                             Push & In-App
                                         </div>
                                         <div id="modal_notify_preview" class="mt-1 text-[10px] text-sky-900/80 font-medium truncate">
@@ -797,9 +829,10 @@
         const checkIndicatorNotify = document.getElementById('check_indicator_notify');
         const uncheckIndicatorNotify = document.getElementById('uncheck_indicator_notify');
 
-        const coinsDecreaseBadge = document.getElementById('modal_coins_decrease_badge');
+        const coinsAmountInput = document.getElementById('modal_coins_amount_input');
+        const impactAmountInput = document.getElementById('modal_impact_amount_input');
+
         const coinsBalancePreview = document.getElementById('modal_coins_balance_preview');
-        const impactDecreaseBadge = document.getElementById('modal_impact_decrease_badge');
         const impactBalancePreview = document.getElementById('modal_impact_balance_preview');
         const notifyBadge = document.getElementById('modal_notify_badge');
         const notifyPreview = document.getElementById('modal_notify_preview');
@@ -819,19 +852,13 @@
                 if (cardReverseCoins) cardReverseCoins.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-amber-50/90 border-amber-300 text-amber-900 shadow-2xs hover:shadow-xs';
                 if (checkIndicatorCoins) checkIndicatorCoins.classList.remove('hidden');
                 if (uncheckIndicatorCoins) uncheckIndicatorCoins.classList.add('hidden');
-                if (coinsDecreaseBadge) {
-                    coinsDecreaseBadge.textContent = currentCoinsToRev > 0 ? ('-' + currentCoinsToRev.toLocaleString() + ' Coins') : '0 Coins';
-                    coinsDecreaseBadge.className = 'mt-1 text-xs font-black tracking-tight text-amber-800 bg-amber-200/70 rounded-md py-0.5 px-1.5';
-                }
+                if (coinsAmountInput) coinsAmountInput.disabled = false;
                 if (coinsBalancePreview) coinsBalancePreview.textContent = 'Bal: ' + currentUserCoins.toLocaleString() + ' → ' + Math.max(0, currentUserCoins - currentCoinsToRev).toLocaleString();
             } else if (cardReverseCoins) {
                 cardReverseCoins.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-slate-100/70 border-slate-200 text-slate-500 opacity-70 hover:opacity-90';
                 if (checkIndicatorCoins) checkIndicatorCoins.classList.add('hidden');
                 if (uncheckIndicatorCoins) uncheckIndicatorCoins.classList.remove('hidden');
-                if (coinsDecreaseBadge) {
-                    coinsDecreaseBadge.textContent = 'Keep Coins (0)';
-                    coinsDecreaseBadge.className = 'mt-1 text-xs font-semibold tracking-tight text-slate-600 bg-slate-200/80 rounded-md py-0.5 px-1.5';
-                }
+                if (coinsAmountInput) coinsAmountInput.disabled = true;
                 if (coinsBalancePreview) coinsBalancePreview.textContent = 'Bal: ' + currentUserCoins.toLocaleString() + ' (No change)';
             }
 
@@ -840,19 +867,13 @@
                 if (cardReverseImpact) cardReverseImpact.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-purple-50/90 border-purple-300 text-purple-900 shadow-2xs hover:shadow-xs';
                 if (checkIndicatorImpact) checkIndicatorImpact.classList.remove('hidden');
                 if (uncheckIndicatorImpact) uncheckIndicatorImpact.classList.add('hidden');
-                if (impactDecreaseBadge) {
-                    impactDecreaseBadge.textContent = currentImpactToRev > 0 ? ('-' + currentImpactToRev.toLocaleString() + ' Impact') : '0 Impact';
-                    impactDecreaseBadge.className = 'mt-1 text-xs font-black tracking-tight text-purple-800 bg-purple-200/70 rounded-md py-0.5 px-1.5';
-                }
+                if (impactAmountInput) impactAmountInput.disabled = false;
                 if (impactBalancePreview) impactBalancePreview.textContent = 'Score: ' + currentUserImpact.toLocaleString() + ' → ' + Math.max(0, currentUserImpact - currentImpactToRev).toLocaleString();
             } else if (cardReverseImpact) {
                 cardReverseImpact.className = 'relative block cursor-pointer select-none rounded-xl border-2 p-2.5 text-center transition-all duration-200 bg-slate-100/70 border-slate-200 text-slate-500 opacity-70 hover:opacity-90';
                 if (checkIndicatorImpact) checkIndicatorImpact.classList.add('hidden');
                 if (uncheckIndicatorImpact) uncheckIndicatorImpact.classList.remove('hidden');
-                if (impactDecreaseBadge) {
-                    impactDecreaseBadge.textContent = 'Keep Impact (0)';
-                    impactDecreaseBadge.className = 'mt-1 text-xs font-semibold tracking-tight text-slate-600 bg-slate-200/80 rounded-md py-0.5 px-1.5';
-                }
+                if (impactAmountInput) impactAmountInput.disabled = true;
                 if (impactBalancePreview) impactBalancePreview.textContent = 'Score: ' + currentUserImpact.toLocaleString() + ' (No change)';
             }
 
@@ -863,7 +884,7 @@
                 if (uncheckIndicatorNotify) uncheckIndicatorNotify.classList.add('hidden');
                 if (notifyBadge) {
                     notifyBadge.textContent = 'Push & In-App';
-                    notifyBadge.className = 'mt-1 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5';
+                    notifyBadge.className = 'mt-1.5 text-xs font-bold tracking-tight text-sky-800 bg-sky-200/70 rounded-md py-0.5 px-1.5';
                 }
                 if (notifyPreview) notifyPreview.textContent = 'Alert sent to peer';
             } else if (cardNotifyUser) {
@@ -872,21 +893,24 @@
                 if (uncheckIndicatorNotify) uncheckIndicatorNotify.classList.remove('hidden');
                 if (notifyBadge) {
                     notifyBadge.textContent = 'Silent (No Alert)';
-                    notifyBadge.className = 'mt-1 text-xs font-semibold tracking-tight text-slate-600 bg-slate-200/80 rounded-md py-0.5 px-1.5';
+                    notifyBadge.className = 'mt-1.5 text-xs font-semibold tracking-tight text-slate-600 bg-slate-200/80 rounded-md py-0.5 px-1.5';
                 }
                 if (notifyPreview) notifyPreview.textContent = 'Peer will not be alerted';
             }
 
             // 4. Live Summary Text
             let actions = [];
-            if (optReverseCoins && optReverseCoins.checked && currentCoinsToRev > 0) {
-                actions.push(`deduct <strong class="text-amber-800">-${currentCoinsToRev.toLocaleString()} Peers Coins</strong>`);
+            const effectiveCoins = (optReverseCoins && optReverseCoins.checked) ? currentCoinsToRev : 0;
+            const effectiveImpact = (optReverseImpact && optReverseImpact.checked) ? currentImpactToRev : 0;
+
+            if (effectiveCoins > 0) {
+                actions.push(`deduct <strong class="text-amber-800">-${effectiveCoins.toLocaleString()} Peers Coins</strong>`);
             } else if (optReverseCoins && !optReverseCoins.checked && currentCoinsToRev > 0) {
                 actions.push(`<span class="text-slate-500">keep ${currentCoinsToRev.toLocaleString()} coins intact</span>`);
             }
 
-            if (optReverseImpact && optReverseImpact.checked && currentImpactToRev > 0) {
-                actions.push(`deduct <strong class="text-purple-800">-${currentImpactToRev.toLocaleString()} Life Impact</strong>`);
+            if (effectiveImpact > 0) {
+                actions.push(`deduct <strong class="text-purple-800">-${effectiveImpact.toLocaleString()} Life Impact</strong>`);
             } else if (optReverseImpact && !optReverseImpact.checked && currentImpactToRev > 0) {
                 actions.push(`<span class="text-slate-500">keep ${currentImpactToRev.toLocaleString()} life impact intact</span>`);
             }
@@ -895,7 +919,7 @@
             if (actions.length > 0) {
                 summaryHtml += `, ${actions.join(' and ')} from <strong>${currentOwnerName}</strong>`;
             } else {
-                summaryHtml += ` for <strong>${currentOwnerName}</strong> (no coins or impact points to deduct)`;
+                summaryHtml += ` for <strong>${currentOwnerName}</strong> without decreasing coins or life impact score`;
             }
 
             if (optNotifyUser && optNotifyUser.checked) {
@@ -903,6 +927,26 @@
             } else {
                 summaryHtml += `, without notifying the member.`;
             }
+
+            if (summaryText) summaryText.innerHTML = summaryHtml;
+        }
+
+        if (optReverseCoins) optReverseCoins.addEventListener('change', refreshOptionCardUi);
+        if (optReverseImpact) optReverseImpact.addEventListener('change', refreshOptionCardUi);
+        if (optNotifyUser) optNotifyUser.addEventListener('change', refreshOptionCardUi);
+
+        if (coinsAmountInput) {
+            coinsAmountInput.addEventListener('input', function () {
+                currentCoinsToRev = Math.max(0, parseInt(this.value || '0', 10));
+                refreshOptionCardUi();
+            });
+        }
+        if (impactAmountInput) {
+            impactAmountInput.addEventListener('input', function () {
+                currentImpactToRev = Math.max(0, parseInt(this.value || '0', 10));
+                refreshOptionCardUi();
+            });
+        }
 
             if (summaryText) summaryText.innerHTML = summaryHtml;
         }
@@ -951,6 +995,9 @@
             if (optReverseImpact) optReverseImpact.checked = true;
             if (optNotifyUser) optNotifyUser.checked = true;
 
+            if (coinsAmountInput) coinsAmountInput.value = currentCoinsToRev;
+            if (impactAmountInput) impactAmountInput.value = currentImpactToRev;
+
             refreshOptionCardUi();
 
             const previewUrl = btn.getAttribute('data-preview-url');
@@ -963,6 +1010,12 @@
                             currentImpactToRev = parseInt(d.preview.impact_to_reverse || 0, 10);
                             currentUserCoins = parseInt(d.preview.current_coins || 0, 10);
                             currentUserImpact = parseInt(d.preview.current_impact || 0, 10);
+                            if (d.preview.user_name && d.preview.user_name !== 'Member') {
+                                currentOwnerName = d.preview.user_name;
+                                ownerEl.textContent = currentOwnerName;
+                            }
+                            if (coinsAmountInput) coinsAmountInput.value = currentCoinsToRev;
+                            if (impactAmountInput) impactAmountInput.value = currentImpactToRev;
                             refreshOptionCardUi();
                         }
                     })
