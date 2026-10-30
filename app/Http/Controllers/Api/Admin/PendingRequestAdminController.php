@@ -1314,7 +1314,7 @@ class PendingRequestAdminController extends Controller
      * Resolve the leader scope for leader-prefixed requests.
      * Returns null for admin-panel requests and for global roles (Super Admin / Country Director).
      *
-     * @return array{circle_ids: array<int, string>, category_ids: array<int, int>}|null
+     * @return array{role: string, circle_ids: array<int, string>, category_ids: array<int, int>}|null
      */
     private function resolveLeaderScope(Request $request): ?array
     {
@@ -1349,7 +1349,10 @@ class PendingRequestAdminController extends Controller
             }
         }
 
+        $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
+
         return [
+            'role' => $role,
             'circle_ids' => array_values(array_unique(array_map('strval', $circleIds))),
             'category_ids' => array_values(array_unique(array_map('intval', array_filter($categoryIds)))),
         ];
@@ -1531,6 +1534,15 @@ class PendingRequestAdminController extends Controller
 
         if ($scope !== null) {
             $this->applyLeaderScopeToJoinRequests($query, $scope);
+
+            // Each approval stage only sees requests that are waiting for that stage:
+            // Circle Director/Founder -> pending_cd_approval, Industry Director/DED -> pending_id_approval.
+            if ($status === 'pending' && Schema::hasColumn('circle_join_requests', 'status')) {
+                $stage = in_array($scope['role'] ?? '', ['industryDirector', 'districtExecDirector'], true)
+                    ? \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                    : \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL;
+                $query->whereRaw('CAST(circle_join_requests.status AS TEXT) = ?', [$stage]);
+            }
         }
 
         if ($search) {
