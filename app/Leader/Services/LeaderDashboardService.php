@@ -378,14 +378,20 @@ class LeaderDashboardService
             $pendingPeersCount = 0;
         }
 
-        // Impacts count
+        // Impacts count (sum of life_impacted_count across all peers in role scope, or impacts table count if higher)
         $impactsCount = 0;
+        $usersImpactSum = 0;
+        if (Schema::hasColumn('users', 'life_impacted_count')) {
+            $usersImpactSum = $scopedMemberUserIds === null
+                ? (int) User::query()->whereNull('deleted_at')->sum('life_impacted_count')
+                : (! empty($scopedMemberUserIds)
+                    ? (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count')
+                    : 0);
+        }
         if (Schema::hasTable('impacts')) {
             if ($scopedMemberUserIds === null) {
-                $impactsCount = (int) Impact::query()->count();
-                if ($impactsCount === 0 && Schema::hasColumn('users', 'life_impacted_count')) {
-                    $impactsCount = (int) User::query()->whereNull('deleted_at')->sum('life_impacted_count');
-                }
+                $impactsTableCount = (int) Impact::query()->count();
+                $impactsCount = max($usersImpactSum, $impactsTableCount);
             } elseif (! empty($scopedMemberUserIds)) {
                 $impactQuery = Impact::query()
                     ->where(function ($q) use ($scopedMemberUserIds): void {
@@ -394,15 +400,11 @@ class LeaderDashboardService
                             $q->orWhereIn('peer_user_id', $scopedMemberUserIds);
                         }
                     });
-                $impactsCount = (int) $impactQuery->count();
-                if ($impactsCount === 0 && Schema::hasColumn('users', 'life_impacted_count')) {
-                    $impactsCount = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count');
-                }
+                $impactsTableCount = (int) $impactQuery->count();
+                $impactsCount = max($usersImpactSum, $impactsTableCount);
             }
-        } elseif (Schema::hasColumn('users', 'life_impacted_count')) {
-            $impactsCount = $scopedMemberUserIds === null
-                ? (int) User::query()->whereNull('deleted_at')->sum('life_impacted_count')
-                : (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count');
+        } else {
+            $impactsCount = $usersImpactSum;
         }
 
         // P2P meetings count
