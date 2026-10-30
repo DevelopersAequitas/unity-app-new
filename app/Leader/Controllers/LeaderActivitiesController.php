@@ -336,19 +336,24 @@ class LeaderActivitiesController extends Controller
     }
 
     /**
-     * Get user-input activities list by type for Leader App Home / Activities screens.
+     * Get user-input activities list and top-to-bottom ranked peers by type for Leader App.
      */
     public function activitiesByType(Request $request, string $type): JsonResponse
     {
-        $data = $this->activitiesService->getActivitiesByType($request, $type);
+        $items = $this->activitiesService->getActivitiesByType($request, $type);
+        $peers = $this->activitiesService->getRankedPeersByActivityType($request, $type);
 
         return response()->json([
             'success' => true,
             'status' => true,
-            'data' => $data,
+            'data' => [
+                'peers' => $peers,
+                'items' => $items,
+            ],
             'meta' => [
                 'type' => $type,
-                'total' => count($data),
+                'total_peers' => count($peers),
+                'total' => count($items),
             ],
         ]);
     }
