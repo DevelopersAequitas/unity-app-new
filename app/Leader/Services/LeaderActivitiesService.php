@@ -972,6 +972,449 @@ class LeaderActivitiesService
     }
 
     /**
+     * Get all scoped peers ranked top-to-bottom (#1, #2, #3...) by their count/volume
+     * for the requested activity type.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getRankedPeersByActivityType(Request $request, string $type): array
+    {
+        $normalizedType = strtolower(trim($type));
+        $search = $request->query('search') ? trim((string) $request->query('search')) : null;
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
+
+        if (is_array($scopedUserIds) && empty($scopedUserIds)) {
+            return [];
+        }
+
+        $userQuery = User::query()
+            ->whereNull('deleted_at')
+            ->with([
+                'circleMembers.circle',
+                'circleMembers.level4Category',
+                'activeCircle',
+                'businessCategory',
+                'level4Category',
+            ]);
+
+        if ($scopedUserIds !== null) {
+            $userQuery->whereIn('id', $scopedUserIds);
+        }
+
+        if ($search) {
+            $userQuery->where(function ($q) use ($search): void {
+                $q->where('first_name', 'ilike', "%{$search}%")
+                    ->orWhere('last_name', 'ilike', "%{$search}%")
+                    ->orWhere('display_name', 'ilike', "%{$search}%")
+                    ->orWhere('company_name', 'ilike', "%{$search}%")
+                    ->orWhere('city', 'ilike', "%{$search}%");
+            });
+        }
+
+        $users = $userQuery->get();
+        if ($users->isEmpty()) {
+            return [];
+        }
+
+        $userIds = $users->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $countsByUser = [];
+        $amountsByUser = [];
+        $unitLabel = 'Activities';
+
+        $addCount = function (?string $uid, int $delta = 1) use (&$countsByUser): void {
+            if (! $uid || $uid === '') {
+                return;
+            }
+            $countsByUser[$uid] = ($countsByUser[$uid] ?? 0) + $delta;
+        };
+
+        switch ($normalizedType) {
+            case 'impacts':
+            case 'impact':
+            case 'life-impacts':
+            case 'top-impacters':
+                $unitLabel = 'Impacts';
+                if (Schema::hasTable('impacts')) {
+                    $rows = DB::table('impacts')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt, COALESCE(SUM(life_impacted), COUNT(*)) as total_lives')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = max((int) $r->cnt, (int) $r->total_lives);
+                    }
+                }
+                foreach ($users as $u) {
+                    $uid = (string) $u->id;
+                    $colVal = (int) ($u->life_impacted_count ?? 0);
+                    if ($colVal > ($countsByUser[$uid] ?? 0)) {
+                        $countsByUser[$uid] = $colVal;
+                    }
+                }
+                break;
+
+            case 'business-deals':
+            case 'deals':
+                $unitLabel = 'Deals';
+                if (Schema::hasTable('business_deals')) {
+                    $dealRows = DB::table('business_deals')
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($userIds): void {
+                            $q->whereIn('from_user_id', $userIds)
+                                ->orWhereIn('to_user_id', $userIds);
+                        })
+                        ->get(['from_user_id', 'to_user_id', 'deal_amount']);
+                    foreach ($dealRows as $dr) {
+                        $amt = (float) ($dr->deal_amount ?? 0);
+                        $fromId = (string) ($dr->from_user_id ?? '');
+                        $toId = (string) ($dr->to_user_id ?? '');
+                        if ($fromId !== '') {
+                            $addCount($fromId, 1);
+                            $amountsByUser[$fromId] = ($amountsByUser[$fromId] ?? 0.0) + $amt;
+                        }
+                        if ($toId !== '' && $toId !== $fromId) {
+                            $addCount($toId, 1);
+                            $amountsByUser[$toId] = ($amountsByUser[$toId] ?? 0.0) + $amt;
+                        }
+                    }
+                }
+                break;
+
+            case 'p2p-meetings':
+            case 'peer-meetings':
+            case 'p2p':
+                $unitLabel = 'Meetings';
+                if (Schema::hasTable('p2p_meetings')) {
+                    $mRows = DB::table('p2p_meetings')
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($userIds): void {
+                            $q->whereIn('initiator_user_id', $userIds)
+                                ->orWhereIn('peer_user_id', $userIds);
+                        })
+                        ->get(['initiator_user_id', 'peer_user_id']);
+                    foreach ($mRows as $mr) {
+                        $initId = (string) ($mr->initiator_user_id ?? '');
+                        $peerId = (string) ($mr->peer_user_id ?? '');
+                        if ($initId !== '') {
+                            $addCount($initId, 1);
+                        }
+                        if ($peerId !== '' && $peerId !== $initId) {
+                            $addCount($peerId, 1);
+                        }
+                    }
+                }
+                break;
+
+            case 'referrals':
+            case 'referral':
+                $unitLabel = 'Referrals';
+                if (Schema::hasTable('referrals')) {
+                    $rRows = DB::table('referrals')
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($userIds): void {
+                            $q->whereIn('from_user_id', $userIds)
+                                ->orWhereIn('to_user_id', $userIds);
+                        })
+                        ->get(['from_user_id', 'to_user_id']);
+                    foreach ($rRows as $rr) {
+                        $addCount((string) ($rr->from_user_id ?? ''), 1);
+                    }
+                }
+                break;
+
+            case 'testimonials':
+            case 'endorsements':
+                $unitLabel = 'Endorsements';
+                if (Schema::hasTable('testimonials')) {
+                    $tRows = DB::table('testimonials')
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($userIds): void {
+                            $q->whereIn('from_user_id', $userIds)
+                                ->orWhereIn('to_user_id', $userIds);
+                        })
+                        ->get(['from_user_id', 'to_user_id']);
+                    foreach ($tRows as $tr) {
+                        $fromId = (string) ($tr->from_user_id ?? '');
+                        $toId = (string) ($tr->to_user_id ?? '');
+                        if ($fromId !== '') {
+                            $addCount($fromId, 1);
+                        }
+                        if ($toId !== '' && $toId !== $fromId) {
+                            $addCount($toId, 1);
+                        }
+                    }
+                }
+                break;
+
+            case 'requirements':
+            case 'requirement':
+                $unitLabel = 'Requirements';
+                if (Schema::hasTable('requirements')) {
+                    $rows = DB::table('requirements')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'coins':
+            case 'peers-by-coins':
+                $unitLabel = 'Coins';
+                foreach ($users as $u) {
+                    $countsByUser[(string) $u->id] = (int) ($u->coins_balance ?? 0);
+                }
+                break;
+
+            case 'visitor-registrations':
+            case 'visitors':
+                $unitLabel = 'Visitors';
+                if (Schema::hasTable('visitor_registrations')) {
+                    $rows = DB::table('visitor_registrations')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'peer-recommendations':
+            case 'recommendations':
+                $unitLabel = 'Recommended';
+                if (Schema::hasTable('peer_recommendations')) {
+                    $rows = DB::table('peer_recommendations')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'introduced-peers':
+            case 'community-builders':
+                $unitLabel = 'Introduced';
+                if (Schema::hasColumn('users', 'introduced_by')) {
+                    $rows = DB::table('users')
+                        ->whereNull('deleted_at')
+                        ->whereIn('introduced_by', $userIds)
+                        ->selectRaw('introduced_by, COUNT(*) as cnt')
+                        ->groupBy('introduced_by')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->introduced_by] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'collaboration-asks':
+            case 'collaborations':
+            case 'referral-asks':
+            case 'help-asks':
+            case 'need-help':
+                $flowCode = str_starts_with($normalizedType, 'collab')
+                    ? 'collaboration'
+                    : (str_starts_with($normalizedType, 'referral') ? 'referral' : 'help');
+                $unitLabel = ucfirst($flowCode).' Asks';
+                if (Schema::hasTable('asks') && Schema::hasTable('ask_flows')) {
+                    $flowId = DB::table('ask_flows')->where('code', $flowCode)->value('id');
+                    if ($flowId) {
+                        $rows = DB::table('asks')
+                            ->where('flow_id', $flowId)
+                            ->whereIn('creator_user_id', $userIds)
+                            ->selectRaw('creator_user_id, COUNT(*) as cnt')
+                            ->groupBy('creator_user_id')
+                            ->get();
+                        foreach ($rows as $r) {
+                            $addCount((string) $r->creator_user_id, (int) $r->cnt);
+                        }
+                    }
+                }
+                if ($flowCode === 'collaboration' && Schema::hasTable('collaboration_posts')) {
+                    $cpRows = DB::table('collaboration_posts')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($cpRows as $r) {
+                        $addCount((string) $r->user_id, (int) $r->cnt);
+                    }
+                }
+                break;
+
+            case 'posts':
+            case 'timeline-posts':
+                $unitLabel = 'Posts';
+                if (Schema::hasTable('posts')) {
+                    $rows = DB::table('posts')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'creatives':
+            case 'activity-creatives':
+                $unitLabel = 'Creatives';
+                if (Schema::hasTable('activity_creatives')) {
+                    $rows = DB::table('activity_creatives')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'coin-claims':
+            case 'claim-coins':
+                $unitLabel = 'Claims';
+                if (Schema::hasTable('coin_claim_requests')) {
+                    $rows = DB::table('coin_claim_requests')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'stories':
+            case 'business-stories':
+            case 'vyapaar-jagat':
+                $unitLabel = 'Stories';
+                if (Schema::hasTable('sme_business_story_submissions')) {
+                    $rows = DB::table('sme_business_story_submissions')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'leadership-interests':
+            case 'leader-interests':
+                $unitLabel = 'Submissions';
+                if (Schema::hasTable('leader_interest_submissions')) {
+                    $rows = DB::table('leader_interest_submissions')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'certifications':
+            case 'certificates':
+                $unitLabel = 'Certificates';
+                if (Schema::hasTable('certification_submissions')) {
+                    $rows = DB::table('certification_submissions')
+                        ->whereIn('user_id', $userIds)
+                        ->selectRaw('user_id, COUNT(*) as cnt')
+                        ->groupBy('user_id')
+                        ->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            case 'event-registrations':
+            case 'events':
+            case 'event-attendance':
+            case 'attendance':
+                $checkedInOnly = in_array($normalizedType, ['event-attendance', 'attendance'], true);
+                $unitLabel = $checkedInOnly ? 'Attended' : 'Events';
+                if (Schema::hasTable('event_registrations')) {
+                    $eq = DB::table('event_registrations')->whereIn('user_id', $userIds);
+                    if ($checkedInOnly && Schema::hasColumn('event_registrations', 'checkin_status')) {
+                        $eq->where('checkin_status', 'checked_in');
+                    }
+                    $rows = $eq->selectRaw('user_id, COUNT(*) as cnt')->groupBy('user_id')->get();
+                    foreach ($rows as $r) {
+                        $countsByUser[(string) $r->user_id] = (int) $r->cnt;
+                    }
+                }
+                break;
+
+            default:
+                $unitLabel = 'Impacts';
+                foreach ($users as $u) {
+                    $countsByUser[(string) $u->id] = (int) ($u->life_impacted_count ?? 0);
+                }
+                break;
+        }
+
+        $formattedPeers = [];
+        foreach ($users as $u) {
+            $uid = (string) $u->id;
+            $base = $this->formatPeerDetail($u);
+            if (! $base) {
+                continue;
+            }
+            $cnt = (int) ($countsByUser[$uid] ?? 0);
+            $amt = (float) ($amountsByUser[$uid] ?? 0.0);
+            $amtFormatted = $amt >= 10000000
+                ? '₹'.round($amt / 10000000, 2).'Cr'
+                : ($amt >= 100000 ? '₹'.round($amt / 100000, 1).'L' : ($amt > 0 ? '₹'.number_format($amt, 0) : ''));
+
+            $formattedPeers[] = array_merge($base, [
+                'metric_count' => $cnt,
+                'metric_amount' => $amt,
+                'metric_label' => $unitLabel,
+                'metric_display' => $amtFormatted !== '' ? $amtFormatted : "{$cnt}",
+                'coins' => (int) ($u->coins_balance ?? 0),
+            ]);
+        }
+
+        usort($formattedPeers, function (array $a, array $b): int {
+            $amtCmp = ($b['metric_amount'] ?? 0.0) <=> ($a['metric_amount'] ?? 0.0);
+            if ($amtCmp !== 0) {
+                return $amtCmp;
+            }
+            $cntCmp = ($b['metric_count'] ?? 0) <=> ($a['metric_count'] ?? 0);
+            if ($cntCmp !== 0) {
+                return $cntCmp;
+            }
+            $impCmp = ($b['life_impacted_count'] ?? 0) <=> ($a['life_impacted_count'] ?? 0);
+            if ($impCmp !== 0) {
+                return $impCmp;
+            }
+
+            return strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        });
+
+        foreach ($formattedPeers as $idx => &$peerRow) {
+            $peerRow['rank'] = $idx + 1;
+        }
+        unset($peerRow);
+
+        return $formattedPeers;
+    }
+
+    /**
      * Get unified list of user-input activities by type for Leader App.
      *
      * @return array<int, array<string, mixed>>
