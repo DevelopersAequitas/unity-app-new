@@ -32,7 +32,7 @@ class SendMembershipExpiryReminders extends Command
      *
      * @var string
      */
-    protected $description = 'Send daily membership expiry reminder emails to expired members.';
+    protected $description = 'Send membership expiry reminder emails on day 3 and day 7, and deactivate peers after 10 days.';
 
     /**
      * Execute the console command.
@@ -41,21 +41,97 @@ class SendMembershipExpiryReminders extends Command
     {
         $this->info('Starting membership expiry reminder email process...');
 
+        $freeStatuses = [
+            User::STATUS_FREE,
+            'Free Peer',
+            'free_peer',
+            'expired',
+        ];
+
         // Fetch all users whose membership has expired (membership_ends_at is in the past, i.e., less than now)
         $expiredUsers = User::query()
-            ->where('membership_status', User::STATUS_FREE)
+            ->whereIn('membership_status', $freeStatuses)
             ->whereNotNull('membership_ends_at')
             ->where('membership_ends_at', '<', now())
             ->get();
 
         $this->info('Found '.$expiredUsers->count().' expired users.');
 
+        $today = \Illuminate\Support\Carbon::today();
         $sentCount = 0;
+        $deactivatedCount = 0;
         $failedCount = 0;
         $skippedCount = 0;
         $sentEmails = [];
 
         foreach ($expiredUsers as $user) {
+            // Skip users already inactive or trashed
+            if ($user->trashed() || strtolower((string) ($user->status ?? '')) === 'inactive') {
+                $skippedCount++;
+
+                continue;
+            }
+
+            $endsAt = \Illuminate\Support\Carbon::parse($user->membership_ends_at)->startOfDay();
+            $daysSinceExpiry = (int) $endsAt->diffInDays($today, false);
+
+            if ($daysSinceExpiry < 0) {
+                $skippedCount++;
+
+                continue;
+            }
+
+            // After 10 days without rejoining/renewing unity membership, peer is automatically deactivated
+            if ($daysSinceExpiry >= 10) {
+                $hasRenewed = ! in_array((string) $user->membership_status, $freeStatuses, true)
+                    || ($user->membership_ends_at && \Illuminate\Support\Carbon::parse($user->membership_ends_at)->isFuture());
+
+                if ($hasRenewed) {
+                    $skippedCount++;
+
+                    continue;
+                }
+
+                try {
+                    if (Schema::hasColumn('users', 'status')) {
+                        $user->status = 'inactive';
+                    }
+                    if (Schema::hasColumn('users', 'is_active')) {
+                        $user->is_active = false;
+                    }
+                    $user->save();
+                    $user->delete();
+
+                    if (method_exists($user, 'tokens')) {
+                        $user->tokens()->delete();
+                    }
+
+                    Log::info('membership.peer_automatically_deactivated_after_expiry', [
+                        'user_id' => (string) $user->id,
+                        'email' => (string) $user->email,
+                        'days_since_expiry' => $daysSinceExpiry,
+                        'membership_ends_at' => optional($user->membership_ends_at)->toDateTimeString(),
+                    ]);
+
+                    $deactivatedCount++;
+                } catch (Throwable $exception) {
+                    $failedCount++;
+                    Log::error('membership.peer_automatic_deactivation_failed', [
+                        'user_id' => (string) $user->id,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+
+                continue;
+            }
+
+            // Only send reminder emails on day 3 and day 7; do not send on any other day
+            if ($daysSinceExpiry !== 3 && $daysSinceExpiry !== 7) {
+                $skippedCount++;
+
+                continue;
+            }
+
             $email = strtolower(trim((string) $user->email));
 
             // Prevent duplicate emails within the same scheduled execution
@@ -65,8 +141,26 @@ class SendMembershipExpiryReminders extends Command
                 continue;
             }
 
+            // Check if reminder for this specific day was already sent
+            $alreadySentForDay = \App\Models\EmailLog::query()
+                ->where('user_id', (string) $user->id)
+                ->where('template_key', 'membership_expiry_reminder')
+                ->where('status', 'sent')
+                ->where('created_at', '>=', $user->membership_ends_at)
+                ->where(function ($q) use ($daysSinceExpiry) {
+                    $q->where('payload->day', $daysSinceExpiry)
+                        ->orWhere('payload->day', (string) $daysSinceExpiry);
+                })
+                ->exists();
+
+            if ($alreadySentForDay) {
+                $skippedCount++;
+
+                continue;
+            }
+
             // Create Mailable instance
-            $mailable = new MembershipExpiryReminderMail($user);
+            $mailable = new MembershipExpiryReminderMail($user, $daysSinceExpiry);
             $emailSent = false;
             $emailError = null;
 
@@ -81,7 +175,7 @@ class SendMembershipExpiryReminders extends Command
 
             try {
                 // Create and trigger membership expiry notification
-                $notificationObj = new MembershipExpiryNotification($user);
+                $notificationObj = new MembershipExpiryNotification($user, $daysSinceExpiry);
                 $notifPayload = $notificationObj->toArray($user);
 
                 $appNotificationId = null;
@@ -104,6 +198,7 @@ class SendMembershipExpiryReminders extends Command
                         'data' => array_merge($notifPayload, [
                             'screen' => 'membership',
                             'tap_destination' => 'membership',
+                            'reminder_day' => $daysSinceExpiry,
                         ]),
                         'status' => 'sent',
                         'sent_at' => now(),
@@ -139,6 +234,7 @@ class SendMembershipExpiryReminders extends Command
                     [
                         'notification_type' => 'membership_expired',
                         'notification_id' => (string) ($appNotificationId ?: $dbNotification->id),
+                        'reminder_day' => (string) $daysSinceExpiry,
                     ]
                 );
 
@@ -154,6 +250,7 @@ class SendMembershipExpiryReminders extends Command
                         'related_id' => (string) $user->id,
                         'payload' => [
                             'flow' => 'membership_expiry_reminder_command',
+                            'day' => $daysSinceExpiry,
                             'membership_ends_at' => optional($user->membership_ends_at)->toDateTimeString(),
                             'notification_id' => (string) $dbNotification->id,
                         ],
@@ -165,6 +262,7 @@ class SendMembershipExpiryReminders extends Command
                         'display_name' => (string) $user->display_name,
                         'email' => (string) $user->email,
                         'membership_ends_at' => optional($user->membership_ends_at)->toDateString(),
+                        'days_since_expiry' => $daysSinceExpiry,
                         'sent_at' => now()->toDateTimeString(),
                         'status' => 'sent',
                         'notification_id' => (string) $dbNotification->id,
@@ -202,6 +300,7 @@ class SendMembershipExpiryReminders extends Command
                     'related_id' => (string) $user->id,
                     'payload' => [
                         'flow' => 'membership_expiry_reminder_command',
+                        'day' => $daysSinceExpiry,
                         'membership_ends_at' => optional($user->membership_ends_at)->toDateTimeString(),
                     ],
                 ], $exception);
@@ -212,6 +311,7 @@ class SendMembershipExpiryReminders extends Command
                     'display_name' => (string) $user->display_name,
                     'email' => (string) $user->email,
                     'membership_ends_at' => optional($user->membership_ends_at)->toDateString(),
+                    'days_since_expiry' => $daysSinceExpiry,
                     'sent_at' => now()->toDateTimeString(),
                     'status' => 'failed',
                     'error_message' => $exception->getMessage(),
@@ -225,7 +325,7 @@ class SendMembershipExpiryReminders extends Command
             }
         }
 
-        $this->info("Execution summary: Sent: {$sentCount}, Failed: {$failedCount}, Skipped: {$skippedCount}");
+        $this->info("Execution summary: Sent: {$sentCount}, Deactivated: {$deactivatedCount}, Failed: {$failedCount}, Skipped: {$skippedCount}");
 
         return self::SUCCESS;
     }
