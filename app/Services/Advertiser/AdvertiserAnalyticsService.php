@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Advertiser;
 
+use App\Models\Ad;
+use App\Models\AdClick;
+use App\Models\AdView;
 use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserCampaign;
+use App\Models\AdvertiserCampaignAd;
+use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerClick;
@@ -268,6 +274,228 @@ class AdvertiserAnalyticsService
                 'conversion_rate_percent' => $conversionRate,
             ],
             'daily' => $dailyData,
+        ];
+    }
+
+    /**
+     * Get analytics for an individual campaign scoped strictly to its linked ads.
+     */
+    public function getCampaignAnalytics(AdvertiserCampaign $campaign, ?Carbon $from = null, ?Carbon $to = null): array
+    {
+        $start = $from ? $from->copy()->startOfDay() : now()->subDays(30)->startOfDay();
+        $end = $to ? $to->copy()->endOfDay() : now()->endOfDay();
+
+        $adIds = AdvertiserCampaignAd::where('campaign_id', $campaign->id)->pluck('ad_id')->all();
+
+        if (empty($adIds)) {
+            return [
+                'campaign_id' => $campaign->id,
+                'period' => [
+                    'from' => $start->format('Y-m-d'),
+                    'to' => $end->format('Y-m-d'),
+                ],
+                'views' => 0,
+                'unique_views' => 0,
+                'clicks' => 0,
+                'unique_clicks' => 0,
+                'ctr_percent' => 0.0,
+                'daily' => [],
+            ];
+        }
+
+        // Total Views
+        $viewsQuery = AdView::whereIn('ad_id', $adIds)
+            ->whereBetween('viewed_at', [$start, $end]);
+        $totalViews = $viewsQuery->count();
+
+        // Unique Views
+        $uvRow = AdView::whereIn('ad_id', $adIds)
+            ->whereBetween('viewed_at', [$start, $end])
+            ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
+            ->first();
+        $uniqueViews = (int) ($uvRow->count ?? 0);
+
+        // Total Clicks
+        $clicksQuery = AdClick::whereIn('ad_id', $adIds)
+            ->whereBetween('created_at', [$start, $end]);
+        $totalClicks = $clicksQuery->count();
+
+        // Unique Clicks
+        $ucRow = AdClick::whereIn('ad_id', $adIds)
+            ->whereBetween('created_at', [$start, $end])
+            ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
+            ->first();
+        $uniqueClicks = (int) ($ucRow->count ?? 0);
+
+        if ($uniqueClicks > $uniqueViews) {
+            $uniqueClicks = $uniqueViews;
+        }
+
+        $ctr = ($uniqueViews > 0) ? min(100.0, round(($uniqueClicks / $uniqueViews) * 100, 2)) : 0.0;
+
+        // Daily breakdown
+        $daily = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $dayStart = $cursor->copy()->startOfDay();
+            $dayEnd = $cursor->copy()->endOfDay();
+
+            $dayViews = AdView::whereIn('ad_id', $adIds)->whereBetween('viewed_at', [$dayStart, $dayEnd])->count();
+            $dayClicks = AdClick::whereIn('ad_id', $adIds)->whereBetween('created_at', [$dayStart, $dayEnd])->count();
+
+            $daily[] = [
+                'date' => $cursor->format('Y-m-d'),
+                'views' => $dayViews,
+                'clicks' => $dayClicks,
+            ];
+
+            $cursor->addDay();
+        }
+
+        return [
+            'campaign_id' => $campaign->id,
+            'campaign_number' => $campaign->campaign_number,
+            'campaign_name' => $campaign->name,
+            'status' => $campaign->status,
+            'period' => [
+                'from' => $start->format('Y-m-d'),
+                'to' => $end->format('Y-m-d'),
+            ],
+            'views' => $totalViews,
+            'unique_views' => $uniqueViews,
+            'clicks' => $totalClicks,
+            'unique_clicks' => $uniqueClicks,
+            'ctr_percent' => $ctr,
+            'daily' => $daily,
+        ];
+    }
+
+    /**
+     * Get timeseries data for an advertiser across their owned campaigns.
+     */
+    public function getAdvertiserAnalyticsTimeseries(User $user, string $metric, Carbon $from, Carbon $to, string $interval = 'day'): array
+    {
+        $campaignIds = AdvertiserCampaign::where('user_id', $user->id)->pluck('id')->all();
+        $adIds = AdvertiserCampaignAd::whereIn('campaign_id', $campaignIds)->pluck('ad_id')->all();
+
+        $start = $from->copy()->startOfDay();
+        $end = $to->copy()->endOfDay();
+
+        $points = [];
+        $cursor = $start->copy();
+
+        while ($cursor->lte($end)) {
+            $dayStart = $cursor->copy()->startOfDay();
+            $dayEnd = $cursor->copy()->endOfDay();
+
+            $value = 0;
+            if (!empty($adIds)) {
+                if ($metric === 'views' || $metric === 'impressions') {
+                    $value = AdView::whereIn('ad_id', $adIds)->whereBetween('viewed_at', [$dayStart, $dayEnd])->count();
+                } else {
+                    $value = AdClick::whereIn('ad_id', $adIds)->whereBetween('created_at', [$dayStart, $dayEnd])->count();
+                }
+            }
+
+            $points[] = [
+                'date' => $cursor->format('Y-m-d'),
+                'value' => $value,
+            ];
+
+            $cursor->addDay();
+        }
+
+        return [
+            'metric' => $metric,
+            'interval' => $interval,
+            'period' => [
+                'from' => $start->format('Y-m-d'),
+                'to' => $end->format('Y-m-d'),
+            ],
+            'points' => $points,
+        ];
+    }
+
+    /**
+     * Get system-wide advertiser summary for admin panel.
+     */
+    public function getAdminAdvertiserSummary(?Carbon $from = null, ?Carbon $to = null): array
+    {
+        $appQuery = AdvertiserApplication::query();
+        $paymentQuery = AdvertiserPayment::where('status', AdvertiserPayment::STATUS_CAPTURED);
+        $campaignQuery = AdvertiserCampaign::query();
+
+        if ($from && $to) {
+            $appQuery->whereBetween('created_at', [$from, $to]);
+            $paymentQuery->whereBetween('created_at', [$from, $to]);
+            $campaignQuery->whereBetween('created_at', [$from, $to]);
+        }
+
+        $apps = $appQuery->get();
+        $totalRevenue = (float) $paymentQuery->sum('amount');
+        $capturedPaymentsCount = $paymentQuery->count();
+
+        // Linked Ads aggregate
+        $allCampaignAdIds = AdvertiserCampaignAd::pluck('ad_id')->unique()->all();
+
+        $totalViews = 0;
+        $uniqueViews = 0;
+        $totalClicks = 0;
+        $uniqueClicks = 0;
+
+        if (!empty($allCampaignAdIds)) {
+            $vQuery = AdView::whereIn('ad_id', $allCampaignAdIds);
+            $cQuery = AdClick::whereIn('ad_id', $allCampaignAdIds);
+            if ($from && $to) {
+                $vQuery->whereBetween('viewed_at', [$from, $to]);
+                $cQuery->whereBetween('created_at', [$from, $to]);
+            }
+            $totalViews = $vQuery->count();
+            $totalClicks = $cQuery->count();
+
+            $uvRow = (clone $vQuery)->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')->first();
+            $uniqueViews = (int) ($uvRow->count ?? 0);
+
+            $ucRow = (clone $cQuery)->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')->first();
+            $uniqueClicks = (int) ($ucRow->count ?? 0);
+        }
+
+        $ctr = ($uniqueViews > 0) ? min(100.0, round(($uniqueClicks / $uniqueViews) * 100, 2)) : 0.0;
+
+        return [
+            'applications' => [
+                'total' => $apps->count(),
+                'submitted' => $apps->where('status', AdvertiserApplication::STATUS_SUBMITTED)->count(),
+                'under_review' => $apps->where('status', AdvertiserApplication::STATUS_UNDER_REVIEW)->count(),
+                'changes_requested' => $apps->where('status', AdvertiserApplication::STATUS_CHANGES_REQUESTED)->count(),
+                'approved' => $apps->where('status', AdvertiserApplication::STATUS_APPROVED)->count(),
+                'rejected' => $apps->where('status', AdvertiserApplication::STATUS_REJECTED)->count(),
+            ],
+            'subscriptions' => [
+                'total' => AdvertiserSubscription::count(),
+                'active' => AdvertiserSubscription::where('status', AdvertiserSubscription::STATUS_ACTIVE)->count(),
+                'pending_payment' => AdvertiserSubscription::where('status', AdvertiserSubscription::STATUS_PENDING_PAYMENT)->count(),
+                'expired' => AdvertiserSubscription::where('status', AdvertiserSubscription::STATUS_EXPIRED)->count(),
+            ],
+            'payments' => [
+                'captured_amount' => number_format($totalRevenue, 2, '.', ''),
+                'captured_count' => $capturedPaymentsCount,
+                'currency' => 'INR',
+            ],
+            'campaigns' => [
+                'total' => $campaignQuery->count(),
+                'active' => (clone $campaignQuery)->where('status', AdvertiserCampaign::STATUS_ACTIVE)->count(),
+                'pending_review' => (clone $campaignQuery)->where('status', AdvertiserCampaign::STATUS_PENDING_REVIEW)->count(),
+                'paused' => (clone $campaignQuery)->where('status', AdvertiserCampaign::STATUS_PAUSED)->count(),
+                'completed' => (clone $campaignQuery)->where('status', AdvertiserCampaign::STATUS_COMPLETED)->count(),
+            ],
+            'ads' => [
+                'total_views' => $totalViews,
+                'unique_views' => $uniqueViews,
+                'total_clicks' => $totalClicks,
+                'unique_clicks' => $uniqueClicks,
+                'ctr_percent' => $ctr,
+            ],
         ];
     }
 }

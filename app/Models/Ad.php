@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -121,5 +122,17 @@ class Ad extends Model
     public function clicks(): HasMany
     {
         return $this->hasMany(AdClick::class, 'ad_id');
+    }
+
+    public function campaignAds(): HasMany
+    {
+        return $this->hasMany(AdvertiserCampaignAd::class, 'ad_id');
+    }
+
+    public function campaigns(): BelongsToMany
+    {
+        return $this->belongsToMany(AdvertiserCampaign::class, 'advertiser_campaign_ads', 'ad_id', 'campaign_id')
+            ->withPivot(['id', 'creative_role', 'status', 'is_primary', 'approved_at', 'published_at'])
+            ->withTimestamps();
     }
 }

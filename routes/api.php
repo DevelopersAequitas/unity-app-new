@@ -1102,6 +1102,9 @@ Route::prefix('v1')->group(function () {
             // Section 21: Posts & Moderation Endpoints
             Route::get('/posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
             Route::get('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+            Route::get('/posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+            Route::post('/posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+            Route::post('/posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
             Route::delete('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
             Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -1535,6 +1538,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
+
+            // Campaigns Lifecycle & Scoped Analytics
+            Route::get('/campaigns', [AdvertiserMemberApiController::class, 'campaigns']);
+            Route::post('/campaigns', [AdvertiserMemberApiController::class, 'createCampaign']);
+            Route::get('/campaigns/{id}', [AdvertiserMemberApiController::class, 'campaignDetails'])->whereUuid('id');
+            Route::patch('/campaigns/{id}', [AdvertiserMemberApiController::class, 'updateCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/submit', [AdvertiserMemberApiController::class, 'submitCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/cancel', [AdvertiserMemberApiController::class, 'cancelCampaign'])->whereUuid('id');
+            Route::get('/campaigns/{id}/analytics', [AdvertiserMemberApiController::class, 'campaignAnalytics'])->whereUuid('id');
+            Route::get('/analytics/timeseries', [AdvertiserMemberApiController::class, 'analyticsTimeseries']);
         });
     });
 
@@ -1637,6 +1650,17 @@ Route::prefix('v1')->group(function () {
         // Banner configuration
         Route::get('/banner-config', [AdvertiserAdminApiController::class, 'bannerConfig']);
         Route::patch('/banner-config', [AdvertiserAdminApiController::class, 'updateBannerConfig']);
+
+        // Campaigns Management
+        Route::get('/campaigns', [AdvertiserAdminApiController::class, 'campaigns']);
+        Route::get('/campaigns/{id}', [AdvertiserAdminApiController::class, 'showCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/review', [AdvertiserAdminApiController::class, 'reviewCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/publish', [AdvertiserAdminApiController::class, 'publishCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/pause', [AdvertiserAdminApiController::class, 'pauseCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/resume', [AdvertiserAdminApiController::class, 'resumeCampaign'])->whereUuid('id');
+
+        // Analytics Summary
+        Route::get('/analytics/summary', [AdvertiserAdminApiController::class, 'analyticsSummary']);
     });
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
@@ -1869,6 +1893,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     // Section 21: Posts & Moderation Endpoints (8 endpoints)
     Route::get('posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
     Route::get('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+    Route::get('posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+    Route::post('posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+    Route::post('posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
     Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
     Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
     Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
