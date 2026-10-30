@@ -687,6 +687,29 @@ class PostDeactivationService
     }
 
     /**
+     * Verify if a public URL is accessible with HTTP 200 (prevents Android FCM dropping images on 404).
+     */
+    public function isReachablePublicUrl(?string $url): bool
+    {
+        if (empty($url) || ! str_starts_with(strtolower((string) $url), 'https://')) {
+            return false;
+        }
+
+        // Static assets hosted on peersunity.com are verified permanent assets
+        if (str_contains($url, '/images/life_impact_creatives/') || str_contains($url, '/images/life_impact_badges/')) {
+            return true;
+        }
+
+        try {
+            $resp = \Illuminate\Support\Facades\Http::timeout(2)->withoutVerifying()->head($url);
+
+            return $resp->status() === 200;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * Resolve the best publicly accessible image URL representing the post.
      */
     public function resolvePostImageUrl(Post $post): ?string
@@ -695,52 +718,7 @@ class PostDeactivationService
             ? LifeImpactCreativeGenerator::getPublicBaseUrl()
             : 'https://peersunity.com';
 
-        // 1. Direct post image attribute
-        if (! empty($post->image)) {
-            $normalized = $this->normalizePublicUrl((string) $post->image);
-            if ($normalized) {
-                return $normalized;
-            }
-        }
-
-        // 2. Media array (e.g. uploaded media or generated file items)
-        $mediaItems = is_array($post->media) ? $post->media : [];
-        if (! empty($mediaItems)) {
-            foreach ($mediaItems as $item) {
-                if (! is_array($item)) {
-                    continue;
-                }
-
-                $fileId = $item['id'] ?? $item['file_id'] ?? null;
-                if ($fileId && Str::isUuid((string) $fileId)) {
-                    if (class_exists(File::class)) {
-                        $fileModel = File::find($fileId);
-                        if ($fileModel && ! empty($fileModel->s3_key)) {
-                            return $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
-                        }
-                    }
-
-                    return $this->normalizePublicUrl("api/v1/files/{$fileId}");
-                }
-
-                if (! empty($item['url'])) {
-                    $normalized = $this->normalizePublicUrl((string) $item['url']);
-                    if ($normalized) {
-                        return $normalized;
-                    }
-                }
-            }
-        }
-
-        // 3. Post media_url attribute
-        if (! empty($post->media_url)) {
-            $normalized = $this->normalizePublicUrl((string) $post->media_url);
-            if ($normalized) {
-                return $normalized;
-            }
-        }
-
-        // 4. Special recognition / Life Impact creative handling
+        // 1. Special recognition / Life Impact creative handling
         if ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact') {
             $targetUser = $this->resolveTargetUser($post);
 
@@ -753,7 +731,14 @@ class PostDeactivationService
                 $threshold = (int) $targetUser->life_impacted_count;
             }
 
-            // Check existing LifeImpactCreative record
+            // Check if post image or existing creative URL is already reachable on public CDN/server
+            if (! empty($post->image)) {
+                $candidate = $this->normalizePublicUrl((string) $post->image);
+                if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                    return $candidate;
+                }
+            }
+
             if ($targetUser && Schema::hasTable('life_impact_creatives') && class_exists(LifeImpactCreative::class)) {
                 try {
                     $existing = LifeImpactCreative::query()
@@ -762,35 +747,85 @@ class PostDeactivationService
                         ->latest()
                         ->first();
                     if ($existing && ! empty($existing->image_url)) {
-                        return $this->normalizePublicUrl((string) $existing->image_url);
+                        $candidate = $this->normalizePublicUrl((string) $existing->image_url);
+                        if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                            return $candidate;
+                        }
                     }
                 } catch (\Throwable $e) {
                     // ignore
                 }
             }
 
-            // Try generating high-res personalized certificate
-            if ($targetUser && class_exists(LifeImpactCreativeGenerator::class)) {
-                try {
-                    $generator = app(LifeImpactCreativeGenerator::class);
-                    $fileModel = $generator->generate($targetUser, $threshold, $threshold);
-                    if ($fileModel && ! empty($fileModel->s3_key)) {
-                        return $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('[PostDeactivationService] Failed generating creative for deactivation notification: ' . $e->getMessage());
-                }
-            }
-
-            // Fallback to milestone badge template
+            // Fallback to verified static recognition creative or badge image (100% 200 OK on live server)
             if (class_exists(LifeImpactCreativeGenerator::class)) {
                 $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
+                if (! empty($meta['creative_image'])) {
+                    $candidate = $this->normalizePublicUrl($meta['creative_image']);
+                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                        return $candidate;
+                    }
+                }
                 if (! empty($meta['badge_image'])) {
-                    return $this->normalizePublicUrl($meta['badge_image']);
+                    $candidate = $this->normalizePublicUrl($meta['badge_image']);
+                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                        return $candidate;
+                    }
                 }
             }
 
-            return $this->normalizePublicUrl('images/life_impact_badges/Legacy Maker.png');
+            return $this->normalizePublicUrl('images/life_impact_creatives/Legacy Maker.png');
+        }
+
+        // 2. Direct post image attribute
+        if (! empty($post->image)) {
+            $normalized = $this->normalizePublicUrl((string) $post->image);
+            if ($normalized && $this->isReachablePublicUrl($normalized)) {
+                return $normalized;
+            }
+        }
+
+        // 3. Media array (e.g. uploaded media or generated file items)
+        $mediaItems = is_array($post->media) ? $post->media : [];
+        if (! empty($mediaItems)) {
+            foreach ($mediaItems as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $fileId = $item['id'] ?? $item['file_id'] ?? null;
+                if ($fileId && Str::isUuid((string) $fileId)) {
+                    if (class_exists(File::class)) {
+                        $fileModel = File::find($fileId);
+                        if ($fileModel && ! empty($fileModel->s3_key)) {
+                            $candidate = $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
+                            if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                                return $candidate;
+                            }
+                        }
+                    }
+
+                    $candidate = $this->normalizePublicUrl("api/v1/files/{$fileId}");
+                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                        return $candidate;
+                    }
+                }
+
+                if (! empty($item['url'])) {
+                    $candidate = $this->normalizePublicUrl((string) $item['url']);
+                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
+                        return $candidate;
+                    }
+                }
+            }
+        }
+
+        // 4. Post media_url attribute
+        if (! empty($post->media_url)) {
+            $normalized = $this->normalizePublicUrl((string) $post->media_url);
+            if ($normalized && $this->isReachablePublicUrl($normalized)) {
+                return $normalized;
+            }
         }
 
         return null;
