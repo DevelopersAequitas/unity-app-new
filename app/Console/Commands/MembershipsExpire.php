@@ -82,10 +82,15 @@ class MembershipsExpire extends Command
                     return;
                 }
 
+                $furthestExpiredEnd = UserMembership::query()
+                    ->where('user_id', $userId)
+                    ->whereNotNull('ends_at')
+                    ->max('ends_at');
+
                 User::query()->where('id', $userId)->update([
                     'membership_status' => 'free_peer',
-                    'membership_ends_at' => null,
-                    'membership_expiry' => null,
+                    'membership_ends_at' => $furthestExpiredEnd,
+                    'membership_expiry' => $furthestExpiredEnd,
                 ]);
             });
         }

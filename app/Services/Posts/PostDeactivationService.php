@@ -695,9 +695,27 @@ class PostDeactivationService
             return false;
         }
 
-        // Static assets hosted on peersunity.com are verified permanent assets
-        if (str_contains($url, '/images/life_impact_creatives/') || str_contains($url, '/images/life_impact_badges/')) {
+        // Static assets and cached notification banners on peersunity.com
+        if (
+            str_contains($url, '/images/life_impact_creatives/') ||
+            str_contains($url, '/images/life_impact_badges/') ||
+            str_contains($url, '/storage/notification_banners/')
+        ) {
             return true;
+        }
+
+        $parsedPath = parse_url($url, PHP_URL_PATH);
+        if ($parsedPath) {
+            $cleanPath = ltrim($parsedPath, '/');
+            if (file_exists(public_path($cleanPath))) {
+                return true;
+            }
+            if (str_starts_with($cleanPath, 'storage/')) {
+                $storageRel = substr($cleanPath, 8);
+                if (file_exists(storage_path('app/public/' . $storageRel))) {
+                    return true;
+                }
+            }
         }
 
         try {
@@ -706,6 +724,123 @@ class PostDeactivationService
             return $resp->status() === 200;
         } catch (\Throwable $e) {
             return false;
+        }
+    }
+
+    /**
+     * Format any image into a standard 16:9 banner (1080x608) so Android BigPictureStyle
+     * never crops out headers, text, or photos, matching full WhatsApp notification preview style.
+     * Cached in storage/app/public/notification_banners/ (gitignored).
+     */
+    public function formatForNotificationBanner(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        $url = $this->normalizePublicUrl($url);
+        if (! $url) {
+            return null;
+        }
+
+        // If it is already a cached 16:9 banner, return immediately
+        if (str_contains($url, '/storage/notification_banners/')) {
+            return $url;
+        }
+
+        try {
+            $hash = md5($url);
+            $cacheDir = storage_path('app/public/notification_banners');
+            $cacheFile = "{$cacheDir}/{$hash}.png";
+            $cachePublicUrl = $this->normalizePublicUrl("storage/notification_banners/{$hash}.png");
+
+            if (file_exists($cacheFile) && filesize($cacheFile) > 1000) {
+                return $cachePublicUrl;
+            }
+
+            // Read source image data from disk or HTTP
+            $sourceContent = null;
+            $parsedPath = parse_url($url, PHP_URL_PATH);
+            if ($parsedPath) {
+                $cleanPath = ltrim($parsedPath, '/');
+                if (file_exists(public_path($cleanPath))) {
+                    $sourceContent = file_get_contents(public_path($cleanPath));
+                } elseif (str_starts_with($cleanPath, 'storage/')) {
+                    $storagePath = storage_path('app/public/' . substr($cleanPath, 8));
+                    if (file_exists($storagePath)) {
+                        $sourceContent = file_get_contents($storagePath);
+                    }
+                }
+            }
+
+            if (! $sourceContent) {
+                $resp = \Illuminate\Support\Facades\Http::timeout(3)->withoutVerifying()->get($url);
+                if ($resp->successful()) {
+                    $sourceContent = $resp->body();
+                }
+            }
+
+            if (! $sourceContent) {
+                return $url;
+            }
+
+            $imgSize = @getimagesizefromstring($sourceContent);
+            if (! $imgSize || $imgSize[0] <= 0 || $imgSize[1] <= 0) {
+                return $url;
+            }
+
+            $origW = $imgSize[0];
+            $origH = $imgSize[1];
+            $ratio = $origW / $origH;
+
+            // If it is already wide enough (~16:9 landscape), return original URL
+            if ($ratio >= 1.6 && $ratio <= 1.9) {
+                return $url;
+            }
+
+            // Create standard 16:9 (1080x608) banner canvas
+            $srcImg = @imagecreatefromstring($sourceContent);
+            if (! $srcImg) {
+                return $url;
+            }
+
+            $canvasW = 1080;
+            $canvasH = 608;
+            $canvas = imagecreatetruecolor($canvasW, $canvasH);
+
+            // Dark navy background matching brand theme (#091424)
+            $bgColor = imagecolorallocate($canvas, 9, 20, 36);
+            imagefill($canvas, 0, 0, $bgColor);
+
+            // Calculate scaled dimension to fit 100% inside 1080x608 without cropping
+            $scale = min($canvasW / $origW, $canvasH / $origH);
+            $targetW = (int) round($origW * $scale);
+            $targetH = (int) round($origH * $scale);
+            $dstX = (int) round(($canvasW - $targetW) / 2);
+            $dstY = (int) round(($canvasH - $targetH) / 2);
+
+            // Create ambient blurred edge background if portrait
+            if ($dstX > 0) {
+                imagecopyresampled($canvas, $srcImg, 0, 0, 0, 0, $canvasW, $canvasH, $origW, $origH);
+                $overlay = imagecolorallocatealpha($canvas, 9, 20, 36, 40);
+                imagefilledrectangle($canvas, 0, 0, $canvasW, $canvasH, $overlay);
+            }
+
+            // Place fitted image in center
+            imagecopyresampled($canvas, $srcImg, $dstX, $dstY, 0, 0, $targetW, $targetH, $origW, $origH);
+
+            if (! is_dir($cacheDir)) {
+                mkdir($cacheDir, 0755, true);
+            }
+
+            imagepng($canvas, $cacheFile, 6);
+            imagedestroy($canvas);
+            imagedestroy($srcImg);
+
+            return $cachePublicUrl;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[PostDeactivationService] Failed formatting banner: ' . $e->getMessage());
+            return $url;
         }
     }
 
@@ -731,15 +866,16 @@ class PostDeactivationService
                 $threshold = (int) $targetUser->life_impacted_count;
             }
 
-            // Check if post image or existing creative URL is already reachable on public CDN/server
+            // Check if dynamic user creative URL exists
+            $candidateUrl = null;
             if (! empty($post->image)) {
-                $candidate = $this->normalizePublicUrl((string) $post->image);
-                if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                    return $candidate;
+                $cand = $this->normalizePublicUrl((string) $post->image);
+                if ($cand && $this->isReachablePublicUrl($cand)) {
+                    $candidateUrl = $cand;
                 }
             }
 
-            if ($targetUser && Schema::hasTable('life_impact_creatives') && class_exists(LifeImpactCreative::class)) {
+            if (! $candidateUrl && $targetUser && Schema::hasTable('life_impact_creatives') && class_exists(LifeImpactCreative::class)) {
                 try {
                     $existing = LifeImpactCreative::query()
                         ->where('user_id', $targetUser->id)
@@ -747,9 +883,9 @@ class PostDeactivationService
                         ->latest()
                         ->first();
                     if ($existing && ! empty($existing->image_url)) {
-                        $candidate = $this->normalizePublicUrl((string) $existing->image_url);
-                        if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                            return $candidate;
+                        $cand = $this->normalizePublicUrl((string) $existing->image_url);
+                        if ($cand && $this->isReachablePublicUrl($cand)) {
+                            $candidateUrl = $cand;
                         }
                     }
                 } catch (\Throwable $e) {
@@ -757,31 +893,36 @@ class PostDeactivationService
                 }
             }
 
-            // Fallback to verified static recognition creative or badge image (100% 200 OK on live server)
+            // If a custom/dynamic certificate exists, letterbox it into 16:9 banner so user face & headers remain 100% visible
+            if ($candidateUrl) {
+                return $this->formatForNotificationBanner($candidateUrl);
+            }
+
+            // Fallback to static recognition creative (from existing public/images/life_impact_creatives)
             if (class_exists(LifeImpactCreativeGenerator::class)) {
                 $meta = app(LifeImpactCreativeGenerator::class)->getRecognitionMeta($threshold);
                 if (! empty($meta['creative_image'])) {
-                    $candidate = $this->normalizePublicUrl($meta['creative_image']);
-                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                        return $candidate;
+                    $cand = $this->normalizePublicUrl($meta['creative_image']);
+                    if ($cand) {
+                        return $this->formatForNotificationBanner($cand);
                     }
                 }
                 if (! empty($meta['badge_image'])) {
-                    $candidate = $this->normalizePublicUrl($meta['badge_image']);
-                    if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                        return $candidate;
+                    $cand = $this->normalizePublicUrl($meta['badge_image']);
+                    if ($cand) {
+                        return $this->formatForNotificationBanner($cand);
                     }
                 }
             }
 
-            return $this->normalizePublicUrl('images/life_impact_creatives/Legacy Maker.png');
+            return $this->formatForNotificationBanner('images/life_impact_creatives/Legacy Maker.png');
         }
 
         // 2. Direct post image attribute
         if (! empty($post->image)) {
             $normalized = $this->normalizePublicUrl((string) $post->image);
             if ($normalized && $this->isReachablePublicUrl($normalized)) {
-                return $normalized;
+                return $this->formatForNotificationBanner($normalized);
             }
         }
 
@@ -800,21 +941,21 @@ class PostDeactivationService
                         if ($fileModel && ! empty($fileModel->s3_key)) {
                             $candidate = $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
                             if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                                return $candidate;
+                                return $this->formatForNotificationBanner($candidate);
                             }
                         }
                     }
 
                     $candidate = $this->normalizePublicUrl("api/v1/files/{$fileId}");
                     if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                        return $candidate;
+                        return $this->formatForNotificationBanner($candidate);
                     }
                 }
 
                 if (! empty($item['url'])) {
                     $candidate = $this->normalizePublicUrl((string) $item['url']);
                     if ($candidate && $this->isReachablePublicUrl($candidate)) {
-                        return $candidate;
+                        return $this->formatForNotificationBanner($candidate);
                     }
                 }
             }
@@ -824,7 +965,7 @@ class PostDeactivationService
         if (! empty($post->media_url)) {
             $normalized = $this->normalizePublicUrl((string) $post->media_url);
             if ($normalized && $this->isReachablePublicUrl($normalized)) {
-                return $normalized;
+                return $this->formatForNotificationBanner($normalized);
             }
         }
 

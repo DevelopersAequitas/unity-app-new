@@ -115,38 +115,53 @@ class NotificationService
             'reason' => 'No eligible recipients found',
         ];
 
+        $postImageUrl = null;
+        try {
+            $postImageUrl = app(\App\Services\Posts\PostDeactivationService::class)->resolvePostImageUrl($post);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[NotificationService] Failed resolving post image: '.$e->getMessage());
+        }
+
         $this->postNotificationRecipientQuery($post)
             ->select('users.*')
-            ->chunkById(100, function ($users) use ($post, $title, $body, $dedupeKeyPrefix, &$summary): void {
+            ->chunkById(100, function ($users) use ($post, $title, $body, $postImageUrl, $dedupeKeyPrefix, &$summary): void {
                 foreach ($users as $user) {
                     $summary['recipients_count']++;
+
+                    $postData = [
+                        'title' => $title,
+                        'body' => $body,
+                        'navigation_screen' => '/member-profile',
+                        'type' => 'new_post',
+                        'member_id' => (string) $post->user_id,
+                        'user_id' => (string) $user->id,
+                        'author_id' => (string) $post->user_id,
+                        'post_id' => (string) $post->id,
+                        'actor_id' => (string) $post->user_id,
+                        'screen' => '/member-profile',
+                        'tap_destination' => '/member-profile',
+                        'profile_id' => (string) $post->user_id,
+                        'profile_screen' => '/member-profile',
+                        'post_screen' => '/post-details',
+                        'post_scroll_id' => (string) $post->id,
+                        'open_profile_first' => true,
+                        'notification_flow' => 'profile_then_post',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                    ];
+
+                    if (! empty($postImageUrl)) {
+                        $postData['image_url'] = $postImageUrl;
+                        $postData['post_image'] = $postImageUrl;
+                        $postData['media_url'] = $postImageUrl;
+                    }
 
                     $notification = $this->sendToUser(
                         $user,
                         'new_post',
                         $title,
                         $body,
-                        [
-                            'title' => $title,
-                            'body' => $body,
-                            'navigation_screen' => '/member-profile',
-                            'type' => 'new_post',
-                            'member_id' => (string) $post->user_id,
-                            'user_id' => (string) $user->id,
-                            'author_id' => (string) $post->user_id,
-                            'post_id' => (string) $post->id,
-                            'actor_id' => (string) $post->user_id,
-                            'screen' => '/member-profile',
-                            'tap_destination' => '/member-profile',
-                            'profile_id' => (string) $post->user_id,
-                            'profile_screen' => '/member-profile',
-                            'post_screen' => '/post-details',
-                            'post_scroll_id' => (string) $post->id,
-                            'open_profile_first' => true,
-                            'notification_flow' => 'profile_then_post',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                        ],
+                        $postData,
                         [
                             'actor_id' => (string) $post->user_id,
                             'channel' => 'push',
@@ -252,7 +267,7 @@ class NotificationService
             'reference_id' => $referenceId,
         ]);
 
-        return AppNotification::create([
+        $notifData = [
             'user_id' => $user->id,
             'campaign_id' => $options['campaign']?->id ?? ($options['campaign_id'] ?? null),
             'type' => $type,
@@ -267,7 +282,13 @@ class NotificationService
             'data' => $payload,
             'dedupe_key' => $options['dedupe_key'] ?? ($data['dedupe_key'] ?? null),
             'status' => 'pending',
-        ]);
+        ];
+
+        if (! empty($payload['image_url']) && Schema::hasColumn('app_notifications', 'image_url')) {
+            $notifData['image_url'] = $payload['image_url'];
+        }
+
+        return AppNotification::create($notifData);
     }
 
     public function sendPushNotification(AppNotification $n): void
