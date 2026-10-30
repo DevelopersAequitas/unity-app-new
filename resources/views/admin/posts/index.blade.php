@@ -629,7 +629,7 @@
 
                             <div class="flex gap-2.5 items-center bg-white p-2.5 rounded-lg border border-slate-200/80">
                                 <div id="modal_post_media_container" class="hidden shrink-0">
-                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs" onerror="this.onerror=null; this.src='{{ asset('images/life_impact_badges/Legacy Maker.png') }}';">
+                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs" onerror="this.onerror=null; this.src='{{ asset('images/life_impact_badges/Legacy%20Maker.png') }}';">
                                 </div>
                                 <div class="text-xs text-slate-700 flex-1 line-clamp-2 leading-relaxed border-l-2 border-indigo-400 pl-2.5 italic">
                                     "<span id="modal_post_content"></span>"
@@ -1006,6 +1006,10 @@
                             if (d.preview.user_name && d.preview.user_name !== 'Member') {
                                 currentOwnerName = d.preview.user_name;
                                 ownerEl.textContent = currentOwnerName;
+                            }
+                            if (d.preview.image_url) {
+                                mediaEl.src = d.preview.image_url;
+                                mediaContainer.classList.remove('hidden');
                             }
                             if (coinsAmountInput) coinsAmountInput.value = currentCoinsToRev;
                             if (impactAmountInput) impactAmountInput.value = currentImpactToRev;

@@ -118,17 +118,17 @@
                         <div class="text-muted small">Content</div>
                         <div class="border rounded p-2 bg-light">{{ $post->content_text ?: '—' }}</div>
                     </div>
-                    @if ($mediaItems)
+                    @if (! empty($mediaItems))
                         <div>
                             <div class="text-muted small mb-1">Media</div>
                             <div class="d-flex flex-wrap gap-2">
                                 @foreach ($mediaItems as $media)
                                     @php
-                                        $mediaUrl = data_get($media, 'url');
+                                        $mediaUrl = data_get($media, 'url') ?: (data_get($media, 'id') ? url('/api/v1/files/' . data_get($media, 'id')) : null);
                                         if ($mediaUrl && ! app()->isProduction() && str_contains($mediaUrl, 'peersunity.com/storage/')) {
                                             $mediaUrl = asset('storage/' . ltrim(explode('peersunity.com/storage/', $mediaUrl)[1] ?? '', '/'));
                                         }
-                                        $fallbackBadge = asset('images/life_impact_badges/Legacy Maker.png');
+                                        $fallbackBadge = asset('images/life_impact_badges/Legacy%20Maker.png');
                                     @endphp
                                     @if ($mediaUrl)
                                         <img src="{{ $mediaUrl }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto; max-height: 180px; object-fit: contain;" onerror="this.onerror=null; this.src='{{ $fallbackBadge }}';">
@@ -136,10 +136,15 @@
                                 @endforeach
                             </div>
                         </div>
+                    @elseif (! empty($post->image))
+                        <div>
+                            <div class="text-muted small mb-1">Media</div>
+                            <img src="{{ $post->image }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto; max-height: 180px; object-fit: contain;" onerror="this.onerror=null; this.src='{{ asset('images/life_impact_badges/Legacy%20Maker.png') }}';">
+                        </div>
                     @elseif ($post->post_type === 'life_impact_recognition' || $post->source_type === 'life_impact')
                         <div>
                             <div class="text-muted small mb-1">Media</div>
-                            <img src="{{ asset('images/life_impact_badges/Legacy Maker.png') }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto;">
+                            <img src="{{ asset('images/life_impact_badges/Legacy%20Maker.png') }}" alt="Post media" class="img-thumbnail" style="width: 140px; height: auto;">
                         </div>
                     @endif
                 </div>
