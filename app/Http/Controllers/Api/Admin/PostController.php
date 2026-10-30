@@ -8,9 +8,12 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\UpdatePostStatusRequest;
 use App\Models\Post;
 use App\Services\Admin\AdminPostService;
+use App\Services\Posts\PostDeactivationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PostController extends BaseApiController
@@ -488,5 +491,120 @@ class PostController extends BaseApiController
             ['id' => $commentId, 'post_id' => $id, 'deleted' => true],
             'Comment removed successfully.'
         );
+    }
+
+    /**
+     * Preview post deactivation impact and awarded coins.
+     */
+    public function previewDeactivation(string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->with(['user.circle', 'circle'])->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $service = app(PostDeactivationService::class);
+        $preview = $service->getDeactivationPreview($post);
+
+        $user = $service->resolveTargetUser($post);
+        $name = (string) ($preview['user_name'] ?? 'Member');
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $first = $parts[0] ?? '';
+        $last = count($parts) > 1 ? end($parts) : '';
+        $initials = strtoupper(mb_substr($first, 0, 1).mb_substr($last, 0, 1));
+        if ($initials === '') {
+            $initials = 'PG';
+        }
+
+        $circleName = $user?->circle?->name ?? $post->circle?->name ?? $user?->company_name ?? 'Community';
+        $content = trim((string) ($post->content_text ?: $post->title ?: ''));
+
+        $preview['user_initials'] = $initials;
+        $preview['user_circle'] = $circleName;
+        $preview['post_date'] = $post->created_at?->format('M d, Y H:i') ?? '';
+        $preview['caption'] = $content !== '' ? $content : 'No caption';
+        $preview['is_already_deactivated'] = $service->isPostAlreadyDeactivated($post);
+
+        return $this->success($preview, 'Post deactivation preview retrieved successfully.');
+    }
+
+    /**
+     * Deactivate a post with custom coins and impact reversals, plus push/in-app notification.
+     */
+    public function deactivate(Request $request, string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $validated = $request->validate([
+            'remarks' => ['required', 'string', 'min:3', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
+            'coins_amount' => ['nullable', 'numeric', 'min:0'],
+            'impact_amount' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'remarks.required' => 'Please provide remarks or reason for deactivating this post.',
+            'remarks.min' => 'Deactivation remarks must be at least 3 characters.',
+        ]);
+
+        $reverseCoins = $request->has('reverse_coins') ? $request->boolean('reverse_coins') : true;
+        $reverseImpact = $request->has('reverse_impact') ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $request->has('notify_user') ? $request->boolean('notify_user') : true;
+        $customCoins = isset($validated['coins_amount']) && $validated['coins_amount'] !== null ? (int) $validated['coins_amount'] : null;
+        $customImpact = isset($validated['impact_amount']) && $validated['impact_amount'] !== null ? (int) $validated['impact_amount'] : null;
+
+        $adminId = Auth::guard('admin')->id() ?? Auth::id();
+
+        $service = app(PostDeactivationService::class);
+        $result = $service->deactivatePost(
+            $post,
+            $validated['remarks'],
+            $adminId,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser,
+            $customCoins,
+            $customImpact
+        );
+
+        if (! empty($result['already_deactivated'])) {
+            return $this->error($result['message'] ?? 'This post is already deactivated.', 400, $result);
+        }
+
+        return $this->success($result, $result['message'] ?? 'Post deactivated successfully.');
+    }
+
+    /**
+     * Restore a deactivated post.
+     */
+    public function restore(string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        DB::transaction(function () use ($post): void {
+            if (method_exists($post, 'restore')) {
+                $post->restore();
+            }
+
+            if (array_key_exists('is_deleted', $post->getAttributes())) {
+                $post->is_deleted = false;
+            }
+            if (array_key_exists('status', $post->getAttributes())) {
+                $post->status = 'active';
+            }
+            $post->save();
+        });
+
+        return $this->success([
+            'id' => $post->id,
+            'status' => 'active',
+            'is_deleted' => false,
+        ], 'Post restored successfully.');
     }
 }

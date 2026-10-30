@@ -23,7 +23,7 @@ class FcmService
 
         // Resolve image URL from data payload if not explicitly provided
         if ($imageUrl === null) {
-            $imageUrl = $data['image_url'] ?? $data['event_banner'] ?? null;
+            $imageUrl = $data['image_url'] ?? $data['post_image'] ?? $data['media_url'] ?? $data['event_banner'] ?? null;
             if (! is_string($imageUrl) || trim($imageUrl) === '') {
                 $imageUrl = null;
             }

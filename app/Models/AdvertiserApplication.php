@@ -157,6 +157,11 @@ class AdvertiserApplication extends Model
         return $this->hasOne(AdvertiserSubscription::class, 'application_id')->latestOfMany('created_at');
     }
 
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(AdvertiserCampaign::class, 'application_id')->orderByDesc('created_at');
+    }
+
     public function emailVerifications(): HasMany
     {
         return $this->hasMany(AdvertiserEmailVerification::class, 'application_id')->orderByDesc('created_at');

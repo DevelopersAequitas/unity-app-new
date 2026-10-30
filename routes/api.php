@@ -70,6 +70,7 @@ use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
+use App\Http\Controllers\Api\V1\Admin\AdminIpAccessController;
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
@@ -124,6 +125,7 @@ use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactInvitationApiController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\CountryController;
+use App\Http\Controllers\Api\V1\DeactivatedPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
@@ -241,6 +243,7 @@ Route::prefix('ai')->group(function () {
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
+    Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('social-login', [AuthController::class, 'socialLogin']);
@@ -357,6 +360,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('auth')->group(function () {
+        Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('social-login', [AuthController::class, 'socialLogin']);
@@ -492,6 +496,11 @@ Route::prefix('v1')->group(function () {
         });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
+
+    // Deactivated posts (accessible with or without Bearer token)
+    Route::get('/posts/deactivated', [DeactivatedPostController::class, 'index']);
+    Route::get('/posts/deactivated-notice', [DeactivatedPostController::class, 'notice']);
+    Route::get('/posts/deactivated/{id}', [DeactivatedPostController::class, 'show'])->whereUuid('id');
     Route::get('/app/version', [AppVersionController::class, 'show']);
     Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
@@ -592,7 +601,28 @@ Route::prefix('v1')->group(function () {
         Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
     });
 
+    Route::get('/admin/auth/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+
     Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+        // System IP Access Configuration APIs
+        Route::get('/system/ip-access', [AdminIpAccessController::class, 'show']);
+        Route::match(['put', 'patch'], '/system/ip-access', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::match(['put', 'patch'], '/system/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::get('/system/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
+        Route::post('/system/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::match(['put', 'patch', 'post'], '/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::match(['put', 'patch'], '/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::delete('/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
+
+        Route::get('/ip-access', [AdminIpAccessController::class, 'show']);
+        Route::match(['put', 'patch'], '/ip-access', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::match(['put', 'patch'], '/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::get('/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
+        Route::post('/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::match(['put', 'patch', 'post'], '/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::match(['put', 'patch'], '/ip-access/ips/{id}', [AdminIpAccessController::class, 'updateIp'])->whereUuid('id');
+        Route::delete('/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
+
         // Certification approval API examples:
         // GET /api/v1/admin/certifications
         // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
@@ -1072,6 +1102,9 @@ Route::prefix('v1')->group(function () {
             // Section 21: Posts & Moderation Endpoints
             Route::get('/posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
             Route::get('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+            Route::get('/posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+            Route::post('/posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+            Route::post('/posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
             Route::delete('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
             Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -1171,6 +1204,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/ad-bookings', [AdBookingController::class, 'myBookings']);
         Route::get('/ad-bookings/{id}', [AdBookingController::class, 'show'])->whereUuid('id');
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
+
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);
         Route::put('/posts/{id}', [PostController::class, 'update']);
@@ -1504,6 +1538,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
+
+            // Campaigns Lifecycle & Scoped Analytics
+            Route::get('/campaigns', [AdvertiserMemberApiController::class, 'campaigns']);
+            Route::post('/campaigns', [AdvertiserMemberApiController::class, 'createCampaign']);
+            Route::get('/campaigns/{id}', [AdvertiserMemberApiController::class, 'campaignDetails'])->whereUuid('id');
+            Route::patch('/campaigns/{id}', [AdvertiserMemberApiController::class, 'updateCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/submit', [AdvertiserMemberApiController::class, 'submitCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/cancel', [AdvertiserMemberApiController::class, 'cancelCampaign'])->whereUuid('id');
+            Route::get('/campaigns/{id}/analytics', [AdvertiserMemberApiController::class, 'campaignAnalytics'])->whereUuid('id');
+            Route::get('/analytics/timeseries', [AdvertiserMemberApiController::class, 'analyticsTimeseries']);
         });
     });
 
@@ -1606,6 +1650,17 @@ Route::prefix('v1')->group(function () {
         // Banner configuration
         Route::get('/banner-config', [AdvertiserAdminApiController::class, 'bannerConfig']);
         Route::patch('/banner-config', [AdvertiserAdminApiController::class, 'updateBannerConfig']);
+
+        // Campaigns Management
+        Route::get('/campaigns', [AdvertiserAdminApiController::class, 'campaigns']);
+        Route::get('/campaigns/{id}', [AdvertiserAdminApiController::class, 'showCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/review', [AdvertiserAdminApiController::class, 'reviewCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/publish', [AdvertiserAdminApiController::class, 'publishCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/pause', [AdvertiserAdminApiController::class, 'pauseCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/resume', [AdvertiserAdminApiController::class, 'resumeCampaign'])->whereUuid('id');
+
+        // Analytics Summary
+        Route::get('/analytics/summary', [AdvertiserAdminApiController::class, 'analyticsSummary']);
     });
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
@@ -1838,6 +1893,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     // Section 21: Posts & Moderation Endpoints (8 endpoints)
     Route::get('posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
     Route::get('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+    Route::get('posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+    Route::post('posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+    Route::post('posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
     Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
     Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
     Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');

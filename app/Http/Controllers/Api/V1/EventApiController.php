@@ -10,6 +10,7 @@ use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
+use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -275,6 +276,55 @@ class EventApiController extends BaseApiController
             }
         }
 
+        $durationMinutes = null;
+        $durationSeconds = null;
+        $scheduledEndIso = null;
+
+        $isSpeedNetworking = $event->isSpeedNetworking() || in_array($event->event_type, ['speed_networking', 'virtual_networking'], true);
+
+        if ($isSpeedNetworking) {
+            $snEvent = null;
+            if (Schema::hasTable('speed_networking_events')) {
+                try {
+                    $snEvent = SpeedNetworkingEvent::find($event->id);
+                } catch (\Throwable) {
+                }
+            }
+
+            if ($snEvent) {
+                $durationSeconds = $snEvent->duration_seconds;
+                $durationMinutes = $snEvent->duration_minutes;
+                $scheduledEndIso = $snEvent->scheduled_end_time?->copy()->utc()->toISOString();
+            } else {
+                $meta = is_array($event->metadata) ? $event->metadata : (json_decode((string) $event->metadata, true) ?: []);
+                $roundDuration = (int) ($meta['round_duration_seconds'] ?? 180);
+                $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($meta['total_rounds'] ?? 0);
+
+                if (! empty($meta['duration_seconds'])) {
+                    $durationSeconds = (int) $meta['duration_seconds'];
+                } elseif (! empty($meta['duration_minutes'])) {
+                    $durationSeconds = (int) $meta['duration_minutes'] * 60;
+                } elseif (! empty($meta['duration'])) {
+                    $durationSeconds = (int) ($meta['duration'] * 60);
+                } elseif ($totalRounds > 0) {
+                    $durationSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
+                } elseif ($endAt && $startAt) {
+                    $durationSeconds = max(0, Carbon::parse($endAt)->diffInSeconds(Carbon::parse($startAt)));
+                } else {
+                    $durationSeconds = (5 * $roundDuration) + (4 * $breakDuration);
+                }
+
+                $durationMinutes = (int) ceil($durationSeconds / 60);
+                $calculatedEnd = $endAt ? Carbon::parse($endAt) : ($startAt ? Carbon::parse($startAt)->addSeconds($durationSeconds) : null);
+                $scheduledEndIso = $calculatedEnd?->copy()->utc()->toISOString();
+            }
+        } elseif ($endAt && $startAt) {
+            $durationSeconds = max(0, Carbon::parse($endAt)->diffInSeconds(Carbon::parse($startAt)));
+            $durationMinutes = (int) ceil($durationSeconds / 60);
+            $scheduledEndIso = Carbon::parse($endAt)->copy()->utc()->toISOString();
+        }
+
         return [
             '_start_at' => $groupingStartAt,
             '_end_at' => $groupingEndAt,
@@ -288,6 +338,10 @@ class EventApiController extends BaseApiController
                 'mode' => $event->mode,
                 'start_at' => $responseStartAt?->format('Y-m-d\TH:i:s'),
                 'end_at' => $responseEndAt?->format('Y-m-d\TH:i:s'),
+                'scheduled_start_time' => $responseStartAt?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $scheduledEndIso,
+                'duration_minutes' => $durationMinutes,
+                'duration_seconds' => $durationSeconds,
                 'formatted_start_at' => $responseStartAt?->format('d M Y h:i A'),
                 'recurrence' => $event->recurrence_type,
                 'status' => $status,

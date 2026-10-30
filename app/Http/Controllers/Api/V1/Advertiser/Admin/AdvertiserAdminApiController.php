@@ -7,22 +7,30 @@ namespace App\Http\Controllers\Api\V1\Advertiser\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserApplicationAsset;
+use App\Models\AdvertiserCampaign;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartnerClick;
 use App\Models\BrandPartnerView;
+use App\Services\Advertiser\AdvertiserAnalyticsService;
 use App\Services\Advertiser\AdvertiserApplicationService;
+use App\Services\Advertiser\AdvertiserCampaignService;
 use App\Services\Advertiser\AdvertiserPaymentService;
+use App\Services\Advertiser\AdvertiserPublicationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class AdvertiserAdminApiController extends BaseApiController
 {
     public function __construct(
         protected AdvertiserApplicationService $applicationService,
-        protected AdvertiserPaymentService $paymentService
+        protected AdvertiserPaymentService $paymentService,
+        protected AdvertiserCampaignService $campaignService,
+        protected AdvertiserPublicationService $publicationService,
+        protected AdvertiserAnalyticsService $analyticsService
     ) {}
 
     // ==========================================
@@ -574,5 +582,139 @@ class AdvertiserAdminApiController extends BaseApiController
         ]);
 
         return $this->success($validated, 'Banner configuration saved successfully.');
+    }
+
+    // ==========================================
+    // Admin Campaign Management
+    // ==========================================
+
+    public function campaigns(Request $request): JsonResponse
+    {
+        $query = AdvertiserCampaign::with(['application', 'subscription', 'user', 'campaignAds.ad'])
+            ->orderByDesc('created_at');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->filled('q')) {
+            $q = trim((string) $request->query('q'));
+            $query->where(function ($b) use ($q) {
+                $b->where('name', 'ILIKE', "%{$q}%")
+                    ->orWhere('campaign_number', 'ILIKE', "%{$q}%")
+                    ->orWhereHas('application', fn ($sub) => $sub->where('company_name', 'ILIKE', "%{$q}%"));
+            });
+        }
+
+        $perPage = (int) $request->query('per_page', 20);
+        $campaigns = $query->paginate($perPage);
+
+        return $this->success($campaigns, 'Campaigns retrieved successfully.');
+    }
+
+    public function showCampaign(string $id): JsonResponse
+    {
+        $campaign = AdvertiserCampaign::with([
+            'application.assets',
+            'subscription.package',
+            'user',
+            'campaignAds.ad',
+            'statusHistory.user',
+            'reviewer',
+        ])->find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $analytics = $this->analyticsService->getCampaignAnalytics($campaign);
+
+        return $this->success([
+            'campaign' => $campaign,
+            'analytics' => $analytics,
+        ], 'Campaign details retrieved successfully.');
+    }
+
+    public function reviewCampaign(Request $request, string $id): JsonResponse
+    {
+        $campaign = AdvertiserCampaign::find($id);
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'decision' => ['required', 'string', 'in:approved,changes_requested,rejected'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $updated = $this->campaignService->reviewCampaign(
+            $campaign,
+            $validated['decision'],
+            $validated['notes'] ?? null,
+            $request->user()
+        );
+
+        return $this->success([
+            'id' => $updated->id,
+            'status' => $updated->status,
+            'reviewed_at' => $updated->reviewed_at?->toIso8601String(),
+        ], "Campaign {$validated['decision']} successfully.");
+    }
+
+    public function publishCampaign(Request $request, string $id): JsonResponse
+    {
+        $campaign = AdvertiserCampaign::find($id);
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $ad = $this->publicationService->publishCampaignAd($campaign, $request->user());
+
+        return $this->success([
+            'campaign_id' => $campaign->id,
+            'ad_id' => $ad->id,
+            'status' => $campaign->status,
+        ], 'Campaign published to feed successfully.');
+    }
+
+    public function pauseCampaign(Request $request, string $id): JsonResponse
+    {
+        $campaign = AdvertiserCampaign::find($id);
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $reason = $request->input('reason', 'Paused by admin');
+        $this->campaignService->pauseCampaign($campaign, $reason, $request->user());
+
+        return $this->success([
+            'campaign_id' => $campaign->id,
+            'status' => AdvertiserCampaign::STATUS_PAUSED,
+        ], 'Campaign paused successfully.');
+    }
+
+    public function resumeCampaign(Request $request, string $id): JsonResponse
+    {
+        $campaign = AdvertiserCampaign::find($id);
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $this->campaignService->resumeCampaign($campaign, $request->user());
+
+        return $this->success([
+            'campaign_id' => $campaign->id,
+            'status' => AdvertiserCampaign::STATUS_ACTIVE,
+        ], 'Campaign resumed successfully.');
+    }
+
+    public function analyticsSummary(Request $request): JsonResponse
+    {
+        $from = $request->filled('from') ? Carbon::parse($request->query('from')) : null;
+        $to = $request->filled('to') ? Carbon::parse($request->query('to')) : null;
+
+        $summary = $this->analyticsService->getAdminAdvertiserSummary($from, $to);
+
+        return $this->success($summary, 'Admin advertiser analytics summary retrieved.');
     }
 }

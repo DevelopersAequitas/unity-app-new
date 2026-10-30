@@ -493,17 +493,39 @@ class SpeedNetworkingApiController extends Controller
         }
 
         if (Schema::hasTable('speed_networking_events')) {
-            $event = SpeedNetworkingEvent::query()
-                ->whereIn('status', [
-                    SpeedNetworkingEvent::STATUS_IN_PROGRESS,
-                    SpeedNetworkingEvent::STATUS_LOBBY_OPEN,
-                    SpeedNetworkingEvent::STATUS_SCHEDULED,
+            $now = Carbon::now();
+
+            // Auto-complete any expired events where now >= scheduled_end_time or actual_end_time is not null
+            $openEvents = SpeedNetworkingEvent::query()
+                ->whereNotIn('status', [
+                    SpeedNetworkingEvent::STATUS_COMPLETED,
+                    'ended',
+                    'cancelled',
+                    'canceled',
                 ])
-                ->where(function ($q): void {
-                    $q->whereNull('scheduled_end_time')
-                        ->orWhere('scheduled_end_time', '>', Carbon::now());
-                })
+                ->get();
+
+            foreach ($openEvents as $openEvent) {
+                $schedEnd = $openEvent->scheduled_end_time;
+                if (($schedEnd && $now->greaterThanOrEqualTo($schedEnd)) || $openEvent->actual_end_time !== null) {
+                    $openEvent->status = SpeedNetworkingEvent::STATUS_COMPLETED;
+                    $openEvent->actual_end_time = $openEvent->actual_end_time ?? $now;
+                    $openEvent->save();
+                }
+            }
+
+            $event = SpeedNetworkingEvent::query()
+                ->whereNotIn('status', [
+                    SpeedNetworkingEvent::STATUS_COMPLETED,
+                    'ended',
+                    'cancelled',
+                    'canceled',
+                ])
                 ->whereNull('actual_end_time')
+                ->where(function ($q) use ($now): void {
+                    $q->whereNull('scheduled_end_time')
+                        ->orWhere('scheduled_end_time', '>', $now);
+                })
                 ->orderByRaw("CASE 
                     WHEN status = 'in_progress' THEN 1 
                     WHEN status = 'lobby_open' THEN 2 
@@ -512,9 +534,9 @@ class SpeedNetworkingApiController extends Controller
                 ->orderBy('scheduled_start_time', 'asc')
                 ->first();
 
-            if ($event && (($event->scheduled_end_time && $event->scheduled_end_time->isPast()) || $event->actual_end_time !== null)) {
+            if ($event && $event->scheduled_end_time && $now->greaterThanOrEqualTo($event->scheduled_end_time)) {
                 $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
-                $event->actual_end_time = $event->actual_end_time ?? Carbon::now();
+                $event->actual_end_time = $event->actual_end_time ?? $now;
                 $event->save();
                 $event = null;
             }
@@ -522,39 +544,68 @@ class SpeedNetworkingApiController extends Controller
 
         // If no event found in speed_networking_events table, search in base events table
         if (! $event && Schema::hasTable('events')) {
-            $baseEvent = Event::query()
-                ->where('event_type', 'speed_networking')
+            $now = Carbon::now();
+            $candidates = Event::query()
                 ->where(function ($q): void {
-                    $q->whereNull('end_at')
-                        ->orWhere('end_at', '>', Carbon::now());
+                    $q->where('event_type', 'speed_networking')
+                        ->orWhere('event_type', 'virtual_networking')
+                        ->orWhere('metadata->is_speed_networking', true);
                 })
-                ->orderBy('start_at', 'desc')
-                ->first();
+                ->whereNotIn('status', ['completed', 'ended', 'cancelled', 'canceled'])
+                ->orderBy('start_at', 'asc')
+                ->get();
 
-            if ($baseEvent) {
-                $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : Carbon::now();
-                $endAt = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : $startAt->copy()->addHours(2);
+            $baseEvent = null;
+            $baseMeta = [];
+            $durationSeconds = 0;
+            $startAt = null;
+            $endAt = null;
 
-                if (Carbon::now()->isAfter($endAt)) {
-                    $baseEvent = null;
+            foreach ($candidates as $cand) {
+                $candMeta = is_array($cand->metadata) ? $cand->metadata : (json_decode((string) $cand->metadata, true) ?: []);
+                $roundDur = (int) ($candMeta['round_duration_seconds'] ?? 180);
+                $breakDur = (int) ($candMeta['break_duration_seconds'] ?? 20);
+                $totRounds = (int) ($candMeta['total_rounds'] ?? 5);
+
+                $candDurSec = null;
+                if (! empty($candMeta['duration_seconds'])) {
+                    $candDurSec = (int) $candMeta['duration_seconds'];
+                } elseif (! empty($candMeta['duration_minutes'])) {
+                    $candDurSec = (int) $candMeta['duration_minutes'] * 60;
+                } elseif (! empty($candMeta['duration'])) {
+                    $candDurSec = (int) ($candMeta['duration'] * 60);
+                } else {
+                    $candDurSec = $totRounds > 0
+                        ? ($totRounds * $roundDur) + (max(0, $totRounds - 1) * $breakDur)
+                        : (5 * $roundDur) + (4 * $breakDur);
                 }
+
+                $candStart = $cand->start_at ? Carbon::parse($cand->start_at) : Carbon::now();
+                $candEnd = $cand->end_at ? Carbon::parse($cand->end_at) : $candStart->copy()->addSeconds($candDurSec);
+
+                if ($now->greaterThanOrEqualTo($candEnd)) {
+                    $cand->status = 'completed';
+                    $cand->save();
+
+                    continue;
+                }
+
+                $baseEvent = $cand;
+                $baseMeta = $candMeta;
+                $durationSeconds = $candDurSec;
+                $startAt = $candStart;
+                $endAt = $candEnd;
+                break;
             }
 
             if ($baseEvent) {
-                $meta = is_array($baseEvent->metadata) ? $baseEvent->metadata : (json_decode((string) $baseEvent->metadata, true) ?: []);
-                $roundDuration = (int) ($meta['round_duration_seconds'] ?? 300);
-                $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
-                $totalRounds = (int) ($meta['total_rounds'] ?? 5);
+                $roundDuration = (int) ($baseMeta['round_duration_seconds'] ?? 180);
+                $breakDuration = (int) ($baseMeta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($baseMeta['total_rounds'] ?? 5);
 
-                $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : Carbon::now();
-                $endAt = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : $startAt->copy()->addHours(2);
-
-                $now = Carbon::now();
                 $status = 'scheduled';
-                if ($now->between($startAt->copy()->subMinutes(30), $endAt)) {
-                    $status = 'in_progress';
-                } elseif ($now->isAfter($endAt)) {
-                    $status = 'completed';
+                if ($now->greaterThanOrEqualTo($startAt) && $now->lessThan($endAt)) {
+                    $status = 'live';
                 }
 
                 $participantsCount = EventRegistration::query()
@@ -585,8 +636,9 @@ class SpeedNetworkingApiController extends Controller
                 $actionButton = $this->resolveActionButton($status, $isRegistered, $paymentInfo, $circleAccess, $startAt);
 
                 return response()->json([
-                    'status' => 'success',
+                    'status' => true,
                     'success' => true,
+                    'message' => 'Active event fetched successfully',
                     'data' => [
                         'id' => (string) $baseEvent->id,
                         'event_id' => (string) $baseEvent->id,
@@ -598,11 +650,16 @@ class SpeedNetworkingApiController extends Controller
                         'round_duration_seconds' => $roundDuration,
                         'break_duration_seconds' => $breakDuration,
                         'total_rounds' => $totalRounds,
-                        'current_round' => $status === 'in_progress' ? 1 : 0,
-                        'scheduled_start_time' => $startAt->toIso8601String(),
-                        'scheduled_end_time' => $endAt->toIso8601String(),
-                        'actual_start_time' => $startAt->toIso8601String(),
+                        'current_round' => $status === 'live' ? 1 : 0,
+                        'duration_seconds' => $durationSeconds,
+                        'duration_minutes' => (int) ceil($durationSeconds / 60),
+                        'duration' => (int) ceil($durationSeconds / 60),
+                        'scheduled_start_time' => $startAt->copy()->utc()->toISOString(),
+                        'scheduled_end_time' => $endAt->copy()->utc()->toISOString(),
+                        'end_time' => $endAt->copy()->utc()->toISOString(),
+                        'actual_start_time' => $startAt->copy()->utc()->toISOString(),
                         'actual_end_time' => null,
+                        'estimated_end_time' => $endAt->copy()->utc()->toISOString(),
                         'participants_count' => $participantsCount,
                         'ticket_price' => $paymentInfo['ticket_price'],
                         'amount' => (string) $paymentInfo['ticket_price'],
@@ -644,11 +701,14 @@ class SpeedNetworkingApiController extends Controller
                     ],
                 ]);
             }
+        }
 
+        if (! $event) {
             return response()->json([
+                'status' => true,
                 'success' => true,
-                'data' => null,
                 'message' => 'No active speed networking event scheduled.',
+                'data' => null,
             ]);
         }
 
@@ -684,25 +744,38 @@ class SpeedNetworkingApiController extends Controller
 
         $actionButton = $this->resolveActionButton($event->status, $isRegistered, $paymentInfo, $circleAccess, $event->scheduled_start_time);
 
+        $clientStatus = in_array($event->status, [SpeedNetworkingEvent::STATUS_IN_PROGRESS, 'live'], true) ? 'live' : $event->status;
+
+        $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+        $durMin = (int) ceil($durSec / 60);
+        $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
+        $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
         return response()->json([
-            'status' => 'success',
+            'status' => true,
             'success' => true,
+            'message' => 'Active event fetched successfully',
             'data' => [
                 'id' => (string) $event->id,
                 'event_id' => (string) $event->id,
-                'title' => $event->title,
+                'title' => (string) $event->title,
                 'agora_app_id' => $this->getAgoraAppId(),
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
-                'status' => $event->status,
+                'status' => $clientStatus,
                 'round_duration_seconds' => (int) $event->round_duration_seconds,
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
                 'current_round' => (int) $event->current_round,
-                'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
-                'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
-                'actual_start_time' => $event->actual_start_time?->toIso8601String(),
-                'actual_end_time' => $event->actual_end_time?->toIso8601String(),
+                'duration_seconds' => $durSec,
+                'duration_minutes' => $durMin,
+                'duration' => $durMin,
+                'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'end_time' => $schedEnd->copy()->utc()->toISOString(),
+                'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
+                'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
+                'estimated_end_time' => ($event->actual_start_time ? $event->actual_start_time->copy()->addSeconds($durSec)->utc()->toISOString() : $schedEnd->copy()->utc()->toISOString()),
                 'participants_count' => $event->participants()->count(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
@@ -788,6 +861,25 @@ class SpeedNetworkingApiController extends Controller
 
         $startAt = $event->start_at ? Carbon::parse($event->start_at) : ($event->scheduled_start_time ?? Carbon::now());
 
+        if ($event instanceof SpeedNetworkingEvent) {
+            $durationSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
+            $durationMin = (int) ceil($durationSec / 60);
+            $scheduledEnd = $event->scheduled_end_time ?? ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec));
+            $actualStart = $event->actual_start_time;
+            $actualEnd = $event->actual_end_time;
+        } else {
+            $durationSec = ($totalRounds > 0)
+                ? (($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration))
+                : (int) ($meta['duration_seconds'] ?? (($meta['duration_minutes'] ?? 60) * 60));
+            if ($durationSec <= 0) {
+                $durationSec = 1800;
+            }
+            $durationMin = (int) ceil($durationSec / 60);
+            $scheduledEnd = $event->end_at ? Carbon::parse($event->end_at) : ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec));
+            $actualStart = ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time']) : null;
+            $actualEnd = ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time']) : null;
+        }
+
         $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
             ? (int) $paymentInfo['ticket_price']
             : $paymentInfo['ticket_price'];
@@ -799,8 +891,9 @@ class SpeedNetworkingApiController extends Controller
         $actionButton = $this->resolveActionButton($event->status ?? ($meta['speed_status'] ?? 'scheduled'), $isRegistered, $paymentInfo, $circleAccess, $startAt);
 
         return response()->json([
-            'status' => 'success',
+            'status' => true,
             'success' => true,
+            'message' => 'Speed Networking event fetched successfully.',
             'data' => [
                 'id' => (string) $event->id,
                 'event_id' => (string) $event->id,
@@ -814,7 +907,15 @@ class SpeedNetworkingApiController extends Controller
                 'break_duration_seconds' => $breakDuration,
                 'total_rounds' => $totalRounds,
                 'current_round' => $currentRound,
-                'scheduled_start_time' => $startAt->toIso8601String(),
+                'duration_seconds' => $durationSec,
+                'duration_minutes' => $durationMin,
+                'duration' => $durationMin,
+                'scheduled_start_time' => $startAt->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $scheduledEnd->copy()->utc()->toISOString(),
+                'end_time' => $scheduledEnd->copy()->utc()->toISOString(),
+                'actual_start_time' => $actualStart?->copy()->utc()->toISOString(),
+                'actual_end_time' => $actualEnd?->copy()->utc()->toISOString(),
+                'estimated_end_time' => ($actualStart ? $actualStart->copy()->addSeconds($durationSec)->utc()->toISOString() : $scheduledEnd?->copy()->utc()->toISOString()),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
                 'fee' => $paymentInfo['ticket_price'],

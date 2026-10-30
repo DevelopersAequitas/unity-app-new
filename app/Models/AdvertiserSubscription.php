@@ -91,6 +91,11 @@ class AdvertiserSubscription extends Model
         return $this->hasOne(AdvertiserPayment::class, 'subscription_id')->latestOfMany('created_at');
     }
 
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(AdvertiserCampaign::class, 'subscription_id')->orderByDesc('created_at');
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_ACTIVE)

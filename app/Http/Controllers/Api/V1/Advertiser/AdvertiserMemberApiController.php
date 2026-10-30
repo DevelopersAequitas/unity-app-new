@@ -6,18 +6,22 @@ namespace App\Http\Controllers\Api\V1\Advertiser;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserCampaign;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Services\Advertiser\AdvertiserAnalyticsService;
 use App\Services\Advertiser\AdvertiserApplicationService;
+use App\Services\Advertiser\AdvertiserCampaignService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class AdvertiserMemberApiController extends BaseApiController
 {
     public function __construct(
         protected AdvertiserApplicationService $applicationService,
-        protected AdvertiserAnalyticsService $analyticsService
+        protected AdvertiserAnalyticsService $analyticsService,
+        protected AdvertiserCampaignService $campaignService
     ) {}
 
     /**
@@ -428,5 +432,254 @@ class AdvertiserMemberApiController extends BaseApiController
                 'captured_at' => $p->captured_at?->toIso8601String(),
             ]),
         ], 'Subscription details retrieved successfully.');
+    }
+
+    /**
+     * List authenticated advertiser's campaigns
+     * GET /api/v1/advertiser/campaigns
+     */
+    public function campaigns(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $query = AdvertiserCampaign::where('user_id', $user->id)
+            ->with(['subscription', 'campaignAds.ad'])
+            ->orderByDesc('created_at');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        $perPage = (int) $request->query('per_page', 20);
+        $campaigns = $query->paginate($perPage);
+
+        $transformed = $campaigns->through(fn ($c) => [
+            'id' => $c->id,
+            'campaign_number' => $c->campaign_number,
+            'name' => $c->name,
+            'objective' => $c->objective,
+            'status' => $c->status,
+            'cta_text' => $c->cta_text,
+            'destination_url' => $c->destination_url,
+            'requested_starts_at' => $c->requested_starts_at?->toIso8601String(),
+            'requested_ends_at' => $c->requested_ends_at?->toIso8601String(),
+            'published_at' => $c->published_at?->toIso8601String(),
+            'created_at' => $c->created_at?->toIso8601String(),
+        ]);
+
+        return $this->success($transformed, 'Campaigns retrieved successfully.');
+    }
+
+    /**
+     * Create campaign draft
+     * POST /api/v1/advertiser/campaigns
+     */
+    public function createCampaign(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:180'],
+            'objective' => ['nullable', 'string', 'max:100'],
+            'description' => ['nullable', 'string'],
+            'placement_ids' => ['nullable', 'array'],
+            'requested_placements' => ['nullable', 'array'],
+            'asset_ids' => ['nullable', 'array'],
+            'cta_text' => ['nullable', 'string', 'max:100'],
+            'destination_url' => ['nullable', 'url', 'max:2048'],
+            'target_audience' => ['nullable', 'string'],
+            'target_locations' => ['nullable', 'array'],
+            'requested_starts_at' => ['nullable', 'date'],
+            'requested_ends_at' => ['nullable', 'date'],
+            'subscription_id' => ['nullable', 'uuid'],
+        ]);
+
+        $campaign = $this->campaignService->createDraft($request->user(), $validated);
+
+        return $this->success([
+            'id' => $campaign->id,
+            'campaign_number' => $campaign->campaign_number,
+            'status' => $campaign->status,
+            'name' => $campaign->name,
+            'created_at' => $campaign->created_at?->toIso8601String(),
+        ], 'Campaign draft created successfully.', 201);
+    }
+
+    /**
+     * Get campaign details
+     * GET /api/v1/advertiser/campaigns/{id}
+     */
+    public function campaignDetails(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $campaign = AdvertiserCampaign::with(['subscription', 'campaignAds.ad', 'application.assets'])
+            ->find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        if ($campaign->user_id !== $user->id) {
+            return $this->error('Unauthorized access.', 403);
+        }
+
+        return $this->success([
+            'id' => $campaign->id,
+            'campaign_number' => $campaign->campaign_number,
+            'name' => $campaign->name,
+            'objective' => $campaign->objective,
+            'description' => $campaign->description,
+            'status' => $campaign->status,
+            'cta_text' => $campaign->cta_text,
+            'destination_url' => $campaign->destination_url,
+            'admin_notes' => $campaign->admin_notes,
+            'applicant_feedback' => $campaign->applicant_feedback,
+            'requested_placements' => $campaign->requested_placements,
+            'target_audience' => $campaign->target_audience,
+            'target_locations' => $campaign->target_locations,
+            'requested_starts_at' => $campaign->requested_starts_at?->toIso8601String(),
+            'requested_ends_at' => $campaign->requested_ends_at?->toIso8601String(),
+            'approved_at' => $campaign->approved_at?->toIso8601String(),
+            'published_at' => $campaign->published_at?->toIso8601String(),
+            'subscription' => $campaign->subscription ? [
+                'id' => $campaign->subscription->id,
+                'package_name' => $campaign->subscription->package_name_snapshot,
+                'status' => $campaign->subscription->status,
+                'expires_at' => $campaign->subscription->expires_at?->toIso8601String(),
+            ] : null,
+            'ads' => $campaign->campaignAds->map(fn ($link) => [
+                'ad_id' => $link->ad_id,
+                'title' => $link->ad?->title,
+                'placement' => $link->ad?->placement,
+                'is_active' => $link->ad?->is_active ?? false,
+                'status' => $link->status,
+            ]),
+        ], 'Campaign details retrieved successfully.');
+    }
+
+    /**
+     * Update campaign draft
+     * PATCH /api/v1/advertiser/campaigns/{id}
+     */
+    public function updateCampaign(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $campaign = AdvertiserCampaign::find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:180'],
+            'objective' => ['nullable', 'string', 'max:100'],
+            'description' => ['nullable', 'string'],
+            'placement_ids' => ['nullable', 'array'],
+            'requested_placements' => ['nullable', 'array'],
+            'asset_ids' => ['nullable', 'array'],
+            'cta_text' => ['nullable', 'string', 'max:100'],
+            'destination_url' => ['nullable', 'url', 'max:2048'],
+            'target_audience' => ['nullable', 'string'],
+            'target_locations' => ['nullable', 'array'],
+            'requested_starts_at' => ['nullable', 'date'],
+            'requested_ends_at' => ['nullable', 'date'],
+        ]);
+
+        $updated = $this->campaignService->updateDraft($campaign, $validated, $user);
+
+        return $this->success([
+            'id' => $updated->id,
+            'status' => $updated->status,
+            'updated_at' => $updated->updated_at?->toIso8601String(),
+        ], 'Campaign draft updated successfully.');
+    }
+
+    /**
+     * Submit campaign for review
+     * POST /api/v1/advertiser/campaigns/{id}/submit
+     */
+    public function submitCampaign(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $campaign = AdvertiserCampaign::find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'submission_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $submitted = $this->campaignService->submitForReview($campaign, $validated['submission_note'] ?? null, $user);
+
+        return $this->success([
+            'id' => $submitted->id,
+            'status' => $submitted->status,
+        ], 'Campaign submitted for review successfully.');
+    }
+
+    /**
+     * Cancel campaign
+     * POST /api/v1/advertiser/campaigns/{id}/cancel
+     */
+    public function cancelCampaign(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $campaign = AdvertiserCampaign::find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $cancelled = $this->campaignService->cancelCampaign($campaign, $validated['reason'] ?? null, $user);
+
+        return $this->success([
+            'id' => $cancelled->id,
+            'status' => $cancelled->status,
+        ], 'Campaign cancelled successfully.');
+    }
+
+    /**
+     * Get campaign performance analytics
+     * GET /api/v1/advertiser/campaigns/{id}/analytics
+     */
+    public function campaignAnalytics(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $campaign = AdvertiserCampaign::find($id);
+
+        if (!$campaign) {
+            return $this->error('Campaign not found.', 404);
+        }
+
+        if ($campaign->user_id !== $user->id) {
+            return $this->error('Unauthorized access.', 403);
+        }
+
+        $from = $request->filled('from') ? Carbon::parse($request->query('from')) : null;
+        $to = $request->filled('to') ? Carbon::parse($request->query('to')) : null;
+
+        $stats = $this->analyticsService->getCampaignAnalytics($campaign, $from, $to);
+
+        return $this->success($stats, 'Campaign analytics retrieved successfully.');
+    }
+
+    /**
+     * Get advertiser-level timeseries analytics
+     * GET /api/v1/advertiser/analytics/timeseries
+     */
+    public function analyticsTimeseries(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $metric = (string) $request->query('metric', 'views');
+        $from = $request->filled('from') ? Carbon::parse($request->query('from')) : now()->subDays(30);
+        $to = $request->filled('to') ? Carbon::parse($request->query('to')) : now();
+        $interval = (string) $request->query('interval', 'day');
+
+        $timeseries = $this->analyticsService->getAdvertiserAnalyticsTimeseries($user, $metric, $from, $to, $interval);
+
+        return $this->success($timeseries, 'Analytics timeseries retrieved successfully.');
     }
 }

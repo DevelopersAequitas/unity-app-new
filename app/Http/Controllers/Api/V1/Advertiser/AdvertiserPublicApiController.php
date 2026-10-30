@@ -46,6 +46,42 @@ class AdvertiserPublicApiController extends BaseApiController
      */
     public function submit(Request $request): JsonResponse
     {
+        // Normalize flat parameters into nested array if sent by client
+        if ($request->has('applicant_name') && ! $request->has('applicant.full_name')) {
+            $request->merge([
+                'applicant' => array_merge([
+                    'full_name' => $request->input('applicant_name'),
+                    'email' => $request->input('applicant_email'),
+                    'mobile_number' => $request->input('applicant_phone', '+919876543210'),
+                ], (array) $request->input('applicant', [])),
+            ]);
+        }
+        if ($request->has('company_name') && ! $request->has('company.company_name')) {
+            $request->merge([
+                'company' => array_merge([
+                    'company_name' => $request->input('company_name'),
+                    'industry' => $request->input('industry'),
+                    'website' => $request->input('company_website'),
+                    'description' => $request->input('brand_description', 'Advertising and brand promotion'),
+                ], (array) $request->input('company', [])),
+            ]);
+        }
+        if ($request->has('advertising_objective') && ! $request->has('campaign.advertising_objective')) {
+            $request->merge([
+                'campaign' => array_merge([
+                    'advertising_objective' => $request->input('advertising_objective'),
+                ], (array) $request->input('campaign', [])),
+            ]);
+        }
+        if ($request->has('consent_to_terms') && ! $request->has('consents.terms_accepted')) {
+            $request->merge([
+                'consents' => array_merge([
+                    'terms_accepted' => filter_var($request->input('consent_to_terms'), FILTER_VALIDATE_BOOLEAN),
+                    'privacy_notice_accepted' => filter_var($request->input('consent_to_privacy', true), FILTER_VALIDATE_BOOLEAN),
+                ], (array) $request->input('consents', [])),
+            ]);
+        }
+
         $validated = $request->validate([
             'package_id' => ['required', 'uuid', 'exists:advertiser_packages,id'],
             'applicant.full_name' => ['required', 'string', 'max:180'],
@@ -169,6 +205,11 @@ class AdvertiserPublicApiController extends BaseApiController
      */
     public function confirmEmailVerification(Request $request, string $id): JsonResponse
     {
+        // Normalize 'otp' into 'verification_code' if client passes 'otp'
+        if ($request->has('otp') && ! $request->has('verification_code')) {
+            $request->merge(['verification_code' => $request->input('otp')]);
+        }
+
         $request->validate([
             'verification_code' => ['required', 'string', 'min:4', 'max:10'],
         ]);
