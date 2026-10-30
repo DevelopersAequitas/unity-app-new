@@ -1107,6 +1107,8 @@ class LeaderActivitiesService
 
             case 'referrals':
             case 'referral':
+            case 'highest-givers':
+            case 'givers':
                 $unitLabel = 'Referrals';
                 if (Schema::hasTable('referrals')) {
                     $rRows = DB::table('referrals')
@@ -1163,9 +1165,15 @@ class LeaderActivitiesService
 
             case 'coins':
             case 'peers-by-coins':
-                $unitLabel = 'Coins';
+            case 'top-contributors':
+            case 'contributors':
+                $unitLabel = in_array($normalizedType, ['top-contributors', 'contributors'], true) ? 'Contributions' : 'Coins';
                 foreach ($users as $u) {
-                    $countsByUser[(string) $u->id] = (int) ($u->coins_balance ?? 0);
+                    $coinsVal = (int) ($u->coins_balance ?? 0);
+                    $impVal = (int) ($u->life_impacted_count ?? 0);
+                    $countsByUser[(string) $u->id] = in_array($normalizedType, ['top-contributors', 'contributors'], true)
+                        ? max($impVal, $coinsVal)
+                        : $coinsVal;
                 }
                 break;
 
@@ -1328,10 +1336,17 @@ class LeaderActivitiesService
 
             case 'certifications':
             case 'certificates':
+            case 'entrepreneur-certifications':
+            case 'leadership-certifications':
                 $unitLabel = 'Certificates';
                 if (Schema::hasTable('certification_submissions')) {
-                    $rows = DB::table('certification_submissions')
-                        ->whereIn('user_id', $userIds)
+                    $certQuery = DB::table('certification_submissions')->whereIn('user_id', $userIds);
+                    if ($normalizedType === 'entrepreneur-certifications') {
+                        $certQuery->where('certification_type', 'ilike', '%entrepreneur%');
+                    } elseif ($normalizedType === 'leadership-certifications') {
+                        $certQuery->where('certification_type', 'ilike', '%leadership%');
+                    }
+                    $rows = $certQuery
                         ->selectRaw('user_id, COUNT(*) as cnt')
                         ->groupBy('user_id')
                         ->get();
@@ -1441,10 +1456,10 @@ class LeaderActivitiesService
             'impacts', 'impact', 'life-impacts' => $this->getImpacts($request),
             'p2p-meetings', 'peer-meetings', 'p2p' => $this->getP2pMeetings($request),
             'business-deals', 'deals' => $this->getBusinessDeals($request),
-            'referrals', 'referral' => $this->getReferrals($request),
+            'referrals', 'referral', 'highest-givers', 'givers' => $this->getReferrals($request),
             'testimonials', 'endorsements' => $this->getTestimonials($request),
             'requirements', 'requirement' => $this->getRequirements($request),
-            'coins', 'peers-by-coins' => $this->getPeersByCoins($request),
+            'coins', 'peers-by-coins', 'top-contributors', 'contributors' => $this->getPeersByCoins($request),
             'visitor-registrations', 'visitors' => $this->getVisitorRegistrationsFeed($scopedUserIds, $search, $limit),
             'peer-recommendations', 'recommendations' => $this->getPeerRecommendationsFeed($scopedUserIds, $search, $limit),
             'introduced-peers', 'community-builders' => $this->getIntroducedPeersFeed($scopedUserIds, $search, $limit),
@@ -1459,7 +1474,9 @@ class LeaderActivitiesService
             'mentor-applications', 'mentors' => $this->getMentorApplicationsFeed($scopedUserIds, $search, $limit),
             'speaker-applications', 'speakers' => $this->getSpeakerApplicationsFeed($scopedUserIds, $search, $limit),
             'partner-inquiries', 'partners' => $this->getPartnerInquiriesFeed($scopedUserIds, $search, $limit),
-            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit),
+            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, null),
+            'entrepreneur-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'entrepreneur'),
+            'leadership-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'leadership'),
             'event-registrations', 'events' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, false),
             'event-attendance', 'attendance' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, true),
             default => [],
@@ -2185,7 +2202,7 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit, ?string $certFilter = null): array
     {
         if (! Schema::hasTable('certification_submissions')) {
             return [];
@@ -2193,7 +2210,13 @@ class LeaderActivitiesService
 
         $query = DB::table('certification_submissions');
         if ($scopedUserIds !== null) {
-            $query->whereIn('user_id', $scopedUserIds);
+            $query->where(function ($q) use ($scopedUserIds): void {
+                $q->whereIn('user_id', $scopedUserIds)
+                    ->orWhereNull('user_id');
+            });
+        }
+        if ($certFilter !== null && $certFilter !== '') {
+            $query->where('certification_type', 'ilike', "%{$certFilter}%");
         }
         if ($search) {
             $query->where(function ($q) use ($search): void {
