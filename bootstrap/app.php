@@ -47,7 +47,11 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        $trustedProxiesRaw = trim((string) ($_ENV['TRUSTED_PROXIES'] ?? $_SERVER['TRUSTED_PROXIES'] ?? '127.0.0.1,::1'));
+        $trustedProxies = $trustedProxiesRaw === ''
+            ? ['127.0.0.1', '::1']
+            : array_values(array_filter(array_map('trim', explode(',', $trustedProxiesRaw))));
+        $middleware->trustProxies(at: $trustedProxies);
         $middleware->redirectGuestsTo(fn (Request $request) => route('admin.login'));
         $middleware->validateCsrfTokens(except: [
             'admin/pending-requests/certifications/*',
