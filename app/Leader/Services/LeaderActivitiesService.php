@@ -1237,12 +1237,12 @@ class LeaderActivitiesService
                     if ($flowId) {
                         $rows = DB::table('asks')
                             ->where('flow_id', $flowId)
-                            ->whereIn('creator_user_id', $userIds)
-                            ->selectRaw('creator_user_id, COUNT(*) as cnt')
-                            ->groupBy('creator_user_id')
+                            ->whereIn('user_id', $userIds)
+                            ->selectRaw('user_id, COUNT(*) as cnt')
+                            ->groupBy('user_id')
                             ->get();
                         foreach ($rows as $r) {
-                            $addCount((string) $r->creator_user_id, (int) $r->cnt);
+                            $addCount((string) $r->user_id, (int) $r->cnt);
                         }
                     }
                 }
@@ -1696,7 +1696,7 @@ class LeaderActivitiesService
                     $query->whereNull('deleted_at');
                 }
                 if ($scopedUserIds !== null) {
-                    $query->whereIn('creator_user_id', $scopedUserIds);
+                    $query->whereIn('user_id', $scopedUserIds);
                 }
                 if ($search) {
                     $query->where(function ($q) use ($search): void {
@@ -1706,10 +1706,10 @@ class LeaderActivitiesService
                 }
 
                 $rows = $query->orderByDesc('created_at')->limit($limit)->get();
-                $peersMap = $this->loadFormattedPeersMap($rows->pluck('creator_user_id')->all());
+                $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
                 foreach ($rows as $row) {
-                    $peer = $peersMap[(string) ($row->creator_user_id ?? '')] ?? null;
+                    $peer = $peersMap[(string) ($row->user_id ?? '')] ?? null;
                     $dateStr = ! empty($row->created_at) ? substr((string) $row->created_at, 0, 10) : date('Y-m-d');
                     $items[] = $this->formatStandardActivityItem(
                         id: (string) $row->id,

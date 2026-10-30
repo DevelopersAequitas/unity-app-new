@@ -582,7 +582,7 @@ class LeaderDashboardService
                     return 0;
                 }
 
-                return (int) $aq->whereIn('creator_user_id', $scopedMemberUserIds)->count();
+                return (int) $aq->whereIn('user_id', $scopedMemberUserIds)->count();
             };
 
             $collaborationAsksCount = $buildAskCount($flows['collaboration'] ?? null);
