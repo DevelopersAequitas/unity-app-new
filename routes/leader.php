@@ -81,6 +81,11 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
     Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
     Route::get('/leader/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+    Route::post('/teams/circles/{id}/refer-category', [LeaderTeamsController::class, 'referCategory']);
+    Route::post('/leader/teams/circles/{id}/refer-category', [LeaderTeamsController::class, 'referCategory']);
+    Route::get('/teams/contacts', [LeaderTeamsController::class, 'contacts']);
+    Route::get('/leader/teams/contacts', [LeaderTeamsController::class, 'contacts']);
+    Route::get('/leader/contacts', [LeaderTeamsController::class, 'contacts']);
     Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
     Route::get('/leader/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
 
@@ -245,6 +250,9 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
         Route::get('teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
         Route::get('teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+        Route::post('teams/circles/{id}/refer-category', [LeaderTeamsController::class, 'referCategory']);
+        Route::get('teams/contacts', [LeaderTeamsController::class, 'contacts']);
+        Route::get('contacts', [LeaderTeamsController::class, 'contacts']);
         Route::get('teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
 
         Route::get('finance/metrics', [LeaderFinanceController::class, 'metrics']);

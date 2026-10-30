@@ -252,7 +252,7 @@ class LeaderPeersService
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
 
-        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
+        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['', 'all', 'global', 'all_circles', 'platform'], true)
             || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
 
         // If a specific circle is requested, filter strictly to that circle
@@ -294,7 +294,7 @@ class LeaderPeersService
                         ->orWhereIn('active_circle_id', $districtCircleIds);
                 });
             }
-        } elseif (! $isAdmin) {
+        } elseif (! $isAdmin && ! $isGlobalRequested) {
             $role = $roleInfo['role'];
             $userId = (string) ($user?->id ?? '');
             $adminUser = ($user && Schema::hasTable('admin_users'))
