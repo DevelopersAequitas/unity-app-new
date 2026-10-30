@@ -7,11 +7,13 @@ namespace Tests\Feature;
 use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class SpeedNetworkingAdminApiTest extends TestCase
@@ -94,6 +96,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
             $table->string('currency', 10)->default('INR');
             $table->uuid('circle_id')->nullable();
             $table->boolean('circle_restricted')->default(false);
+            $table->json('metadata')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -170,7 +173,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
 
     public function test_admin_speed_networking_api_list_events(): void
     {
-        $user = \App\Models\User::create([
+        $user = User::create([
             'id' => (string) Str::uuid(),
             'first_name' => 'Admin',
             'last_name' => 'User',
@@ -188,7 +191,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
             'current_round' => 0,
         ]);
 
-        \Laravel\Sanctum\Sanctum::actingAs($user);
+        Sanctum::actingAs($user);
 
         $response = $this->getJson('/api/v1/admin/speed-networking/events');
 
@@ -199,5 +202,96 @@ class SpeedNetworkingAdminApiTest extends TestCase
         $response->assertJsonFragment([
             'title' => 'Tech Pioneers Networking',
         ]);
+    }
+
+    public function test_speed_networking_event_automatically_calculates_scheduled_end_time_from_duration(): void
+    {
+        $start = Carbon::parse('2026-10-30T10:00:00Z');
+
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Auto Duration Test',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => null,
+        ]);
+
+        // 5 rounds: 5 * 180 + 4 * 20 = 900 + 80 = 980 seconds
+        $expectedEnd = $start->copy()->addSeconds(980);
+
+        $this->assertNotNull($event->scheduled_end_time);
+        $this->assertEquals($expectedEnd->toIso8601String(), $event->scheduled_end_time->toIso8601String());
+        $this->assertEquals(980, $event->duration_seconds);
+        $this->assertEquals(17, $event->duration_minutes);
+
+        $array = $event->toArray();
+        $this->assertArrayHasKey('scheduled_end_time', $array);
+        $this->assertNotNull($array['scheduled_end_time']);
+        $this->assertArrayHasKey('end_time', $array);
+        $this->assertNotNull($array['end_time']);
+    }
+
+    public function test_admin_api_creates_event_with_auto_calculated_end_time_from_duration_minutes(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin2@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $startTime = '2026-11-01T14:00:00Z';
+        $payload = [
+            'title' => 'Custom Duration Event',
+            'scheduled_start_time' => $startTime,
+            'duration_minutes' => 45,
+            'round_duration_seconds' => 300,
+            'break_duration_seconds' => 30,
+        ];
+
+        $response = $this->postJson('/api/v1/admin/speed-networking/events', $payload);
+
+        $response->assertStatus(201);
+        $data = $response->json('data');
+        $this->assertNotNull($data['scheduled_end_time']);
+        $expectedEnd = Carbon::parse($startTime)->addMinutes(45)->toIso8601String();
+        $this->assertEquals($expectedEnd, Carbon::parse($data['scheduled_end_time'])->toIso8601String());
+    }
+
+    public function test_api_active_event_returns_auto_calculated_end_time(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'member@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::now()->addMinutes(10);
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Active Test Event',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => null,
+        ]);
+
+        $response = $this->getJson('/api/v1/speed-networking/active-event');
+        $response->assertStatus(200);
+        $data = $response->json('data');
+
+        $this->assertNotNull($data);
+        $this->assertNotNull($data['scheduled_end_time']);
+        $this->assertNotNull($data['end_time']);
+        $this->assertEquals(980, $data['duration_seconds']);
+        $this->assertEquals(17, $data['duration_minutes']);
     }
 }

@@ -91,6 +91,7 @@ class EventAdminController extends BaseApiController
                         'total_rounds' => $totalRounds,
                         'current_round' => 0,
                         'scheduled_start_time' => $event->start_at,
+                        'scheduled_end_time' => $event->end_at,
                     ]
                 );
             } catch (\Throwable $e) {
@@ -138,6 +139,7 @@ class EventAdminController extends BaseApiController
                         'break_duration_seconds' => $breakDuration,
                         'total_rounds' => $totalRounds,
                         'scheduled_start_time' => $event->start_at,
+                        'scheduled_end_time' => $event->end_at,
                     ]
                 );
             } catch (\Throwable $e) {
