@@ -1374,11 +1374,15 @@ class LeaderActivitiesService
                 }
                 break;
 
-            default:
+            case 'peers':
                 $unitLabel = 'Impacts';
                 foreach ($users as $u) {
                     $countsByUser[(string) $u->id] = (int) ($u->life_impacted_count ?? 0);
                 }
+                break;
+
+            default:
+                $unitLabel = 'Activities';
                 break;
         }
 
