@@ -57,13 +57,13 @@ class LeaderReportsService
 
         return $reports->map(function (LeaderReport $r): array {
             $circle = $r->circle;
-            $circleName = (string) ($circle?->name ?? 'Mumbai Tech Sunrise');
-            $circleId = (string) ($r->circle_id ?? ($circle?->id ?? 'd06173c0-368c-4bfd-b682-e07e67fdb320'));
+            $circleName = (string) ($circle?->name ?? '');
+            $circleId = (string) ($r->circle_id ?? ($circle?->id ?? ''));
 
             $submitter = $r->submitter;
-            $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : 'Arjun Patel';
-            if ($submitterName === '' || $submitterName === ' ') {
-                $submitterName = (string) ($submitter?->display_name ?? 'Arjun Patel');
+            $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : '';
+            if ($submitterName === '') {
+                $submitterName = (string) ($submitter?->display_name ?? 'Leader');
             }
 
             $peersRoster = $this->resolvePeersRoster($r, $circleId);
@@ -75,14 +75,14 @@ class LeaderReportsService
                 'report_type' => (string) $r->report_type,
                 'period' => (string) $r->period,
                 'submitted_by' => $submitterName,
-                'submitter_role' => (string) ($r->submitter_role ?? 'Circle Chair'),
-                'submitted_at' => $r->created_at ? $r->created_at->toIso8601String() : '2026-08-25T10:00:00Z',
+                'submitter_role' => (string) ($r->submitter_role ?? ''),
+                'submitted_at' => $r->created_at ? $r->created_at->toIso8601String() : '',
                 'status' => (string) ($r->status ?: 'Under Review'),
-                'attendance_percentage' => (float) ($r->attendance_percentage ?? 94.0),
-                'deals_closed_value' => (string) ($r->deals_closed_value ?? '₹18.5L'),
-                'total_revenue' => (string) ($r->total_revenue ?? '₹24.0L'),
-                'summary_text' => (string) ($r->summary_text ?? $r->content ?? 'Strong monthly participation with 4 new peer referrals closed.'),
-                'action_items' => (string) ($r->action_items ?? 'Follow up with 3 pending members for fee renewal.'),
+                'attendance_percentage' => (float) ($r->attendance_percentage ?? 0.0),
+                'deals_closed_value' => (string) ($r->deals_closed_value ?? '₹0'),
+                'total_revenue' => (string) ($r->total_revenue ?? '₹0'),
+                'summary_text' => (string) ($r->summary_text ?? $r->content ?? ''),
+                'action_items' => (string) ($r->action_items ?? ''),
                 'peers_roster' => $peersRoster,
             ];
         })->values()->all();
@@ -180,7 +180,7 @@ class LeaderReportsService
      *
      * @return array<string, mixed>
      */
-    public function getReportDetails(string $reportId): array
+    public function getReportDetails(string $reportId, ?User $user = null): array
     {
         $report = null;
         if (Str::isUuid($reportId)) {
@@ -192,42 +192,26 @@ class LeaderReportsService
         }
 
         if (! $report) {
-            return [
-                'id' => $reportId,
-                'circle_id' => 'd06173c0-368c-4bfd-b682-e07e67fdb320',
-                'circle_name' => 'Mumbai Tech Sunrise',
-                'district_id' => 'dis_mum_01',
-                'district_name' => 'District Mumbai',
-                'industry_name' => 'Technology',
-                'report_type' => 'Monthly',
-                'period' => 'August 2026',
-                'submitted_by' => 'Arjun Patel',
-                'submitter_role' => 'Circle Chair',
-                'submitted_at' => '2026-08-25T10:00:00Z',
-                'status' => 'Approved',
-                'attendance_percentage' => 94.5,
-                'deals_closed_value' => '₹18.5L',
-                'total_revenue' => '₹24.0L',
-                'summary_text' => 'Strong monthly participation with 4 new peer referrals closed.',
-                'highlights' => 'Launched 2 new FinTech partnerships and added 3 verified peers.',
-                'challenges_faced' => 'Need faster turnaround on peer onboarding verification.',
-                'action_items' => 'Follow up with 3 pending members for fee renewal and schedule Q4 assemblies.',
-                'peers_roster' => $this->buildFallbackPeersRoster(),
-            ];
+            abort(404, 'Report not found.');
         }
 
+        // Leaders may only open reports that belong to circles inside their role scope.
+        $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
+        if ($user && $scopedCircleIds !== null && ! in_array((string) $report->circle_id, array_map('strval', $scopedCircleIds), true)) {
+            abort(403, 'This report does not belong to your circles.');
+        }
         $circle = $report->circle;
-        $circleId = (string) ($report->circle_id ?? ($circle?->id ?? 'd06173c0-368c-4bfd-b682-e07e67fdb320'));
-        $circleName = (string) ($circle?->name ?? 'Mumbai Tech Sunrise');
+        $circleId = (string) ($report->circle_id ?? ($circle?->id ?? ''));
+        $circleName = (string) ($circle?->name ?? '');
         $district = $circle?->district;
-        $districtId = (string) ($report->district_id ?? ($district?->id ?? 'dis_mum_01'));
-        $districtName = (string) ($district?->name ?? 'District Mumbai');
-        $industryName = (string) ($circle?->category ?? 'Technology');
+        $districtId = (string) ($report->district_id ?? ($district?->id ?? ''));
+        $districtName = (string) ($district?->name ?? '');
+        $industryName = (string) ($circle?->category ?? '');
 
         $submitter = $report->submitter;
-        $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : 'Arjun Patel';
-        if ($submitterName === '' || $submitterName === ' ') {
-            $submitterName = (string) ($submitter?->display_name ?? 'Arjun Patel');
+        $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : '';
+        if ($submitterName === '') {
+            $submitterName = (string) ($submitter?->display_name ?? 'Leader');
         }
 
         $peersRoster = $this->resolvePeersRoster($report, $circleId);
@@ -242,16 +226,16 @@ class LeaderReportsService
             'report_type' => (string) $report->report_type,
             'period' => (string) $report->period,
             'submitted_by' => $submitterName,
-            'submitter_role' => (string) ($report->submitter_role ?? 'Circle Chair'),
-            'submitted_at' => $report->created_at ? $report->created_at->toIso8601String() : '2026-08-25T10:00:00Z',
+            'submitter_role' => (string) ($report->submitter_role ?? ''),
+            'submitted_at' => $report->created_at ? $report->created_at->toIso8601String() : '',
             'status' => (string) ($report->status ?: 'Under Review'),
-            'attendance_percentage' => (float) ($report->attendance_percentage ?? 94.5),
-            'deals_closed_value' => (string) ($report->deals_closed_value ?? '₹18.5L'),
-            'total_revenue' => (string) ($report->total_revenue ?? '₹24.0L'),
-            'summary_text' => (string) ($report->summary_text ?? $report->content ?? 'Strong monthly participation with 4 new peer referrals closed.'),
-            'highlights' => (string) ($report->highlights ?? 'Launched 2 new FinTech partnerships and added 3 verified peers.'),
-            'challenges_faced' => (string) ($report->challenges_faced ?? 'Need faster turnaround on peer onboarding verification.'),
-            'action_items' => (string) ($report->action_items ?? 'Follow up with 3 pending members for fee renewal and schedule Q4 assemblies.'),
+            'attendance_percentage' => (float) ($report->attendance_percentage ?? 0.0),
+            'deals_closed_value' => (string) ($report->deals_closed_value ?? '₹0'),
+            'total_revenue' => (string) ($report->total_revenue ?? '₹0'),
+            'summary_text' => (string) ($report->summary_text ?? $report->content ?? ''),
+            'highlights' => (string) ($report->highlights ?? ''),
+            'challenges_faced' => (string) ($report->challenges_faced ?? ''),
+            'action_items' => (string) ($report->action_items ?? ''),
             'peers_roster' => $peersRoster,
         ];
     }
@@ -278,7 +262,7 @@ class LeaderReportsService
     public function buildPeersRosterForCircle(string $circleId): array
     {
         if (! Str::isUuid($circleId)) {
-            return $this->buildFallbackPeersRoster();
+            return [];
         }
 
         $members = CircleMember::query()
@@ -289,7 +273,7 @@ class LeaderReportsService
             ->get();
 
         if ($members->isEmpty()) {
-            return $this->buildFallbackPeersRoster();
+            return [];
         }
 
         $membershipRecords = CirclePeerMembership::query()
@@ -302,38 +286,38 @@ class LeaderReportsService
             $userId = (string) ($user?->id ?? $cm->user_id);
             $membership = $membershipRecords->get($userId);
 
-            $userName = $user ? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) : 'Siddharth Verma';
-            if ($userName === '' || $userName === ' ') {
-                $userName = (string) ($user?->display_name ?? 'Siddharth Verma');
+            $userName = $user ? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) : '';
+            if ($userName === '') {
+                $userName = (string) ($user?->display_name ?? 'Peer Member');
             }
 
             $platformStart = $membership?->platform_membership_start
                 ? $membership->platform_membership_start->format('Y-m-d')
-                : ($user?->circle_joined_at ? $user->circle_joined_at->format('Y-m-d') : '2024-01-15');
+                : ($user?->circle_joined_at ? $user->circle_joined_at->format('Y-m-d') : '');
 
             $platformEnd = $membership?->platform_membership_end
                 ? $membership->platform_membership_end->format('Y-m-d')
-                : '2025-01-15';
+                : '';
 
             $circleJoining = $membership?->circle_joining_date
                 ? $membership->circle_joining_date->format('Y-m-d')
-                : ($cm->joined_at ? $cm->joined_at->format('Y-m-d') : '2024-03-01');
+                : ($cm->joined_at ? $cm->joined_at->format('Y-m-d') : '');
 
             $circleRenewal = $membership?->circle_renewal_date
                 ? $membership->circle_renewal_date->format('Y-m-d')
-                : '2025-03-01';
+                : '';
 
-            $attendanceRate = (float) ($user?->attendance_rate ?? 94);
-            $dealsClosedFormatted = $user?->deals_closed_formatted ?? '₹32.5L';
-            $p2pCount = (int) ($user?->p2p_meetings_count ?? 24);
-            $referralsCount = (int) ($user?->referrals_given_count ?? 18);
+            $attendanceRate = (float) ($user?->attendance_rate ?? 0);
+            $dealsClosedFormatted = $user?->deals_closed_formatted ?? '₹0';
+            $p2pCount = (int) ($user?->p2p_meetings_count ?? 0);
+            $referralsCount = (int) ($user?->referrals_given_count ?? 0);
 
             return [
                 'peer_id' => $userId,
                 'name' => $userName,
-                'avatar_url' => $user?->avatar_url ?? $user?->profile_photo_url ?? 'https://peersunity.com/storage/avatars/siddharth.png',
-                'company' => (string) ($user?->company_name ?? $user?->business_name ?? 'Apex Dynamics Pvt Ltd'),
-                'designation' => (string) ($user?->designation ?? 'Founder & CEO'),
+                'avatar_url' => $user?->avatar_url ?? $user?->profile_photo_url,
+                'company' => (string) ($user?->company_name ?? $user?->business_name ?? ''),
+                'designation' => (string) ($user?->designation ?? 'Member'),
                 'status' => ucfirst((string) ($user?->status ?? 'Active')),
                 'platform_membership_start' => $platformStart,
                 'platform_membership_end' => $platformEnd,
@@ -348,63 +332,14 @@ class LeaderReportsService
     }
 
     /**
-     * Fallback peers roster when circle has no seeded members.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function buildFallbackPeersRoster(): array
-    {
-        return [
-            [
-                'peer_id' => '76265b49-4e41-406e-bb8c-7182d5f6536c',
-                'name' => 'Siddharth Verma',
-                'avatar_url' => 'https://peersunity.com/storage/avatars/siddharth.png',
-                'company' => 'Apex Dynamics Pvt Ltd',
-                'designation' => 'Founder & CEO',
-                'status' => 'Active',
-                'platform_membership_start' => '2024-01-15',
-                'platform_membership_end' => '2025-01-15',
-                'circle_joining_date' => '2024-03-01',
-                'circle_renewal_date' => '2025-03-01',
-                'attendance' => '94%',
-                'deals_closed' => '₹32.5L',
-                'p2p_count' => 24,
-                'referrals_count' => 18,
-            ],
-            [
-                'peer_id' => 'a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d',
-                'name' => 'Pooja Sharma',
-                'avatar_url' => 'https://peersunity.com/storage/avatars/pooja.png',
-                'company' => 'BioHealth Labs',
-                'designation' => 'Managing Director',
-                'status' => 'Needs Attention',
-                'platform_membership_start' => '2024-02-01',
-                'platform_membership_end' => '2025-02-01',
-                'circle_joining_date' => '2024-04-15',
-                'circle_renewal_date' => '2025-04-15',
-                'attendance' => '68%',
-                'deals_closed' => '₹14.0L',
-                'p2p_count' => 8,
-                'referrals_count' => 4,
-            ],
-        ];
-    }
-
-    /**
      * Get 6-month attendance trend points.
      *
      * @return array<int, array{month: string, value: float}>
      */
     public function getAttendanceTrend(?string $circleId = null): array
     {
-        return [
-            ['month' => 'Feb', 'value' => 88.0],
-            ['month' => 'Mar', 'value' => 90.0],
-            ['month' => 'Apr', 'value' => 89.0],
-            ['month' => 'May', 'value' => 92.0],
-            ['month' => 'Jun', 'value' => 94.0],
-            ['month' => 'Jul', 'value' => 96.0],
-        ];
+        // No demo data: the trend is empty until real attendance history is available.
+        return [];
     }
 
     /**
