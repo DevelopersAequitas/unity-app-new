@@ -496,6 +496,132 @@ class PendingRequestAdminController extends Controller
         });
     }
 
+    /**
+     * Resolve the signed-in actor and canonical leader role for circle join request transitions.
+     *
+     * @return array{0: User|\App\Models\AdminUser|null, 1: string}
+     */
+    private function resolveJoinRequestActor(): array
+    {
+        $actor = request()->user()
+            ?? \Illuminate\Support\Facades\Auth::guard('admin')->user()
+            ?? \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
+        if ($actor instanceof User) {
+            $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($actor)['role'] ?? 'guest');
+
+            return [$actor, $role];
+        }
+
+        return [$actor, $actor ? 'superAdmin' : 'guest'];
+    }
+
+    /**
+     * Approve a circle join request through the real approval workflow:
+     * Circle Director/Founder -> (Industry Director) -> fee -> member. Global roles grant full clearance.
+     */
+    private function approveCircleJoinRequestViaService(string $id): JsonResponse
+    {
+        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        if (! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        [$actor, $role] = $this->resolveJoinRequestActor();
+        if (! $actor) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $status = (string) $record->status;
+
+        try {
+            if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $updated = $service->approveAndJoinCircle($record, $actor);
+                $message = 'Request approved and applicant added to the circle.';
+            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+                $updated = $service->approveByCd($record, $actor);
+                $message = 'Approved at Circle Director stage. Sent for Industry Director approval.';
+            } elseif (
+                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                && in_array($role, ['industryDirector', 'districtExecDirector'], true)
+            ) {
+                $updated = $service->approveById($record, $actor);
+                $message = 'Approved at Industry Director stage. Applicant can now complete the circle fee.';
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This request is at '{$status}' and is not waiting for your approval.",
+                ], 422);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('leader.join_request.approve_failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to approve request: '.$e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => ['id' => (string) $updated->id, 'status' => (string) $updated->status],
+        ], 200);
+    }
+
+    /**
+     * Reject a circle join request through the real approval workflow.
+     */
+    private function rejectCircleJoinRequestViaService(string $id, string $reason): JsonResponse
+    {
+        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        if (! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        [$actor, $role] = $this->resolveJoinRequestActor();
+        if (! $actor) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $status = (string) $record->status;
+
+        try {
+            if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $updated = $service->rejectGeneric($record, $actor, $reason);
+            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+                $updated = $service->rejectByCd($record, $actor, $reason);
+            } elseif (
+                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                && in_array($role, ['industryDirector', 'districtExecDirector'], true)
+            ) {
+                $updated = $service->rejectById($record, $actor, $reason);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This request is at '{$status}' and cannot be rejected by your role.",
+                ], 422);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('leader.join_request.reject_failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to reject request: '.$e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Request rejected.',
+            'data' => ['id' => (string) $updated->id, 'status' => (string) $updated->status],
+        ], 200);
+    }
     private function processApproval(string $id, ?string $category = null): JsonResponse
     {
         if ($category === 'certifications') {
@@ -548,6 +674,10 @@ class PendingRequestAdminController extends Controller
 
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        if (in_array($table, ['circle_join_requests', 'circle_joining_requests'], true)) {
+            return $this->approveCircleJoinRequestViaService($id);
         }
 
         if (in_array($table, ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'], true)) {
@@ -806,6 +936,10 @@ class PendingRequestAdminController extends Controller
 
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        if (in_array($table, ['circle_join_requests', 'circle_joining_requests'], true)) {
+            return $this->rejectCircleJoinRequestViaService($id, $reason);
         }
 
         if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
@@ -1253,8 +1387,8 @@ class PendingRequestAdminController extends Controller
     }
 
     /**
-     * Keep non-circle-join requests only when the applicant belongs to the leader's circles
-     * or main business categories.
+     * Keep non-circle-join requests only when the applicant is a member of the leader's circles.
+     * (Category routing applies to circle join requests only.)
      *
      * @param  array{circle_ids: array<int, string>, category_ids: array<int, int>}  $scope
      */
@@ -1277,10 +1411,7 @@ class PendingRequestAdminController extends Controller
                 $q->orWhereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scope['circle_ids'])->whereNull('deleted_at'));
                 $hasCondition = true;
             }
-            if (! empty($scope['category_ids']) && Schema::hasColumn('users', 'main_business_category_id')) {
-                $q->orWhereIn('main_business_category_id', $scope['category_ids']);
-                $hasCondition = true;
-            }
+
             if (! $hasCondition) {
                 $q->whereRaw('1 = 0');
             }
