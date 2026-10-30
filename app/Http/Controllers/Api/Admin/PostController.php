@@ -29,15 +29,15 @@ class PostController extends BaseApiController
     {
         $query = Post::query()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
             ])
@@ -137,15 +137,15 @@ class PostController extends BaseApiController
     {
         $post = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,phone,designation,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,phone,designation,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,profile_photo_id,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'reports.reporter:id,first_name,last_name,display_name,email',
