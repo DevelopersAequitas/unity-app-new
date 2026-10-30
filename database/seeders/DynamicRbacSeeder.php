@@ -130,7 +130,7 @@ class DynamicRbacSeeder extends Seeder
                 'name' => 'Settings & Config',
                 'slug' => 'settings-config',
                 'description' => 'Application configuration and settings',
-                'pages' => ['admin.app-config.index', 'admin.app-updates.index', 'admin.birthday-creative.index', 'admin.anniversary-creatives.index', 'admin.tutorials.index', 'admin.categories.index'],
+                'pages' => ['admin.app-config.index', 'admin.app-updates.index', 'admin.birthday-creative.index', 'admin.anniversary-creatives.index', 'admin.tutorials.index', 'admin.categories.index', 'admin.system.ip-access.index'],
             ],
         ];
 
@@ -483,6 +483,7 @@ class DynamicRbacSeeder extends Seeder
                     ['name' => 'Unity Peers Plans', 'route_name' => 'admin.unity-peers-plans.index', 'slug' => 'unity-peers-plans', 'sort_order' => 7],
                     ['name' => 'Unity Contacts', 'route_name' => 'admin.contacts.index', 'slug' => 'unity-contacts', 'sort_order' => 8],
                     ['name' => 'Support Tickets', 'route_name' => 'admin.support-tickets.index', 'slug' => 'support-tickets', 'sort_order' => 9],
+                    ['name' => 'IP Access', 'route_name' => 'admin.system.ip-access.index', 'slug' => 'ip-access', 'sort_order' => 10],
                 ],
             ],
             [

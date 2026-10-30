@@ -70,6 +70,7 @@ use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
+use App\Http\Controllers\Api\V1\Admin\AdminIpAccessController;
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
@@ -241,6 +242,7 @@ Route::prefix('ai')->group(function () {
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
+    Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('social-login', [AuthController::class, 'socialLogin']);
@@ -357,6 +359,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('auth')->group(function () {
+        Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('social-login', [AuthController::class, 'socialLogin']);
@@ -592,7 +595,24 @@ Route::prefix('v1')->group(function () {
         Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
     });
 
+    Route::get('/admin/auth/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+
     Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+        // System IP Access Configuration APIs
+        Route::get('/system/ip-access', [AdminIpAccessController::class, 'show']);
+        Route::match(['put', 'patch'], '/system/ip-access', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::match(['put', 'patch'], '/system/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::get('/system/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
+        Route::post('/system/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::delete('/system/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
+
+        Route::get('/ip-access', [AdminIpAccessController::class, 'show']);
+        Route::match(['put', 'patch'], '/ip-access', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::match(['put', 'patch'], '/ip-access/enforcement', [AdminIpAccessController::class, 'updateEnforcement']);
+        Route::get('/ip-access/ips', [AdminIpAccessController::class, 'listIps']);
+        Route::post('/ip-access/ips', [AdminIpAccessController::class, 'storeIp']);
+        Route::delete('/ip-access/ips/{id}', [AdminIpAccessController::class, 'destroyIp'])->whereUuid('id');
+
         // Certification approval API examples:
         // GET /api/v1/admin/certifications
         // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve

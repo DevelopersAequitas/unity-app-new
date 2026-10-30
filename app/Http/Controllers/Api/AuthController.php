@@ -29,6 +29,7 @@ use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
+use App\Services\Admin\Auth\AdminIpAccessService;
 use App\Services\Audit\ActivityLoggerService;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\SocialAuthService;
@@ -48,6 +49,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -1144,18 +1146,47 @@ class AuthController extends BaseApiController
 
         $email = strtolower(trim($credentials['email']));
 
+        $ipAccessService = app(AdminIpAccessService::class);
+        if (! $ipAccessService->isPasswordLoginAllowedForRequest($request)) {
+            $ipAccessService->recordPasswordLoginDenied($request, $email);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
+                'error_code' => 'IP_NOT_AUTHORIZED_FOR_PASSWORD_LOGIN',
+                'data' => null,
+            ], 403);
+        }
+
+        $clientIp = $ipAccessService->resolveClientIp($request) ?? ($request->ip() ?: '0.0.0.0');
+        $passwordThrottleKey = 'login-password:'.$email.'|'.$clientIp;
+        if (RateLimiter::tooManyAttempts($passwordThrottleKey, 5)) {
+            $seconds = RateLimiter::availableIn($passwordThrottleKey);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Too many login attempts. Please try again in {$seconds} seconds.",
+                'error_code' => 'RATE_LIMIT_EXCEEDED',
+                'data' => null,
+            ], 429);
+        }
+
         // Special password authentication for harsh@gmail.com
         if ($email === 'harsh@gmail.com') {
             $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
             $matchesPassword = ($credentials['password'] === 'Harsh@123') || ($user && ! empty($user->password_hash) && Hash::check($credentials['password'], $user->password_hash));
 
             if (! $matchesPassword) {
+                RateLimiter::hit($passwordThrottleKey, 60);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid email or password.',
                     'data' => null,
                 ], 401);
             }
+
+            RateLimiter::clear($passwordThrottleKey);
 
             // Ensure AdminUser exists
             $adminUser = AdminUser::query()->whereRaw('LOWER(email) = ?', [$email])->first();
@@ -1238,6 +1269,8 @@ class AuthController extends BaseApiController
             ->first();
 
         if (! $user) {
+            RateLimiter::hit($passwordThrottleKey, 60);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
@@ -1255,12 +1288,16 @@ class AuthController extends BaseApiController
         }
 
         if (! $passwordCheck) {
+            RateLimiter::hit($passwordThrottleKey, 60);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
                 'data' => null,
             ], 401);
         }
+
+        RateLimiter::clear($passwordThrottleKey);
 
         if (array_key_exists('timezone', $credentials) && Schema::hasColumn('users', 'timezone')) {
             $user->timezone = $credentials['timezone'];
@@ -1420,6 +1457,19 @@ class AuthController extends BaseApiController
     public function directLogin(Request $request): JsonResponse
     {
         $email = (string) ($request->input('email') ?? $request->input('identifier') ?? '');
+
+        $ipAccessService = app(AdminIpAccessService::class);
+        if (! $ipAccessService->isPasswordLoginAllowedForRequest($request)) {
+            $ipAccessService->recordPasswordLoginDenied($request, $email);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
+                'error_code' => 'IP_NOT_AUTHORIZED_FOR_PASSWORD_LOGIN',
+                'data' => null,
+            ], 403);
+        }
+
         if ($this->isSpecialBypassUser($email, $request)) {
             return $this->handleSpecialDirectLogin($email, $request);
         }
