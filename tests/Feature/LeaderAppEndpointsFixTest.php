@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Mail\LoginOtpMail;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleMember;
 use App\Models\OtpCode;
 use App\Models\User;
+use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Mockery;
 use Tests\TestCase;
 
 class LeaderAppEndpointsFixTest extends TestCase
@@ -108,6 +112,8 @@ class LeaderAppEndpointsFixTest extends TestCase
         Schema::create('otp_codes', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('user_id');
+            $table->string('email')->nullable();
+            $table->string('channel', 50)->nullable();
             $table->string('code');
             $table->string('purpose', 50);
             $table->timestamp('used_at')->nullable();
@@ -373,5 +379,90 @@ class LeaderAppEndpointsFixTest extends TestCase
         $ids = collect($data)->pluck('id')->all();
         $this->assertContains($leader->id, $ids);
         $this->assertContains($peerInCircleB->id, $ids);
+    }
+
+    /**
+     * Test send-otp with email sends only email and not WhatsApp.
+     */
+    public function test_send_otp_with_email_dispatches_only_email(): void
+    {
+        Mail::fake();
+
+        $whatsappMock = Mockery::mock(WhatsappNotificationService::class);
+        $whatsappMock->shouldNotReceive('send');
+        $this->app->instance(WhatsappNotificationService::class, $whatsappMock);
+
+        $leader = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Chirag',
+            'last_name' => 'Mali',
+            'email' => 'malichirag22@gmail.com',
+            'phone' => '+919876543210',
+        ]);
+
+        Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Leadership Circle',
+            'circle_founder_user_id' => $leader->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->postJson('/api/v1/leader/auth/send-otp', [
+            'email_or_phone' => 'malichirag22@gmail.com',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'OTP has been sent successfully to your registered email.')
+            ->assertJsonPath('data.channel', 'email');
+
+        Mail::assertSent(LoginOtpMail::class, function (LoginOtpMail $mail) use ($leader): bool {
+            return $mail->hasTo($leader->email);
+        });
+    }
+
+    /**
+     * Test send-otp with phone number sends only WhatsApp and not email.
+     */
+    public function test_send_otp_with_phone_dispatches_only_whatsapp(): void
+    {
+        Mail::fake();
+
+        $whatsappMock = Mockery::mock(WhatsappNotificationService::class);
+        $whatsappMock->shouldReceive('send')
+            ->once()
+            ->withArgs(function (string $templateKey, string $phone, array $payload): bool {
+                return $templateKey === 'otp_verification'
+                    && str_contains($phone, '9876543210')
+                    && ! empty($payload['code']);
+            })
+            ->andReturn(true);
+        $this->app->instance(WhatsappNotificationService::class, $whatsappMock);
+
+        $leader = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Chirag',
+            'last_name' => 'Mali',
+            'email' => 'malichirag22@gmail.com',
+            'phone' => '+919876543210',
+        ]);
+
+        Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Leadership Circle',
+            'circle_founder_user_id' => $leader->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->postJson('/api/v1/leader/auth/send-otp', [
+            'email_or_phone' => '9876543210',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'OTP has been sent successfully to your WhatsApp.')
+            ->assertJsonPath('data.channel', 'whatsapp');
+
+        Mail::assertNothingSent();
     }
 }

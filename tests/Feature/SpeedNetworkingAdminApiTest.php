@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\AdminUser;
+use App\Models\Event;
 use App\Models\Role;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class SpeedNetworkingAdminApiTest extends TestCase
@@ -34,6 +37,10 @@ class SpeedNetworkingAdminApiTest extends TestCase
 
     private function setUpDatabase(): void
     {
+        Schema::dropIfExists('event_registrations');
+        Schema::dropIfExists('event_occurrences');
+        Schema::dropIfExists('events');
+        Schema::dropIfExists('circles');
         Schema::dropIfExists('speed_networking_matches');
         Schema::dropIfExists('speed_networking_participants');
         Schema::dropIfExists('speed_networking_events');
@@ -41,6 +48,63 @@ class SpeedNetworkingAdminApiTest extends TestCase
         Schema::dropIfExists('roles');
         Schema::dropIfExists('admin_users');
         Schema::dropIfExists('users');
+
+        Schema::create('circles', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->string('slug')->nullable();
+            $table->string('state_name')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('events', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('circle_id')->nullable();
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->string('banner_url')->nullable();
+            $table->string('status')->default('scheduled');
+            $table->boolean('is_active')->default(true);
+            $table->string('event_type')->default('speed_networking');
+            $table->string('event_category')->nullable();
+            $table->string('mode')->default('online');
+            $table->string('recurrence_type')->nullable();
+            $table->string('location_text')->nullable();
+            $table->string('online_meeting_url')->nullable();
+            $table->timestamp('start_at')->nullable();
+            $table->timestamp('end_at')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('event_occurrences', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('event_id');
+            $table->timestamp('start_at')->nullable();
+            $table->timestamp('end_at')->nullable();
+            $table->string('status')->default('scheduled');
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('event_circles', function (Blueprint $table): void {
+            $table->uuid('id')->nullable();
+            $table->uuid('event_id');
+            $table->uuid('circle_id');
+            $table->timestamps();
+        });
+
+        Schema::create('event_registrations', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('event_id');
+            $table->uuid('occurrence_id')->nullable();
+            $table->uuid('user_id');
+            $table->string('status')->default('registered');
+            $table->timestamps();
+            $table->softDeletes();
+        });
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -94,6 +158,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
             $table->string('currency', 10)->default('INR');
             $table->uuid('circle_id')->nullable();
             $table->boolean('circle_restricted')->default(false);
+            $table->json('metadata')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -170,7 +235,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
 
     public function test_admin_speed_networking_api_list_events(): void
     {
-        $user = \App\Models\User::create([
+        $user = User::create([
             'id' => (string) Str::uuid(),
             'first_name' => 'Admin',
             'last_name' => 'User',
@@ -188,7 +253,7 @@ class SpeedNetworkingAdminApiTest extends TestCase
             'current_round' => 0,
         ]);
 
-        \Laravel\Sanctum\Sanctum::actingAs($user);
+        Sanctum::actingAs($user);
 
         $response = $this->getJson('/api/v1/admin/speed-networking/events');
 
@@ -199,5 +264,201 @@ class SpeedNetworkingAdminApiTest extends TestCase
         $response->assertJsonFragment([
             'title' => 'Tech Pioneers Networking',
         ]);
+    }
+
+    public function test_speed_networking_event_automatically_calculates_scheduled_end_time_from_duration(): void
+    {
+        $start = Carbon::parse('2026-10-30T10:00:00Z');
+
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Auto Duration Test',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => null,
+        ]);
+
+        // 5 rounds: 5 * 180 + 4 * 20 = 900 + 80 = 980 seconds
+        $expectedEnd = $start->copy()->addSeconds(980);
+
+        $this->assertNotNull($event->scheduled_end_time);
+        $this->assertEquals($expectedEnd->toIso8601String(), $event->scheduled_end_time->toIso8601String());
+        $this->assertEquals(980, $event->duration_seconds);
+        $this->assertEquals(17, $event->duration_minutes);
+
+        $array = $event->toArray();
+        $this->assertArrayHasKey('scheduled_end_time', $array);
+        $this->assertNotNull($array['scheduled_end_time']);
+        $this->assertArrayHasKey('end_time', $array);
+        $this->assertNotNull($array['end_time']);
+    }
+
+    public function test_admin_api_creates_event_with_auto_calculated_end_time_from_duration_minutes(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin2@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $startTime = '2026-11-01T14:00:00Z';
+        $payload = [
+            'title' => 'Custom Duration Event',
+            'scheduled_start_time' => $startTime,
+            'duration_minutes' => 45,
+            'round_duration_seconds' => 300,
+            'break_duration_seconds' => 30,
+        ];
+
+        $response = $this->postJson('/api/v1/admin/speed-networking/events', $payload);
+
+        $response->assertStatus(201);
+        $data = $response->json('data');
+        $this->assertNotNull($data['scheduled_end_time']);
+        $expectedEnd = Carbon::parse($startTime)->addMinutes(45)->toIso8601String();
+        $this->assertEquals($expectedEnd, Carbon::parse($data['scheduled_end_time'])->toIso8601String());
+    }
+
+    public function test_api_active_event_returns_auto_calculated_end_time(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'member@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::now()->addMinutes(10);
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Active Test Event',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => null,
+        ]);
+
+        $response = $this->getJson('/api/v1/speed-networking/active-event');
+        $response->assertStatus(200);
+        $data = $response->json('data');
+
+        $this->assertNotNull($data);
+        $this->assertNotNull($data['scheduled_end_time']);
+        $this->assertNotNull($data['end_time']);
+        $this->assertEquals(980, $data['duration_seconds']);
+        $this->assertEquals(17, $data['duration_minutes']);
+    }
+
+    public function test_speed_networking_show_event_returns_scheduled_end_time_and_duration_minutes(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'viewer@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::now()->startOfSecond()->addHours(1);
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Show Event Test',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => null,
+        ]);
+
+        $response = $this->getJson("/api/v1/speed-networking/events/{$event->id}");
+        $response->assertStatus(200);
+        $data = $response->json('data');
+
+        $this->assertNotNull($data);
+        $this->assertEquals((string) $event->id, $data['id']);
+        $this->assertNotNull($data['scheduled_end_time']);
+        $this->assertEquals(17, $data['duration_minutes']);
+        $this->assertEquals(980, $data['duration_seconds']);
+        $expectedEnd = $start->copy()->addSeconds(980)->utc()->toISOString();
+        $this->assertEquals($expectedEnd, $data['scheduled_end_time']);
+    }
+
+    public function test_active_event_auto_transitions_to_completed_when_past_scheduled_end_time(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'member3@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::now()->subHours(2);
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Expired Event',
+            'status' => 'scheduled',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'scheduled_end_time' => $start->copy()->addSeconds(980),
+        ]);
+
+        $response = $this->getJson('/api/v1/speed-networking/active-event');
+        $response->assertStatus(200);
+        $this->assertNull($response->json('data'));
+
+        $event->refresh();
+        $this->assertEquals('completed', $event->status);
+    }
+
+    public function test_events_all_endpoint_returns_scheduled_end_time_and_duration_minutes(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'eventsall@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::now()->addDays(2)->startOfHour();
+        $end = $start->copy()->addMinutes(45);
+
+        $event = Event::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Virtual Speed Networking Circle Event',
+            'event_type' => 'speed_networking',
+            'start_at' => $start,
+            'end_at' => $end,
+            'is_active' => true,
+            'status' => 'scheduled',
+            'metadata' => [
+                'round_duration_seconds' => 300,
+                'break_duration_seconds' => 30,
+                'total_rounds' => 6,
+                'duration_minutes' => 45,
+            ],
+        ]);
+
+        $response = $this->getJson('/api/v1/events/all');
+        $response->assertStatus(200);
+        $upcoming = $response->json('data.upcoming_events');
+        $this->assertNotEmpty($upcoming);
+
+        $found = collect($upcoming)->firstWhere('event_id', (string) $event->id);
+        $this->assertNotNull($found);
+        $this->assertEquals(45, $found['duration_minutes']);
+        $this->assertEquals($end->copy()->utc()->toISOString(), $found['scheduled_end_time']);
     }
 }

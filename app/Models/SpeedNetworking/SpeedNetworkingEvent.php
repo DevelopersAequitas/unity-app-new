@@ -6,6 +6,8 @@ namespace App\Models\SpeedNetworking;
 
 use App\Models\Circle;
 use App\Models\Event;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -61,6 +63,15 @@ class SpeedNetworkingEvent extends Model
     ];
 
     /**
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'duration_seconds',
+        'duration_minutes',
+        'end_time',
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -71,7 +82,6 @@ class SpeedNetworkingEvent extends Model
             'total_rounds' => 'integer',
             'current_round' => 'integer',
             'scheduled_start_time' => 'datetime',
-            'scheduled_end_time' => 'datetime',
             'actual_start_time' => 'datetime',
             'actual_end_time' => 'datetime',
             'ticket_price' => 'float',
@@ -86,6 +96,13 @@ class SpeedNetworkingEvent extends Model
         static::creating(function (SpeedNetworkingEvent $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+        });
+
+        static::saving(function (SpeedNetworkingEvent $model): void {
+            if (empty($model->attributes['scheduled_end_time']) && ! empty($model->attributes['scheduled_start_time'])) {
+                $start = Carbon::parse($model->attributes['scheduled_start_time']);
+                $model->attributes['scheduled_end_time'] = $start->addSeconds($model->calculateDurationSeconds());
             }
         });
 
@@ -119,6 +136,108 @@ class SpeedNetworkingEvent extends Model
     public function circle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'circle_id');
+    }
+
+    /**
+     * Calculate total duration of this event in seconds.
+     */
+    public function calculateDurationSeconds(): int
+    {
+        $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
+
+        if (! empty($meta['duration_seconds'])) {
+            return (int) $meta['duration_seconds'];
+        }
+        if (! empty($this->attributes['duration_seconds'])) {
+            return (int) $this->attributes['duration_seconds'];
+        }
+        if (! empty($meta['duration_minutes'])) {
+            return (int) $meta['duration_minutes'] * 60;
+        }
+        if (! empty($this->attributes['duration_minutes'])) {
+            return (int) $this->attributes['duration_minutes'] * 60;
+        }
+        if (! empty($meta['duration'])) {
+            return (int) ($meta['duration'] * 60);
+        }
+        if (! empty($this->attributes['duration'])) {
+            return (int) ($this->attributes['duration'] * 60);
+        }
+
+        $rounds = (int) ($this->total_rounds ?: 0);
+        $roundSec = (int) ($this->round_duration_seconds ?: config('services.speed_networking.default_round_seconds', 180));
+        $breakSec = (int) ($this->break_duration_seconds ?: config('services.speed_networking.default_break_seconds', 20));
+
+        if ($rounds > 0) {
+            return ($rounds * $roundSec) + (max(0, $rounds - 1) * $breakSec);
+        }
+
+        $defaultRounds = 5;
+
+        return ($defaultRounds * $roundSec) + (($defaultRounds - 1) * $breakSec);
+    }
+
+    /**
+     * Calculate total duration of this event in minutes.
+     */
+    public function calculateDurationMinutes(): int
+    {
+        return (int) ceil($this->calculateDurationSeconds() / 60);
+    }
+
+    /**
+     * Accessor for scheduled_end_time. If null in DB, automatically computes
+     * from scheduled_start_time (or actual_start_time) + duration.
+     *
+     * @return Attribute<Carbon|null, Carbon|string|null>
+     */
+    protected function scheduledEndTime(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value): ?Carbon {
+                if ($value !== null) {
+                    return $this->asDateTime($value);
+                }
+
+                $start = $this->scheduled_start_time ?? $this->actual_start_time;
+                if ($start) {
+                    return $this->asDateTime($start)->copy()->addSeconds($this->calculateDurationSeconds());
+                }
+
+                return null;
+            },
+            set: fn ($value) => $value
+        );
+    }
+
+    /**
+     * @return Attribute<int, never>
+     */
+    protected function durationSeconds(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->calculateDurationSeconds()
+        );
+    }
+
+    /**
+     * @return Attribute<int, never>
+     */
+    protected function durationMinutes(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->calculateDurationMinutes()
+        );
+    }
+
+    /**
+     * @return Attribute<Carbon|null, never>
+     */
+    protected function endTime(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?Carbon => $this->scheduled_end_time
+        );
     }
 
     /**

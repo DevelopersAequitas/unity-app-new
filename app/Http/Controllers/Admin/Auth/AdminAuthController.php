@@ -10,6 +10,7 @@ use App\Http\Requests\Admin\Auth\AdminVerifyOtpRequest;
 use App\Models\AdminUser;
 use App\Models\IndustryDirectorAssignment;
 use App\Services\Admin\Auth\AdminAuthService;
+use App\Services\Admin\Auth\AdminIpAccessService;
 use App\Support\AdminAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -61,14 +62,20 @@ class AdminAuthController extends Controller
     public function loginMethods(Request $request): JsonResponse
     {
         $methods = $this->adminAuthService->getAvailableLoginMethods();
+        $policy = app(AdminIpAccessService::class)->evaluateLoginPolicy($request);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Available login methods retrieved successfully.',
-            'data' => [
-                'login_methods' => $methods,
-            ],
-        ]);
+        return response()
+            ->json([
+                'success' => true,
+                'message' => 'Available login methods retrieved successfully.',
+                'data' => array_merge($policy, [
+                    'login_methods' => $methods,
+                ]),
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0')
+            ->header('Vary', 'X-Forwarded-For, Forwarded');
     }
 
     public function requestOtp(AdminRequestOtpRequest $request): JsonResponse|RedirectResponse

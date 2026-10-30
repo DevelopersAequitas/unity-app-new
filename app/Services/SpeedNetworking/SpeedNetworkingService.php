@@ -80,6 +80,10 @@ class SpeedNetworkingService
                 $paginated = $query->paginate($perPage);
 
                 $mapped = collect($paginated->items())->map(function (SpeedNetworkingEvent $item): object {
+                    $durationSec = $item->calculateDurationSeconds();
+                    $durationMin = (int) ceil($durationSec / 60);
+                    $schedEnd = $item->scheduled_end_time;
+
                     return (object) [
                         'id' => (string) $item->id,
                         'title' => (string) $item->title,
@@ -90,9 +94,14 @@ class SpeedNetworkingService
                         'break_duration_seconds' => (int) $item->break_duration_seconds,
                         'total_rounds' => (int) $item->total_rounds,
                         'current_round' => (int) $item->current_round,
-                        'scheduled_start_time' => $item->scheduled_start_time?->toIso8601String(),
-                        'scheduled_end_time' => $item->scheduled_end_time?->toIso8601String(),
-                        'actual_start_time' => $item->actual_start_time?->toIso8601String(),
+                        'duration_seconds' => $durationSec,
+                        'duration_minutes' => $durationMin,
+                        'duration' => $durationMin,
+                        'scheduled_start_time' => $item->scheduled_start_time?->copy()->utc()->toISOString(),
+                        'scheduled_end_time' => $schedEnd?->copy()->utc()->toISOString(),
+                        'end_time' => $schedEnd?->copy()->utc()->toISOString(),
+                        'actual_start_time' => $item->actual_start_time?->copy()->utc()->toISOString(),
+                        'actual_end_time' => $item->actual_end_time?->copy()->utc()->toISOString(),
                         'ticket_price' => (float) ($item->ticket_price ?? 0),
                         'is_paid' => (bool) ($item->is_paid ?? false),
                         'currency' => (string) ($item->currency ?? 'INR'),
@@ -138,6 +147,29 @@ class SpeedNetworkingService
 
             $mapped = collect($paginated->items())->map(function (Event $e) {
                 $meta = (array) ($e->metadata ?? []);
+                $roundDuration = (int) ($meta['round_duration_seconds'] ?? 300);
+                $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($meta['total_rounds'] ?? 5);
+
+                $durationSec = null;
+                if (! empty($meta['duration_seconds'])) {
+                    $durationSec = (int) $meta['duration_seconds'];
+                } elseif (! empty($meta['duration_minutes'])) {
+                    $durationSec = (int) $meta['duration_minutes'] * 60;
+                } elseif (! empty($meta['duration'])) {
+                    $durationSec = (int) ($meta['duration'] * 60);
+                } else {
+                    $durationSec = $totalRounds > 0
+                        ? ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration)
+                        : (5 * $roundDuration) + (4 * $breakDuration);
+                }
+                $durationMin = (int) ceil($durationSec / 60);
+
+                $startAt = $e->start_at ? Carbon::parse($e->start_at) : null;
+                $endAt = $e->end_at
+                    ? Carbon::parse($e->end_at)
+                    : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+
                 $regCount = 0;
                 try {
                     $regCount = $e->registrations()->count();
@@ -149,11 +181,18 @@ class SpeedNetworkingService
                     'title' => $e->title,
                     'description' => $e->description,
                     'status' => $meta['speed_status'] ?? 'scheduled',
-                    'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                    'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                    'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                    'round_duration_seconds' => $roundDuration,
+                    'break_duration_seconds' => $breakDuration,
+                    'total_rounds' => $totalRounds,
                     'current_round' => (int) ($meta['current_round'] ?? 0),
-                    'scheduled_start_time' => $e->start_at,
+                    'duration_seconds' => $durationSec,
+                    'duration_minutes' => $durationMin,
+                    'duration' => $durationMin,
+                    'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
+                    'actual_end_time' => $meta['actual_end_time'] ?? null,
                     'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
                     'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
                     'active_participants_count' => $regCount,
@@ -343,15 +382,41 @@ class SpeedNetworkingService
         $circleRestricted = (bool) ($data['circle_restricted'] ?? ! empty($circleId));
         $currency = ! empty($data['currency']) ? (string) $data['currency'] : 'INR';
 
+        $roundDuration = (int) ($data['round_duration_seconds'] ?? config('services.speed_networking.default_round_seconds', 180));
+        $breakDuration = (int) ($data['break_duration_seconds'] ?? config('services.speed_networking.default_break_seconds', 20));
+        $totalRounds = isset($data['total_rounds']) && $data['total_rounds'] !== '' ? max(0, (int) $data['total_rounds']) : 0;
+
+        $durationSeconds = null;
+        if (! empty($data['duration_seconds'])) {
+            $durationSeconds = (int) $data['duration_seconds'];
+        } elseif (! empty($data['duration_minutes'])) {
+            $durationSeconds = (int) $data['duration_minutes'] * 60;
+        } elseif (! empty($data['duration'])) {
+            $durationSeconds = (int) ($data['duration'] * 60);
+        } else {
+            $durationSeconds = $totalRounds > 0
+                ? ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration)
+                : (5 * $roundDuration) + (4 * $breakDuration);
+        }
+
+        $scheduledStart = ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null;
+        $scheduledEnd = ! empty($data['scheduled_end_time'])
+            ? Carbon::parse($data['scheduled_end_time'])
+            : ($scheduledStart ? $scheduledStart->copy()->addSeconds($durationSeconds) : null);
+
+        $metadata = isset($data['metadata']) && is_array($data['metadata']) ? $data['metadata'] : [];
+        $metadata['duration_seconds'] = $durationSeconds;
+        $metadata['duration_minutes'] = (int) ceil($durationSeconds / 60);
+
         $attributes = [
             'title' => (string) $data['title'],
             'description' => isset($data['description']) ? (string) $data['description'] : null,
             'banner_url' => isset($data['banner_url']) ? (string) $data['banner_url'] : null,
-            'round_duration_seconds' => (int) ($data['round_duration_seconds'] ?? config('services.speed_networking.default_round_seconds', 180)),
-            'break_duration_seconds' => (int) ($data['break_duration_seconds'] ?? config('services.speed_networking.default_break_seconds', 20)),
-            'total_rounds' => isset($data['total_rounds']) && $data['total_rounds'] !== '' ? max(0, (int) $data['total_rounds']) : 0,
-            'scheduled_start_time' => ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null,
-            'scheduled_end_time' => ! empty($data['scheduled_end_time']) ? Carbon::parse($data['scheduled_end_time']) : null,
+            'round_duration_seconds' => $roundDuration,
+            'break_duration_seconds' => $breakDuration,
+            'total_rounds' => $totalRounds,
+            'scheduled_start_time' => $scheduledStart,
+            'scheduled_end_time' => $scheduledEnd,
             'actual_start_time' => ! empty($data['actual_start_time']) ? Carbon::parse($data['actual_start_time']) : null,
             'actual_end_time' => ! empty($data['actual_end_time']) ? Carbon::parse($data['actual_end_time']) : null,
             'ticket_price' => $ticketPrice,
@@ -359,20 +424,30 @@ class SpeedNetworkingService
             'currency' => $currency,
             'circle_id' => $circleId,
             'circle_restricted' => $circleRestricted,
-            'metadata' => isset($data['metadata']) && is_array($data['metadata']) ? $data['metadata'] : null,
+            'metadata' => $metadata,
         ];
 
         if (! empty($data['status'])) {
             $attributes['status'] = (string) $data['status'];
         }
 
+        if (Schema::hasTable('speed_networking_events') && ! Schema::hasColumn('speed_networking_events', 'metadata')) {
+            unset($attributes['metadata']);
+        }
+
         if ($id) {
             $event = SpeedNetworkingEvent::findOrFail($id);
+            if (empty($attributes['scheduled_end_time'])) {
+                $baseStart = $attributes['scheduled_start_time'] ?? $event->scheduled_start_time;
+                if ($baseStart) {
+                    $attributes['scheduled_end_time'] = Carbon::parse($baseStart)->addSeconds($durationSeconds);
+                }
+            }
             $event->update($attributes);
 
             try {
                 $endAt = $event->scheduled_end_time
-                    ?? ($event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2));
+                    ?? ($event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addSeconds($durationSeconds) : Carbon::now()->addSeconds($durationSeconds));
 
                 Event::updateOrCreate(
                     ['id' => $event->id],
@@ -402,6 +477,8 @@ class SpeedNetworkingService
                                 'circle_id' => $circleId,
                                 'circle_restricted' => $circleRestricted,
                                 'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
+                                'duration_seconds' => $durationSeconds,
+                                'duration_minutes' => (int) ceil($durationSeconds / 60),
                             ]
                         ),
                     ]
@@ -424,7 +501,7 @@ class SpeedNetworkingService
 
         try {
             $endAt = $event->scheduled_end_time
-                ?? ($event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2));
+                ?? ($event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addSeconds($durationSeconds) : Carbon::now()->addSeconds($durationSeconds));
 
             Event::updateOrCreate(
                 ['id' => $event->id],
@@ -453,6 +530,9 @@ class SpeedNetworkingService
                             'currency' => $currency,
                             'circle_id' => $circleId,
                             'circle_restricted' => $circleRestricted,
+                            'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
+                            'duration_seconds' => $durationSeconds,
+                            'duration_minutes' => (int) ceil($durationSeconds / 60),
                         ]
                     ),
                 ]
@@ -2371,10 +2451,14 @@ class SpeedNetworkingService
                     'description' => $event->description,
                     'banner_url' => $event->banner_url,
                     'status' => $event->status,
-                    'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
-                    'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
-                    'actual_start_time' => $event->actual_start_time?->toIso8601String(),
-                    'actual_end_time' => $event->actual_end_time?->toIso8601String(),
+                    'duration_seconds' => $event->duration_seconds,
+                    'duration_minutes' => $event->duration_minutes,
+                    'duration' => $event->duration_minutes,
+                    'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                    'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                    'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
+                    'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                     'round_duration_seconds' => (int) $event->round_duration_seconds,
                     'break_duration_seconds' => (int) $event->break_duration_seconds,
                     'total_rounds' => (int) $event->total_rounds,
@@ -2461,10 +2545,14 @@ class SpeedNetworkingService
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status,
-                'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
-                'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
-                'actual_start_time' => $event->actual_start_time?->toIso8601String(),
-                'actual_end_time' => $event->actual_end_time?->toIso8601String(),
+                'duration_seconds' => $event->duration_seconds,
+                'duration_minutes' => $event->duration_minutes,
+                'duration' => $event->duration_minutes,
+                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
+                'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'round_duration_seconds' => (int) $event->round_duration_seconds,
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
@@ -2509,10 +2597,14 @@ class SpeedNetworkingService
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
                 'status' => $event->status,
-                'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
-                'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
-                'actual_start_time' => $event->actual_start_time?->toIso8601String(),
-                'actual_end_time' => $event->actual_end_time?->toIso8601String(),
+                'duration_seconds' => $event->duration_seconds,
+                'duration_minutes' => $event->duration_minutes,
+                'duration' => $event->duration_minutes,
+                'scheduled_start_time' => $event->scheduled_start_time?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'end_time' => $event->scheduled_end_time?->copy()->utc()->toISOString(),
+                'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
+                'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
                 'round_duration_seconds' => (int) $event->round_duration_seconds,
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
