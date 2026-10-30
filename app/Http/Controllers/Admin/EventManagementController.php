@@ -13,6 +13,7 @@ use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\FileModel;
+use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventRegistrationService;
@@ -357,18 +358,19 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
-                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::updateOrCreate(
+                    SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
                         [
                             'title' => $event->title,
                             'description' => $event->description,
                             'banner_url' => $event->banner_url,
-                            'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
+                            'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
                             'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
                             'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
                             'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
+                            'scheduled_end_time' => $event->end_at,
                         ]
                     );
                 } catch (\Throwable $snEx) {
@@ -414,18 +416,19 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
-                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::updateOrCreate(
+                    SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
                         [
                             'title' => $event->title,
                             'description' => $event->description,
                             'banner_url' => $event->banner_url,
-                            'status' => \App\Models\SpeedNetworking\SpeedNetworkingEvent::STATUS_SCHEDULED,
+                            'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
                             'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
                             'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
                             'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
+                            'scheduled_end_time' => $event->end_at,
                         ]
                     );
                 } catch (\Throwable $snEx) {

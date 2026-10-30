@@ -29,6 +29,9 @@ class UpdateSpeedNetworkingEventRequest extends FormRequest
             'banner_url' => ['sometimes', 'nullable', 'string', 'max:500'],
             'scheduled_start_time' => ['sometimes', 'nullable', 'date'],
             'scheduled_end_time' => ['sometimes', 'nullable', 'date'],
+            'duration' => ['sometimes', 'nullable', 'numeric', 'min:1'],
+            'duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1440'],
+            'duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:30'],
             'round_duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:10', 'max:3600'],
             'break_duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:1800'],
             'total_rounds' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
@@ -42,4 +45,3 @@ class UpdateSpeedNetworkingEventRequest extends FormRequest
         ];
     }
 }
-

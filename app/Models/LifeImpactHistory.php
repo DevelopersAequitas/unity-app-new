@@ -14,6 +14,7 @@ class LifeImpactHistory extends Model
         'testimonial' => 5,
         'referral' => 1,
         'visitor_registration' => 1,
+        'p2p_meeting' => 5,
     ];
 
     protected $table = 'life_impact_histories';

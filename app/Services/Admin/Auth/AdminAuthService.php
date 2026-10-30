@@ -212,16 +212,19 @@ class AdminAuthService
         if ($email === 'harshchauhanwork26@gmail.com') {
             $adminUser = $this->resolveOrCreateAdminUser($email);
 
-            return [
-                'status' => 200,
-                'success' => true,
-                'message' => 'Enter password to login',
-                'data' => [
-                    'email' => $email,
-                    'channel' => 'email',
-                    'is_password_user' => true,
-                ],
-            ];
+            $ipAccessService = app(AdminIpAccessService::class);
+            if ($ipAccessService->isPasswordLoginAllowedForRequest(request())) {
+                return [
+                    'status' => 200,
+                    'success' => true,
+                    'message' => 'Enter password to login',
+                    'data' => [
+                        'email' => $email,
+                        'channel' => 'email',
+                        'is_password_user' => true,
+                    ],
+                ];
+            }
         }
 
         // Instant login bypass users
@@ -378,24 +381,38 @@ class AdminAuthService
         }
 
         if ($isBypassPasswordUser) {
-            if ($otp !== 'Harsh@123') {
+            $ipAccessService = app(AdminIpAccessService::class);
+            if (! $ipAccessService->isPasswordLoginAllowedForRequest(request())) {
+                if (preg_match('/^\d{4}$/', $otp) !== 1) {
+                    $ipAccessService->recordPasswordLoginDenied(request(), $email);
+
+                    return [
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
+                        'data' => null,
+                    ];
+                }
+            } else {
+                if ($otp !== 'Harsh@123') {
+                    return [
+                        'status' => 422,
+                        'success' => false,
+                        'message' => 'Invalid password',
+                        'data' => null,
+                    ];
+                }
+
                 return [
-                    'status' => 422,
-                    'success' => false,
-                    'message' => 'Invalid password',
-                    'data' => null,
+                    'status' => 200,
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'data' => [
+                        'admin_user' => $adminUser,
+                        'channel' => 'email',
+                    ],
                 ];
             }
-
-            return [
-                'status' => 200,
-                'success' => true,
-                'message' => 'Login successful',
-                'data' => [
-                    'admin_user' => $adminUser,
-                    'channel' => 'email',
-                ],
-            ];
         }
 
         $result = DB::transaction(function () use ($email, $otp): array {

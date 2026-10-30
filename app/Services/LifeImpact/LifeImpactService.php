@@ -550,9 +550,13 @@ class LifeImpactService
 
     private function lifeImpactHistoriesTable(): string
     {
-        $searchPath = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
-        $schema = trim((string) explode(',', $searchPath)[0], " \t\n\r\0\x0B\"");
+        if (config('database.default') === 'pgsql') {
+            $searchPath = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
+            $schema = trim((string) explode(',', $searchPath)[0], " \t\n\r\0\x0B\"");
 
-        return ($schema !== '' ? $schema.'.' : '').'life_impact_histories';
+            return ($schema !== '' ? $schema.'.' : '').'life_impact_histories';
+        }
+
+        return 'life_impact_histories';
     }
 }

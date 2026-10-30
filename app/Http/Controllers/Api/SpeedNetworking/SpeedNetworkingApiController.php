@@ -546,8 +546,21 @@ class SpeedNetworkingApiController extends Controller
                 $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
                 $totalRounds = (int) ($meta['total_rounds'] ?? 5);
 
+                $durationSeconds = null;
+                if (! empty($meta['duration_seconds'])) {
+                    $durationSeconds = (int) $meta['duration_seconds'];
+                } elseif (! empty($meta['duration_minutes'])) {
+                    $durationSeconds = (int) $meta['duration_minutes'] * 60;
+                } elseif (! empty($meta['duration'])) {
+                    $durationSeconds = (int) ($meta['duration'] * 60);
+                } else {
+                    $durationSeconds = $totalRounds > 0
+                        ? ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration)
+                        : (5 * $roundDuration) + (4 * $breakDuration);
+                }
+
                 $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : Carbon::now();
-                $endAt = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : $startAt->copy()->addHours(2);
+                $endAt = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : $startAt->copy()->addSeconds($durationSeconds);
 
                 $now = Carbon::now();
                 $status = 'scheduled';
@@ -599,10 +612,15 @@ class SpeedNetworkingApiController extends Controller
                         'break_duration_seconds' => $breakDuration,
                         'total_rounds' => $totalRounds,
                         'current_round' => $status === 'in_progress' ? 1 : 0,
+                        'duration_seconds' => $durationSeconds,
+                        'duration_minutes' => (int) ceil($durationSeconds / 60),
+                        'duration' => (int) ceil($durationSeconds / 60),
                         'scheduled_start_time' => $startAt->toIso8601String(),
                         'scheduled_end_time' => $endAt->toIso8601String(),
+                        'end_time' => $endAt->toIso8601String(),
                         'actual_start_time' => $startAt->toIso8601String(),
                         'actual_end_time' => null,
+                        'estimated_end_time' => $endAt->toIso8601String(),
                         'participants_count' => $participantsCount,
                         'ticket_price' => $paymentInfo['ticket_price'],
                         'amount' => (string) $paymentInfo['ticket_price'],
@@ -699,10 +717,15 @@ class SpeedNetworkingApiController extends Controller
                 'break_duration_seconds' => (int) $event->break_duration_seconds,
                 'total_rounds' => (int) $event->total_rounds,
                 'current_round' => (int) $event->current_round,
+                'duration_seconds' => $event->duration_seconds,
+                'duration_minutes' => $event->duration_minutes,
+                'duration' => $event->duration_minutes,
                 'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
                 'scheduled_end_time' => $event->scheduled_end_time?->toIso8601String(),
+                'end_time' => $event->scheduled_end_time?->toIso8601String(),
                 'actual_start_time' => $event->actual_start_time?->toIso8601String(),
                 'actual_end_time' => $event->actual_end_time?->toIso8601String(),
+                'estimated_end_time' => ($event->actual_start_time ? $event->actual_start_time->copy()->addSeconds($event->calculateDurationSeconds())->toIso8601String() : $event->scheduled_end_time?->toIso8601String()),
                 'participants_count' => $event->participants()->count(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
@@ -788,6 +811,22 @@ class SpeedNetworkingApiController extends Controller
 
         $startAt = $event->start_at ? Carbon::parse($event->start_at) : ($event->scheduled_start_time ?? Carbon::now());
 
+        if ($event instanceof SpeedNetworkingEvent) {
+            $durationSec = $event->duration_seconds;
+            $durationMin = $event->duration_minutes;
+            $scheduledEnd = $event->scheduled_end_time;
+            $actualStart = $event->actual_start_time;
+            $actualEnd = $event->actual_end_time;
+        } else {
+            $durationSec = ($totalRounds > 0)
+                ? (($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration))
+                : (int) ($meta['duration_seconds'] ?? (($meta['duration_minutes'] ?? 60) * 60));
+            $durationMin = (int) ceil($durationSec / 60);
+            $scheduledEnd = $event->end_at ? Carbon::parse($event->end_at) : $startAt->copy()->addSeconds($durationSec);
+            $actualStart = ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time']) : null;
+            $actualEnd = ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time']) : null;
+        }
+
         $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
             ? (int) $paymentInfo['ticket_price']
             : $paymentInfo['ticket_price'];
@@ -814,7 +853,15 @@ class SpeedNetworkingApiController extends Controller
                 'break_duration_seconds' => $breakDuration,
                 'total_rounds' => $totalRounds,
                 'current_round' => $currentRound,
+                'duration_seconds' => $durationSec,
+                'duration_minutes' => $durationMin,
+                'duration' => $durationMin,
                 'scheduled_start_time' => $startAt->toIso8601String(),
+                'scheduled_end_time' => $scheduledEnd?->toIso8601String(),
+                'end_time' => $scheduledEnd?->toIso8601String(),
+                'actual_start_time' => $actualStart?->toIso8601String(),
+                'actual_end_time' => $actualEnd?->toIso8601String(),
+                'estimated_end_time' => ($actualStart ? $actualStart->copy()->addSeconds($durationSec)->toIso8601String() : $scheduledEnd?->toIso8601String()),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
                 'fee' => $paymentInfo['ticket_price'],

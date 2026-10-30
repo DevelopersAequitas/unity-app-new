@@ -266,11 +266,13 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled Start Time</label>
-          <input type="datetime-local" name="scheduled_start_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <input type="datetime-local" id="create_start_time" name="scheduled_start_time" onchange="autoCalculateEndTime('createEventModal')" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Scheduled End Time</label>
-          <input type="datetime-local" name="scheduled_end_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            Scheduled End Time <span class="text-slate-400 font-normal">(Auto if blank)</span>
+          </label>
+          <input type="datetime-local" id="create_end_time" name="scheduled_end_time" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
         </div>
       </div>
 
@@ -295,4 +297,31 @@
     </form>
   </div>
 </div>
+
+<script>
+function autoCalculateEndTime(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const startInput = container.querySelector('input[name="scheduled_start_time"]');
+  const endInput = container.querySelector('input[name="scheduled_end_time"]');
+  const roundInput = container.querySelector('input[name="round_duration_seconds"]');
+  const breakInput = container.querySelector('input[name="break_duration_seconds"]');
+  const roundsInput = container.querySelector('input[name="total_rounds"]');
+
+  if (!startInput || !startInput.value || !endInput) return;
+
+  const roundSec = parseInt(roundInput ? roundInput.value : 180) || 180;
+  const breakSec = parseInt(breakInput ? breakInput.value : 20) || 20;
+  const totalRounds = parseInt(roundsInput ? roundsInput.value : 0) || 5;
+
+  const totalSec = (totalRounds * roundSec) + (Math.max(0, totalRounds - 1) * breakSec);
+  const startDate = new Date(startInput.value);
+  if (isNaN(startDate.getTime())) return;
+
+  const endDate = new Date(startDate.getTime() + totalSec * 1000);
+  const tzOffset = endDate.getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(endDate - tzOffset)).toISOString().slice(0, 16);
+  endInput.value = localISOTime;
+}
+</script>
 @endsection

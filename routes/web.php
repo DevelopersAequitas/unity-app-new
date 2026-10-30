@@ -787,6 +787,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::match(['post', 'patch'], '/referral/campaign-config/toggle', [ReferralCampaignConfigAdminController::class, 'toggle'])->name('referral.campaign-config.toggle');
         Route::post('/referral/campaign-config/update', [ReferralCampaignConfigAdminController::class, 'update'])->name('referral.campaign-config.update');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
+        Route::get('/posts/{post}/preview-deactivation', [PostModerationController::class, 'previewDeactivation'])->name('posts.preview-deactivation');
+        Route::get('/posts/impacts/{impact}/preview-deactivation', [PostModerationController::class, 'previewImpactDeactivation'])->whereUuid('impact')->name('posts.impacts.preview-deactivation');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
         Route::post('/posts/impacts/{impact}/activate', [PostModerationController::class, 'activateImpact'])->whereUuid('impact')->name('posts.impacts.activate');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');

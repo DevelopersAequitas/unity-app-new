@@ -471,7 +471,7 @@ class User extends Authenticatable
             if ($user->wasRecentlyCreated || $user->wasChanged('life_impacted_count')) {
                 $oldImpact = (int) ($user->getOriginal('life_impacted_count') ?? 0);
                 $newImpact = (int) ($user->life_impacted_count ?? 0);
-                if ($newImpact > 0) {
+                if ($newImpact > $oldImpact) {
                     try {
                         app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts((string) $user->id, $oldImpact, $newImpact);
                     } catch (Throwable $e) {

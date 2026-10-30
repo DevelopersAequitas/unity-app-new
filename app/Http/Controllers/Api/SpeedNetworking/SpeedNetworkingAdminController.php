@@ -89,18 +89,48 @@ class SpeedNetworkingAdminController extends Controller
         $baseEvent = $target['event'];
         $meta = $baseEvent->metadata ?? [];
         $regCount = $baseEvent->registrations()->count();
+
+        $roundDuration = (int) ($meta['round_duration_seconds'] ?? 300);
+        $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
+        $totalRounds = (int) ($meta['total_rounds'] ?? 5);
+
+        $durationSec = null;
+        if (! empty($meta['duration_seconds'])) {
+            $durationSec = (int) $meta['duration_seconds'];
+        } elseif (! empty($meta['duration_minutes'])) {
+            $durationSec = (int) $meta['duration_minutes'] * 60;
+        } elseif (! empty($meta['duration'])) {
+            $durationSec = (int) ($meta['duration'] * 60);
+        } else {
+            $durationSec = $totalRounds > 0
+                ? ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration)
+                : (5 * $roundDuration) + (4 * $breakDuration);
+        }
+        $durationMin = (int) ceil($durationSec / 60);
+
+        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : null;
+        $endAt = $baseEvent->end_at
+            ? Carbon::parse($baseEvent->end_at)
+            : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+
         $details = [
             'event' => [
                 'id' => $baseEvent->id,
                 'title' => $baseEvent->title,
                 'description' => $baseEvent->description,
                 'status' => $meta['speed_status'] ?? 'scheduled',
-                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                'round_duration_seconds' => $roundDuration,
+                'break_duration_seconds' => $breakDuration,
+                'total_rounds' => $totalRounds,
                 'current_round' => (int) ($meta['current_round'] ?? 0),
-                'scheduled_start_time' => $baseEvent->start_at?->toIso8601String(),
+                'duration_seconds' => $durationSec,
+                'duration_minutes' => $durationMin,
+                'duration' => $durationMin,
+                'scheduled_start_time' => $startAt?->toIso8601String(),
+                'scheduled_end_time' => $endAt?->toIso8601String(),
+                'end_time' => $endAt?->toIso8601String(),
                 'actual_start_time' => $meta['actual_start_time'] ?? null,
+                'actual_end_time' => $meta['actual_end_time'] ?? null,
                 'ticket_price' => (float) ($baseEvent->ticket_price ?? ($meta['ticket_price'] ?? 0)),
                 'is_paid' => (bool) ($baseEvent->is_paid ?? ($meta['is_paid'] ?? false)),
                 'total_participants_count' => $regCount,
