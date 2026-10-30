@@ -358,26 +358,6 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
-                    $roundDuration = (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300);
-                    $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
-                    $totalRounds = (int) ($meta['total_rounds'] ?? 0);
-
-                    $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
-                    if (! empty($durMinutes) && (int) $durMinutes > 0) {
-                        $durSeconds = (int) $durMinutes * 60;
-                    } elseif (! empty($request->input('duration_seconds'))) {
-                        $durSeconds = (int) $request->input('duration_seconds');
-                    } elseif ($totalRounds > 0) {
-                        $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
-                    } elseif ($event->start_at && $event->end_at) {
-                        $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
-                    } else {
-                        $durSeconds = 30 * 60;
-                    }
-
-                    $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
-                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
-
                     SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
                         [
@@ -385,16 +365,12 @@ class EventManagementController extends Controller
                             'description' => $event->description,
                             'banner_url' => $event->banner_url,
                             'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                            'round_duration_seconds' => $roundDuration,
-                            'break_duration_seconds' => $breakDuration,
-                            'total_rounds' => $totalRounds,
+                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
-                            'scheduled_end_time' => $scheduledEnd,
-                            'metadata' => array_merge($meta, [
-                                'duration_seconds' => $durSeconds,
-                                'duration_minutes' => (int) ceil($durSeconds / 60),
-                            ]),
+                            'scheduled_end_time' => $event->end_at,
                         ]
                     );
                 } catch (\Throwable $snEx) {
@@ -440,26 +416,6 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
-                    $roundDuration = (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300);
-                    $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
-                    $totalRounds = (int) ($meta['total_rounds'] ?? 0);
-
-                    $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
-                    if (! empty($durMinutes) && (int) $durMinutes > 0) {
-                        $durSeconds = (int) $durMinutes * 60;
-                    } elseif (! empty($request->input('duration_seconds'))) {
-                        $durSeconds = (int) $request->input('duration_seconds');
-                    } elseif ($totalRounds > 0) {
-                        $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
-                    } elseif ($event->start_at && $event->end_at) {
-                        $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
-                    } else {
-                        $durSeconds = 30 * 60;
-                    }
-
-                    $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
-                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
-
                     SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
                         [
@@ -467,16 +423,12 @@ class EventManagementController extends Controller
                             'description' => $event->description,
                             'banner_url' => $event->banner_url,
                             'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                            'round_duration_seconds' => $roundDuration,
-                            'break_duration_seconds' => $breakDuration,
-                            'total_rounds' => $totalRounds,
+                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
                             'current_round' => 0,
                             'scheduled_start_time' => $event->start_at,
-                            'scheduled_end_time' => $scheduledEnd,
-                            'metadata' => array_merge($meta, [
-                                'duration_seconds' => $durSeconds,
-                                'duration_minutes' => (int) ceil($durSeconds / 60),
-                            ]),
+                            'scheduled_end_time' => $event->end_at,
                         ]
                     );
                 } catch (\Throwable $snEx) {
@@ -767,10 +719,7 @@ class EventManagementController extends Controller
             $localStart = null;
         }
 
-        $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
-        if (! empty($durMinutes) && (int) $durMinutes > 0 && $utcStart) {
-            $data['end_at'] = $utcStart->copy()->addMinutes((int) $durMinutes)->toDateTimeString();
-        } elseif (! empty($data['end_at'])) {
+        if (! empty($data['end_at'])) {
             $data['end_at'] = Carbon::parse($data['end_at'])->utc()->toDateTimeString();
         }
 

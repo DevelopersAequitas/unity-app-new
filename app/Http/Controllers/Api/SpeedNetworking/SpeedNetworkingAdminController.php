@@ -108,10 +108,10 @@ class SpeedNetworkingAdminController extends Controller
         }
         $durationMin = (int) ceil($durationSec / 60);
 
-        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : null;
+        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : Carbon::now();
         $endAt = $baseEvent->end_at
             ? Carbon::parse($baseEvent->end_at)
-            : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+            : $startAt->copy()->addSeconds($durationSec);
 
         $details = [
             'event' => [
@@ -126,9 +126,9 @@ class SpeedNetworkingAdminController extends Controller
                 'duration_seconds' => $durationSec,
                 'duration_minutes' => $durationMin,
                 'duration' => $durationMin,
-                'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
-                'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
-                'end_time' => $endAt?->copy()->utc()->toISOString(),
+                'scheduled_start_time' => $startAt->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $endAt->copy()->utc()->toISOString(),
+                'end_time' => $endAt->copy()->utc()->toISOString(),
                 'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
                 'actual_end_time' => ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time'])->utc()->toISOString() : null,
                 'ticket_price' => (float) ($baseEvent->ticket_price ?? ($meta['ticket_price'] ?? 0)),
@@ -547,10 +547,10 @@ class SpeedNetworkingAdminController extends Controller
         }
         $durationMin = (int) ceil($durationSec / 60);
 
-        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : null;
+        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : Carbon::now();
         $endAt = $baseEvent->end_at
             ? Carbon::parse($baseEvent->end_at)
-            : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+            : $startAt->copy()->addSeconds($durationSec);
 
         return response()->json([
             'success' => true,
@@ -567,9 +567,9 @@ class SpeedNetworkingAdminController extends Controller
                     'duration_seconds' => $durationSec,
                     'duration_minutes' => $durationMin,
                     'duration' => $durationMin,
-                    'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
-                    'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
-                    'end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'scheduled_start_time' => $startAt->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $endAt->copy()->utc()->toISOString(),
+                    'end_time' => $endAt->copy()->utc()->toISOString(),
                     'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
                     'actual_end_time' => ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time'])->utc()->toISOString() : null,
                     'total_participants_count' => count($participants),
