@@ -1450,6 +1450,12 @@ class LeaderActivitiesService
         $normalizedType = strtolower(trim($type));
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $limit = min(max((int) ($request->query('limit', 50)), 1), 100);
+        // Pending approvals are scoped by circle / main category (not by existing members),
+        // so applicants who have not joined yet still reach the right circle leaders.
+        if (in_array($normalizedType, ['pending-requests', 'pending'], true)) {
+            return $this->getPendingRequestsFeed($request, $search);
+        }
+
         $scopedUserIds = $this->resolveActivityScopedUserIds($request);
 
         if (is_array($scopedUserIds) && empty($scopedUserIds)) {
@@ -1487,6 +1493,59 @@ class LeaderActivitiesService
         };
     }
 
+    /**
+     * Pending approvals visible to the signed-in leader (circle join requests routed by the
+     * circle's main category, plus applicant-scoped requests). Approve / reject happens through
+     * /leader/pending-requests/{category}/{id}/approve|reject.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getPendingRequestsFeed(Request $request, ?string $search): array
+    {
+        $sub = Request::create('/leader/pending-requests', 'GET', array_filter([
+            'category' => 'all',
+            'status' => (string) $request->query('status', 'pending'),
+            'per_page' => 200,
+            'search' => $search,
+        ], fn ($v) => $v !== null && $v !== ''));
+        $sub->setUserResolver($request->getUserResolver());
+        $sub->attributes->set('leader_scope_forced', true);
+
+        $rows = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+            ->index($sub)
+            ->getData(true)['data'] ?? [];
+
+        return array_values(array_map(function (array $r): array {
+            $name = (string) ($r['applicant_name'] ?? 'Peer Member');
+            $label = (string) ($r['category_label'] ?? 'Request');
+            $submitted = (string) ($r['submitted_at'] ?? now()->toIso8601String());
+
+            return $this->formatStandardActivityItem(
+                id: (string) ($r['id'] ?? ''),
+                type: 'pending-requests',
+                title: "{$label}: {$name}",
+                subtitle: (string) ($r['target_entity'] ?? ''),
+                description: (string) ($r['details'] ?? ''),
+                status: ucfirst(str_replace('_', ' ', (string) ($r['status'] ?? 'pending'))),
+                dateStr: substr($submitted, 0, 10),
+                createdAtIso: $submitted,
+                badgeLabel: $label,
+                extra: [
+                    'request_category' => (string) ($r['category'] ?? ''),
+                    'category_slug' => (string) ($r['category'] ?? ''),
+                    'fallback_name' => $name,
+                    'fallback_company' => (string) ($r['company_name'] ?? ''),
+                    'fallback_category' => $label,
+                    'applicant_email' => (string) ($r['applicant_email'] ?? ''),
+                    'applicant_phone' => (string) ($r['applicant_phone'] ?? ''),
+                    'target_entity' => (string) ($r['target_entity'] ?? ''),
+                    'cd_status' => $r['cd_status'] ?? null,
+                    'ded_status' => $r['ded_status'] ?? null,
+                    'payment_status' => $r['payment_status'] ?? null,
+                ],
+            );
+        }, $rows));
+    }
     /**
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
