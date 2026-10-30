@@ -1132,19 +1132,52 @@ class LeaderTeamsService
         $mainCategory = DB::table('circle_categories')->where('id', $mainCategoryId)->first();
         $categoryName = $mainCategory ? (string) $mainCategory->name : 'Technology, IT & Digital Services Circles';
 
+        $level2Map = [];
+        if (Schema::hasTable('circle_category_level2')) {
+            $level2Rows = DB::table('circle_category_level2')
+                ->where('circle_category_id', $mainCategoryId)
+                ->get(['id', 'name']);
+            foreach ($level2Rows as $l2) {
+                $level2Map[(int) $l2->id] = (string) $l2->name;
+            }
+        }
+
+        $level3Map = [];
+        $level3ParentMap = [];
+        if (Schema::hasTable('circle_category_level3') && ! empty($level2Map)) {
+            $level3Rows = DB::table('circle_category_level3')
+                ->whereIn('level2_id', array_keys($level2Map))
+                ->get(['id', 'name', 'level2_id']);
+            foreach ($level3Rows as $l3) {
+                $level3Map[(int) $l3->id] = (string) $l3->name;
+                $level3ParentMap[(int) $l3->id] = (int) ($l3->level2_id ?? 0);
+            }
+        }
+
         // 2. Fetch member users and active sub-industries
         $effectiveCircleId = $circle ? (string) $circle->id : $circleId;
         $memberUsers = User::query()
             ->whereNull('deleted_at')
+            ->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])
             ->where(function (Builder $q) use ($effectiveCircleId): void {
                 $q->whereHas('circleMembers', function (Builder $cq) use ($effectiveCircleId): void {
                     $cq->where('circle_id', $effectiveCircleId)->whereNull('deleted_at');
                 })->orWhere('active_circle_id', $effectiveCircleId);
+
+                if (Schema::hasTable('joined_circle_categories')) {
+                    $q->orWhereExists(function ($jq) use ($effectiveCircleId): void {
+                        $jq->selectRaw(1)
+                            ->from('joined_circle_categories')
+                            ->where('joined_circle_categories.circle_id', $effectiveCircleId)
+                            ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                    });
+                }
             })
             ->get();
 
         $activeSubIndustries = [];
         $occupiedNames = [];
+        $occupiedLevel4Ids = [];
 
         // Check joined_circle_categories and circle_members for level 4 mappings
         $joinedL4Map = [];
@@ -1157,6 +1190,7 @@ class LeaderTeamsService
                 $l4Id = (int) $jr->level4_category_id;
                 if ($l4Id > 0 && ! empty($jr->user_id)) {
                     $joinedL4Map[(string) $jr->user_id] = $l4Id;
+                    $occupiedLevel4Ids[] = $l4Id;
                 }
             }
         }
@@ -1171,9 +1205,12 @@ class LeaderTeamsService
                 $l4Id = (int) $cmr->level_4_category_id;
                 if ($l4Id > 0 && ! empty($cmr->user_id)) {
                     $joinedL4Map[(string) $cmr->user_id] = $l4Id;
+                    $occupiedLevel4Ids[] = $l4Id;
                 }
             }
         }
+
+        $peersService = app(LeaderPeersService::class);
 
         if ($memberUsers->isNotEmpty()) {
             $grouped = $memberUsers->groupBy(function ($u) use ($joinedL4Map) {
@@ -1192,17 +1229,43 @@ class LeaderTeamsService
                 if ($subName !== '') {
                     $occupiedNames[] = strtolower($subName);
                     $l4Row = DB::table('circle_category_level4')->where('name', 'ilike', $subName)->first();
+                    if ($l4Row) {
+                        $occupiedLevel4Ids[] = (int) $l4Row->id;
+                    }
+
+                    $l3Id = $l4Row ? (int) ($l4Row->level3_id ?? 0) : 0;
+                    $l2Id = $l4Row ? (int) ($l4Row->level2_id ?? 0) : 0;
+                    if ($l2Id === 0 && $l3Id > 0 && isset($level3ParentMap[$l3Id])) {
+                        $l2Id = $level3ParentMap[$l3Id];
+                    }
+
+                    $sectorName = ($l2Id > 0 && isset($level2Map[$l2Id]))
+                        ? $level2Map[$l2Id]
+                        : $categoryName;
+                    $subcategoryName = ($l3Id > 0 && isset($level3Map[$l3Id]))
+                        ? $level3Map[$l3Id]
+                        : null;
+
+                    $formattedPeers = $usersGroup->map(function ($u) use ($peersService, $effectiveCircleId, $circleName, $subName): array {
+                        $card = $peersService->formatPeerCard($u, $effectiveCircleId, $circleName);
+                        $card['user_id'] = (string) $u->id;
+                        $card['business_name'] = $card['company'] ?? '';
+                        $card['profile_image'] = $card['avatar_url'] ?? null;
+                        $card['level4_category'] = (string) $subName;
+                        $card['category'] = (string) $subName;
+
+                        return $card;
+                    })->values()->all();
+
                     $activeSubIndustries[] = [
                         'id' => $l4Row ? (int) $l4Row->id : ('act_'.substr(md5($subName), 0, 8)),
                         'name' => (string) $subName,
+                        'sector_name' => $sectorName,
+                        'subcategory_name' => $subcategoryName,
                         'peer_count' => $usersGroup->count(),
                         'is_open' => false,
-                        'peers' => $usersGroup->map(fn ($u) => [
-                            'user_id' => (string) $u->id,
-                            'name' => (string) ($u->name ?: ($u->display_name ?: 'Peer Member')),
-                            'business_name' => (string) ($u->business_name ?: ($u->company_name ?: '')),
-                            'profile_image' => $u->profile_picture ? (string) $u->profile_picture : null,
-                        ])->values()->all(),
+                        'occupant' => $formattedPeers[0] ?? null,
+                        'peers' => $formattedPeers,
                     ];
                 }
             }
@@ -1214,16 +1277,32 @@ class LeaderTeamsService
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->take(40)
             ->get();
 
+        $occupiedLevel4Ids = array_values(array_unique($occupiedLevel4Ids));
         $openSubIndustries = [];
         foreach ($openLevel4 as $l4) {
+            $l4Id = (int) $l4->id;
             $l4Name = (string) $l4->name;
-            if (! in_array(strtolower($l4Name), $occupiedNames, true)) {
+            if (! in_array(strtolower($l4Name), $occupiedNames, true) && ! in_array($l4Id, $occupiedLevel4Ids, true)) {
+                $l3Id = (int) ($l4->level3_id ?? 0);
+                $l2Id = (int) ($l4->level2_id ?? 0);
+                if ($l2Id === 0 && $l3Id > 0 && isset($level3ParentMap[$l3Id])) {
+                    $l2Id = $level3ParentMap[$l3Id];
+                }
+
+                $sectorName = ($l2Id > 0 && isset($level2Map[$l2Id]))
+                    ? $level2Map[$l2Id]
+                    : $categoryName;
+                $subcategoryName = ($l3Id > 0 && isset($level3Map[$l3Id]))
+                    ? $level3Map[$l3Id]
+                    : null;
+
                 $openSubIndustries[] = [
-                    'id' => (int) $l4->id,
+                    'id' => $l4Id,
                     'name' => $l4Name,
+                    'sector_name' => $sectorName,
+                    'subcategory_name' => $subcategoryName,
                     'peer_count' => 0,
                     'is_open' => true,
                 ];
@@ -1408,5 +1487,187 @@ class LeaderTeamsService
             ],
             'data' => $data,
         ];
+    }
+
+    /**
+     * Refer an existing peer or external contact for a specific open category in a circle.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function referCategory(string $circleId, ?User $user, array $data): array
+    {
+        $circle = Circle::query()->where('id', $circleId)->first();
+        $circleName = $circle ? (string) $circle->name : (string) ($data['circle_name'] ?? 'Peers Global Circle');
+
+        $peerId = isset($data['peer_id']) ? trim((string) $data['peer_id']) : '';
+        $targetPeer = ($peerId !== '' && Str::isUuid($peerId))
+            ? User::query()->where('id', $peerId)->first()
+            : null;
+
+        $peerName = trim((string) ($data['peer_name'] ?? $data['prospect_name'] ?? $data['name'] ?? ''));
+        if ($peerName === '' && $targetPeer) {
+            $peerName = trim(($targetPeer->first_name ?? '').' '.($targetPeer->last_name ?? ''));
+            if ($peerName === '') {
+                $peerName = (string) ($targetPeer->display_name ?? 'Peer Member');
+            }
+        }
+
+        $peerMobile = trim((string) ($data['peer_mobile'] ?? $data['prospect_phone'] ?? $data['phone'] ?? ''));
+        if ($peerMobile === '' && $targetPeer) {
+            $peerMobile = (string) ($targetPeer->phone ?? $targetPeer->mobile ?? '');
+        }
+        if ($peerMobile === '') {
+            $peerMobile = 'N/A';
+        }
+
+        $peerEmail = trim((string) ($data['peer_email'] ?? $data['prospect_email'] ?? $data['email'] ?? ''));
+        if ($peerEmail === '' && $targetPeer) {
+            $peerEmail = (string) ($targetPeer->email ?? '');
+        }
+
+        $peerBusiness = trim((string) ($data['peer_business'] ?? $data['prospect_company'] ?? $data['company'] ?? ''));
+        if ($peerBusiness === '' && $targetPeer) {
+            $peerBusiness = (string) ($targetPeer->company_name ?? $targetPeer->business_name ?? '');
+        }
+
+        $peerCity = trim((string) ($data['peer_city'] ?? $data['city'] ?? ''));
+        if ($peerCity === '' && $targetPeer) {
+            $peerCity = (string) ($targetPeer->city ?? $targetPeer->city_of_residence ?? '');
+        }
+        if ($peerCity === '' && $circle) {
+            $peerCity = (string) ($circle->city?->name ?? $circle->location ?? 'Ahmedabad');
+        }
+
+        $categoryName = trim((string) ($data['category_name'] ?? $data['subcategory_name'] ?? $data['business_subcategory'] ?? 'Specialization'));
+        $sectorName = trim((string) ($data['sector_name'] ?? $data['main_business_category'] ?? $this->resolveCircleCategory($circle ?? new Circle)));
+        $categoryId = $data['category_id'] ?? $data['business_subcategory_id'] ?? null;
+        $note = trim((string) ($data['note'] ?? $data['notes'] ?? "Referred for {$categoryName} in {$circleName}"));
+
+        $recommendationId = (string) Str::uuid();
+
+        if (Schema::hasTable('peer_recommendations') && $user) {
+            try {
+                $rec = \App\Models\PeerRecommendation::create([
+                    'user_id' => (string) $user->id,
+                    'peer_name' => $peerName !== '' ? $peerName : 'Referred Peer',
+                    'peer_mobile' => $peerMobile,
+                    'peer_email' => $peerEmail !== '' ? $peerEmail : null,
+                    'peer_city' => $peerCity !== '' ? $peerCity : null,
+                    'peer_business' => $peerBusiness !== '' ? $peerBusiness : null,
+                    'peer_industry' => $sectorName !== '' ? $sectorName : null,
+                    'why_valuable' => $note,
+                    'category' => $sectorName !== '' ? $sectorName : $categoryName,
+                    'main_business_category' => $sectorName !== '' ? $sectorName : $categoryName,
+                    'business_subcategory_id' => $categoryId !== null ? (string) $categoryId : null,
+                    'business_subcategory' => $categoryName,
+                    'circle_id' => $circle ? (string) $circle->id : $circleId,
+                    'circle_name' => $circleName,
+                    'how_well_known' => 'business_associate',
+                    'is_aware' => true,
+                    'note' => $note,
+                    'status' => 'pending',
+                    'coins_awarded' => false,
+                ]);
+                $recommendationId = (string) $rec->id;
+            } catch (\Throwable) {
+                // Fallback if columns vary
+            }
+        }
+
+        if (Schema::hasTable('referrals') && $user) {
+            try {
+                $toUserId = $targetPeer ? (string) $targetPeer->id : (string) $user->id;
+                DB::table('referrals')->insert([
+                    'id' => (string) Str::uuid(),
+                    'from_user_id' => (string) $user->id,
+                    'to_user_id' => $toUserId,
+                    'referral_type' => 'circle_category_referral',
+                    'referral_date' => now()->toDateString(),
+                    'referral_of' => $peerName !== '' ? $peerName : 'Referred Contact',
+                    'phone' => $peerMobile !== 'N/A' ? $peerMobile : null,
+                    'email' => $peerEmail !== '' ? $peerEmail : null,
+                    'address' => $peerBusiness !== '' ? $peerBusiness : $peerCity,
+                    'hot_value' => 3,
+                    'remarks' => "[{$circleName} - {$categoryName}] {$note}",
+                    'is_deleted' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable) {
+                // Ignore if referral table schema differs
+            }
+        }
+
+        return [
+            'id' => $recommendationId,
+            'circle_id' => $circle ? (string) $circle->id : $circleId,
+            'circle_name' => $circleName,
+            'category_id' => $categoryId,
+            'category_name' => $categoryName,
+            'sector_name' => $sectorName,
+            'peer_id' => $targetPeer ? (string) $targetPeer->id : null,
+            'peer_name' => $peerName,
+            'peer_mobile' => $peerMobile,
+            'peer_email' => $peerEmail,
+            'peer_business' => $peerBusiness,
+            'peer_city' => $peerCity,
+            'status' => 'Submitted',
+        ];
+    }
+
+    /**
+     * Get synced or saved contacts for referring to a circle category.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getUserContacts(?User $user, ?string $search = null, int $limit = 60): array
+    {
+        $contacts = [];
+        $seenPhones = [];
+
+        if (Schema::hasTable('contact_posts')) {
+            $query = DB::table('contact_posts')->orderByDesc('created_at');
+            if ($user) {
+                $userCount = (clone $query)->where('user_id', (string) $user->id)->count();
+                if ($userCount > 0) {
+                    $query->where('user_id', (string) $user->id);
+                }
+            }
+
+            if ($search && trim($search) !== '') {
+                $term = trim($search);
+                $query->where(function ($q) use ($term): void {
+                    $q->where('full_name', 'ilike', "%{$term}%")
+                        ->orWhere('phone', 'ilike', "%{$term}%")
+                        ->orWhere('email', 'ilike', "%{$term}%")
+                        ->orWhere('company', 'ilike', "%{$term}%");
+                });
+            }
+
+            $rows = $query->take($limit)->get();
+            foreach ($rows as $row) {
+                $name = trim((string) ($row->full_name ?: (($row->first_name ?? '').' '.($row->last_name ?? ''))));
+                $phone = trim((string) ($row->phone ?? ''));
+                if ($name === '' && $phone === '') {
+                    continue;
+                }
+                $dedupKey = strtolower($name).'|'.preg_replace('/\D+/', '', $phone);
+                if (isset($seenPhones[$dedupKey])) {
+                    continue;
+                }
+                $seenPhones[$dedupKey] = true;
+
+                $contacts[] = [
+                    'id' => (string) $row->id,
+                    'name' => $name !== '' ? $name : 'Contact',
+                    'phone' => $phone,
+                    'email' => (string) ($row->email ?? ''),
+                    'company' => (string) ($row->company ?? $row->job_title ?? ''),
+                ];
+            }
+        }
+
+        return $contacts;
     }
 }
