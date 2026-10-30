@@ -461,4 +461,96 @@ class SpeedNetworkingAdminApiTest extends TestCase
         $this->assertEquals(45, $found['duration_minutes']);
         $this->assertEquals($end->copy()->utc()->toISOString(), $found['scheduled_end_time']);
     }
+
+    public function test_admin_creates_event_with_start_time_and_30_min_duration_strictly_sets_end_time_to_30_mins_later(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'duration30@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $startTime = '2026-10-30T12:30:00Z';
+        $payload = [
+            'title' => '30 Min Duration Test',
+            'scheduled_start_time' => $startTime,
+            'duration_minutes' => 30,
+            // Even if an incorrect/stale 21:00 scheduled_end_time is passed by client
+            'scheduled_end_time' => '2026-10-30T21:00:00Z',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+        ];
+
+        $response = $this->postJson('/api/v1/admin/speed-networking/events', $payload);
+
+        $response->assertStatus(201);
+        $data = $response->json('data');
+
+        // 12:30 + 30 mins = 13:00, NOT 21:00!
+        $expectedEnd = Carbon::parse($startTime)->addMinutes(30)->copy()->utc()->toISOString();
+        $this->assertEquals($expectedEnd, Carbon::parse($data['scheduled_end_time'])->copy()->utc()->toISOString());
+        $this->assertEquals(30, $data['duration_minutes']);
+    }
+
+    public function test_speed_networking_live_tables_returns_scheduled_end_time_and_duration(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'livetables@peersunity.com',
+        ]);
+        Sanctum::actingAs($user);
+
+        $start = Carbon::parse('2026-10-30T12:30:00Z');
+        $event = SpeedNetworkingEvent::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Live Tables Duration Test',
+            'status' => 'in_progress',
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'scheduled_start_time' => $start,
+            'metadata' => [
+                'duration_minutes' => 30,
+            ],
+        ]);
+
+        $response = $this->getJson("/api/v1/admin/speed-networking/events/{$event->id}/live-tables");
+
+        $response->assertStatus(200);
+        $eventData = $response->json('data.event');
+        $this->assertNotNull($eventData);
+        $this->assertEquals(30, $eventData['duration_minutes']);
+        $this->assertEquals('2026-10-30T13:00:00.000000Z', Carbon::parse($eventData['scheduled_end_time'])->copy()->utc()->toISOString());
+    }
+
+    public function test_speed_networking_event_with_null_scheduled_end_time_in_db_returns_computed_end_time(): void
+    {
+        $start = Carbon::parse('2026-10-30T05:41:00Z');
+        $event = new SpeedNetworkingEvent;
+        $event->setRawAttributes([
+            'id' => (string) Str::uuid(),
+            'title' => 'Null End Time Event',
+            'scheduled_start_time' => '2026-10-30 05:41:00',
+            'scheduled_end_time' => null,
+            'actual_start_time' => '2026-10-30 05:41:02',
+            'actual_end_time' => null,
+            'round_duration_seconds' => 180,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'metadata' => json_encode(['duration_minutes' => 30]),
+        ], true);
+
+        // Accessor should calculate 05:41 + 30 mins = 06:11:00
+        $this->assertNotNull($event->scheduled_end_time);
+        $this->assertEquals('2026-10-30T06:11:00.000000Z', $event->scheduled_end_time->copy()->utc()->toISOString());
+
+        $array = $event->toArray();
+        $this->assertNotNull($array['scheduled_end_time']);
+        $this->assertEquals(30, $array['duration_minutes']);
+    }
 }

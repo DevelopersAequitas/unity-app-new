@@ -76,6 +76,26 @@ class EventAdminController extends BaseApiController
                 $meta['total_rounds'] = $totalRounds;
                 $meta['speed_status'] = 'scheduled';
                 $meta['is_speed_networking'] = true;
+
+                $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
+                if (! empty($durMinutes) && (int) $durMinutes > 0) {
+                    $durSeconds = (int) $durMinutes * 60;
+                } elseif (! empty($request->input('duration_seconds'))) {
+                    $durSeconds = (int) $request->input('duration_seconds');
+                } elseif ($totalRounds > 0) {
+                    $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
+                } elseif ($event->start_at && $event->end_at) {
+                    $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
+                } else {
+                    $durSeconds = 30 * 60;
+                }
+
+                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
+                $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
+
+                $meta['duration_seconds'] = $durSeconds;
+                $meta['duration_minutes'] = (int) ceil($durSeconds / 60);
+
                 $event->metadata = $meta;
                 $event->save();
 
@@ -91,7 +111,11 @@ class EventAdminController extends BaseApiController
                         'total_rounds' => $totalRounds,
                         'current_round' => 0,
                         'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $event->end_at,
+                        'scheduled_end_time' => $scheduledEnd,
+                        'metadata' => [
+                            'duration_seconds' => $durSeconds,
+                            'duration_minutes' => (int) ceil($durSeconds / 60),
+                        ],
                     ]
                 );
             } catch (\Throwable $e) {
@@ -126,6 +150,26 @@ class EventAdminController extends BaseApiController
                 $meta['round_duration_seconds'] = $roundDuration;
                 $meta['break_duration_seconds'] = $breakDuration;
                 $meta['total_rounds'] = $totalRounds;
+
+                $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
+                if (! empty($durMinutes) && (int) $durMinutes > 0) {
+                    $durSeconds = (int) $durMinutes * 60;
+                } elseif (! empty($request->input('duration_seconds'))) {
+                    $durSeconds = (int) $request->input('duration_seconds');
+                } elseif ($totalRounds > 0) {
+                    $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
+                } elseif ($event->start_at && $event->end_at) {
+                    $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
+                } else {
+                    $durSeconds = 30 * 60;
+                }
+
+                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
+                $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
+
+                $meta['duration_seconds'] = $durSeconds;
+                $meta['duration_minutes'] = (int) ceil($durSeconds / 60);
+
                 $event->metadata = $meta;
                 $event->save();
 
@@ -139,7 +183,11 @@ class EventAdminController extends BaseApiController
                         'break_duration_seconds' => $breakDuration,
                         'total_rounds' => $totalRounds,
                         'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $event->end_at,
+                        'scheduled_end_time' => $scheduledEnd,
+                        'metadata' => [
+                            'duration_seconds' => $durSeconds,
+                            'duration_minutes' => (int) ceil($durSeconds / 60),
+                        ],
                     ]
                 );
             } catch (\Throwable $e) {

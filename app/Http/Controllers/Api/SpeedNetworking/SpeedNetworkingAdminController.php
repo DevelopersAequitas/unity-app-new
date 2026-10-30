@@ -126,11 +126,11 @@ class SpeedNetworkingAdminController extends Controller
                 'duration_seconds' => $durationSec,
                 'duration_minutes' => $durationMin,
                 'duration' => $durationMin,
-                'scheduled_start_time' => $startAt?->toIso8601String(),
-                'scheduled_end_time' => $endAt?->toIso8601String(),
-                'end_time' => $endAt?->toIso8601String(),
-                'actual_start_time' => $meta['actual_start_time'] ?? null,
-                'actual_end_time' => $meta['actual_end_time'] ?? null,
+                'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
+                'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
+                'end_time' => $endAt?->copy()->utc()->toISOString(),
+                'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
+                'actual_end_time' => ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time'])->utc()->toISOString() : null,
                 'ticket_price' => (float) ($baseEvent->ticket_price ?? ($meta['ticket_price'] ?? 0)),
                 'is_paid' => (bool) ($baseEvent->is_paid ?? ($meta['is_paid'] ?? false)),
                 'total_participants_count' => $regCount,
@@ -533,6 +533,25 @@ class SpeedNetworkingAdminController extends Controller
             ];
         }
 
+        $durationSec = null;
+        if (! empty($meta['duration_seconds'])) {
+            $durationSec = (int) $meta['duration_seconds'];
+        } elseif (! empty($meta['duration_minutes'])) {
+            $durationSec = (int) $meta['duration_minutes'] * 60;
+        } elseif (! empty($meta['duration'])) {
+            $durationSec = (int) ($meta['duration'] * 60);
+        } else {
+            $durationSec = $totalRounds > 0
+                ? ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration)
+                : (5 * $roundDuration) + (4 * $breakDuration);
+        }
+        $durationMin = (int) ceil($durationSec / 60);
+
+        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : null;
+        $endAt = $baseEvent->end_at
+            ? Carbon::parse($baseEvent->end_at)
+            : ($startAt ? $startAt->copy()->addSeconds($durationSec) : null);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -545,8 +564,14 @@ class SpeedNetworkingAdminController extends Controller
                     'break_duration_seconds' => $breakDuration,
                     'total_rounds' => $totalRounds,
                     'current_round' => $currentRound,
-                    'scheduled_start_time' => $baseEvent->start_at?->toIso8601String(),
-                    'actual_start_time' => $meta['actual_start_time'] ?? null,
+                    'duration_seconds' => $durationSec,
+                    'duration_minutes' => $durationMin,
+                    'duration' => $durationMin,
+                    'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
+                    'actual_end_time' => ! empty($meta['actual_end_time']) ? Carbon::parse($meta['actual_end_time'])->utc()->toISOString() : null,
                     'total_participants_count' => count($participants),
                     'active_tables_count' => count($tableMatches),
                 ],
@@ -756,6 +781,9 @@ class SpeedNetworkingAdminController extends Controller
         } catch (\Throwable) {
         }
 
+        $startAt = $baseEvent->start_at ? Carbon::parse($baseEvent->start_at) : null;
+        $endAt = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : ($startAt ? $startAt->copy()->addMinutes(30) : null);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -765,8 +793,9 @@ class SpeedNetworkingAdminController extends Controller
                     'description' => $baseEvent->description,
                     'banner_url' => $baseEvent->banner_url,
                     'status' => 'completed',
-                    'scheduled_start_time' => $baseEvent->start_at,
-                    'scheduled_end_time' => $baseEvent->end_at,
+                    'scheduled_start_time' => $startAt?->copy()->utc()->toISOString(),
+                    'scheduled_end_time' => $endAt?->copy()->utc()->toISOString(),
+                    'end_time' => $endAt?->copy()->utc()->toISOString(),
                 ],
                 'statistics' => [
                     'total_joined' => $regCount,
