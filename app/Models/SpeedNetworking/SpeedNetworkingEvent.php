@@ -143,14 +143,25 @@ class SpeedNetworkingEvent extends Model
      */
     public function calculateDurationSeconds(): int
     {
-        if (! empty($this->metadata['duration_seconds'])) {
-            return (int) $this->metadata['duration_seconds'];
+        $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
+
+        if (! empty($meta['duration_seconds'])) {
+            return (int) $meta['duration_seconds'];
         }
-        if (! empty($this->metadata['duration_minutes'])) {
-            return (int) $this->metadata['duration_minutes'] * 60;
+        if (! empty($this->attributes['duration_seconds'])) {
+            return (int) $this->attributes['duration_seconds'];
         }
-        if (! empty($this->metadata['duration'])) {
-            return (int) ($this->metadata['duration'] * 60);
+        if (! empty($meta['duration_minutes'])) {
+            return (int) $meta['duration_minutes'] * 60;
+        }
+        if (! empty($this->attributes['duration_minutes'])) {
+            return (int) $this->attributes['duration_minutes'] * 60;
+        }
+        if (! empty($meta['duration'])) {
+            return (int) ($meta['duration'] * 60);
+        }
+        if (! empty($this->attributes['duration'])) {
+            return (int) ($this->attributes['duration'] * 60);
         }
 
         $rounds = (int) ($this->total_rounds ?: 0);
