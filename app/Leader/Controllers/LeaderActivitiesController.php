@@ -351,8 +351,10 @@ class LeaderActivitiesController extends Controller
 
         // Sum metric counts across all ranked peers who logged this activity
         $sumPeerMetrics = (int) array_sum(array_column($peers, 'metric_count'));
-        // Total activity count represents the total activity instances logged, NOT peer count
-        $totalActivitiesCount = max($sumPeerMetrics, $totalItemsCount);
+        // Total activity count represents the true activity instances logged:
+        // When individual activity records exist ($totalItemsCount > 0), use that directly
+        // to avoid double-counting multi-peer activities like P2P meetings (where both participants count the same meeting).
+        $totalActivitiesCount = $totalItemsCount > 0 ? $totalItemsCount : $sumPeerMetrics;
 
         $unitLabel = ! empty($peers) && ! empty($peers[0]['metric_label'])
             ? (string) $peers[0]['metric_label']

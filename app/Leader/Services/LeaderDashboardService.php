@@ -19,6 +19,7 @@ use App\Services\Api\Ded\DistrictScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -296,41 +297,60 @@ class LeaderDashboardService
             $totalPeers = count($scopedMemberUserIds ?? []);
         }
 
-        // 3. Pending peers count
-        if ($isGlobalScope) {
-            $pendingPeersCount = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where('status', 'pending')
-                ->count();
-
-            if (Schema::hasTable('circle_join_requests')) {
-                $pendingRequestsCount = (int) DB::table('circle_join_requests')
-                    ->where(function ($q): void {
-                        $q->whereRaw("status::text LIKE 'pending%'")
-                            ->orWhereRaw("status::text = 'awaiting_review'");
-                    })
+        // 3. Pending requests / moderation clearances count
+        $pendingPeersCount = 0;
+        try {
+            $currentUser = $user ?? request()?->user();
+            $subReq = Request::create('/leader/pending-requests', 'GET', [
+                'category' => 'all',
+                'status' => 'pending',
+                'per_page' => 1,
+            ]);
+            $subReq->setUserResolver(fn () => $currentUser);
+            $subReq->attributes->set('leader_scope_forced', true);
+            $pendingRes = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+                ->index($subReq)
+                ->getData(true);
+            $pendingPeersCount = (int) (
+                $pendingRes['total'] ??
+                $pendingRes['meta']['total'] ??
+                $pendingRes['data_count'] ??
+                count($pendingRes['data'] ?? [])
+            );
+        } catch (\Throwable $e) {
+            if ($isGlobalScope) {
+                $pendingPeersCount = CircleMember::query()
+                    ->whereNull('deleted_at')
+                    ->where('status', 'pending')
                     ->count();
-                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
-            }
-        } elseif (! empty($targetCircleIds)) {
-            $pendingPeersCount = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where('status', 'pending')
-                ->whereIn('circle_id', $targetCircleIds)
-                ->count();
 
-            if (Schema::hasTable('circle_join_requests')) {
-                $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                if (Schema::hasTable('circle_join_requests')) {
+                    $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                        ->where(function ($q): void {
+                            $q->whereRaw("status::text LIKE 'pending%'")
+                                ->orWhereRaw("status::text = 'awaiting_review'");
+                        })
+                        ->count();
+                    $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+                }
+            } elseif (! empty($targetCircleIds)) {
+                $pendingPeersCount = CircleMember::query()
+                    ->whereNull('deleted_at')
+                    ->where('status', 'pending')
                     ->whereIn('circle_id', $targetCircleIds)
-                    ->where(function ($q): void {
-                        $q->whereRaw("status::text LIKE 'pending%'")
-                            ->orWhereRaw("status::text = 'awaiting_review'");
-                    })
                     ->count();
-                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+
+                if (Schema::hasTable('circle_join_requests')) {
+                    $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                        ->whereIn('circle_id', $targetCircleIds)
+                        ->where(function ($q): void {
+                            $q->whereRaw("status::text LIKE 'pending%'")
+                                ->orWhereRaw("status::text = 'awaiting_review'");
+                        })
+                        ->count();
+                    $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+                }
             }
-        } else {
-            $pendingPeersCount = 0;
         }
 
         // Impacts count (sum of life_impacted_count across all peers in role scope, or impacts table count if higher)
