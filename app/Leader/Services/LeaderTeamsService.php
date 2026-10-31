@@ -81,25 +81,20 @@ class LeaderTeamsService
 
             if (Schema::hasTable('districts')) {
                 $dedCircle = Circle::query()->where('ded_user_id', $user->id)->first();
-                if ($dedCircle && str_contains(strtolower((string) $dedCircle->name), 'ahmedabad')) {
-                    $ahmedabadDistrictId = District::query()
-                        ->whereRaw("LOWER(name) = 'ahmedabad'")
-                        ->value('id');
-                    if ($ahmedabadDistrictId) {
-                        return (string) $ahmedabadDistrictId;
-                    }
+                if ($dedCircle && $dedCircle->district_id) {
+                    return (string) $dedCircle->district_id;
                 }
             }
         }
 
-        // 4. Check if user belongs to Ahmedabad city / district
-        $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
-        if (str_contains($userCity, 'ahmedabad') && Schema::hasTable('districts')) {
-            $ahmedabadDistrictId = District::query()
-                ->whereRaw("LOWER(name) = 'ahmedabad'")
+        // 4. Check if user city matches any registered district
+        $userCity = trim((string) ($user->city ?? $user->city_of_residence ?? ''));
+        if (! empty($userCity) && Schema::hasTable('districts')) {
+            $userDistrictId = District::query()
+                ->whereRaw('LOWER(name) = ?', [strtolower($userCity)])
                 ->value('id');
-            if ($ahmedabadDistrictId) {
-                return (string) $ahmedabadDistrictId;
+            if ($userDistrictId) {
+                return (string) $userDistrictId;
             }
         }
 
@@ -159,23 +154,25 @@ class LeaderTeamsService
                     $q->orWhere('ded_user_id', $user->id);
                 }
 
+                // Fallback only for legacy circles where district_id IS NULL
                 if ($districtName) {
                     $dNameLower = strtolower(trim((string) $districtName));
 
-                    if (Schema::hasColumn('circles', 'city')) {
-                        $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dNameLower]);
-                        $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) LIKE ?", ['%'.$dNameLower.'%']);
-                    }
+                    $q->orWhere(function (Builder $sub) use ($dNameLower, $resolvedDistrictId): void {
+                        $sub->whereNull('district_id');
+                        $sub->where(function (Builder $cSub) use ($dNameLower, $resolvedDistrictId): void {
+                            if (Schema::hasColumn('circles', 'city')) {
+                                $cSub->whereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dNameLower]);
+                            }
 
-                    if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-                        $q->orWhereHas('city', function ($cq) use ($resolvedDistrictId, $dNameLower): void {
-                            $cq->where('district_id', $resolvedDistrictId)
-                                ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower])
-                                ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) LIKE ?", ['%'.$dNameLower.'%']);
+                            if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                                $cSub->orWhereHas('city', function ($cq) use ($resolvedDistrictId, $dNameLower): void {
+                                    $cq->where('district_id', $resolvedDistrictId)
+                                        ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower]);
+                                });
+                            }
                         });
-                    }
-                } elseif (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-                    $q->orWhereHas('city', fn ($cq) => $cq->where('district_id', $resolvedDistrictId));
+                    });
                 }
             });
         }

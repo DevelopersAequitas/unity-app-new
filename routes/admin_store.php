@@ -45,6 +45,8 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
         Route::get('/{id}', [AdminStoreProductController::class, 'show'])->whereUuid('id');
         Route::put('/{id}', [AdminStoreProductController::class, 'update'])->whereUuid('id');
         Route::post('/{id}/disable', [AdminStoreProductController::class, 'disable'])->whereUuid('id');
+        Route::post('/{id}/archive', [AdminStoreProductController::class, 'archive'])->whereUuid('id');
+        Route::delete('/{id}', [AdminStoreProductController::class, 'destroy'])->whereUuid('id');
         Route::post('/{id}/images', [AdminStoreProductController::class, 'addImage'])->whereUuid('id');
         Route::delete('/{id}/images/{imageId}', [AdminStoreProductController::class, 'removeImage'])->whereUuid('id')->whereUuid('imageId');
 

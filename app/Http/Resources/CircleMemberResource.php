@@ -24,6 +24,7 @@ class CircleMemberResource extends JsonResource
             'left_at' => $this->left_at,
             'substitute_count' => $this->substitute_count,
             'role_id' => $this->role_id,
+            'show_on_member_list' => (bool) ($this->show_on_member_list ?? false),
 
             'user' => $this->whenLoaded('user', function () use ($request) {
                 $user = $this->user;
