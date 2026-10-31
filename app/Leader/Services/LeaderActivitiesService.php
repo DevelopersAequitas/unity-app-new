@@ -610,7 +610,7 @@ class LeaderActivitiesService
         $user = $request->user();
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
-        $query = User::query()->whereNull('deleted_at');
+        $query = User::query()->whereNull('deleted_at')->withoutSystemUser();
 
         if ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
@@ -637,6 +637,9 @@ class LeaderActivitiesService
         $leaderboard = [];
         $rank = 1;
         foreach ($users as $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $peerDetail = $this->formatPeerDetail($u);
             $coins = (int) ($u->coins_balance ?? max(1400 - ($rank * 180), 350));
 
@@ -951,6 +954,7 @@ class LeaderActivitiesService
 
         $users = User::query()
             ->whereIn('id', $cleanIds)
+            ->withoutSystemUser()
             ->with([
                 'circleMembers.circle',
                 'circleMembers.level4Category',
@@ -989,6 +993,7 @@ class LeaderActivitiesService
 
         $userQuery = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->with([
                 'circleMembers.circle',
                 'circleMembers.level4Category',
@@ -1213,6 +1218,8 @@ class LeaderActivitiesService
                 if (Schema::hasColumn('users', 'introduced_by')) {
                     $rows = DB::table('users')
                         ->whereNull('deleted_at')
+                        ->whereRaw("LOWER(COALESCE(email, '')) != 'info@peersglobal.com'")
+                        ->whereRaw("LOWER(COALESCE(display_name, '')) NOT LIKE '%genie%'")
                         ->whereIn('introduced_by', $userIds)
                         ->selectRaw('introduced_by, COUNT(*) as cnt')
                         ->groupBy('introduced_by')
@@ -1688,6 +1695,7 @@ class LeaderActivitiesService
 
         $query = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->whereNotNull('introduced_by')
             ->with([
                 'circleMembers.circle',

@@ -42,7 +42,7 @@ class LeaderMember360Service
             ->whereNull('deleted_at')
             ->first();
 
-        if (! $member) {
+        if (! $member || $member->isSystemUser()) {
             return null;
         }
 
@@ -269,6 +269,7 @@ class LeaderMember360Service
         $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
 
         $query = User::query()
+            ->withoutSystemUser()
             ->where(function ($q) use ($memberId): void {
                 $q->where('introduced_by', $memberId);
 
@@ -558,6 +559,8 @@ class LeaderMember360Service
             $existingCols = array_values(array_filter($userCols, fn ($c) => Schema::hasColumn('users', $c)));
             $users = DB::table('users')
                 ->whereIn('id', $allUserIds)
+                ->whereRaw("LOWER(COALESCE(email, '')) != 'info@peersglobal.com'")
+                ->whereRaw("LOWER(COALESCE(display_name, '')) NOT LIKE '%genie%'")
                 ->select($existingCols)
                 ->get();
 

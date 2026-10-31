@@ -245,7 +245,7 @@ class LeaderPeersService
     ): array {
         $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 
-        $query = User::query()->whereNull('deleted_at');
+        $query = User::query()->whereNull('deleted_at')->withoutSystemUser();
 
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
@@ -369,7 +369,7 @@ class LeaderPeersService
                     }
 
                     if ($adminUser && AdminAccess::isDed($adminUser)) {
-                        $dedQ = User::query()->whereNull('deleted_at');
+                        $dedQ = User::query()->whereNull('deleted_at')->withoutSystemUser();
                         AdminCircleScope::applyDedDistrictScope($dedQ, $adminUser);
                         $dedUserIds = $dedQ->pluck('id')->all();
                         if (! empty($dedUserIds)) {
@@ -470,6 +470,9 @@ class LeaderPeersService
 
         $formatted = [];
         foreach ($paginator->items() as $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $formatted[] = $this->formatPeerCard($u, $circleId);
         }
 
@@ -635,7 +638,7 @@ class LeaderPeersService
     {
         $user = User::query()->where('id', $peerId)->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->first();
 
-        if (! $user) {
+        if (! $user || $user->isSystemUser()) {
             return [];
         }
 
@@ -1145,7 +1148,7 @@ class LeaderPeersService
         $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
             || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
 
-        $baseQuery = fn () => User::query()->whereNull('deleted_at');
+        $baseQuery = fn () => User::query()->whereNull('deleted_at')->withoutSystemUser();
 
         $query = $baseQuery();
 
@@ -1200,6 +1203,9 @@ class LeaderPeersService
         $annivOffsets = [1, 4, 7, 11, 15];
 
         foreach ($users as $idx => $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $uName = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($uName === '') {
                 $uName = (string) ($u->display_name ?? 'Peer Member');

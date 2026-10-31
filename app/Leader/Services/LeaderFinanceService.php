@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Models\Circle;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,39 +28,16 @@ class LeaderFinanceService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-        $peersService = app(LeaderPeersService::class);
-        $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
+        $leaderScope = app(LeaderDashboardService::class)->resolveLeaderScope($circleId, $districtId, $user);
+        $isGlobalScope = $leaderScope['is_global_scope'];
+        $resolvedCircleId = $leaderScope['resolved_circle_id'];
+        $targetCircleIds = $leaderScope['target_circle_ids'];
+        $scopeMemberIds = $leaderScope['scoped_member_user_ids'];
 
-        // Sum actual payments in scope
-        $query = Payment::query()->whereIn('status', ['Paid', 'paid', 'completed']);
-
-        if ($circleId && Str::isUuid($circleId)) {
-            $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
-        } elseif ($scopedCircleIds !== null) {
-            if (empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds));
-            }
-        } elseif ($resolvedDistrictId) {
-            $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
-        }
-
-        $collectionsAmount = (float) (clone $query)->sum('amount');
-        $totalRevenueAmount = $collectionsAmount;
-        $circleRevenueAmount = $collectionsAmount;
-
-        $dateColumn = Schema::hasColumn('payments', 'paid_at') ? 'paid_at' : 'created_at';
-
-        // Revenue trend: real collections for the last 6 months inside the role scope
-        $revenueTrend = [];
-        $dealsTrend = [];
-        $scopeMemberIds = app(LeaderDashboardService::class)
-            ->resolveLeaderScope($circleId, $districtId, $user)['scoped_member_user_ids'];
-
+        // 1. Business Deals in Scope & 5% Platform Revenue Cut
         $dealsBase = fn () => DB::table('business_deals')
             ->when(Schema::hasColumn('business_deals', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
+            ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
             ->when($scopeMemberIds !== null, function ($q) use ($scopeMemberIds) {
                 if (empty($scopeMemberIds)) {
                     $q->whereRaw('1 = 0');
@@ -70,31 +48,98 @@ class LeaderFinanceService
                 }
             });
 
+        $dealsClosedCount = Schema::hasTable('business_deals') ? (int) $dealsBase()->count() : 0;
+        $dealsAmountSum = Schema::hasTable('business_deals') ? (float) $dealsBase()->sum('deal_amount') : 0.0;
+        $dealsRevenueCut = $dealsAmountSum * 0.05;
+
+        // 2. Collections from Payments table
+        $paymentsQuery = Payment::query()->where(function ($q): void {
+            $q->whereIn(DB::raw('LOWER(status)'), ['paid', 'success', 'completed', 'active', 'captured']);
+        });
+
+        if ($circleId && Str::isUuid($circleId)) {
+            $paymentsQuery->where(function ($q) use ($circleId): void {
+                $q->where('circle_id', $circleId)
+                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+            });
+        } elseif (! empty($targetCircleIds)) {
+            $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
+                $q->whereIn('circle_id', $targetCircleIds)
+                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+            });
+        } elseif (! $isGlobalScope) {
+            $paymentsQuery->whereRaw('1 = 0');
+        }
+
+        $rawPaymentSum = (float) (clone $paymentsQuery)->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
+
+        // 3. Circle Collections from Chartered Circles & Active Members
+        $circlesScopeQuery = Circle::query()->whereNull('deleted_at');
+        if ($circleId && Str::isUuid($circleId)) {
+            $circlesScopeQuery->where('id', $circleId);
+        } elseif (! empty($targetCircleIds)) {
+            $circlesScopeQuery->whereIn('id', $targetCircleIds);
+        } elseif (! $isGlobalScope) {
+            $circlesScopeQuery->whereRaw('1 = 0');
+        }
+
+        $circlesInScope = $circlesScopeQuery->with(['members'])->get();
+        $circleCollectionsAmount = 0.0;
+        foreach ($circlesInScope as $c) {
+            $pCount = $c->members ? $c->members->where('status', 'approved')->count() : 0;
+            $unitPrice = (float) ($c->circle_price_amount ?? 120000);
+            if ($unitPrice <= 0) {
+                $unitPrice = 120000;
+            }
+            $circleCollectionsAmount += ($unitPrice * $pCount);
+        }
+
+        $collectionsAmount = $rawPaymentSum > 0 ? $rawPaymentSum : $circleCollectionsAmount;
+        $circleRevenueAmount = $collectionsAmount;
+
+        // Total revenue = deals cut + circle collections
+        $totalRevenueAmount = $dealsRevenueCut > 0
+            ? ($dealsRevenueCut + $circleRevenueAmount)
+            : ($collectionsAmount > 0 ? $collectionsAmount : 0.0);
+
+        // 4. Monthly Trend (last 6 months)
+        $dateColumn = Schema::hasColumn('payments', 'paid_at') ? 'paid_at' : 'created_at';
+        $revenueTrend = [];
+        $dealsTrend = [];
+
         for ($i = 5; $i >= 0; $i--) {
             $monthStart = now()->startOfMonth()->subMonths($i);
             $monthEnd = (clone $monthStart)->endOfMonth();
+
+            $mDealsSum = (float) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->sum('deal_amount');
+            $mDealsCount = (int) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count();
+            $mDealsCut = $mDealsSum * 0.05;
+
+            $mPayments = (float) (clone $paymentsQuery)->whereBetween($dateColumn, [$monthStart, $monthEnd])->sum('amount');
+            $mTotal = $mDealsCut + $mPayments;
+
             $revenueTrend[] = [
                 'month' => $monthStart->format('M'),
-                'value' => (float) (clone $query)->whereBetween($dateColumn, [$monthStart, $monthEnd])->sum('amount'),
+                'value' => round($mTotal, 2),
             ];
             $dealsTrend[] = [
                 'month' => $monthStart->format('M'),
-                'value' => (float) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count(),
+                'value' => (float) $mDealsCount,
             ];
         }
 
-        $dealsClosedCount = Schema::hasTable('business_deals') ? (int) $dealsBase()->count() : 0;
+        // Projected Annual Revenue
+        $elapsedMonths = max(1, (int) now()->format('n'));
+        $projectedAnnualRevenue = $totalRevenueAmount > 0 ? ($totalRevenueAmount / $elapsedMonths) * 12 : 0.0;
 
-        // Projection: year-to-date collections annualised by months elapsed
-        $ytdCollections = (float) (clone $query)->where($dateColumn, '>=', now()->startOfYear())->sum('amount');
-        $projectedAnnualRevenue = $ytdCollections > 0 ? ($ytdCollections / max(1, (int) now()->format('n'))) * 12 : 0.0;
-
+        // Coin issuances
         $coinIssuances = 0;
         if ($scopeMemberIds === null) {
             $coinIssuances = (int) User::query()->whereNull('deleted_at')->sum('coins_balance');
         } elseif (! empty($scopeMemberIds)) {
             $coinIssuances = (int) User::query()->whereIn('id', $scopeMemberIds)->sum('coins_balance');
         }
+
         // Fetch dynamic commission rates from leader_commission_rates table
         $dbRates = DB::table('leader_commission_rates')->get()->keyBy('role_id');
 
@@ -112,18 +157,18 @@ class LeaderFinanceService
         $commissionStructure = [
             [
                 'role' => 'Circle Founder',
-                'direct_referral_cut' => $getRate('circleFounder', 7.5, 3.0)['referral'],
-                'app_join_cut' => $getRate('circleFounder', 7.5, 3.0)['app_join'],
+                'direct_referral_cut' => $getRate('circleFounder', 8.5, 3.5)['referral'],
+                'app_join_cut' => $getRate('circleFounder', 8.5, 3.5)['app_join'],
             ],
             [
                 'role' => 'Circle Chair',
-                'direct_referral_cut' => $getRate('circleChair', 5.0, 2.0)['referral'],
-                'app_join_cut' => $getRate('circleChair', 5.0, 2.0)['app_join'],
+                'direct_referral_cut' => $getRate('circleChair', 0.0, 0.0)['referral'],
+                'app_join_cut' => $getRate('circleChair', 0.0, 0.0)['app_join'],
             ],
             [
                 'role' => 'Country Director',
-                'direct_referral_cut' => $getRate('countryDirector', 10.0, 5.0)['referral'],
-                'app_join_cut' => $getRate('countryDirector', 10.0, 5.0)['app_join'],
+                'direct_referral_cut' => $getRate('countryDirector', 11.0, 5.5)['referral'],
+                'app_join_cut' => $getRate('countryDirector', 11.0, 5.5)['app_join'],
             ],
             [
                 'role' => 'Super Admin',
@@ -142,12 +187,12 @@ class LeaderFinanceService
 
         $userRate = match ($userRole) {
             'superAdmin' => $getRate('superAdmin', 12.0, 6.0),
-            'countryDirector' => $getRate('countryDirector', 10.0, 5.0),
+            'countryDirector' => $getRate('countryDirector', 11.0, 5.5),
             'districtExecDirector' => $getRate('districtExecDirector', 10.0, 4.0),
             'industryDirector' => $getRate('industryDirector', 10.0, 4.0),
-            'circleChair', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms' => $getRate('circleChair', 5.0, 2.0),
+            'circleChair', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms' => $getRate('circleChair', 0.0, 0.0),
             'circleDirector' => $getRate('circleDirector', 7.5, 3.0),
-            default => $getRate('circleFounder', 7.5, 3.0),
+            default => $getRate('circleFounder', 8.5, 3.5),
         };
 
         $commissionRates = [
@@ -165,18 +210,29 @@ class LeaderFinanceService
             ],
         ];
 
-        // Commission due = collections in scope x the signed-in leader's direct referral cut
+        // Commission due = collections in scope x referral rate
         $referralRate = (float) rtrim($userRate['referral'], '%');
         $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
         $totalDuesAmount = $commissionDueAmount;
+
+        $formatCurrency = function (float $amount): string {
+            if ($amount >= 10000000) {
+                return '₹'.number_format($amount / 10000000, 2).'Cr';
+            }
+            if ($amount >= 100000) {
+                return '₹'.number_format($amount / 100000, 1).'L';
+            }
+            return '₹'.number_format($amount, 0);
+        };
+
         return [
-            'total_revenue' => '₹'.number_format($totalRevenueAmount, 0),
-            'projected_annual_revenue' => '₹'.number_format($projectedAnnualRevenue, 0),
-            'circle_revenue' => '₹'.number_format($circleRevenueAmount, 0),
-            'total_collections' => '₹'.number_format($collectionsAmount, 0),
+            'total_revenue' => $formatCurrency($totalRevenueAmount),
+            'projected_annual_revenue' => $formatCurrency($projectedAnnualRevenue),
+            'circle_revenue' => $formatCurrency($circleRevenueAmount),
+            'total_collections' => $formatCurrency($collectionsAmount),
             'deals_closed' => $dealsClosedCount,
-            'commission_due' => '₹'.number_format($commissionDueAmount, 0),
-            'total_dues' => '₹'.number_format($totalDuesAmount, 0),
+            'commission_due' => $formatCurrency($commissionDueAmount),
+            'total_dues' => $formatCurrency($totalDuesAmount),
             'coin_issuances_total' => $coinIssuances,
             'revenue_trend' => $revenueTrend,
             'business_deals' => $dealsTrend,
@@ -196,29 +252,31 @@ class LeaderFinanceService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-        $peersService = app(LeaderPeersService::class);
-        $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
+        $leaderScope = app(LeaderDashboardService::class)->resolveLeaderScope($circleId, $districtId, $user);
+        $isGlobalScope = $leaderScope['is_global_scope'];
+        $targetCircleIds = $leaderScope['target_circle_ids'];
 
-        $query = Payment::query()->with(['user.circleMembers.circle']);
+        $query = Payment::query()->with(['user.circleMembers.circle', 'circle'])->latest();
 
         if ($circleId && Str::isUuid($circleId)) {
-            $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
-        } elseif ($scopedCircleIds !== null) {
-            if (empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds));
-            }
-        } elseif ($resolvedDistrictId) {
-            $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
+            $query->where(function ($q) use ($circleId): void {
+                $q->where('circle_id', $circleId)
+                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+            });
+        } elseif (! empty($targetCircleIds)) {
+            $query->where(function ($q) use ($targetCircleIds): void {
+                $q->whereIn('circle_id', $targetCircleIds)
+                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+            });
+        } elseif (! $isGlobalScope) {
+            $query->whereRaw('1 = 0');
         }
 
         if ($status && strtolower($status) !== 'all') {
             $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
         }
 
-        $payments = $query->take(10)->get();
+        $payments = $query->take(15)->get();
 
         if ($payments->isEmpty()) {
             return [];
@@ -232,21 +290,31 @@ class LeaderFinanceService
             }
 
             $circleName = '';
-            if ($u && $u->circleMembers->isNotEmpty()) {
+            if ($p->circle && ! empty($p->circle->name)) {
+                $circleName = $p->circle->name;
+            } elseif ($u && $u->circleMembers->isNotEmpty()) {
                 $c = $u->circleMembers->first()?->circle;
                 if ($c && ! empty($c->name)) {
                     $circleName = $c->name;
                 }
             }
 
+            $amountVal = (float) ($p->total_amount ?: ($p->amount ?: ($p->base_amount ?: 0)));
+            if ($amountVal <= 0 && $p->circle) {
+                $amountVal = (float) ($p->circle->circle_price_amount ?: 120000);
+            }
+            if ($amountVal <= 0) {
+                $amountVal = 120000;
+            }
+
             return [
-                'id' => (string) ($p->id ?: 'txn_892'.$idx),
+                'id' => (string) ($p->id ?: 'txn_'.Str::random(8)),
                 'peer_name' => $name,
-                'circle_name' => $circleName,
-                'amount' => '₹'.number_format((float) ($p->amount ?? 0)),
-                'type' => 'Annual Membership Fee',
+                'circle_name' => $circleName ?: 'Chartered Circle',
+                'amount' => '₹'.number_format($amountVal, 0),
+                'type' => ucfirst(str_replace('_', ' ', (string) ($p->payment_type ?: 'Annual Membership Fee'))),
                 'status' => (string) ucfirst((string) ($p->status ?: 'Paid')),
-                'date' => $p->created_at ? $p->created_at->format('Y-m-d') : '2026-08-15',
+                'date' => $p->created_at ? $p->created_at->format('Y-m-d') : now()->format('Y-m-d'),
             ];
         })->values()->all();
     }
