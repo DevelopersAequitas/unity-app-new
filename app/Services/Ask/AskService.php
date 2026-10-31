@@ -9,16 +9,19 @@ use App\Models\Ask\AskAnswer;
 use App\Models\Ask\AskFlow;
 use App\Models\Ask\AskOption;
 use App\Models\Ask\AskOptionGroup;
+use App\Models\Ask\AskResponse;
 use App\Models\Ask\AskStatusHistory;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\Ask\AskType;
 use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\CoinsLedger;
 use App\Models\District;
 use App\Models\Post;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Coins\CoinsService;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -649,7 +652,18 @@ class AskService
             $this->generateCelebrationStory($ask, $user, $note);
         }
 
-        // 3. Business Value Aggregation (if approx_value is present)
+        // 3. Helper Reward (Award +1 Life Impact and +2,500 Coins to User C who helped fulfill)
+        $isFulfilled = $status === Ask::STATUS_FULFILLED
+            || (! empty($outcomeStatus) && in_array($outcomeStatus, ['deal_closed', 'formalised', 'yes_fully', '4', '5'], true));
+
+        if ($isFulfilled) {
+            $giver = $this->resolveFulfillmentHelper($ask, $options);
+            if ($giver) {
+                $this->rewardHelperForFulfillment($ask, $giver, $user, $note ?? $reason);
+            }
+        }
+
+        // 4. Business Value Aggregation (if approx_value is present)
         if ($approxValue !== null && $approxValue !== '') {
             $this->aggregateBusinessValue($ask, $user, (string) $approxValue, $outcomeStatus, $note, $anonymousTotal);
         }
@@ -736,25 +750,158 @@ class AskService
         } catch (Throwable $e) {
             Log::warning('BusinessDeal creation skipped during status update', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Resolve the peer helper (User C) who helped fulfill the Ask.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function resolveFulfillmentHelper(Ask $ask, array $options = []): ?User
+    {
+        $giverId = $options['giver_id']
+            ?? $options['giver_user_id']
+            ?? $options['helper_id']
+            ?? $options['fulfilled_by_id']
+            ?? $options['responder_id']
+            ?? null;
+
+        if ($giverId && is_string($giverId) && Str::isUuid($giverId)) {
+            $giver = User::query()->find($giverId);
+            if ($giver) {
+                return $giver;
+            }
+        }
+
+        if (! empty($options['response_id']) && is_string($options['response_id']) && Str::isUuid($options['response_id'])) {
+            $response = AskResponse::with('responder')->find($options['response_id']);
+            if ($response?->responder) {
+                return $response->responder;
+            }
+        }
+
+        // Check for an accepted or completed response
+        $acceptedResponse = $ask->responses()
+            ->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_COMPLETED, 'connected'])
+            ->with(['responder', 'introducedUser'])
+            ->latest('responded_at')
+            ->first();
+
+        if ($acceptedResponse) {
+            return $acceptedResponse->responder ?? $acceptedResponse->introducedUser;
+        }
+
+        // Fallback to latest response
+        $latestResponse = $ask->responses()->with('responder')->latest('created_at')->first();
+
+        return $latestResponse?->responder;
+    }
+
+    /**
+     * Award +1 Life Impact and +2,500 Coins to the helper (User C) who helped fulfill an Ask.
+     * Only User C receives this reward (not User A or User B). Idempotent per Ask.
+     */
+    public function rewardHelperForFulfillment(
+        Ask $ask,
+        User $helper,
+        User $askOwner,
+        ?string $note = null
+    ): bool {
+        // Prevent rewarding if helper is the ask creator
+        if ((string) $helper->id === (string) $askOwner->id) {
+            return false;
+        }
+
+        // Idempotency: verify ask metadata
+        $metadata = (array) ($ask->metadata ?? []);
+        if (! empty($metadata['helper_rewarded_user_id'])) {
+            return false;
+        }
+
+        // Idempotency: verify coins ledger
+        $alreadyRewarded = CoinsLedger::query()
+            ->where('user_id', $helper->id)
+            ->where(function (Builder $q) use ($ask): void {
+                $q->where(function (Builder $sq) use ($ask): void {
+                    $sq->where('source_type', 'ask_fulfillment')
+                        ->where('source_id', (string) $ask->id);
+                })->orWhere(function (Builder $sq) use ($ask): void {
+                    $sq->where('reference', 'Ask fulfillment helper reward')
+                        ->where('remark', 'LIKE', '%"ask_id":"'.(string) $ask->id.'"%');
+                });
+            })
+            ->exists();
+
+        if ($alreadyRewarded) {
+            return false;
+        }
+
+        $coinsReward = (int) (config('coins.activity_rewards.ask_fulfillment') ?? 2500);
+        $impactReward = (int) (config('impact.activity_rewards.ask_fulfillment') ?? 1);
 
         try {
+            // 1. Award Coins to User C (only)
+            app(CoinsService::class)->reward(
+                user: $helper,
+                amount: $coinsReward,
+                reference: 'Ask fulfillment helper reward',
+                meta: [
+                    'source' => 'ask_fulfillment',
+                    'claim_id' => (string) $ask->id,
+                    'ask_id' => (string) $ask->id,
+                    'ask_title' => (string) $ask->title,
+                    'ask_creator_id' => (string) $askOwner->id,
+                ],
+                createdBy: (string) $askOwner->id
+            );
+
+            // 2. Award Life Impact to User C (only)
             app(LifeImpactService::class)->addLifeImpact(
-                userId: (string) $user->id,
-                triggeredByUserId: (string) $fromUserId,
-                activityType: 'business_deal',
+                userId: (string) $helper->id,
+                triggeredByUserId: (string) $askOwner->id,
+                activityType: 'ask_fulfillment',
                 activityId: (string) $ask->id,
-                impactValue: 1,
-                title: "Ask Fulfilled: {$ask->title}",
-                description: $note !== null && trim($note) !== '' ? trim($note) : "Business value unlocked for Ask: {$ask->title}",
+                impactValue: $impactReward,
+                title: "Fulfilled Ask: {$ask->title}",
+                description: $note !== null && trim($note) !== ''
+                    ? trim($note)
+                    : "Helped fulfill Ask: {$ask->title}",
                 meta: [
                     'ask_id' => (string) $ask->id,
-                    'approx_value' => $approxValue,
-                    'outcome_status' => $outcomeStatus,
-                    'anonymous_total' => $anonymousTotal,
+                    'ask_title' => (string) $ask->title,
+                    'ask_creator_id' => (string) $askOwner->id,
+                    'coins_awarded' => $coinsReward,
+                    'life_impact_awarded' => $impactReward,
                 ]
             );
+
+            // 3. Mark Ask metadata
+            $metadata['helper_rewarded_user_id'] = (string) $helper->id;
+            $metadata['helper_rewarded_at'] = now()->toISOString();
+            $metadata['helper_coins_awarded'] = $coinsReward;
+            $metadata['helper_impact_awarded'] = $impactReward;
+            $metadata['giver_id'] = (string) $helper->id;
+            $ask->metadata = $metadata;
+            $ask->save();
+
+            // 4. Send notification to helper
+            $this->notificationService->notifyHelperRewardReceived(
+                $ask,
+                $helper,
+                $askOwner,
+                $coinsReward,
+                $impactReward
+            );
+
+            return true;
         } catch (Throwable $e) {
-            Log::warning('Life impact logging failed during ask fulfillment', ['error' => $e->getMessage()]);
+            Log::warning('Failed to reward helper for ask fulfillment', [
+                'ask_id' => (string) $ask->id,
+                'helper_id' => (string) $helper->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
         }
     }
 

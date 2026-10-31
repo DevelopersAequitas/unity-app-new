@@ -216,4 +216,45 @@ class AskNotificationService
             }
         }
     }
+
+    /**
+     * Notify helper that their help was accepted and they received Life Impact and Coins.
+     */
+    public function notifyHelperRewardReceived(
+        Ask $ask,
+        User $helper,
+        User $creator,
+        int $coins = 2500,
+        int $impact = 1
+    ): void {
+        if ((string) $creator->id === (string) $helper->id) {
+            return;
+        }
+
+        $creatorName = $creator->display_name ?: trim(($creator->first_name ?? '').' '.($creator->last_name ?? '')) ?: 'A member';
+        $title = 'Ask Fulfilled! Rewards Earned';
+        $body = "{$creatorName} marked your help as fulfilled for '{$ask->title}'. You earned +{$coins} Coins and +{$impact} Life Impact!";
+
+        try {
+            $this->notifyUserService->notifyUser(
+                to: $helper,
+                from: $creator,
+                type: 'ask_fulfillment_reward',
+                data: [
+                    'title' => $title,
+                    'body' => $body,
+                    'ask_id' => (string) $ask->id,
+                    'coins_awarded' => $coins,
+                    'life_impact_awarded' => $impact,
+                ],
+                notifiable: $ask
+            );
+        } catch (Throwable $e) {
+            Log::warning('Failed sending helper reward notification', [
+                'ask_id' => (string) $ask->id,
+                'helper_id' => (string) $helper->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 }

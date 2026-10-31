@@ -11,6 +11,7 @@ return [
         'requirement' => 1,
         'recommend_peer' => 1,
         'introduction_video' => 1,
+        'ask_fulfillment' => 1,
     ],
     'actions' => [
         'Created a collaboration opportunity',
