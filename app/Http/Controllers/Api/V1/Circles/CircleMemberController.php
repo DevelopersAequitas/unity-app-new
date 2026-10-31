@@ -65,7 +65,11 @@ class CircleMemberController extends Controller
                     $query->where('circle_members.show_on_member_list', $request->boolean('show_on_member_list'));
                 }
             } else {
-                $query->where('circle_members.show_on_member_list', true);
+                // When toggle is ON, member is excluded/hidden from member list API
+                $query->where(function ($q): void {
+                    $q->where('circle_members.show_on_member_list', false)
+                        ->orWhereNull('circle_members.show_on_member_list');
+                });
             }
         }
 
