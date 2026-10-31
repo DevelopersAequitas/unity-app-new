@@ -21,7 +21,9 @@ import {
     Layers,
     UserCheck,
     FileText,
-    Star
+    Star,
+    Copy,
+    ExternalLink
 } from 'lucide-react';
 
 export const JuryPage: React.FC = () => {
@@ -50,6 +52,14 @@ export const JuryPage: React.FC = () => {
 
     // Modal state for viewing completed jury review
     const [selectedReview, setSelectedReview] = useState<any | null>(null);
+    const [copiedJuryLink, setCopiedJuryLink] = useState<string | null>(null);
+
+    const juryPanelUrl = `${window.location.origin}/admin/web/jury/login`;
+    const copyJuryPanelLink = (jurorId: string) => {
+        navigator.clipboard.writeText(juryPanelUrl);
+        setCopiedJuryLink(jurorId);
+        setTimeout(() => setCopiedJuryLink(null), 2000);
+    };
 
     // Modal state for Criteria
     const [isCriterionModal, setIsCriterionModal] = useState<boolean>(false);
@@ -508,6 +518,30 @@ export const JuryPage: React.FC = () => {
                                                     <div className="text-muted text-truncate">
                                                         <Tag size={11} className="text-muted me-1 d-inline" /> {busCat}
                                                     </div>
+                                                </div>
+
+                                                {/* Jury Panel Link */}
+                                                <div className="d-flex align-items-center gap-1.5 mb-2.5">
+                                                    <a
+                                                        href={juryPanelUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-flex align-items-center gap-1 flex-grow-1 justify-content-center"
+                                                        style={{ fontSize: '11px' }}
+                                                    >
+                                                        <ExternalLink size={11} /> Jury Panel
+                                                    </a>
+                                                    <button
+                                                        onClick={() => copyJuryPanelLink(u.id || String(idx))}
+                                                        className={`btn btn-sm rounded-3 py-1 px-2 d-flex align-items-center gap-1 ${copiedJuryLink === (u.id || String(idx)) ? 'btn-success text-white' : 'btn-outline-secondary'}`}
+                                                        title="Copy jury admin panel link"
+                                                        style={{ fontSize: '11px' }}
+                                                    >
+                                                        {copiedJuryLink === (u.id || String(idx))
+                                                            ? <><Check size={11} /> Copied</>
+                                                            : <><Copy size={11} /> Copy Link</>
+                                                        }
+                                                    </button>
                                                 </div>
 
                                                 <div className="mt-auto pt-2 border-top d-flex align-items-center justify-content-between">
