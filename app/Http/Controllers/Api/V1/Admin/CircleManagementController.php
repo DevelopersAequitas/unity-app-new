@@ -153,6 +153,11 @@ class CircleManagementController extends BaseApiController
             'meeting_mode' => ['nullable', 'string'],
             'meeting_frequency' => ['nullable', 'string'],
             'launch_date' => ['nullable', 'date'],
+            'meeting_repeat' => ['nullable'],
+            'meeting_venue' => ['nullable', 'string'],
+            'meeting_landmark' => ['nullable', 'string'],
+            'meeting_link' => ['nullable', 'string'],
+            'meeting_passcode' => ['nullable', 'string'],
             'calendar' => ['nullable', 'array'],
             'categories' => ['nullable', 'array'],
         ]);
@@ -177,12 +182,22 @@ class CircleManagementController extends BaseApiController
             'cover_file_id',
             'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
             'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
-            'meeting_frequency', 'launch_date',
+            'meeting_frequency', 'meeting_repeat', 'launch_date',
         ];
 
         foreach ($fillableColumns as $col) {
             if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
                 $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (isset($validated['meeting_repeat'])) {
+            $repVal = $validated['meeting_repeat'];
+            if (is_string($repVal)) {
+                $repVal = json_decode($repVal, true);
+            }
+            if (is_array($repVal)) {
+                $circle->meeting_repeat = $repVal;
             }
         }
 
@@ -194,6 +209,31 @@ class CircleManagementController extends BaseApiController
         }
 
         $calendar = isset($validated['calendar']) && is_array($validated['calendar']) ? $validated['calendar'] : [];
+        if (!empty($circle->meeting_repeat)) {
+            data_set($calendar, 'settings.meeting_repeat', $circle->meeting_repeat);
+        }
+        if ($request->filled('meeting_venue')) {
+            data_set($calendar, 'settings.meeting_venue', $request->input('meeting_venue'));
+            data_set($calendar, 'settings.meeting_address', $request->input('meeting_venue'));
+        }
+        if ($request->filled('meeting_landmark')) {
+            data_set($calendar, 'settings.meeting_landmark', $request->input('meeting_landmark'));
+        }
+        if ($request->filled('meeting_link')) {
+            data_set($calendar, 'settings.meeting_link', $request->input('meeting_link'));
+        }
+        if ($request->filled('meeting_passcode')) {
+            data_set($calendar, 'settings.meeting_passcode', $request->input('meeting_passcode'));
+        }
+        if ($request->filled('meeting_mode')) {
+            data_set($calendar, 'settings.meeting_mode', $request->input('meeting_mode'));
+        }
+        if ($request->filled('meeting_frequency')) {
+            data_set($calendar, 'settings.meeting_frequency', $request->input('meeting_frequency'));
+        }
+        if ($request->filled('launch_date')) {
+            data_set($calendar, 'settings.launch_date', $request->input('launch_date'));
+        }
         data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
         data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
         data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
@@ -303,6 +343,11 @@ class CircleManagementController extends BaseApiController
             'meeting_mode' => ['nullable', 'string'],
             'meeting_frequency' => ['nullable', 'string'],
             'launch_date' => ['nullable', 'date'],
+            'meeting_repeat' => ['nullable'],
+            'meeting_venue' => ['nullable', 'string'],
+            'meeting_landmark' => ['nullable', 'string'],
+            'meeting_link' => ['nullable', 'string'],
+            'meeting_passcode' => ['nullable', 'string'],
             'calendar' => ['nullable', 'array'],
             'categories' => ['nullable', 'array'],
         ]);
@@ -315,12 +360,24 @@ class CircleManagementController extends BaseApiController
             'cover_file_id',
             'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
             'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
-            'meeting_frequency', 'launch_date',
+            'meeting_frequency', 'meeting_repeat', 'launch_date',
         ];
 
         foreach ($fillableColumns as $col) {
             if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
                 $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (array_key_exists('meeting_repeat', $validated)) {
+            $repVal = $validated['meeting_repeat'];
+            if (is_string($repVal)) {
+                $repVal = json_decode($repVal, true);
+            }
+            if (is_array($repVal)) {
+                $circle->meeting_repeat = $repVal;
+            } elseif ($repVal === null) {
+                $circle->meeting_repeat = null;
             }
         }
 
@@ -334,6 +391,31 @@ class CircleManagementController extends BaseApiController
         $currentCalendar = is_array($circle->calendar) ? $circle->calendar : [];
         if (isset($validated['calendar']) && is_array($validated['calendar'])) {
             $currentCalendar = array_replace_recursive($currentCalendar, $validated['calendar']);
+        }
+        if (!empty($circle->meeting_repeat)) {
+            data_set($currentCalendar, 'settings.meeting_repeat', $circle->meeting_repeat);
+        }
+        if ($request->has('meeting_venue')) {
+            data_set($currentCalendar, 'settings.meeting_venue', $request->input('meeting_venue'));
+            data_set($currentCalendar, 'settings.meeting_address', $request->input('meeting_venue'));
+        }
+        if ($request->has('meeting_landmark')) {
+            data_set($currentCalendar, 'settings.meeting_landmark', $request->input('meeting_landmark'));
+        }
+        if ($request->has('meeting_link')) {
+            data_set($currentCalendar, 'settings.meeting_link', $request->input('meeting_link'));
+        }
+        if ($request->has('meeting_passcode')) {
+            data_set($currentCalendar, 'settings.meeting_passcode', $request->input('meeting_passcode'));
+        }
+        if ($request->has('meeting_mode')) {
+            data_set($currentCalendar, 'settings.meeting_mode', $request->input('meeting_mode'));
+        }
+        if ($request->has('meeting_frequency')) {
+            data_set($currentCalendar, 'settings.meeting_frequency', $request->input('meeting_frequency'));
+        }
+        if ($request->has('launch_date')) {
+            data_set($currentCalendar, 'settings.launch_date', $request->input('launch_date'));
         }
         if (array_key_exists('circle_founder_user_id', $validated)) {
             data_set($currentCalendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id']);
