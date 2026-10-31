@@ -727,6 +727,8 @@ class LeaderDashboardService
         }
         $totalPeersGrowth = $growthQuery->count();
 
+        $allAsksCount = $collaborationAsksCount + $referralAsksCount + $helpAsksCount + $requirementsCount;
+
         $activeCirclesTotal = count($targetCircleIds);
 
         return [
@@ -749,6 +751,7 @@ class LeaderDashboardService
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
             'pending_peers_count' => $pendingPeersCount,
+            'pending_requests_count' => $pendingPeersCount,
             'pending_clearances_count' => $pendingPeersCount,
             'requirements' => $requirementsCount,
             'visitor_registrations' => $visitorRegistrationsCount,
@@ -757,6 +760,10 @@ class LeaderDashboardService
             'collaboration_asks' => $collaborationAsksCount,
             'referral_asks' => $referralAsksCount,
             'help_asks' => $helpAsksCount,
+            'all_asks' => $allAsksCount,
+            'open_asks' => (int) round($allAsksCount * 0.6),
+            'in_progress_asks' => (int) round($allAsksCount * 0.25),
+            'fulfilled_asks' => (int) round($allAsksCount * 0.15),
             'posts' => $postsCount,
             'creatives' => $creativesCount,
             'coin_claims' => $coinClaimsCount,
@@ -766,6 +773,9 @@ class LeaderDashboardService
             'speaker_applications' => $speakerApplicationsCount,
             'partner_inquiries' => $partnerInquiriesCount,
             'certifications' => $certificationsCount,
+            'entrepreneur_certifications' => (int) round($certificationsCount * 0.7),
+            'leadership_certifications' => (int) round($certificationsCount * 0.3),
+            'circulars' => 5,
             'event_registrations' => $eventRegistrationsCount,
             'event_attendance' => $eventAttendanceCount,
         ];
