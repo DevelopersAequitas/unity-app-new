@@ -538,16 +538,16 @@
                                     <ul class="nav flex-column ps-3 mt-1">
                                         <li class="nav-item">
                                             <a class="nav-link py-1 {{ (!request()->is('admin/web/leadership/nominations/sub*') && request()->get('form') !== 'sub_form_2') ? 'active' : '' }}" 
-                                               href="{{ url('admin/web/leadership/nominations') }}" title="Main form 1">
+                                               href="{{ url('admin/web/leadership/nominations') }}" title="Nomination Forms (1)">
                                                 <i class="bi bi-file-earmark-text me-2 text-primary"></i>
-                                                <span class="menu-text">Main form 1</span>
+                                                <span class="menu-text">Nomination Forms (1)</span>
                                             </a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link py-1 {{ (request()->is('admin/web/leadership/nominations/sub*') || request()->get('form') === 'sub_form_2') ? 'active' : '' }}" 
-                                               href="{{ url('admin/web/leadership/nominations/sub-form-2') }}" title="Sub form 2">
+                                               href="{{ url('admin/web/leadership/nominations/sub-form-2') }}" title="Jury Forms (2)">
                                                 <i class="bi bi-file-earmark-ruled me-2 text-info"></i>
-                                                <span class="menu-text">Sub form 2</span>
+                                                <span class="menu-text">Jury Forms (2)</span>
                                             </a>
                                         </li>
                                     </ul>
