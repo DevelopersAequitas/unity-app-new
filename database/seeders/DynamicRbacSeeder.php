@@ -165,30 +165,48 @@ class DynamicRbacSeeder extends Seeder
 
         // Define which modules each role can see
         $roleModuleMap = [
-            'global_admin' => $allModuleSlugs,
-            'global_founder' => $allModuleSlugs,
-            'chair' => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests', 'referral-report'],
-            'vice_chair' => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests', 'referral-report'],
-            'secretary' => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests'],
-            'founder' => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests'],
-            'director' => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests'],
-            'industry_director' => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests', 'circles'],
-            'ded' => ['dashboard', 'members', 'activities', 'circles', 'coins', 'life-impact', 'pending-requests', 'industries'],
-            'member' => ['dashboard', 'members', 'activities', 'coins', 'life-impact'],
+            'global_admin'                      => $allModuleSlugs,
+            'eed'                               => $allModuleSlugs,
+            'ded'                               => ['dashboard', 'members', 'activities', 'circles', 'coins', 'life-impact', 'pending-requests', 'industries'],
+            'industry_director'                 => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests', 'circles'],
+            'circle_leader'                     => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests', 'referral-report'],
+            'circle_director'                   => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests'],
+            'circle_founder'                    => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests'],
+            'chair'                             => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests', 'referral-report'],
+            'vice_chair'                        => ['dashboard', 'members', 'activities', 'circles', 'events', 'coins', 'life-impact', 'pending-requests', 'referral-report'],
+            'secretary'                         => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests'],
+            'committee_leader'                  => ['dashboard', 'members', 'activities', 'coins', 'life-impact', 'pending-requests'],
+            'marketing_team'                    => ['dashboard', 'members', 'activities'],
+            'analytics_team'                    => ['dashboard', 'members', 'activities'],
+            'content_team'                      => ['dashboard', 'members', 'activities'],
+            'read_only'                         => ['dashboard', 'members', 'activities'],
+            'member'                            => ['dashboard', 'members', 'activities', 'coins', 'life-impact'],
+            'chair_business_growth_committee'   => ['dashboard', 'members', 'activities'],
+            'chair_membership_growth_committee' => ['dashboard', 'members', 'activities'],
+            'chair_events_impacts_committee'    => ['dashboard', 'members', 'activities', 'events'],
         ];
 
         // Define which permissions each role gets on all accessible pages
         $rolePermissionMap = [
-            'global_admin' => ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'export', 'import', 'print', 'restore'],
-            'global_founder' => ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'export', 'import', 'print', 'restore'],
-            'chair' => ['view', 'export', 'approve', 'reject'],
-            'vice_chair' => ['view', 'export'],
-            'secretary' => ['view', 'export'],
-            'founder' => ['view'],
-            'director' => ['view'],
-            'industry_director' => ['view', 'export'],
-            'ded' => ['view', 'export'],
-            'member' => ['view'],
+            'global_admin'                      => ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'export', 'import', 'print', 'restore'],
+            'eed'                               => ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'export', 'import', 'print', 'restore'],
+            'ded'                               => ['view', 'create', 'edit', 'approve', 'reject', 'export'],
+            'industry_director'                 => ['view', 'export'],
+            'circle_leader'                     => ['view', 'create', 'edit', 'approve', 'reject', 'export'],
+            'circle_director'                   => ['view', 'approve', 'reject', 'export'],
+            'circle_founder'                    => ['view', 'export'],
+            'chair'                             => ['view', 'export', 'approve', 'reject'],
+            'vice_chair'                        => ['view', 'export'],
+            'secretary'                         => ['view', 'export'],
+            'committee_leader'                  => ['view', 'export'],
+            'marketing_team'                    => ['view'],
+            'analytics_team'                    => ['view', 'export'],
+            'content_team'                      => ['view', 'create', 'edit'],
+            'read_only'                         => ['view'],
+            'member'                            => ['view'],
+            'chair_business_growth_committee'   => ['view'],
+            'chair_membership_growth_committee' => ['view'],
+            'chair_events_impacts_committee'    => ['view'],
         ];
 
         $permissions = Permission::query()->pluck('id', 'key');
@@ -234,9 +252,9 @@ class DynamicRbacSeeder extends Seeder
                     }
 
                     $allowedDashboardSlug = match ($roleKey) {
-                        'ded' => 'ded-dashboard',
+                        'ded'               => 'ded-dashboard',
                         'industry_director' => 'id-dashboard',
-                        default => 'circle-dashboard',
+                        default             => 'circle-dashboard',
                     };
 
                     if (in_array($page->slug, ['main-dashboard', 'circle-dashboard', 'ded-dashboard', 'id-dashboard'], true)) {
@@ -267,23 +285,33 @@ class DynamicRbacSeeder extends Seeder
     private function assignPageGroupsToRole(Role $role, string $roleKey): void
     {
         $groupAssignments = match ($roleKey) {
-            'global_admin', 'global_founder' => [
+            'global_admin', 'eed' => [
                 'membership-management', 'activity-management', 'event-management',
                 'circle-management', 'notification-management', 'pending-requests',
                 'financial-coins', 'settings-config',
+            ],
+            'ded', 'circle_leader', 'circle_director', 'circle_founder' => [
+                'membership-management', 'activity-management', 'event-management',
+                'circle-management', 'pending-requests', 'financial-coins',
             ],
             'chair', 'vice_chair' => [
                 'membership-management', 'activity-management', 'event-management',
                 'circle-management', 'pending-requests', 'financial-coins',
             ],
-            'secretary', 'founder', 'director' => [
-                'membership-management', 'activity-management', 'pending-requests', 'financial-coins',
-            ],
             'industry_director' => [
                 'membership-management', 'activity-management', 'circle-management', 'pending-requests',
             ],
-            'ded' => [
-                'membership-management', 'activity-management', 'circle-management', 'pending-requests',
+            'secretary', 'committee_leader' => [
+                'membership-management', 'activity-management', 'pending-requests', 'financial-coins',
+            ],
+            'marketing_team', 'analytics_team', 'content_team', 'read_only' => [
+                'membership-management', 'activity-management',
+            ],
+            'chair_business_growth_committee', 'chair_membership_growth_committee' => [
+                'membership-management', 'activity-management',
+            ],
+            'chair_events_impacts_committee' => [
+                'membership-management', 'activity-management', 'event-management',
             ],
             'member' => [
                 'membership-management', 'activity-management',
