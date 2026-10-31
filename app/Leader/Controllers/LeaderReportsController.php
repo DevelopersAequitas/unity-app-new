@@ -9,6 +9,7 @@ use App\Leader\Requests\LeaderSubmitReportRequest;
 use App\Leader\Services\LeaderReportsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class LeaderReportsController extends Controller
 {
@@ -65,9 +66,9 @@ class LeaderReportsController extends Controller
     /**
      * Get full report details with peer roster.
      */
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
-        $data = $this->reportsService->getReportDetails($id);
+        $data = $this->reportsService->getReportDetails($id, $request->user());
 
         return response()->json([
             'success' => true,
@@ -93,7 +94,7 @@ class LeaderReportsController extends Controller
     /**
      * Get report dynamic pre-signed / download link.
      */
-    public function download(Request $request, string $id): JsonResponse|\Symfony\Component\HttpFoundation\Response
+    public function download(Request $request, string $id): JsonResponse|Response
     {
         if ($request->boolean('stream') || ($request->query('type') === 'pdf' && ! $request->expectsJson() && ! $request->isJson())) {
             return $this->reportsService->downloadReportPdf($id, $request);
@@ -110,7 +111,7 @@ class LeaderReportsController extends Controller
     /**
      * Directly stream/download the report PDF file.
      */
-    public function downloadPdf(Request $request, string $id): \Symfony\Component\HttpFoundation\Response
+    public function downloadPdf(Request $request, string $id): Response
     {
         return $this->reportsService->downloadReportPdf($id, $request);
     }

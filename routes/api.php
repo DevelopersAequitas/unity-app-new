@@ -202,6 +202,12 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\User;
+use App\Modules\DynamicAccess\Controllers\AccessBootstrapController;
+use App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController;
+use App\Modules\DynamicAccess\Controllers\PermissionConfigController;
+use App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController;
+use App\Modules\DynamicAccess\Controllers\RoleConfigController;
+use App\Modules\DynamicAccess\Controllers\ScreenConfigController;
 use App\Services\Notifications\FcmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1106,6 +1112,9 @@ Route::prefix('v1')->group(function () {
             // Section 21: Posts & Moderation Endpoints
             Route::get('/posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
             Route::get('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+            Route::get('/posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+            Route::post('/posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+            Route::post('/posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
             Route::delete('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
             Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -1539,6 +1548,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
+
+            // Campaigns Lifecycle & Scoped Analytics
+            Route::get('/campaigns', [AdvertiserMemberApiController::class, 'campaigns']);
+            Route::post('/campaigns', [AdvertiserMemberApiController::class, 'createCampaign']);
+            Route::get('/campaigns/{id}', [AdvertiserMemberApiController::class, 'campaignDetails'])->whereUuid('id');
+            Route::patch('/campaigns/{id}', [AdvertiserMemberApiController::class, 'updateCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/submit', [AdvertiserMemberApiController::class, 'submitCampaign'])->whereUuid('id');
+            Route::post('/campaigns/{id}/cancel', [AdvertiserMemberApiController::class, 'cancelCampaign'])->whereUuid('id');
+            Route::get('/campaigns/{id}/analytics', [AdvertiserMemberApiController::class, 'campaignAnalytics'])->whereUuid('id');
+            Route::get('/analytics/timeseries', [AdvertiserMemberApiController::class, 'analyticsTimeseries']);
         });
     });
 
@@ -1641,6 +1660,17 @@ Route::prefix('v1')->group(function () {
         // Banner configuration
         Route::get('/banner-config', [AdvertiserAdminApiController::class, 'bannerConfig']);
         Route::patch('/banner-config', [AdvertiserAdminApiController::class, 'updateBannerConfig']);
+
+        // Campaigns Management
+        Route::get('/campaigns', [AdvertiserAdminApiController::class, 'campaigns']);
+        Route::get('/campaigns/{id}', [AdvertiserAdminApiController::class, 'showCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/review', [AdvertiserAdminApiController::class, 'reviewCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/publish', [AdvertiserAdminApiController::class, 'publishCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/pause', [AdvertiserAdminApiController::class, 'pauseCampaign'])->whereUuid('id');
+        Route::post('/campaigns/{id}/resume', [AdvertiserAdminApiController::class, 'resumeCampaign'])->whereUuid('id');
+
+        // Analytics Summary
+        Route::get('/analytics/summary', [AdvertiserAdminApiController::class, 'analyticsSummary']);
     });
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
@@ -1873,6 +1903,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     // Section 21: Posts & Moderation Endpoints (8 endpoints)
     Route::get('posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
     Route::get('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+    Route::get('posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+    Route::post('posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
+    Route::post('posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
     Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
     Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
     Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -2003,3 +2036,142 @@ foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
         Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
     });
 }
+
+// =========================================================================
+// DYNAMIC ACCESS, ORGANIZATIONAL SCOPE & REPORTING CONFIGURATION APIs
+// (Supports both /api/v1/admin/* and /api/admin/*)
+// =========================================================================
+foreach (['admin', 'v1/admin'] as $adminPrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($adminPrefix)->group(function (): void {
+        // API 1: Access System Bootstrap
+        Route::get('access-system/bootstrap', [AccessBootstrapController::class, 'bootstrap']);
+
+        // API 21: Current User Navigation Menu & Screen Permissions
+        Route::get('access/me/navigation', [AccessBootstrapController::class, 'navigation']);
+
+        // APIs 2–8: Role Configuration CRUD
+        Route::get('access/roles', [RoleConfigController::class, 'index']);
+        Route::post('access/roles', [RoleConfigController::class, 'store']);
+        Route::get('access/roles/{roleId}', [RoleConfigController::class, 'show']);
+        Route::put('access/roles/{roleId}', [RoleConfigController::class, 'update']);
+        Route::patch('access/roles/{roleId}/status', [RoleConfigController::class, 'updateStatus']);
+        Route::post('access/roles/{roleId}/clone', [RoleConfigController::class, 'cloneRole']);
+        Route::delete('access/roles/{roleId}', [RoleConfigController::class, 'destroy']);
+
+        // APIs 9–10: Role Hierarchy Configuration
+        Route::get('access/role-hierarchy', [RoleConfigController::class, 'hierarchyIndex']);
+        Route::put('access/role-hierarchy', [RoleConfigController::class, 'hierarchyUpdate']);
+
+        // APIs 11–15: Permission Registry & Role Permission Matrix
+        Route::get('access/permissions', [PermissionConfigController::class, 'index']);
+        Route::post('access/permissions', [PermissionConfigController::class, 'store']);
+        Route::put('access/permissions/{permissionId}', [PermissionConfigController::class, 'update']);
+        Route::get('access/roles/{roleId}/permissions', [PermissionConfigController::class, 'rolePermissions']);
+        Route::put('access/roles/{roleId}/permissions', [PermissionConfigController::class, 'syncRolePermissions']);
+
+        // APIs 16–20: Screen Registry & Role Screen Access Matrix
+        Route::get('access/screens', [ScreenConfigController::class, 'index']);
+        Route::post('access/screens', [ScreenConfigController::class, 'store']);
+        Route::put('access/screens/{screenId}', [ScreenConfigController::class, 'update'])->whereUuid('screenId');
+        Route::get('access/roles/{roleId}/screens', [ScreenConfigController::class, 'roleScreens']);
+        Route::put('access/roles/{roleId}/screens', [ScreenConfigController::class, 'syncRoleScreens']);
+
+        // APIs 22–25: Role Scope Policies & Field Access Rules
+        Route::get('access/roles/{roleId}/scope-policies', [PolicyAndFieldConfigController::class, 'showScopePolicies']);
+        Route::put('access/roles/{roleId}/scope-policies', [PolicyAndFieldConfigController::class, 'updateScopePolicies']);
+        Route::get('access/roles/{roleId}/field-access', [PolicyAndFieldConfigController::class, 'showFieldAccess']);
+        Route::put('access/roles/{roleId}/field-access', [PolicyAndFieldConfigController::class, 'updateFieldAccess']);
+
+        // APIs 26–30: User Role Assignments & Effective Access Profile
+        Route::get('access/user-roles', [AssignmentAndReportConfigController::class, 'listUserRoles']);
+        Route::post('access/user-roles', [AssignmentAndReportConfigController::class, 'storeUserRole']);
+        Route::put('access/user-roles/{assignmentId}', [AssignmentAndReportConfigController::class, 'updateUserRole']);
+        Route::delete('access/user-roles/{assignmentId}', [AssignmentAndReportConfigController::class, 'destroyUserRole']);
+        Route::get('access/users/{userId}/effective-access', [AssignmentAndReportConfigController::class, 'effectiveAccess'])->whereUuid('userId');
+
+        // APIs 31–36: Organizational Assignments & User Scope Summary
+        Route::get('organizational-assignments', [AssignmentAndReportConfigController::class, 'listOrgAssignments']);
+        Route::post('organizational-assignments', [AssignmentAndReportConfigController::class, 'storeOrgAssignment']);
+        Route::post('organizational-assignments/bulk', [AssignmentAndReportConfigController::class, 'bulkStoreOrgAssignments']);
+        Route::put('organizational-assignments/{assignmentId}', [AssignmentAndReportConfigController::class, 'updateOrgAssignment'])->whereUuid('assignmentId');
+        Route::delete('organizational-assignments/{assignmentId}', [AssignmentAndReportConfigController::class, 'destroyOrgAssignment'])->whereUuid('assignmentId');
+        Route::get('users/{userId}/organizational-scope', [AssignmentAndReportConfigController::class, 'userScopeSummary'])->whereUuid('userId');
+
+        // APIs 37–41: Report Definitions & Role Report Access Matrix
+        Route::get('reports/definitions', [AssignmentAndReportConfigController::class, 'listReports']);
+        Route::post('reports/definitions', [AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::put('reports/definitions/{reportId}', [AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::get('access/roles/{roleId}/reports', [AssignmentAndReportConfigController::class, 'roleReports']);
+        Route::put('access/roles/{roleId}/reports', [AssignmentAndReportConfigController::class, 'syncRoleReports']);
+    });
+}
+
+// =========================================================================
+// DYNAMIC ACCESS, ORGANIZATIONAL SCOPE & REPORTING CONFIGURATION APIs
+// (Supports both /api/v1/admin/* and /api/admin/*)
+// =========================================================================
+foreach (['admin', 'v1/admin'] as $adminPrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($adminPrefix)->group(function (): void {
+        // API 1: Access System Bootstrap
+        Route::get('access-system/bootstrap', [\App\Modules\DynamicAccess\Controllers\AccessBootstrapController::class, 'bootstrap']);
+
+        // API 21: Current User Navigation Menu & Screen Permissions
+        Route::get('access/me/navigation', [\App\Modules\DynamicAccess\Controllers\AccessBootstrapController::class, 'navigation']);
+
+        // APIs 2–8: Role Configuration CRUD
+        Route::get('access/roles', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'index']);
+        Route::post('access/roles', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'store']);
+        Route::get('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'show']);
+        Route::put('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'update']);
+        Route::patch('access/roles/{roleId}/status', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'updateStatus']);
+        Route::post('access/roles/{roleId}/clone', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'cloneRole']);
+        Route::delete('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'destroy']);
+
+        // APIs 9–10: Role Hierarchy Configuration
+        Route::get('access/role-hierarchy', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'hierarchyIndex']);
+        Route::put('access/role-hierarchy', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'hierarchyUpdate']);
+
+        // APIs 11–15: Permission Registry & Role Permission Matrix
+        Route::get('access/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'index']);
+        Route::post('access/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'store']);
+        Route::put('access/permissions/{permissionId}', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'update']);
+        Route::get('access/roles/{roleId}/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'rolePermissions']);
+        Route::put('access/roles/{roleId}/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'syncRolePermissions']);
+
+        // APIs 16–20: Screen Registry & Role Screen Access Matrix
+        Route::get('access/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'index']);
+        Route::post('access/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'store']);
+        Route::put('access/screens/{screenId}', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'update'])->whereUuid('screenId');
+        Route::get('access/roles/{roleId}/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'roleScreens']);
+        Route::put('access/roles/{roleId}/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'syncRoleScreens']);
+
+        // APIs 22–25: Role Scope Policies & Field Access Rules
+        Route::get('access/roles/{roleId}/scope-policies', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'showScopePolicies']);
+        Route::put('access/roles/{roleId}/scope-policies', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'updateScopePolicies']);
+        Route::get('access/roles/{roleId}/field-access', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'showFieldAccess']);
+        Route::put('access/roles/{roleId}/field-access', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'updateFieldAccess']);
+
+        // APIs 26–30: User Role Assignments & Effective Access Profile
+        Route::get('access/user-roles', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listUserRoles']);
+        Route::post('access/user-roles', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'storeUserRole']);
+        Route::put('access/user-roles/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'updateUserRole']);
+        Route::delete('access/user-roles/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'destroyUserRole']);
+        Route::get('access/users/{userId}/effective-access', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'effectiveAccess'])->whereUuid('userId');
+
+        // APIs 31–36: Organizational Assignments & User Scope Summary
+        Route::get('organizational-assignments', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listOrgAssignments']);
+        Route::post('organizational-assignments', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'storeOrgAssignment']);
+        Route::post('organizational-assignments/bulk', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'bulkStoreOrgAssignments']);
+        Route::put('organizational-assignments/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'updateOrgAssignment'])->whereUuid('assignmentId');
+        Route::delete('organizational-assignments/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'destroyOrgAssignment'])->whereUuid('assignmentId');
+        Route::get('users/{userId}/organizational-scope', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'userScopeSummary'])->whereUuid('userId');
+
+        // APIs 37–41: Report Definitions & Role Report Access Matrix
+        Route::get('reports/definitions', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listReports']);
+        Route::post('reports/definitions', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::put('reports/definitions/{reportId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::get('access/roles/{roleId}/reports', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'roleReports']);
+        Route::put('access/roles/{roleId}/reports', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'syncRoleReports']);
+    });
+}
+

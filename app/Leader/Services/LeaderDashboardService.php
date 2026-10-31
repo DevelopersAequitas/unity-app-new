@@ -169,50 +169,9 @@ class LeaderDashboardService
                             ->all();
                     }
                 } elseif ($role === 'industryDirector') {
-                    $adminUserIds = array_values(array_filter(array_unique([$userId, $admin?->id])));
-
-                    if (Schema::hasTable('industry_director_assignments')) {
-                        $assignmentRows = DB::table('industry_director_assignments')
-                            ->where(function ($q) use ($adminUserIds): void {
-                                $q->whereIn('admin_user_id', $adminUserIds);
-                                if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
-                                    $q->orWhereIn('user_id', $adminUserIds);
-                                }
-                            })
-                            ->where('is_active', true)
-                            ->get();
-
-                        foreach ($assignmentRows as $row) {
-                            foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
-                                if (! empty($row->{$col})) {
-                                    $assignedIndustryIds[] = (string) $row->{$col};
-                                }
-                            }
-                            if (! empty($row->industry_name)) {
-                                $assignedIndustryNames[] = (string) $row->industry_name;
-                            }
-                        }
-                    }
-
-                    if ($user) {
-                        if (! empty($user->main_business_category_id)) {
-                            $assignedIndustryIds[] = (string) $user->main_business_category_id;
-                        }
-                        if (! empty($user->business_category_id)) {
-                            $assignedIndustryIds[] = (string) $user->business_category_id;
-                        }
-                    }
-
-                    $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
-                    $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
-
+                    // Strictly the circles built under the main categories assigned to this director.
+                    // A category with no circles yet contributes no peers, stats or data.
                     $targetCircleIds = $scopedCircleIds ?? [];
-                    if (empty($targetCircleIds)) {
-                        $targetCircleIds = Circle::query()->whereNull('deleted_at')
-                            ->where('industry_director_user_id', $userId)
-                            ->pluck('id')
-                            ->all();
-                    }
                 } else {
                     // Own-circle roles (circleFounder, circleDirector, chairs, members)
                     $targetCircleIds = $scopedCircleIds ?? [];
@@ -236,18 +195,27 @@ class LeaderDashboardService
                     ->values()
                     ->all();
 
-                $directLeaderIds = Circle::query()
-                    ->whereIn('id', $targetCircleIds)
-                    ->whereNull('deleted_at')
-                    ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id', 'director_user_id', 'ded_user_id', 'industry_director_user_id', 'secretary_user_id'])
-                    ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->founder_user_id, $c->circle_director_user_id, $c->director_user_id, $c->ded_user_id, $c->industry_director_user_id, $c->secretary_user_id]))
-                    ->all();
+                $circleCols = Schema::hasTable('circles') ? Schema::getColumnListing('circles') : [];
+                $selectLeaderCols = array_values(array_intersect(
+                    ['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id', 'director_user_id', 'ded_user_id', 'industry_director_user_id', 'secretary_user_id'],
+                    $circleCols
+                ));
+                $directLeaderIds = ! empty($selectLeaderCols)
+                    ? Circle::query()
+                        ->whereIn('id', $targetCircleIds)
+                        ->whereNull('deleted_at')
+                        ->get($selectLeaderCols)
+                        ->flatMap(fn ($c) => array_filter(array_map(fn ($col) => $c->{$col} ?? null, $selectLeaderCols)))
+                        ->all()
+                    : [];
 
-                $activeCircleUserIds = User::query()
-                    ->whereNull('deleted_at')
-                    ->whereIn('active_circle_id', $targetCircleIds)
-                    ->pluck('id')
-                    ->all();
+                $activeCircleUserIds = Schema::hasColumn('users', 'active_circle_id')
+                    ? User::query()
+                        ->whereNull('deleted_at')
+                        ->whereIn('active_circle_id', $targetCircleIds)
+                        ->pluck('id')
+                        ->all()
+                    : [];
 
                 $scopedMemberUserIds = array_values(array_unique(array_merge($memberIds, $directLeaderIds, $activeCircleUserIds)));
             }
@@ -270,37 +238,6 @@ class LeaderDashboardService
                         ->pluck('id')
                         ->all();
                     $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $cityUserIds)));
-                }
-            } elseif (! $circle && $role === 'industryDirector') {
-                // Also include industry-scoped peers across the platform matching assigned industries
-                if (! empty($assignedIndustryIds) || ! empty($assignedIndustryNames)) {
-                    $indUserQuery = User::query()->whereNull('deleted_at');
-                    $indUserQuery->where(function (Builder $q) use ($assignedIndustryIds, $assignedIndustryNames): void {
-                        if (! empty($assignedIndustryIds)) {
-                            if (Schema::hasColumn('users', 'business_category_id')) {
-                                $q->orWhereIn('business_category_id', $assignedIndustryIds);
-                            }
-                            if (Schema::hasColumn('users', 'main_business_category_id')) {
-                                $q->orWhereIn('main_business_category_id', $assignedIndustryIds);
-                            }
-                        }
-                        foreach ($assignedIndustryIds as $indId) {
-                            if (Schema::hasColumn('users', 'industry_tags')) {
-                                $q->orWhere('industry_tags', 'like', '%'.$indId.'%');
-                            }
-                        }
-                        foreach ($assignedIndustryNames as $indName) {
-                            $lowerName = strtolower($indName);
-                            if (Schema::hasColumn('users', 'business_sub_category')) {
-                                $q->orWhereRaw('LOWER(business_sub_category) LIKE ?', ['%'.$lowerName.'%']);
-                            }
-                            if (Schema::hasColumn('users', 'industry_tags')) {
-                                $q->orWhereRaw('LOWER(CAST(industry_tags AS TEXT)) LIKE ?', ['%'.$lowerName.'%']);
-                            }
-                        }
-                    });
-                    $indUserIds = $indUserQuery->pluck('id')->all();
-                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $indUserIds)));
                 }
             }
         }
@@ -582,7 +519,7 @@ class LeaderDashboardService
                     return 0;
                 }
 
-                return (int) $aq->whereIn('creator_user_id', $scopedMemberUserIds)->count();
+                return (int) $aq->whereIn('user_id', $scopedMemberUserIds)->count();
             };
 
             $collaborationAsksCount = $buildAskCount($flows['collaboration'] ?? null);
@@ -845,7 +782,10 @@ class LeaderDashboardService
             }
         }
 
-        $users = $query->orderByDesc('life_impacted_count')
+        $hasLifeImpactedCol = Schema::hasColumn('users', 'life_impacted_count');
+
+        $users = $query
+            ->when($hasLifeImpactedCol, fn ($q) => $q->orderByDesc('life_impacted_count'))
             ->orderByDesc('coins_balance')
             ->take(5)
             ->get();
@@ -853,7 +793,7 @@ class LeaderDashboardService
         // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters for global admin
         if ($users->isEmpty() && $isAdmin) {
             $users = (clone $baseQuery)
-                ->orderByDesc('life_impacted_count')
+                ->when($hasLifeImpactedCol, fn ($q) => $q->orderByDesc('life_impacted_count'))
                 ->orderByDesc('coins_balance')
                 ->take(5)
                 ->get();
@@ -906,7 +846,7 @@ class LeaderDashboardService
             }
 
             $lives = (int) ($u->life_impacted_count ?? 0);
-            if ($lives <= 0) {
+            if ($lives <= 0 && Schema::hasTable('impacts') && Schema::hasColumn('impacts', 'user_id') && Schema::hasColumn('impacts', 'life_impacted')) {
                 try {
                     $impactSum = (int) DB::table('impacts')
                         ->where('user_id', $u->id)

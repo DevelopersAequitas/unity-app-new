@@ -165,12 +165,20 @@
               </td>
               <td class="p-3">
                 @if(!empty($event->scheduled_start_time))
+                  @php
+                    $startUtcIso = \Carbon\Carbon::parse($event->scheduled_start_time)->utc()->toIso8601String();
+                  @endphp
                   <div class="font-medium text-slate-700 text-xs">
-                    {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('d M, h:i A') : $event->scheduled_start_time->format('d M, h:i A') }}
+                    <span class="utc-to-local" data-utc="{{ $startUtcIso }}">
+                      {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('d M, h:i A') : $event->scheduled_start_time->format('d M, h:i A') }}
+                    </span>
                   </div>
                   @if(!empty($event->scheduled_end_time))
+                    @php
+                      $endUtcIso = \Carbon\Carbon::parse($event->scheduled_end_time)->utc()->toIso8601String();
+                    @endphp
                     <div class="text-slate-400 text-[11px]">
-                      to {{ is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('h:i A') : $event->scheduled_end_time->format('h:i A') }}
+                      to <span class="utc-to-local" data-utc="{{ $endUtcIso }}">{{ is_string($event->scheduled_end_time) ? \Carbon\Carbon::parse($event->scheduled_end_time)->format('h:i A') : $event->scheduled_end_time->format('h:i A') }}</span>
                     </div>
                   @endif
                 @else

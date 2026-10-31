@@ -324,6 +324,10 @@ class LeaderPermissionService
      */
     public function resolveCapabilitiesFromDynamicRbac(Role $role): array
     {
+        if (! Schema::hasTable('role_module_access') || ! Schema::hasTable('role_page_permissions') || ! Schema::hasTable('admin_modules') || ! Schema::hasTable('admin_pages')) {
+            return [];
+        }
+
         $roleId = (string) $role->id;
 
         $hasModuleAccess = DB::table('role_module_access')->where('role_id', $roleId)->exists();
@@ -450,6 +454,8 @@ class LeaderPermissionService
 
         $query = Circle::query()->whereNull('deleted_at');
 
+        $circleCols = Schema::hasTable('circles') ? Schema::getColumnListing('circles') : [];
+
         if ($role === 'superAdmin' || $role === 'countryDirector') {
             $circles = $query->orderBy('name')->get();
         } elseif ($role === 'districtExecDirector') {
@@ -459,14 +465,18 @@ class LeaderPermissionService
             if (! empty($circleIds)) {
                 $circles = $query->whereIn('id', $circleIds)->get();
             } else {
-                $assignedDistrictId = DB::table('admin_ded_districts')
-                    ->where('admin_user_id', $userId)
-                    ->orWhere('user_id', $userId)
-                    ->value('district_id');
+                $assignedDistrictId = Schema::hasTable('admin_ded_districts')
+                    ? DB::table('admin_ded_districts')
+                        ->where('admin_user_id', $userId)
+                        ->orWhere('user_id', $userId)
+                        ->value('district_id')
+                    : null;
 
-                $circles = $query->where(function ($q) use ($userId, $assignedDistrictId): void {
-                    $q->where('ded_user_id', $userId);
-                    if ($assignedDistrictId) {
+                $circles = $query->where(function ($q) use ($userId, $assignedDistrictId, $circleCols): void {
+                    if (in_array('ded_user_id', $circleCols, true)) {
+                        $q->where('ded_user_id', $userId);
+                    }
+                    if ($assignedDistrictId && in_array('district_id', $circleCols, true)) {
                         $q->orWhere('district_id', $assignedDistrictId);
                     }
                 })->get();
@@ -476,9 +486,13 @@ class LeaderPermissionService
             $adminUserId = (string) ($admin?->id ?? $userId);
             $assignedIndustryIds = app(IndustryDirectorScopeService::class)->assignedIndustryIdsForAdmin($adminUserId);
 
-            $circles = $query->where(function ($q) use ($userId, $assignedIndustryIds): void {
-                $q->where('industry_director_user_id', $userId)
-                    ->orWhere('chair_user_id', $userId);
+            $circles = $query->where(function ($q) use ($userId, $assignedIndustryIds, $circleCols): void {
+                if (in_array('industry_director_user_id', $circleCols, true)) {
+                    $q->where('industry_director_user_id', $userId);
+                }
+                if (in_array('chair_user_id', $circleCols, true)) {
+                    $q->orWhere('chair_user_id', $userId);
+                }
                 if (! empty($assignedIndustryIds)) {
                     $q->orWhere(function ($sub) use ($assignedIndustryIds): void {
                         foreach ($assignedIndustryIds as $indId) {
@@ -489,13 +503,15 @@ class LeaderPermissionService
                 }
             })->get();
         } else {
-            $circles = $query->where('chair_user_id', $userId)
-                ->orWhere('circle_founder_user_id', $userId)
-                ->orWhere('founder_user_id', $userId)
-                ->orWhere('circle_director_user_id', $userId)
-                ->orWhere('director_user_id', $userId)
-                ->orWhereHas('members', fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'))
-                ->get();
+            $circles = $query->where(function ($q) use ($userId, $circleCols): void {
+                $q->where('founder_user_id', $userId);
+                foreach (['chair_user_id', 'circle_founder_user_id', 'circle_director_user_id', 'director_user_id'] as $col) {
+                    if (in_array($col, $circleCols, true)) {
+                        $q->orWhere($col, $userId);
+                    }
+                }
+                $q->orWhereHas('members', fn ($mq) => $mq->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'));
+            })->get();
         }
 
         return $circles->map(function (Circle $c): array {

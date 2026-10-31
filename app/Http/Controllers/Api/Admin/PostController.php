@@ -8,9 +8,12 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\UpdatePostStatusRequest;
 use App\Models\Post;
 use App\Services\Admin\AdminPostService;
+use App\Services\Posts\PostDeactivationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PostController extends BaseApiController
@@ -24,17 +27,17 @@ class PostController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
             ])
@@ -134,15 +137,15 @@ class PostController extends BaseApiController
     {
         $post = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,phone,designation,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,phone,designation,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'reports.reporter:id,first_name,last_name,display_name,email',
@@ -234,6 +237,124 @@ class PostController extends BaseApiController
         $data['media_url'] = $mediaUrl;
         $data['media_type'] = $mediaType;
         $data['aspect_ratio'] = '4:5';
+
+        // 1. Resolve author avatar & name for regular author user
+        $authorUser = $post->user;
+        $authorAvatar = $authorUser?->profile_photo_url ?: $authorUser?->avatar;
+        if (! $authorAvatar && $authorUser && $authorUser->profile_photo_file_id) {
+            $authorAvatar = url('/api/v1/files/'.$authorUser->profile_photo_file_id);
+        }
+        if ($authorAvatar && ! Str::startsWith($authorAvatar, ['http://', 'https://'])) {
+            $authorAvatar = url(ltrim($authorAvatar, '/'));
+        }
+
+        $authorName = $authorUser
+            ? ($authorUser->display_name ?: trim(($authorUser->first_name ?? '').' '.($authorUser->last_name ?? '')))
+            : ($post->author_name ?? $post->user_name ?? 'Member');
+
+        $data['user_name'] = $data['user_name'] ?? $authorName;
+        $data['userName'] = $data['userName'] ?? $authorName;
+        $data['author_name'] = $data['author_name'] ?? $authorName;
+        $data['authorName'] = $data['authorName'] ?? $authorName;
+        $data['author_avatar'] = $authorAvatar;
+        $data['authorAvatar'] = $authorAvatar;
+        $data['user_avatar'] = $authorAvatar;
+        $data['userAvatar'] = $authorAvatar;
+        if (isset($data['user']) && is_array($data['user'])) {
+            $data['user']['avatar'] = $authorAvatar;
+            $data['user']['profile_photo_url'] = $authorAvatar;
+            $data['user']['name'] = $data['user']['name'] ?? $authorName;
+            $data['user']['display_name'] = $data['user']['display_name'] ?? $authorName;
+        }
+
+        // Check if this is a recognition / system-generated bot post
+        $currentAuthorName = (string) ($post->user?->display_name ?? $post->user?->name ?? '');
+        $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
+            || ($post->source_type ?? null) === 'life_impact'
+            || str_contains(strtolower($currentAuthorName), 'genie')
+            || str_contains(strtolower($currentAuthorName), 'peers global');
+
+        if ($isRecognition) {
+            $recognizedPeer = null;
+            if (!empty($post->source_id)) {
+                $recognizedPeer = \App\Models\User::find($post->source_id);
+            }
+            if (!$recognizedPeer && !empty($post->id)) {
+                $mention = \App\Models\PostMention::where('post_id', $post->id)->first();
+                if ($mention && $mention->peer_id) {
+                    $recognizedPeer = \App\Models\User::find($mention->peer_id);
+                }
+            }
+            if (!$recognizedPeer && !empty($post->tags) && is_array($post->tags)) {
+                foreach ($post->tags as $tag) {
+                    if (Str::isUuid((string) $tag)) {
+                        $recognizedPeer = \App\Models\User::find($tag);
+                        if ($recognizedPeer) break;
+                    }
+                }
+            }
+            if (!$recognizedPeer && (!empty($post->content_text) || !empty($post->title))) {
+                $text = $post->content_text ?: $post->title;
+                if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                }
+            }
+
+            if ($recognizedPeer) {
+                $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '') . ' ' . ($recognizedPeer->last_name ?? ''));
+                $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
+                if (! $peerAvatar && $recognizedPeer->profile_photo_file_id) {
+                    $peerAvatar = url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id);
+                }
+                if ($peerAvatar && !Str::startsWith($peerAvatar, ['http://', 'https://'])) {
+                    $peerAvatar = url(ltrim($peerAvatar, '/'));
+                }
+                $peerCompany = $recognizedPeer->company_name ?: ($recognizedPeer->company ?: 'Aequitas Information Technology Pvt Ltd');
+
+                $data['recognized_user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                ];
+                $data['user_name'] = $peerName;
+                $data['userName'] = $peerName;
+                $data['author_name'] = $peerName;
+                $data['authorName'] = $peerName;
+                $data['author_avatar'] = $peerAvatar;
+                $data['authorAvatar'] = $peerAvatar;
+                $data['user_avatar'] = $peerAvatar;
+                $data['userAvatar'] = $peerAvatar;
+                $data['author_company'] = $peerCompany;
+                $data['company'] = $peerCompany;
+                $data['user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'first_name' => $recognizedPeer->first_name,
+                    'last_name' => $recognizedPeer->last_name,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                    'city' => $recognizedPeer->city,
+                    'circle' => $recognizedPeer->circle ? ['id' => (string) $recognizedPeer->circle->id, 'name' => $recognizedPeer->circle->name] : null,
+                ];
+            }
+        }
 
         if ($post->relationLoaded('likes')) {
             $data['likes_list'] = $post->likes->map(function ($like): array {
@@ -488,5 +609,120 @@ class PostController extends BaseApiController
             ['id' => $commentId, 'post_id' => $id, 'deleted' => true],
             'Comment removed successfully.'
         );
+    }
+
+    /**
+     * Preview post deactivation impact and awarded coins.
+     */
+    public function previewDeactivation(string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->with(['user.circle', 'circle'])->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $service = app(PostDeactivationService::class);
+        $preview = $service->getDeactivationPreview($post);
+
+        $user = $service->resolveTargetUser($post);
+        $name = (string) ($preview['user_name'] ?? 'Member');
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $first = $parts[0] ?? '';
+        $last = count($parts) > 1 ? end($parts) : '';
+        $initials = strtoupper(mb_substr($first, 0, 1).mb_substr($last, 0, 1));
+        if ($initials === '') {
+            $initials = 'PG';
+        }
+
+        $circleName = $user?->circle?->name ?? $post->circle?->name ?? $user?->company_name ?? 'Community';
+        $content = trim((string) ($post->content_text ?: $post->title ?: ''));
+
+        $preview['user_initials'] = $initials;
+        $preview['user_circle'] = $circleName;
+        $preview['post_date'] = $post->created_at?->format('M d, Y H:i') ?? '';
+        $preview['caption'] = $content !== '' ? $content : 'No caption';
+        $preview['is_already_deactivated'] = $service->isPostAlreadyDeactivated($post);
+
+        return $this->success($preview, 'Post deactivation preview retrieved successfully.');
+    }
+
+    /**
+     * Deactivate a post with custom coins and impact reversals, plus push/in-app notification.
+     */
+    public function deactivate(Request $request, string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $validated = $request->validate([
+            'remarks' => ['required', 'string', 'min:3', 'max:1000'],
+            'reverse_coins' => ['nullable'],
+            'reverse_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
+            'coins_amount' => ['nullable', 'numeric', 'min:0'],
+            'impact_amount' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'remarks.required' => 'Please provide remarks or reason for deactivating this post.',
+            'remarks.min' => 'Deactivation remarks must be at least 3 characters.',
+        ]);
+
+        $reverseCoins = $request->has('reverse_coins') ? $request->boolean('reverse_coins') : true;
+        $reverseImpact = $request->has('reverse_impact') ? $request->boolean('reverse_impact') : true;
+        $notifyUser = $request->has('notify_user') ? $request->boolean('notify_user') : true;
+        $customCoins = isset($validated['coins_amount']) && $validated['coins_amount'] !== null ? (int) $validated['coins_amount'] : null;
+        $customImpact = isset($validated['impact_amount']) && $validated['impact_amount'] !== null ? (int) $validated['impact_amount'] : null;
+
+        $adminId = Auth::guard('admin')->id() ?? Auth::id();
+
+        $service = app(PostDeactivationService::class);
+        $result = $service->deactivatePost(
+            $post,
+            $validated['remarks'],
+            $adminId,
+            $reverseCoins,
+            $reverseImpact,
+            $notifyUser,
+            $customCoins,
+            $customImpact
+        );
+
+        if (! empty($result['already_deactivated'])) {
+            return $this->error($result['message'] ?? 'This post is already deactivated.', 400, $result);
+        }
+
+        return $this->success($result, $result['message'] ?? 'Post deactivated successfully.');
+    }
+
+    /**
+     * Restore a deactivated post.
+     */
+    public function restore(string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        DB::transaction(function () use ($post): void {
+            if (method_exists($post, 'restore')) {
+                $post->restore();
+            }
+
+            if (array_key_exists('is_deleted', $post->getAttributes())) {
+                $post->is_deleted = false;
+            }
+            if (array_key_exists('status', $post->getAttributes())) {
+                $post->status = 'active';
+            }
+            $post->save();
+        });
+
+        return $this->success([
+            'id' => $post->id,
+            'status' => 'active',
+            'is_deleted' => false,
+        ], 'Post restored successfully.');
     }
 }

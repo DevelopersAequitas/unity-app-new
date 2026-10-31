@@ -46,29 +46,55 @@ class LeaderFinanceService
             $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
         }
 
-        $collectionsAmount = (float) $query->sum('amount');
-        if ($collectionsAmount <= 0) {
-            $collectionsAmount = 480000.0;
+        $collectionsAmount = (float) (clone $query)->sum('amount');
+        $totalRevenueAmount = $collectionsAmount;
+        $circleRevenueAmount = $collectionsAmount;
+
+        $dateColumn = Schema::hasColumn('payments', 'paid_at') ? 'paid_at' : 'created_at';
+
+        // Revenue trend: real collections for the last 6 months inside the role scope
+        $revenueTrend = [];
+        $dealsTrend = [];
+        $scopeMemberIds = app(LeaderDashboardService::class)
+            ->resolveLeaderScope($circleId, $districtId, $user)['scoped_member_user_ids'];
+
+        $dealsBase = fn () => DB::table('business_deals')
+            ->when(Schema::hasColumn('business_deals', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
+            ->when($scopeMemberIds !== null, function ($q) use ($scopeMemberIds) {
+                if (empty($scopeMemberIds)) {
+                    $q->whereRaw('1 = 0');
+                } else {
+                    $q->where(function ($sq) use ($scopeMemberIds): void {
+                        $sq->whereIn('from_user_id', $scopeMemberIds)->orWhereIn('to_user_id', $scopeMemberIds);
+                    });
+                }
+            });
+
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = now()->startOfMonth()->subMonths($i);
+            $monthEnd = (clone $monthStart)->endOfMonth();
+            $revenueTrend[] = [
+                'month' => $monthStart->format('M'),
+                'value' => (float) (clone $query)->whereBetween($dateColumn, [$monthStart, $monthEnd])->sum('amount'),
+            ];
+            $dealsTrend[] = [
+                'month' => $monthStart->format('M'),
+                'value' => (float) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count(),
+            ];
         }
 
-        $totalRevenueAmount = 1245000.0;
-        if ($collectionsAmount > 480000.0) {
-            $totalRevenueAmount = $collectionsAmount * 2.59375;
+        $dealsClosedCount = Schema::hasTable('business_deals') ? (int) $dealsBase()->count() : 0;
+
+        // Projection: year-to-date collections annualised by months elapsed
+        $ytdCollections = (float) (clone $query)->where($dateColumn, '>=', now()->startOfYear())->sum('amount');
+        $projectedAnnualRevenue = $ytdCollections > 0 ? ($ytdCollections / max(1, (int) now()->format('n'))) * 12 : 0.0;
+
+        $coinIssuances = 0;
+        if ($scopeMemberIds === null) {
+            $coinIssuances = (int) User::query()->whereNull('deleted_at')->sum('coins_balance');
+        } elseif (! empty($scopeMemberIds)) {
+            $coinIssuances = (int) User::query()->whereIn('id', $scopeMemberIds)->sum('coins_balance');
         }
-
-        $projectedAnnualRevenue = 4500000.0;
-        if ($totalRevenueAmount > 1245000.0) {
-            $projectedAnnualRevenue = $totalRevenueAmount * 3.61445;
-        }
-
-        $circleRevenueAmount = 480000.0;
-        if ($collectionsAmount > 0) {
-            $circleRevenueAmount = $collectionsAmount;
-        }
-
-        $commissionDueAmount = 36200.0;
-        $totalDuesAmount = 36200.0;
-
         // Fetch dynamic commission rates from leader_commission_rates table
         $dbRates = DB::table('leader_commission_rates')->get()->keyBy('role_id');
 
@@ -139,31 +165,21 @@ class LeaderFinanceService
             ],
         ];
 
+        // Commission due = collections in scope x the signed-in leader's direct referral cut
+        $referralRate = (float) rtrim($userRate['referral'], '%');
+        $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
+        $totalDuesAmount = $commissionDueAmount;
         return [
             'total_revenue' => '₹'.number_format($totalRevenueAmount, 0),
             'projected_annual_revenue' => '₹'.number_format($projectedAnnualRevenue, 0),
             'circle_revenue' => '₹'.number_format($circleRevenueAmount, 0),
             'total_collections' => '₹'.number_format($collectionsAmount, 0),
-            'deals_closed' => 48,
+            'deals_closed' => $dealsClosedCount,
             'commission_due' => '₹'.number_format($commissionDueAmount, 0),
             'total_dues' => '₹'.number_format($totalDuesAmount, 0),
-            'coin_issuances_total' => 1250,
-            'revenue_trend' => [
-                ['month' => 'Jan', 'value' => 120000.0],
-                ['month' => 'Feb', 'value' => 180000.0],
-                ['month' => 'Mar', 'value' => 240000.0],
-                ['month' => 'Apr', 'value' => 210000.0],
-                ['month' => 'May', 'value' => 310000.0],
-                ['month' => 'Jun', 'value' => 380000.0],
-            ],
-            'business_deals' => [
-                ['month' => 'Jan', 'value' => 5.0],
-                ['month' => 'Feb', 'value' => 8.0],
-                ['month' => 'Mar', 'value' => 12.0],
-                ['month' => 'Apr', 'value' => 9.0],
-                ['month' => 'May', 'value' => 15.0],
-                ['month' => 'Jun', 'value' => 18.0],
-            ],
+            'coin_issuances_total' => $coinIssuances,
+            'revenue_trend' => $revenueTrend,
+            'business_deals' => $dealsTrend,
             'commission_rates' => $commissionRates,
             'commission_structure' => $commissionStructure,
         ];
@@ -205,45 +221,17 @@ class LeaderFinanceService
         $payments = $query->take(10)->get();
 
         if ($payments->isEmpty()) {
-            return [
-                [
-                    'id' => 'txn_8921',
-                    'peer_name' => 'Jatin Jadav',
-                    'circle_name' => 'Ahmedabad Tech Pioneers',
-                    'amount' => '₹45,000',
-                    'type' => 'Annual Membership Fee',
-                    'status' => 'Paid',
-                    'date' => '2026-08-15',
-                ],
-                [
-                    'id' => 'txn_8922',
-                    'peer_name' => 'Chirag Mali',
-                    'circle_name' => 'Ahmedabad MSME Growth Circle',
-                    'amount' => '₹45,000',
-                    'type' => 'Annual Membership Fee',
-                    'status' => 'Pending',
-                    'date' => '2026-08-18',
-                ],
-                [
-                    'id' => 'txn_8923',
-                    'peer_name' => 'Vinit Chavda',
-                    'circle_name' => 'Ahmedabad Business Circle',
-                    'amount' => '₹45,000',
-                    'type' => 'Annual Membership Fee',
-                    'status' => 'Overdue',
-                    'date' => '2026-08-10',
-                ],
-            ];
+            return [];
         }
 
         return $payments->map(function (Payment $p, int $idx): array {
             $u = $p->user;
-            $name = $u ? trim(($u->first_name ?? '').' '.($u->last_name ?? '')) : 'Jatin Jadav';
+            $name = $u ? trim(($u->first_name ?? '').' '.($u->last_name ?? '')) : '';
             if ($name === '' || $name === ' ') {
-                $name = $u?->display_name ?? 'Jatin Jadav';
+                $name = $u?->display_name ?? 'Peer Member';
             }
 
-            $circleName = 'Ahmedabad Tech Pioneers';
+            $circleName = '';
             if ($u && $u->circleMembers->isNotEmpty()) {
                 $c = $u->circleMembers->first()?->circle;
                 if ($c && ! empty($c->name)) {
@@ -255,7 +243,7 @@ class LeaderFinanceService
                 'id' => (string) ($p->id ?: 'txn_892'.$idx),
                 'peer_name' => $name,
                 'circle_name' => $circleName,
-                'amount' => '₹'.number_format((float) ($p->amount ?: 45000)),
+                'amount' => '₹'.number_format((float) ($p->amount ?? 0)),
                 'type' => 'Annual Membership Fee',
                 'status' => (string) ucfirst((string) ($p->status ?: 'Paid')),
                 'date' => $p->created_at ? $p->created_at->format('Y-m-d') : '2026-08-15',

@@ -73,7 +73,13 @@ class AdminStoreProductController extends BaseApiController
         ]);
 
         $product = Product::findOrFail($id);
-        if ($request->input('is_primary')) {
+
+        $existingImageCount = ProductImage::where('product_id', $product->id)->count();
+
+        // Auto-set as primary if it's the first image, or if explicitly requested
+        $isPrimary = $existingImageCount === 0 || (bool) $request->input('is_primary', false);
+
+        if ($isPrimary) {
             ProductImage::where('product_id', $product->id)->update(['is_primary' => false]);
         }
 
@@ -81,8 +87,8 @@ class AdminStoreProductController extends BaseApiController
             'product_id' => $product->id,
             'image_url' => $request->input('image_url'),
             'alt_text' => $request->input('alt_text'),
-            'is_primary' => (bool) $request->input('is_primary', false),
-            'sort_order' => 0,
+            'is_primary' => $isPrimary,
+            'sort_order' => $existingImageCount,
             'created_at' => now(),
         ]);
 

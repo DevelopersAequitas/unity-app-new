@@ -437,6 +437,9 @@ class LeaderAskFlowService
 
         return [
             'total_requirements' => $totalAsks,
+            'published_asks' => $publishedAsks,
+            'in_progress_asks' => $inProgressAsks,
+            'closed_asks' => Ask::query()->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED])->count(),
             'active_requirements' => $publishedAsks + $inProgressAsks,
             'fulfilled_requirements' => $fulfilledAsks,
             'total_peer_matches' => $totalMatches,

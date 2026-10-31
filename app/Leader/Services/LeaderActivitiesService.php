@@ -1107,6 +1107,8 @@ class LeaderActivitiesService
 
             case 'referrals':
             case 'referral':
+            case 'highest-givers':
+            case 'givers':
                 $unitLabel = 'Referrals';
                 if (Schema::hasTable('referrals')) {
                     $rRows = DB::table('referrals')
@@ -1163,9 +1165,15 @@ class LeaderActivitiesService
 
             case 'coins':
             case 'peers-by-coins':
-                $unitLabel = 'Coins';
+            case 'top-contributors':
+            case 'contributors':
+                $unitLabel = in_array($normalizedType, ['top-contributors', 'contributors'], true) ? 'Contributions' : 'Coins';
                 foreach ($users as $u) {
-                    $countsByUser[(string) $u->id] = (int) ($u->coins_balance ?? 0);
+                    $coinsVal = (int) ($u->coins_balance ?? 0);
+                    $impVal = (int) ($u->life_impacted_count ?? 0);
+                    $countsByUser[(string) $u->id] = in_array($normalizedType, ['top-contributors', 'contributors'], true)
+                        ? max($impVal, $coinsVal)
+                        : $coinsVal;
                 }
                 break;
 
@@ -1229,12 +1237,12 @@ class LeaderActivitiesService
                     if ($flowId) {
                         $rows = DB::table('asks')
                             ->where('flow_id', $flowId)
-                            ->whereIn('creator_user_id', $userIds)
-                            ->selectRaw('creator_user_id, COUNT(*) as cnt')
-                            ->groupBy('creator_user_id')
+                            ->whereIn('user_id', $userIds)
+                            ->selectRaw('user_id, COUNT(*) as cnt')
+                            ->groupBy('user_id')
                             ->get();
                         foreach ($rows as $r) {
-                            $addCount((string) $r->creator_user_id, (int) $r->cnt);
+                            $addCount((string) $r->user_id, (int) $r->cnt);
                         }
                     }
                 }
@@ -1328,10 +1336,17 @@ class LeaderActivitiesService
 
             case 'certifications':
             case 'certificates':
+            case 'entrepreneur-certifications':
+            case 'leadership-certifications':
                 $unitLabel = 'Certificates';
                 if (Schema::hasTable('certification_submissions')) {
-                    $rows = DB::table('certification_submissions')
-                        ->whereIn('user_id', $userIds)
+                    $certQuery = DB::table('certification_submissions')->whereIn('user_id', $userIds);
+                    if ($normalizedType === 'entrepreneur-certifications') {
+                        $certQuery->where('certification_type', 'ilike', '%entrepreneur%');
+                    } elseif ($normalizedType === 'leadership-certifications') {
+                        $certQuery->where('certification_type', 'ilike', '%leadership%');
+                    }
+                    $rows = $certQuery
                         ->selectRaw('user_id, COUNT(*) as cnt')
                         ->groupBy('user_id')
                         ->get();
@@ -1359,11 +1374,15 @@ class LeaderActivitiesService
                 }
                 break;
 
-            default:
+            case 'peers':
                 $unitLabel = 'Impacts';
                 foreach ($users as $u) {
                     $countsByUser[(string) $u->id] = (int) ($u->life_impacted_count ?? 0);
                 }
+                break;
+
+            default:
+                $unitLabel = 'Activities';
                 break;
         }
 
@@ -1431,6 +1450,12 @@ class LeaderActivitiesService
         $normalizedType = strtolower(trim($type));
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $limit = min(max((int) ($request->query('limit', 50)), 1), 100);
+        // Pending approvals are scoped by circle / main category (not by existing members),
+        // so applicants who have not joined yet still reach the right circle leaders.
+        if (in_array($normalizedType, ['pending-requests', 'pending'], true)) {
+            return $this->getPendingRequestsFeed($request, $search);
+        }
+
         $scopedUserIds = $this->resolveActivityScopedUserIds($request);
 
         if (is_array($scopedUserIds) && empty($scopedUserIds)) {
@@ -1441,10 +1466,10 @@ class LeaderActivitiesService
             'impacts', 'impact', 'life-impacts' => $this->getImpacts($request),
             'p2p-meetings', 'peer-meetings', 'p2p' => $this->getP2pMeetings($request),
             'business-deals', 'deals' => $this->getBusinessDeals($request),
-            'referrals', 'referral' => $this->getReferrals($request),
+            'referrals', 'referral', 'highest-givers', 'givers' => $this->getReferrals($request),
             'testimonials', 'endorsements' => $this->getTestimonials($request),
             'requirements', 'requirement' => $this->getRequirements($request),
-            'coins', 'peers-by-coins' => $this->getPeersByCoins($request),
+            'coins', 'peers-by-coins', 'top-contributors', 'contributors' => $this->getPeersByCoins($request),
             'visitor-registrations', 'visitors' => $this->getVisitorRegistrationsFeed($scopedUserIds, $search, $limit),
             'peer-recommendations', 'recommendations' => $this->getPeerRecommendationsFeed($scopedUserIds, $search, $limit),
             'introduced-peers', 'community-builders' => $this->getIntroducedPeersFeed($scopedUserIds, $search, $limit),
@@ -1459,13 +1484,68 @@ class LeaderActivitiesService
             'mentor-applications', 'mentors' => $this->getMentorApplicationsFeed($scopedUserIds, $search, $limit),
             'speaker-applications', 'speakers' => $this->getSpeakerApplicationsFeed($scopedUserIds, $search, $limit),
             'partner-inquiries', 'partners' => $this->getPartnerInquiriesFeed($scopedUserIds, $search, $limit),
-            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit),
+            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, null),
+            'entrepreneur-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'entrepreneur'),
+            'leadership-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'leadership'),
             'event-registrations', 'events' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, false),
             'event-attendance', 'attendance' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, true),
             default => [],
         };
     }
 
+    /**
+     * Pending approvals visible to the signed-in leader (circle join requests routed by the
+     * circle's main category, plus applicant-scoped requests). Approve / reject happens through
+     * /leader/pending-requests/{category}/{id}/approve|reject.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getPendingRequestsFeed(Request $request, ?string $search): array
+    {
+        $sub = Request::create('/leader/pending-requests', 'GET', array_filter([
+            'category' => 'all',
+            'status' => (string) $request->query('status', 'pending'),
+            'per_page' => 200,
+            'search' => $search,
+        ], fn ($v) => $v !== null && $v !== ''));
+        $sub->setUserResolver($request->getUserResolver());
+        $sub->attributes->set('leader_scope_forced', true);
+
+        $rows = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+            ->index($sub)
+            ->getData(true)['data'] ?? [];
+
+        return array_values(array_map(function (array $r): array {
+            $name = (string) ($r['applicant_name'] ?? 'Peer Member');
+            $label = (string) ($r['category_label'] ?? 'Request');
+            $submitted = (string) ($r['submitted_at'] ?? now()->toIso8601String());
+
+            return $this->formatStandardActivityItem(
+                id: (string) ($r['id'] ?? ''),
+                type: 'pending-requests',
+                title: "{$label}: {$name}",
+                subtitle: (string) ($r['target_entity'] ?? ''),
+                description: (string) ($r['details'] ?? ''),
+                status: ucfirst(str_replace('_', ' ', (string) ($r['status'] ?? 'pending'))),
+                dateStr: substr($submitted, 0, 10),
+                createdAtIso: $submitted,
+                badgeLabel: $label,
+                extra: [
+                    'request_category' => (string) ($r['category'] ?? ''),
+                    'category_slug' => (string) ($r['category'] ?? ''),
+                    'fallback_name' => $name,
+                    'fallback_company' => (string) ($r['company_name'] ?? ''),
+                    'fallback_category' => $label,
+                    'applicant_email' => (string) ($r['applicant_email'] ?? ''),
+                    'applicant_phone' => (string) ($r['applicant_phone'] ?? ''),
+                    'target_entity' => (string) ($r['target_entity'] ?? ''),
+                    'cd_status' => $r['cd_status'] ?? null,
+                    'ded_status' => $r['ded_status'] ?? null,
+                    'payment_status' => $r['payment_status'] ?? null,
+                ],
+            );
+        }, $rows));
+    }
     /**
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
@@ -1675,7 +1755,7 @@ class LeaderActivitiesService
                     $query->whereNull('deleted_at');
                 }
                 if ($scopedUserIds !== null) {
-                    $query->whereIn('creator_user_id', $scopedUserIds);
+                    $query->whereIn('user_id', $scopedUserIds);
                 }
                 if ($search) {
                     $query->where(function ($q) use ($search): void {
@@ -1685,10 +1765,10 @@ class LeaderActivitiesService
                 }
 
                 $rows = $query->orderByDesc('created_at')->limit($limit)->get();
-                $peersMap = $this->loadFormattedPeersMap($rows->pluck('creator_user_id')->all());
+                $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
                 foreach ($rows as $row) {
-                    $peer = $peersMap[(string) ($row->creator_user_id ?? '')] ?? null;
+                    $peer = $peersMap[(string) ($row->user_id ?? '')] ?? null;
                     $dateStr = ! empty($row->created_at) ? substr((string) $row->created_at, 0, 10) : date('Y-m-d');
                     $items[] = $this->formatStandardActivityItem(
                         id: (string) $row->id,
@@ -1941,7 +2021,7 @@ class LeaderActivitiesService
                 type: 'stories',
                 title: $title,
                 subtitle: (string) ($row->business_name ?? ($row->full_name ?? 'Vyapaar Jagat Story')),
-                description: $storyText !== '' ? $storyText : "Business story submitted by ".($row->full_name ?? 'Peer Member').'.',
+                description: $storyText !== '' ? $storyText : 'Business story submitted by '.($row->full_name ?? 'Peer Member').'.',
                 status: ucfirst((string) ($row->status ?? 'Submitted')),
                 dateStr: $dateStr,
                 createdAtIso: (string) ($row->created_at ?? now()->toIso8601String()),
@@ -2185,7 +2265,7 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit, ?string $certFilter = null): array
     {
         if (! Schema::hasTable('certification_submissions')) {
             return [];
@@ -2193,7 +2273,13 @@ class LeaderActivitiesService
 
         $query = DB::table('certification_submissions');
         if ($scopedUserIds !== null) {
-            $query->whereIn('user_id', $scopedUserIds);
+            $query->where(function ($q) use ($scopedUserIds): void {
+                $q->whereIn('user_id', $scopedUserIds)
+                    ->orWhereNull('user_id');
+            });
+        }
+        if ($certFilter !== null && $certFilter !== '') {
+            $query->where('certification_type', 'ilike', "%{$certFilter}%");
         }
         if ($search) {
             $query->where(function ($q) use ($search): void {
