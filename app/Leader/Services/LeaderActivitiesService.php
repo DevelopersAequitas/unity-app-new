@@ -610,7 +610,7 @@ class LeaderActivitiesService
         $user = $request->user();
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
-        $query = User::query()->whereNull('deleted_at');
+        $query = User::query()->whereNull('deleted_at')->withoutSystemUser();
 
         if ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
@@ -637,6 +637,9 @@ class LeaderActivitiesService
         $leaderboard = [];
         $rank = 1;
         foreach ($users as $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $peerDetail = $this->formatPeerDetail($u);
             $coins = (int) ($u->coins_balance ?? max(1400 - ($rank * 180), 350));
 
@@ -951,6 +954,7 @@ class LeaderActivitiesService
 
         $users = User::query()
             ->whereIn('id', $cleanIds)
+            ->withoutSystemUser()
             ->with([
                 'circleMembers.circle',
                 'circleMembers.level4Category',
@@ -989,6 +993,7 @@ class LeaderActivitiesService
 
         $userQuery = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->with([
                 'circleMembers.circle',
                 'circleMembers.level4Category',
@@ -1213,6 +1218,8 @@ class LeaderActivitiesService
                 if (Schema::hasColumn('users', 'introduced_by')) {
                     $rows = DB::table('users')
                         ->whereNull('deleted_at')
+                        ->whereRaw("LOWER(COALESCE(email, '')) != 'info@peersglobal.com'")
+                        ->whereRaw("LOWER(COALESCE(display_name, '')) NOT LIKE '%genie%'")
                         ->whereIn('introduced_by', $userIds)
                         ->selectRaw('introduced_by, COUNT(*) as cnt')
                         ->groupBy('introduced_by')
@@ -1237,12 +1244,12 @@ class LeaderActivitiesService
                     if ($flowId) {
                         $rows = DB::table('asks')
                             ->where('flow_id', $flowId)
-                            ->whereIn('creator_user_id', $userIds)
-                            ->selectRaw('creator_user_id, COUNT(*) as cnt')
-                            ->groupBy('creator_user_id')
+                            ->whereIn('user_id', $userIds)
+                            ->selectRaw('user_id, COUNT(*) as cnt')
+                            ->groupBy('user_id')
                             ->get();
                         foreach ($rows as $r) {
-                            $addCount((string) $r->creator_user_id, (int) $r->cnt);
+                            $addCount((string) $r->user_id, (int) $r->cnt);
                         }
                     }
                 }
@@ -1450,6 +1457,12 @@ class LeaderActivitiesService
         $normalizedType = strtolower(trim($type));
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $limit = min(max((int) ($request->query('limit', 50)), 1), 100);
+        // Pending approvals are scoped by circle / main category (not by existing members),
+        // so applicants who have not joined yet still reach the right circle leaders.
+        if (in_array($normalizedType, ['pending-requests', 'pending'], true)) {
+            return $this->getPendingRequestsFeed($request, $search);
+        }
+
         $scopedUserIds = $this->resolveActivityScopedUserIds($request);
 
         if (is_array($scopedUserIds) && empty($scopedUserIds)) {
@@ -1487,6 +1500,59 @@ class LeaderActivitiesService
         };
     }
 
+    /**
+     * Pending approvals visible to the signed-in leader (circle join requests routed by the
+     * circle's main category, plus applicant-scoped requests). Approve / reject happens through
+     * /leader/pending-requests/{category}/{id}/approve|reject.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getPendingRequestsFeed(Request $request, ?string $search): array
+    {
+        $sub = Request::create('/leader/pending-requests', 'GET', array_filter([
+            'category' => 'all',
+            'status' => (string) $request->query('status', 'pending'),
+            'per_page' => 200,
+            'search' => $search,
+        ], fn ($v) => $v !== null && $v !== ''));
+        $sub->setUserResolver($request->getUserResolver());
+        $sub->attributes->set('leader_scope_forced', true);
+
+        $rows = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+            ->index($sub)
+            ->getData(true)['data'] ?? [];
+
+        return array_values(array_map(function (array $r): array {
+            $name = (string) ($r['applicant_name'] ?? 'Peer Member');
+            $label = (string) ($r['category_label'] ?? 'Request');
+            $submitted = (string) ($r['submitted_at'] ?? now()->toIso8601String());
+
+            return $this->formatStandardActivityItem(
+                id: (string) ($r['id'] ?? ''),
+                type: 'pending-requests',
+                title: "{$label}: {$name}",
+                subtitle: (string) ($r['target_entity'] ?? ''),
+                description: (string) ($r['details'] ?? ''),
+                status: ucfirst(str_replace('_', ' ', (string) ($r['status'] ?? 'pending'))),
+                dateStr: substr($submitted, 0, 10),
+                createdAtIso: $submitted,
+                badgeLabel: $label,
+                extra: [
+                    'request_category' => (string) ($r['category'] ?? ''),
+                    'category_slug' => (string) ($r['category'] ?? ''),
+                    'fallback_name' => $name,
+                    'fallback_company' => (string) ($r['company_name'] ?? ''),
+                    'fallback_category' => $label,
+                    'applicant_email' => (string) ($r['applicant_email'] ?? ''),
+                    'applicant_phone' => (string) ($r['applicant_phone'] ?? ''),
+                    'target_entity' => (string) ($r['target_entity'] ?? ''),
+                    'cd_status' => $r['cd_status'] ?? null,
+                    'ded_status' => $r['ded_status'] ?? null,
+                    'payment_status' => $r['payment_status'] ?? null,
+                ],
+            );
+        }, $rows));
+    }
     /**
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
@@ -1629,6 +1695,7 @@ class LeaderActivitiesService
 
         $query = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->whereNotNull('introduced_by')
             ->with([
                 'circleMembers.circle',
@@ -1696,7 +1763,7 @@ class LeaderActivitiesService
                     $query->whereNull('deleted_at');
                 }
                 if ($scopedUserIds !== null) {
-                    $query->whereIn('creator_user_id', $scopedUserIds);
+                    $query->whereIn('user_id', $scopedUserIds);
                 }
                 if ($search) {
                     $query->where(function ($q) use ($search): void {
@@ -1706,10 +1773,10 @@ class LeaderActivitiesService
                 }
 
                 $rows = $query->orderByDesc('created_at')->limit($limit)->get();
-                $peersMap = $this->loadFormattedPeersMap($rows->pluck('creator_user_id')->all());
+                $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
                 foreach ($rows as $row) {
-                    $peer = $peersMap[(string) ($row->creator_user_id ?? '')] ?? null;
+                    $peer = $peersMap[(string) ($row->user_id ?? '')] ?? null;
                     $dateStr = ! empty($row->created_at) ? substr((string) $row->created_at, 0, 10) : date('Y-m-d');
                     $items[] = $this->formatStandardActivityItem(
                         id: (string) $row->id,
@@ -1962,7 +2029,7 @@ class LeaderActivitiesService
                 type: 'stories',
                 title: $title,
                 subtitle: (string) ($row->business_name ?? ($row->full_name ?? 'Vyapaar Jagat Story')),
-                description: $storyText !== '' ? $storyText : "Business story submitted by ".($row->full_name ?? 'Peer Member').'.',
+                description: $storyText !== '' ? $storyText : 'Business story submitted by '.($row->full_name ?? 'Peer Member').'.',
                 status: ucfirst((string) ($row->status ?? 'Submitted')),
                 dateStr: $dateStr,
                 createdAtIso: (string) ($row->created_at ?? now()->toIso8601String()),

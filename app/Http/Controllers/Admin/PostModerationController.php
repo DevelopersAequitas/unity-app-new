@@ -119,20 +119,24 @@ class PostModerationController extends Controller
 
         if (filled($peer)) {
             $peerQuery = '%'.$peer.'%';
-            $query->whereHas('user', function ($userQuery) use ($peerQuery) {
-                $userQuery->where(function ($subQuery) use ($peerQuery) {
-                    $subQuery->where('name', 'ILIKE', $peerQuery)
-                        ->orWhere('display_name', 'ILIKE', $peerQuery)
-                        ->orWhere('first_name', 'ILIKE', $peerQuery)
-                        ->orWhere('last_name', 'ILIKE', $peerQuery)
-                        ->orWhere('company', 'ILIKE', $peerQuery)
-                        ->orWhere('company_name', 'ILIKE', $peerQuery)
-                        ->orWhere('business_name', 'ILIKE', $peerQuery)
-                        ->orWhere('organization', 'ILIKE', $peerQuery)
-                        ->orWhere('city', 'ILIKE', $peerQuery)
-                        ->orWhere('current_city', 'ILIKE', $peerQuery)
-                        ->orWhere('location_city', 'ILIKE', $peerQuery);
-                });
+            $query->where(function ($q) use ($peerQuery) {
+                $q->whereHas('user', function ($userQuery) use ($peerQuery) {
+                    $userQuery->where(function ($subQuery) use ($peerQuery) {
+                        $subQuery->where('name', 'ILIKE', $peerQuery)
+                            ->orWhere('display_name', 'ILIKE', $peerQuery)
+                            ->orWhere('first_name', 'ILIKE', $peerQuery)
+                            ->orWhere('last_name', 'ILIKE', $peerQuery)
+                            ->orWhere('company', 'ILIKE', $peerQuery)
+                            ->orWhere('company_name', 'ILIKE', $peerQuery)
+                            ->orWhere('business_name', 'ILIKE', $peerQuery)
+                            ->orWhere('organization', 'ILIKE', $peerQuery)
+                            ->orWhere('city', 'ILIKE', $peerQuery)
+                            ->orWhere('current_city', 'ILIKE', $peerQuery)
+                            ->orWhere('location_city', 'ILIKE', $peerQuery);
+                    });
+                })
+                ->orWhere('posts.content_text', 'ILIKE', $peerQuery)
+                ->orWhere('posts.title', 'ILIKE', $peerQuery);
             });
         }
 

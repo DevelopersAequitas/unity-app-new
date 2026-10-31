@@ -208,25 +208,42 @@ class UserRoleResolverService
 
         // 2. Check Circle direct assignment columns & calendar JSON
         if (Schema::hasTable('circles')) {
-            if (Circle::query()->where('circle_founder_user_id', $userId)->orWhere('founder_user_id', $userId)->exists()) {
+            $circleCols = Schema::getColumnListing('circles');
+
+            if (Circle::query()
+                ->where(function ($q) use ($userId, $circleCols): void {
+                    $q->where('founder_user_id', $userId);
+                    if (in_array('circle_founder_user_id', $circleCols, true)) {
+                        $q->orWhere('circle_founder_user_id', $userId);
+                    }
+                })->exists()) {
                 $candidateRoles[] = 'circleFounder';
             }
 
-            if (Circle::query()->where('circle_director_user_id', $userId)->orWhere('director_user_id', $userId)->exists()) {
-                $candidateRoles[] = 'circleDirector';
+            if (in_array('circle_director_user_id', $circleCols, true) || in_array('director_user_id', $circleCols, true)) {
+                if (Circle::query()->where(function ($q) use ($userId, $circleCols): void {
+                    if (in_array('circle_director_user_id', $circleCols, true)) {
+                        $q->orWhere('circle_director_user_id', $userId);
+                    }
+                    if (in_array('director_user_id', $circleCols, true)) {
+                        $q->orWhere('director_user_id', $userId);
+                    }
+                })->exists()) {
+                    $candidateRoles[] = 'circleDirector';
+                }
             }
 
-            if (Circle::query()->where('industry_director_user_id', $userId)->exists()) {
+            if (in_array('industry_director_user_id', $circleCols, true) && Circle::query()->where('industry_director_user_id', $userId)->exists()) {
                 $candidateRoles[] = 'industryDirector';
             }
 
-            if (Circle::query()->where('ded_user_id', $userId)->exists()) {
+            if (in_array('ded_user_id', $circleCols, true) && Circle::query()->where('ded_user_id', $userId)->exists()) {
                 if (! $hasActiveIndustryDirector || in_array('districtExecDirector', $rbacRoles, true)) {
                     $candidateRoles[] = 'districtExecDirector';
                 }
             }
 
-            if (Circle::query()->where('eed_user_id', $userId)->exists()) {
+            if (in_array('eed_user_id', $circleCols, true) && Circle::query()->where('eed_user_id', $userId)->exists()) {
                 $candidateRoles[] = 'countryDirector';
             }
 

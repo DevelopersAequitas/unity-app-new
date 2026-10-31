@@ -120,6 +120,8 @@ class EventController extends BaseApiController
             $timezone = config('app.timezone', 'UTC') ?: 'UTC';
             $now = now($timezone);
 
+            $this->ensureFutureEventOccurrences($now);
+
             $occurrences = EventOccurrence::query()
                 ->with(['event.circle'])
                 ->whereNotNull('start_at')
@@ -177,12 +179,19 @@ class EventController extends BaseApiController
                         }
                     }
 
-                    // For recurring events with fixed day of month, ensure occurrence matches the recurrence day
+                    // For recurring events with fixed day of month, ensure occurrence matches the recurrence day (unless it is the event start date)
                     if ($event->recurrence_type === 'monthly' && $event->recurrence_day_of_month) {
-                        $eventTz = data_get($event->metadata, 'timezone') ?: $timezone;
-                        $occLocal = Carbon::parse($occurrence->start_at)->setTimezone($eventTz);
-                        if ((int) $occLocal->format('j') !== (int) $event->recurrence_day_of_month) {
-                            return null;
+                        $isInitialStart = $event->start_at && Carbon::parse($occurrence->start_at)->isSameDay(Carbon::parse($event->start_at));
+                        if (! $isInitialStart) {
+                            $eventTz = data_get($event->metadata, 'timezone') ?: $timezone;
+                            $occLocal = Carbon::parse($occurrence->start_at)->setTimezone($eventTz);
+                            $expectedDay = (int) $event->recurrence_day_of_month;
+                            $occDay = (int) $occLocal->format('j');
+                            $maxDaysInMonth = (int) $occLocal->daysInMonth;
+                            $adjustedExpectedDay = min($expectedDay, $maxDaysInMonth);
+                            if ($occDay !== $adjustedExpectedDay && $occDay !== $expectedDay) {
+                                return null;
+                            }
                         }
                     }
 
@@ -307,6 +316,34 @@ class EventController extends BaseApiController
         }
 
         return url('/api/v1/files/'.$bannerUrl);
+    }
+
+    private function ensureFutureEventOccurrences(Carbon $now): void
+    {
+        try {
+            $futureEvents = Event::query()
+                ->where('is_active', true)
+                ->where(function ($q): void {
+                    $q->whereNull('status')
+                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete']);
+                })
+                ->where('start_at', '>=', $now->copy()->subHours(2))
+                ->get();
+
+            $generator = app(EventOccurrenceGeneratorService::class);
+            foreach ($futureEvents as $event) {
+                $startUtc = Carbon::parse($event->start_at);
+                $hasStartOccurrence = $event->occurrences()
+                    ->whereBetween('start_at', [$startUtc->copy()->subMinutes(30), $startUtc->copy()->addMinutes(30)])
+                    ->exists();
+
+                if (! $hasStartOccurrence) {
+                    $generator->regenerateFuture($event);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('ensureFutureEventOccurrences failed: '.$e->getMessage());
+        }
     }
 
     public function show(Request $request, string $id)

@@ -2253,13 +2253,26 @@ class AskFlowHubService
             'note' => $remarks ?: ($statusLabel ? 'Status updated to '.$statusLabel : null),
         ]);
 
-        if (in_array((string) $statusId, ['4', '5'], true) && $response->ask) {
+        $isCompletedStatus = in_array((string) $statusId, ['4', '5'], true)
+            || in_array(strtolower((string) $mappedStatus), ['completed', 'deal_closed', 'got_the_business'], true);
+
+        if ($isCompletedStatus && $response->ask) {
             $response->ask->update([
                 'status' => Ask::STATUS_FULFILLED,
                 'fulfilled_at' => now(),
                 'outcome_status' => (string) $statusId === '4' ? 'got_the_business' : 'testimonial_given',
                 'outcome_notes' => $remarks,
             ]);
+
+            $helper = $response->responder ?? User::find($response->responder_user_id);
+            if ($helper) {
+                $this->askService->rewardHelperForFulfillment(
+                    $response->ask,
+                    $helper,
+                    $user,
+                    $remarks
+                );
+            }
         }
 
         return [

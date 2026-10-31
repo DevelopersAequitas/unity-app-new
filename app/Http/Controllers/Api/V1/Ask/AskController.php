@@ -375,6 +375,16 @@ class AskController extends Controller
             $giver = $response?->responder;
         }
 
+        // Reward Helper (User C) with 1 Life Impact and 2,500 Coins
+        if ($giver && ($outcome === 'deal_closed' || ($validated['status'] ?? null) === 'completed')) {
+            $this->askService->rewardHelperForFulfillment(
+                $ask,
+                $giver,
+                $currentUser,
+                $thankYouNote !== '' ? $thankYouNote : null
+            );
+        }
+
         // Store BusinessDeal if anonymous total or deal closed
         if ($outcome === 'deal_closed' && $giver && $addToFacilitated) {
             $amountMap = [

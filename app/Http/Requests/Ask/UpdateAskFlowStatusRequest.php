@@ -29,6 +29,10 @@ class UpdateAskFlowStatusRequest extends FormRequest
             'approx_value' => ['nullable'],
             'share_story' => ['nullable', 'boolean'],
             'anonymous_total' => ['nullable', 'boolean'],
+            'giver_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'giver_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'helper_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'response_id' => ['nullable', 'uuid', 'exists:ask_responses,id'],
         ];
     }
 }

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Circle;
+use App\Models\Event;
 use App\Models\EventOccurrence;
+use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
@@ -400,6 +402,65 @@ class EventListApiTest extends TestCase
             ->assertJsonPath('data.0.start_datetime', '2026-10-10 02:30:00');
     }
 
+    public function test_all_with_live_status_returns_december_event_when_recurring_rule_candidate_precedes_start_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-31 10:00:00'));
+
+        $user = $this->unityUser();
+        $circle = $this->circle('Healthcare ONE');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $eventId = '49aed119-cf7c-49f6-abff-5e3dc81495f6';
+
+        // Event scheduled for Dec 30, 2026, but recurring pattern was 4th Thursday (which fell on Dec 24)
+        $event = Event::query()->create([
+            'id' => $eventId,
+            'circle_id' => $circle->id,
+            'title' => 'Healthcare ONE Mini Conference',
+            'description' => null,
+            'start_at' => '2026-12-30 13:00:00',
+            'end_at' => '2026-12-30 15:30:00',
+            'is_virtual' => false,
+            'location_text' => 'Ahmedabad',
+            'visibility' => 'members',
+            'is_paid' => false,
+            'ticket_price' => 0,
+            'event_type' => 'circle_meeting',
+            'event_category' => 'networking',
+            'mode' => 'offline',
+            'qr_checkin_enabled' => false,
+            'is_public' => false,
+            'recurrence_type' => 'monthly',
+            'recurrence_week_of_month' => 4,
+            'recurrence_day_of_week' => 4,
+            'visitor_registration_enabled' => false,
+            'member_registration_enabled' => true,
+            'status' => 'scheduled',
+            'is_active' => true,
+        ]);
+
+        // Prior to our fix, only Jan 28, 2027 was generated. Ensure December 30 is properly generated and returned.
+        app(EventOccurrenceGeneratorService::class)->generate($event);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/events/all-with-live-status');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $event->id)
+            ->assertJsonPath('data.0.start_datetime', '2026-12-30 13:00:00');
+    }
+
     private function unityUser(): User
     {
         return User::query()->create([
@@ -543,6 +604,7 @@ class EventListApiTest extends TestCase
         Schema::create('event_occurrences', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('event_id');
+            $table->integer('sequence')->default(1);
             $table->date('occurrence_date')->nullable();
             $table->timestamp('start_at')->nullable();
             $table->timestamp('end_at')->nullable();

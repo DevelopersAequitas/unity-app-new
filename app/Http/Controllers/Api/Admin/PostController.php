@@ -27,17 +27,17 @@ class PostController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
             ])
@@ -137,15 +137,15 @@ class PostController extends BaseApiController
     {
         $post = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,phone,designation,active_circle_id',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,phone,designation,active_circle_id',
                 'user.circle:id,name',
                 'circle:id,name',
                 'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
-                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,profile_photo_file_id,active_circle_id',
                     'user.circle:id,name',
                 ]),
                 'reports.reporter:id,first_name,last_name,display_name,email',
@@ -237,6 +237,124 @@ class PostController extends BaseApiController
         $data['media_url'] = $mediaUrl;
         $data['media_type'] = $mediaType;
         $data['aspect_ratio'] = '4:5';
+
+        // 1. Resolve author avatar & name for regular author user
+        $authorUser = $post->user;
+        $authorAvatar = $authorUser?->profile_photo_url ?: $authorUser?->avatar;
+        if (! $authorAvatar && $authorUser && $authorUser->profile_photo_file_id) {
+            $authorAvatar = url('/api/v1/files/'.$authorUser->profile_photo_file_id);
+        }
+        if ($authorAvatar && ! Str::startsWith($authorAvatar, ['http://', 'https://'])) {
+            $authorAvatar = url(ltrim($authorAvatar, '/'));
+        }
+
+        $authorName = $authorUser
+            ? ($authorUser->display_name ?: trim(($authorUser->first_name ?? '').' '.($authorUser->last_name ?? '')))
+            : ($post->author_name ?? $post->user_name ?? 'Member');
+
+        $data['user_name'] = $data['user_name'] ?? $authorName;
+        $data['userName'] = $data['userName'] ?? $authorName;
+        $data['author_name'] = $data['author_name'] ?? $authorName;
+        $data['authorName'] = $data['authorName'] ?? $authorName;
+        $data['author_avatar'] = $authorAvatar;
+        $data['authorAvatar'] = $authorAvatar;
+        $data['user_avatar'] = $authorAvatar;
+        $data['userAvatar'] = $authorAvatar;
+        if (isset($data['user']) && is_array($data['user'])) {
+            $data['user']['avatar'] = $authorAvatar;
+            $data['user']['profile_photo_url'] = $authorAvatar;
+            $data['user']['name'] = $data['user']['name'] ?? $authorName;
+            $data['user']['display_name'] = $data['user']['display_name'] ?? $authorName;
+        }
+
+        // Check if this is a recognition / system-generated bot post
+        $currentAuthorName = (string) ($post->user?->display_name ?? $post->user?->name ?? '');
+        $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
+            || ($post->source_type ?? null) === 'life_impact'
+            || str_contains(strtolower($currentAuthorName), 'genie')
+            || str_contains(strtolower($currentAuthorName), 'peers global');
+
+        if ($isRecognition) {
+            $recognizedPeer = null;
+            if (!empty($post->source_id)) {
+                $recognizedPeer = \App\Models\User::find($post->source_id);
+            }
+            if (!$recognizedPeer && !empty($post->id)) {
+                $mention = \App\Models\PostMention::where('post_id', $post->id)->first();
+                if ($mention && $mention->peer_id) {
+                    $recognizedPeer = \App\Models\User::find($mention->peer_id);
+                }
+            }
+            if (!$recognizedPeer && !empty($post->tags) && is_array($post->tags)) {
+                foreach ($post->tags as $tag) {
+                    if (Str::isUuid((string) $tag)) {
+                        $recognizedPeer = \App\Models\User::find($tag);
+                        if ($recognizedPeer) break;
+                    }
+                }
+            }
+            if (!$recognizedPeer && (!empty($post->content_text) || !empty($post->title))) {
+                $text = $post->content_text ?: $post->title;
+                if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
+                    $cName = trim($m[1]);
+                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                        ->orWhere('name', $cName)
+                        ->first();
+                }
+            }
+
+            if ($recognizedPeer) {
+                $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '') . ' ' . ($recognizedPeer->last_name ?? ''));
+                $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
+                if (! $peerAvatar && $recognizedPeer->profile_photo_file_id) {
+                    $peerAvatar = url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id);
+                }
+                if ($peerAvatar && !Str::startsWith($peerAvatar, ['http://', 'https://'])) {
+                    $peerAvatar = url(ltrim($peerAvatar, '/'));
+                }
+                $peerCompany = $recognizedPeer->company_name ?: ($recognizedPeer->company ?: 'Aequitas Information Technology Pvt Ltd');
+
+                $data['recognized_user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                ];
+                $data['user_name'] = $peerName;
+                $data['userName'] = $peerName;
+                $data['author_name'] = $peerName;
+                $data['authorName'] = $peerName;
+                $data['author_avatar'] = $peerAvatar;
+                $data['authorAvatar'] = $peerAvatar;
+                $data['user_avatar'] = $peerAvatar;
+                $data['userAvatar'] = $peerAvatar;
+                $data['author_company'] = $peerCompany;
+                $data['company'] = $peerCompany;
+                $data['user'] = [
+                    'id' => (string) $recognizedPeer->id,
+                    'name' => $peerName,
+                    'display_name' => $peerName,
+                    'first_name' => $recognizedPeer->first_name,
+                    'last_name' => $recognizedPeer->last_name,
+                    'avatar' => $peerAvatar,
+                    'profile_photo_url' => $peerAvatar,
+                    'company' => $peerCompany,
+                    'company_name' => $peerCompany,
+                    'city' => $recognizedPeer->city,
+                    'circle' => $recognizedPeer->circle ? ['id' => (string) $recognizedPeer->circle->id, 'name' => $recognizedPeer->circle->name] : null,
+                ];
+            }
+        }
 
         if ($post->relationLoaded('likes')) {
             $data['likes_list'] = $post->likes->map(function ($like): array {
