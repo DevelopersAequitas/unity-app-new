@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Events\PendingRequestChangedEvent;
 use App\Http\Controllers\Controller;
+use App\Leader\Services\LeaderPeersService;
 use App\Models\Certification;
 use App\Models\CertificationSubmission;
 use App\Models\Notification;
@@ -69,7 +70,10 @@ class PendingRequestAdminController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $status = (string) ($request->input('status') ?? $request->query('status') ?? 'pending');
-        $data = $this->getSummaryData($status);
+        $scope = $this->resolveLeaderScope($request);
+        $data = $scope === null
+            ? $this->getSummaryData($status)
+            : $this->getScopedSummaryData($request, $status);
 
         return response()->json([
             'success' => true,
@@ -89,13 +93,14 @@ class PendingRequestAdminController extends Controller
         }
         $search = $request->input('search');
         $perPage = (int) $request->input('per_page', 20);
+        $scope = $this->resolveLeaderScope($request);
 
         /** @var Collection $results */
         $results = collect();
 
         // 1. Circle Joining Requests
         if ($category === 'all' || $category === 'circle_joining_requests' || $category === 'circle_join_requests') {
-            $results = $results->concat($this->fetchCircleJoinRequests($search, $status));
+            $results = $results->concat($this->fetchCircleJoinRequests($search, $status, $scope));
         }
 
         // 2. Visitor Registrations
@@ -143,6 +148,11 @@ class PendingRequestAdminController extends Controller
             $results = $results->concat($this->fetchIntroductionRequests($search, $status));
         }
 
+        // Leaders only see requests that belong to their circles / main categories
+        if ($scope !== null) {
+            $results = $this->filterResultsByLeaderScope($results, $scope);
+        }
+
         // Sort chronologically by submission date
         $sorted = $results->sortByDesc('submitted_at')->values();
 
@@ -164,6 +174,10 @@ class PendingRequestAdminController extends Controller
      */
     public function approve(Request $request, string $category, string $id): JsonResponse
     {
+        if ($denied = $this->denyIfOutsideLeaderScope($request, $id)) {
+            return $denied;
+        }
+
         if ($category === 'certifications') {
             return $this->approveCertificationSubmission((string) $id);
         }
@@ -176,6 +190,10 @@ class PendingRequestAdminController extends Controller
      */
     public function approveDirect(Request $request, string $id): JsonResponse
     {
+        if ($denied = $this->denyIfOutsideLeaderScope($request, $id)) {
+            return $denied;
+        }
+
         $category = $request->input('category') ?? $request->input('type');
 
         if ($category === 'certifications') {
@@ -190,6 +208,10 @@ class PendingRequestAdminController extends Controller
      */
     public function reject(Request $request, string $category, string $id): JsonResponse
     {
+        if ($denied = $this->denyIfOutsideLeaderScope($request, $id)) {
+            return $denied;
+        }
+
         $reason = (string) $request->input('reason', 'Administrative clearance declined');
 
         return $this->processRejection($id, $category, $reason);
@@ -200,6 +222,10 @@ class PendingRequestAdminController extends Controller
      */
     public function rejectDirect(Request $request, string $id): JsonResponse
     {
+        if ($denied = $this->denyIfOutsideLeaderScope($request, $id)) {
+            return $denied;
+        }
+
         $category = $request->input('category') ?? $request->input('type');
         $reason = (string) $request->input('reason', 'Administrative clearance declined');
 
@@ -470,6 +496,132 @@ class PendingRequestAdminController extends Controller
         });
     }
 
+    /**
+     * Resolve the signed-in actor and canonical leader role for circle join request transitions.
+     *
+     * @return array{0: User|\App\Models\AdminUser|null, 1: string}
+     */
+    private function resolveJoinRequestActor(): array
+    {
+        $actor = request()->user()
+            ?? \Illuminate\Support\Facades\Auth::guard('admin')->user()
+            ?? \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
+        if ($actor instanceof User) {
+            $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($actor)['role'] ?? 'guest');
+
+            return [$actor, $role];
+        }
+
+        return [$actor, $actor ? 'superAdmin' : 'guest'];
+    }
+
+    /**
+     * Approve a circle join request through the real approval workflow:
+     * Circle Director/Founder -> (Industry Director) -> fee -> member. Global roles grant full clearance.
+     */
+    private function approveCircleJoinRequestViaService(string $id): JsonResponse
+    {
+        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        if (! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        [$actor, $role] = $this->resolveJoinRequestActor();
+        if (! $actor) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $status = (string) $record->status;
+
+        try {
+            if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $updated = $service->approveAndJoinCircle($record, $actor);
+                $message = 'Request approved and applicant added to the circle.';
+            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+                $updated = $service->approveByCd($record, $actor);
+                $message = 'Approved at Circle Director stage. Sent for Industry Director approval.';
+            } elseif (
+                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                && in_array($role, ['industryDirector', 'districtExecDirector'], true)
+            ) {
+                $updated = $service->approveById($record, $actor);
+                $message = 'Approved at Industry Director stage. Applicant can now complete the circle fee.';
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This request is at '{$status}' and is not waiting for your approval.",
+                ], 422);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('leader.join_request.approve_failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to approve request: '.$e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => ['id' => (string) $updated->id, 'status' => (string) $updated->status],
+        ], 200);
+    }
+
+    /**
+     * Reject a circle join request through the real approval workflow.
+     */
+    private function rejectCircleJoinRequestViaService(string $id, string $reason): JsonResponse
+    {
+        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        if (! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        [$actor, $role] = $this->resolveJoinRequestActor();
+        if (! $actor) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $status = (string) $record->status;
+
+        try {
+            if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $updated = $service->rejectGeneric($record, $actor, $reason);
+            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+                $updated = $service->rejectByCd($record, $actor, $reason);
+            } elseif (
+                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                && in_array($role, ['industryDirector', 'districtExecDirector'], true)
+            ) {
+                $updated = $service->rejectById($record, $actor, $reason);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This request is at '{$status}' and cannot be rejected by your role.",
+                ], 422);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('leader.join_request.reject_failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to reject request: '.$e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Request rejected.',
+            'data' => ['id' => (string) $updated->id, 'status' => (string) $updated->status],
+        ], 200);
+    }
     private function processApproval(string $id, ?string $category = null): JsonResponse
     {
         if ($category === 'certifications') {
@@ -522,6 +674,10 @@ class PendingRequestAdminController extends Controller
 
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        if (in_array($table, ['circle_join_requests', 'circle_joining_requests'], true)) {
+            return $this->approveCircleJoinRequestViaService($id);
         }
 
         if (in_array($table, ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'], true)) {
@@ -780,6 +936,10 @@ class PendingRequestAdminController extends Controller
 
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        if (in_array($table, ['circle_join_requests', 'circle_joining_requests'], true)) {
+            return $this->rejectCircleJoinRequestViaService($id, $reason);
         }
 
         if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
@@ -1150,7 +1310,223 @@ class PendingRequestAdminController extends Controller
         return (string) $raw;
     }
 
-    private function fetchCircleJoinRequests(?string $search, string $status = 'pending'): Collection
+    /**
+     * Resolve the leader scope for leader-prefixed requests.
+     * Returns null for admin-panel requests and for global roles (Super Admin / Country Director).
+     *
+     * @return array{role: string, circle_ids: array<int, string>, category_ids: array<int, int>}|null
+     */
+    private function resolveLeaderScope(Request $request): ?array
+    {
+        if (! $request->attributes->get('leader_scope_forced') && ! $request->is('*leader/*', '*leaders/*')) {
+            return null;
+        }
+
+        $user = $request->user();
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $circleIds = app(LeaderPeersService::class)->resolveScopedCircleIds($user);
+        if ($circleIds === null) {
+            return null;
+        }
+
+        $categoryIds = [];
+        if (! empty($circleIds)) {
+            if (Schema::hasColumn('circles', 'circle_category_id')) {
+                $categoryIds = array_merge($categoryIds, DB::table('circles')
+                    ->whereIn('id', $circleIds)
+                    ->whereNotNull('circle_category_id')
+                    ->pluck('circle_category_id')
+                    ->all());
+            }
+            if (Schema::hasTable('circle_category_mappings')) {
+                $categoryIds = array_merge($categoryIds, DB::table('circle_category_mappings')
+                    ->whereIn('circle_id', $circleIds)
+                    ->pluck('category_id')
+                    ->all());
+            }
+        }
+
+        $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
+
+        // Industry Directors receive requests for every main category assigned to them,
+        // even when no circle exists under that category yet.
+        if ($role === 'industryDirector') {
+            $categoryIds = array_merge($categoryIds, app(LeaderPeersService::class)->resolveIndustryDirectorCategoryIds($user));
+        }
+
+        return [
+            'role' => $role,
+            'circle_ids' => array_values(array_unique(array_map('strval', $circleIds))),
+            'category_ids' => array_values(array_unique(array_map('intval', array_filter($categoryIds)))),
+        ];
+    }
+
+    /**
+     * Restrict a circle_join_requests query to the leader's circles or main categories.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array{circle_ids: array<int, string>, category_ids: array<int, int>}  $scope
+     */
+    private function applyLeaderScopeToJoinRequests($query, array $scope): void
+    {
+        $categoryColumns = array_values(array_filter(
+            ['level1_category_id', 'circle_category_id'],
+            fn (string $col): bool => Schema::hasColumn('circle_join_requests', $col)
+        ));
+
+        if (empty($scope['circle_ids']) && (empty($scope['category_ids']) || empty($categoryColumns))) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($q) use ($scope, $categoryColumns): void {
+            if (! empty($scope['circle_ids'])) {
+                $q->whereIn('circle_join_requests.circle_id', $scope['circle_ids']);
+            }
+            if (! empty($scope['category_ids'])) {
+                foreach ($categoryColumns as $col) {
+                    $q->orWhereIn('circle_join_requests.'.$col, $scope['category_ids']);
+                }
+            }
+        });
+    }
+
+    /**
+     * Keep non-circle-join requests only when the applicant is a member of the leader's circles.
+     * (Category routing applies to circle join requests only.)
+     *
+     * @param  array{circle_ids: array<int, string>, category_ids: array<int, int>}  $scope
+     */
+    private function filterResultsByLeaderScope(Collection $results, array $scope): Collection
+    {
+        $needsApplicantCheck = $results->contains(
+            fn ($r): bool => ($r['category'] ?? '') !== 'circle_joining_requests'
+        );
+        if (! $needsApplicantCheck) {
+            return $results;
+        }
+
+        $users = User::query()->whereNull('deleted_at')->where(function ($q) use ($scope): void {
+            $hasCondition = false;
+            if (! empty($scope['circle_ids'])) {
+                if (Schema::hasColumn('users', 'active_circle_id')) {
+                    $q->whereIn('active_circle_id', $scope['circle_ids']);
+                    $hasCondition = true;
+                }
+                $q->orWhereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scope['circle_ids'])->whereNull('deleted_at'));
+                $hasCondition = true;
+            }
+
+            if (! $hasCondition) {
+                $q->whereRaw('1 = 0');
+            }
+        });
+
+        $allowedEmails = $users->pluck('email')
+            ->filter()
+            ->map(fn ($e): string => strtolower((string) $e))
+            ->flip();
+
+        return $results->filter(function ($r) use ($allowedEmails): bool {
+            if (($r['category'] ?? '') === 'circle_joining_requests') {
+                return true;
+            }
+
+            return $allowedEmails->has(strtolower((string) ($r['applicant_email'] ?? '')));
+        })->values();
+    }
+
+    /**
+     * Scoped summary counts for leaders, computed from the same filtered list.
+     *
+     * @return array<string, mixed>
+     */
+    private function getScopedSummaryData(Request $request, string $status): array
+    {
+        $status = strtolower($status);
+        if (! in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+            $status = 'pending';
+        }
+
+        $sub = Request::create('/leader/pending-requests', 'GET', [
+            'category' => 'all',
+            'status' => $status,
+            'per_page' => 100000,
+        ]);
+        $sub->setUserResolver($request->getUserResolver());
+        $sub->attributes->set('leader_scope_forced', true);
+
+        $items = $this->index($sub)->getData(true)['data'] ?? [];
+
+        $breakdown = [
+            'visitor_registrations' => 0,
+            'coin_claims' => 0,
+            'circle_joining_requests' => 0,
+            'certifications' => 0,
+            'pending_impacts' => 0,
+            'ad_booking_requests' => 0,
+            'account_deletion_requests' => 0,
+            'account_deletion_emails' => 0,
+            'introduction_requests' => 0,
+            'circle_peer_referrals' => 0,
+            'event_joining_requests' => 0,
+        ];
+        foreach ($items as $item) {
+            $cat = (string) ($item['category'] ?? '');
+            if (array_key_exists($cat, $breakdown)) {
+                $breakdown[$cat]++;
+            }
+        }
+
+        $total = array_sum($breakdown);
+        $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
+        $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
+        $breakdown['visitors'] = $breakdown['visitor_registrations'];
+
+        return [
+            'status' => $status,
+            'total' => $total,
+            'total_pending' => $total,
+            'breakdown' => $breakdown,
+        ];
+    }
+
+    /**
+     * Block leaders from approving/rejecting circle join requests outside their circles/categories.
+     */
+    private function denyIfOutsideLeaderScope(Request $request, string $id): ?JsonResponse
+    {
+        $scope = $this->resolveLeaderScope($request);
+        if ($scope === null || ! Schema::hasTable('circle_join_requests') || ! Str::isUuid($id)) {
+            return null;
+        }
+
+        $record = DB::table('circle_join_requests')->where('id', $id)->first();
+        if (! $record) {
+            return null;
+        }
+
+        $inScope = in_array((string) ($record->circle_id ?? ''), $scope['circle_ids'], true);
+        foreach (['level1_category_id', 'circle_category_id'] as $col) {
+            if (! $inScope && isset($record->{$col}) && in_array((int) $record->{$col}, $scope['category_ids'], true)) {
+                $inScope = true;
+            }
+        }
+
+        if ($inScope) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'This request does not belong to your circles or main category.',
+        ], 403);
+    }
+    private function fetchCircleJoinRequests(?string $search, string $status = 'pending', ?array $scope = null): Collection
     {
         if (! Schema::hasTable('circle_join_requests')) {
             return collect();
@@ -1161,6 +1537,19 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('circles', 'circle_join_requests.circle_id', '=', 'circles.id');
 
         $this->applyStatusFilter($query, 'circle_join_requests', $status);
+
+        if ($scope !== null) {
+            $this->applyLeaderScopeToJoinRequests($query, $scope);
+
+            // Each approval stage only sees requests that are waiting for that stage:
+            // Circle Director/Founder -> pending_cd_approval, Industry Director/DED -> pending_id_approval.
+            if ($status === 'pending' && Schema::hasColumn('circle_join_requests', 'status')) {
+                $stage = in_array($scope['role'] ?? '', ['industryDirector', 'districtExecDirector'], true)
+                    ? \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                    : \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL;
+                $query->whereRaw('CAST(circle_join_requests.status AS TEXT) = ?', [$stage]);
+            }
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {

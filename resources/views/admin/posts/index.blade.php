@@ -336,6 +336,55 @@
                                 $owner = $post->user;
                                 $ownerName = $owner ? ($owner->display_name ?: trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''))) : '—';
                                 $circleName = optional($post->circle)->name;
+
+                                $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
+                                    || ($post->source_type ?? null) === 'life_impact'
+                                    || str_contains(strtolower($ownerName ?? ''), 'genie');
+
+                                if ($isRecognition) {
+                                    $recognizedPeer = null;
+                                    if (!empty($post->source_id)) {
+                                        $recognizedPeer = \App\Models\User::find($post->source_id);
+                                    }
+                                    if (!$recognizedPeer && !empty($post->id)) {
+                                        $mention = \App\Models\PostMention::where('post_id', $post->id)->first();
+                                        if ($mention && $mention->peer_id) {
+                                            $recognizedPeer = \App\Models\User::find($mention->peer_id);
+                                        }
+                                    }
+                                    if (!$recognizedPeer && !empty($post->tags) && is_array($post->tags)) {
+                                        foreach ($post->tags as $tag) {
+                                            if (\Illuminate\Support\Str::isUuid((string)$tag)) {
+                                                $recognizedPeer = \App\Models\User::find($tag);
+                                                if ($recognizedPeer) break;
+                                            }
+                                        }
+                                    }
+                                    if (!$recognizedPeer && (!empty($post->content_text) || !empty($post->title))) {
+                                        $text = $post->content_text ?: $post->title;
+                                        if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                                            $cName = trim($m[1]);
+                                            $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                                                ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                                                ->orWhere('name', $cName)
+                                                ->first();
+                                        } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
+                                            $cName = trim($m[1]);
+                                            $recognizedPeer = \App\Models\User::where('display_name', $cName)
+                                                ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                                                ->orWhere('name', $cName)
+                                                ->first();
+                                        }
+                                    }
+
+                                    if ($recognizedPeer) {
+                                        $owner = $recognizedPeer;
+                                        $ownerName = $owner->display_name ?: trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''));
+                                        if (empty($circleName) && $owner->active_circle_id) {
+                                            $circleName = optional($owner->circle)->name;
+                                        }
+                                    }
+                                }
                                 $isActive = $isImpact
                                     ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
                                     : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false);
@@ -409,9 +458,22 @@
                                 <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                     @if($owner)
                                         <div class="flex items-center gap-2">
-                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($ownerName) }}">
-                                                {{ $getInitials($ownerName) }}
-                                            </div>
+                                            @php
+                                                $ownerAvatarUrl = $owner->profile_photo_url ?? $owner->avatar ?? null;
+                                                if ($ownerAvatarUrl && ! \Illuminate\Support\Str::startsWith($ownerAvatarUrl, ['http://', 'https://'])) {
+                                                    $ownerAvatarUrl = asset(ltrim($ownerAvatarUrl, '/'));
+                                                }
+                                            @endphp
+                                            @if($ownerAvatarUrl)
+                                                <img src="{{ $ownerAvatarUrl }}" alt="{{ $ownerName }}" class="w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold items-center justify-center shrink-0 hidden" style="background-color: {{ $getAvatarBg($ownerName) }}">
+                                                    {{ $getInitials($ownerName) }}
+                                                </div>
+                                            @else
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($ownerName) }}">
+                                                    {{ $getInitials($ownerName) }}
+                                                </div>
+                                            @endif
                                             <a href="{{ route('admin.users.show', $owner->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
                                                 {{ $ownerName }}
                                             </a>

@@ -66,9 +66,9 @@ class LeaderReportsController extends Controller
     /**
      * Get full report details with peer roster.
      */
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
-        $data = $this->reportsService->getReportDetails($id);
+        $data = $this->reportsService->getReportDetails($id, $request->user());
 
         return response()->json([
             'success' => true,

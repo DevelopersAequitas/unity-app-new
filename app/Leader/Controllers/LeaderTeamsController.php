@@ -128,4 +128,36 @@ class LeaderTeamsController extends Controller
             'data' => $data,
         ]);
     }
+
+    /**
+     * Refer a peer or external contact for a circle category.
+     */
+    public function referCategory(string $id, Request $request): JsonResponse
+    {
+        $data = $this->teamsService->referCategory($id, $request->user(), $request->all());
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Category referral submitted successfully.',
+            'data' => $data,
+        ], 201);
+    }
+
+    /**
+     * Get saved/synced contacts for referring to a circle category.
+     */
+    public function contacts(Request $request): JsonResponse
+    {
+        $search = $request->query('search') ? (string) $request->query('search') : null;
+        $limit = (int) $request->query('per_page', 60);
+        $data = $this->teamsService->getUserContacts($request->user(), $search, $limit);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Contacts fetched successfully.',
+            'data' => $data,
+        ]);
+    }
 }
