@@ -11,6 +11,7 @@ import {
     Scale, 
     Clock, 
     CheckCircle, 
+    CheckCircle2, 
     Eye, 
     Search, 
     ChevronRight, 
@@ -127,6 +128,7 @@ export const JuryPage: React.FC = () => {
         const jurorMap = new Map<string, { juror: any; total: number; completed: number; assignments: JuryAssignment[] }>();
         campaignAssignments.forEach((asg) => {
             const jurorId = asg.juror_user_id;
+            if (!jurorId) return;
             if (!jurorMap.has(jurorId)) {
                 jurorMap.set(jurorId, {
                     juror: asg.juror || {
@@ -139,10 +141,12 @@ export const JuryPage: React.FC = () => {
                     assignments: [],
                 });
             }
-            const record = jurorMap.get(jurorId)!;
-            record.total += 1;
-            if (asg.status === 'completed') record.completed += 1;
-            record.assignments.push(asg);
+            const record = jurorMap.get(jurorId);
+            if (record) {
+                record.total += 1;
+                if (asg.status === 'completed') record.completed += 1;
+                record.assignments.push(asg);
+            }
         });
         return Array.from(jurorMap.values());
     }, [campaignAssignments]);
@@ -569,13 +573,37 @@ export const JuryPage: React.FC = () => {
                                     ) : (
                                         campaignAssignments.map((asg) => {
                                             const isCompleted = asg.status === 'completed';
-                                            const jurorBus = asg.juror_business_name || asg.juror?.company_name || 'Enterprise Peer';
-                                            const jurorCat = asg.juror_business_category || asg.juror?.business_category || 'Business Member';
+                                            const jurorBus = typeof asg.juror_business_name === 'string' && asg.juror_business_name.trim()
+                                                ? asg.juror_business_name
+                                                : (typeof asg.juror?.company_name === 'string' && asg.juror.company_name.trim()
+                                                    ? asg.juror.company_name
+                                                    : (typeof asg.juror?.business_name === 'string' && asg.juror.business_name.trim()
+                                                        ? asg.juror.business_name
+                                                        : 'Enterprise Peer'));
+                                            const jurorCat = typeof asg.juror_business_category === 'string' && asg.juror_business_category.trim()
+                                                ? asg.juror_business_category
+                                                : (typeof asg.juror?.business_category === 'string' && asg.juror.business_category.trim()
+                                                    ? asg.juror.business_category
+                                                    : (typeof asg.juror?.business_category?.name === 'string'
+                                                        ? asg.juror.business_category.name
+                                                        : (typeof asg.juror?.main_business_category?.name === 'string'
+                                                            ? asg.juror.main_business_category.name
+                                                            : 'Business Member')));
+                                            const candName = typeof asg.candidate_name === 'string' && asg.candidate_name.trim()
+                                                ? asg.candidate_name
+                                                : (typeof asg.nomination?.candidate_name === 'string'
+                                                    ? asg.nomination.candidate_name
+                                                    : (typeof asg.nomination_id === 'string' ? asg.nomination_id : 'Candidate'));
+                                            const jurorName = typeof asg.jury_name === 'string' && asg.jury_name.trim()
+                                                ? asg.jury_name
+                                                : (typeof asg.juror?.display_name === 'string' && asg.juror.display_name.trim()
+                                                    ? asg.juror.display_name
+                                                    : (typeof asg.juror_user_id === 'string' ? asg.juror_user_id : 'Juror'));
 
                                             return (
                                                 <tr key={asg.id}>
                                                     <td className="ps-3 fw-semibold text-dark">
-                                                        <div>{asg.candidate_name || asg.nomination_id}</div>
+                                                        <div>{candName}</div>
                                                         <div className="small text-muted font-monospace" style={{ fontSize: '11px' }}>
                                                             {asg.nomination?.application_number}
                                                         </div>
@@ -585,7 +613,7 @@ export const JuryPage: React.FC = () => {
                                                     </td>
                                                     <td>
                                                         <div className="fw-semibold text-dark">
-                                                            {asg.jury_name || asg.juror?.display_name || asg.juror_user_id}
+                                                            {jurorName}
                                                         </div>
                                                         <div className="small text-muted" style={{ fontSize: '11px' }}>
                                                             {jurorBus} • {jurorCat}

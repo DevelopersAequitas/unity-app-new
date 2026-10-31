@@ -177,8 +177,17 @@ class JuryAssignmentController extends LeadershipBaseController
 
         $assignments->each(function ($asg): void {
             if ($asg->juror) {
-                $asg->juror_business_name = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
-                $asg->juror_business_category = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
+                $compName = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
+                $catName = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
+
+                $asg->juror->unsetRelation('businessCategory');
+                $asg->juror->unsetRelation('mainBusinessCategory');
+
+                $asg->juror->setAttribute('business_name', $compName);
+                $asg->juror->setAttribute('business_category', $catName);
+
+                $asg->setAttribute('juror_business_name', $compName);
+                $asg->setAttribute('juror_business_category', $catName);
             }
         });
 
