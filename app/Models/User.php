@@ -1470,6 +1470,27 @@ class User extends Authenticatable
             ->whereNull("{$table}.deleted_at");
     }
 
+    public function scopeWithoutSystemUser(Builder $query, string $table = 'users'): Builder
+    {
+        return $query->where(function (Builder $q) use ($table): void {
+            $q->whereRaw("LOWER(COALESCE({$table}.email, '')) != ?", ['info@peersglobal.com'])
+                ->whereRaw("LOWER(COALESCE({$table}.display_name, '')) NOT LIKE ?", ['%genie%'])
+                ->whereRaw("LOWER(COALESCE({$table}.first_name, '')) NOT LIKE ?", ['%genie%'])
+                ->whereRaw("LOWER(COALESCE({$table}.last_name, '')) NOT LIKE ?", ['%genie%'])
+                ->whereRaw("LOWER(COALESCE({$table}.display_name, '')) NOT LIKE ?", ['%peersglobal unity%']);
+
+            $systemUserId = static::getSystemUserId();
+            if ($systemUserId !== '') {
+                $q->where("{$table}.id", '!=', $systemUserId);
+            }
+        });
+    }
+
+    public function scopeWithoutSystemUsers(Builder $query, string $table = 'users'): Builder
+    {
+        return $this->scopeWithoutSystemUser($query, $table);
+    }
+
     public static function getSystemUser(): self
     {
         $systemUser = static::query()
@@ -1567,9 +1588,17 @@ class User extends Authenticatable
 
     public function isSystemUser(): bool
     {
-        return strtolower(trim((string) $this->email)) === 'info@peersglobal.com'
-            || str_contains(strtolower((string) $this->display_name), 'genie')
-            || str_contains(strtolower((string) $this->display_name), 'peersglobal unity');
+        $email = strtolower(trim((string) ($this->email ?? '')));
+        $displayName = strtolower(trim((string) ($this->display_name ?? '')));
+        $firstName = strtolower(trim((string) ($this->first_name ?? '')));
+        $lastName = strtolower(trim((string) ($this->last_name ?? '')));
+
+        return $email === 'info@peersglobal.com'
+            || str_contains($displayName, 'genie')
+            || str_contains($firstName, 'genie')
+            || str_contains($lastName, 'genie')
+            || str_contains($displayName, 'peersglobal unity')
+            || (! empty($this->id) && (string) $this->id === static::getSystemUserId());
     }
 
     public function wishlists(): HasMany

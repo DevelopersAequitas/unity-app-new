@@ -27,6 +27,9 @@ use Throwable;
 
 class AskFeedService
 {
+    public function __construct(
+        protected AskService $askService
+    ) {}
     /**
      * Retrieve feed items for other peers (open asks, fulfilled stories, giver spotlights).
      *
@@ -390,7 +393,17 @@ class AskFeedService
             $giver = $latestResponse?->responder;
         }
 
-        // 3. Register anonymous Business Deal
+        // 3. Reward Helper (User C) with 1 Life Impact and 2,500 Coins
+        if ($giver) {
+            $this->askService->rewardHelperForFulfillment(
+                $ask,
+                $giver,
+                $user,
+                $gratitudeNote !== '' ? $gratitudeNote : null
+            );
+        }
+
+        // 4. Register anonymous Business Deal
         if ($giver) {
             try {
                 BusinessDeal::create([

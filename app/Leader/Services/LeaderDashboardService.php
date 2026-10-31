@@ -212,6 +212,7 @@ class LeaderDashboardService
                 $activeCircleUserIds = Schema::hasColumn('users', 'active_circle_id')
                     ? User::query()
                         ->whereNull('deleted_at')
+                        ->withoutSystemUser()
                         ->whereIn('active_circle_id', $targetCircleIds)
                         ->pluck('id')
                         ->all()
@@ -223,7 +224,7 @@ class LeaderDashboardService
             // Also include district-scoped peers if user is DED and no single circle was explicitly requested
             if (! $circle && ($role === 'districtExecDirector' || ($admin && AdminAccess::isDed($admin)))) {
                 if ($admin && AdminAccess::isDed($admin)) {
-                    $dedQuery = User::query()->whereNull('deleted_at');
+                    $dedQuery = User::query()->whereNull('deleted_at')->withoutSystemUser();
                     AdminCircleScope::applyDedDistrictScope($dedQuery, $admin);
                     $dedUserIds = $dedQuery->pluck('id')->all();
                     $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $dedUserIds)));
@@ -231,6 +232,7 @@ class LeaderDashboardService
                     $dName = strtolower(trim((string) $districtName));
                     $cityUserIds = User::query()
                         ->whereNull('deleted_at')
+                        ->withoutSystemUser()
                         ->where(function (Builder $q) use ($dName): void {
                             $q->whereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
                                 ->orWhereRaw("LOWER(NULLIF(TRIM(city_of_residence), '')) = ?", [$dName]);
@@ -239,6 +241,11 @@ class LeaderDashboardService
                         ->all();
                     $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $cityUserIds)));
                 }
+            }
+
+            $systemUserId = User::getSystemUserId();
+            if ($systemUserId !== '' && ! empty($scopedMemberUserIds)) {
+                $scopedMemberUserIds = array_values(array_filter($scopedMemberUserIds, fn ($id) => (string) $id !== $systemUserId));
             }
         }
 
@@ -273,6 +280,7 @@ class LeaderDashboardService
             // Global Scope (Global Admin / All Circles) includes all registered peers in the platform
             $totalPeers = User::query()
                 ->whereNull('deleted_at')
+                ->withoutSystemUser()
                 ->count();
         } else {
             $totalPeers = count($scopedMemberUserIds ?? []);
@@ -703,7 +711,7 @@ class LeaderDashboardService
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
         // 30-day peers growth
-        $growthQuery = User::query()->whereNull('deleted_at')->where('created_at', '>=', now()->subDays(30));
+        $growthQuery = User::query()->whereNull('deleted_at')->withoutSystemUser()->where('created_at', '>=', now()->subDays(30));
         if (! $isGlobalScope && ! empty($scopedMemberUserIds)) {
             $growthQuery->whereIn('id', $scopedMemberUserIds);
         }
@@ -765,6 +773,7 @@ class LeaderDashboardService
 
         $baseQuery = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->with([
                 'circleMembers.circle',
                 'activeCircle',
@@ -813,6 +822,9 @@ class LeaderDashboardService
         $result = [];
         $rank = 1;
         foreach ($users as $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $name = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($name === '') {
                 $name = (string) ($u->display_name ?? 'Peer Member');

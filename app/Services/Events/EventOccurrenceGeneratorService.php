@@ -258,13 +258,26 @@ class EventOccurrenceGeneratorService
         );
         $interval = max(1, (int) ($event->recurrence_interval ?: 1));
 
-        return match ($type) {
+        $starts = match ($type) {
             'daily' => $this->daily($start, $until, $interval),
             'weekly' => $this->weekly($start, $until, $interval, $event->recurrence_day_of_week),
             'monthly' => $this->monthly($start, $until, $interval, $event->recurrence_day_of_month, $event->recurrence_week_of_month, $event->recurrence_day_of_week),
             'yearly' => $this->yearly($start, $until, $interval, $event->recurrence_month, $event->recurrence_day_of_month, $event->recurrence_week_of_month, $event->recurrence_day_of_week),
             default => [$start],
         };
+
+        $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($eventTz === 'UTC') {
+            $eventTz = 'Asia/Kolkata';
+        }
+        $startDateStr = $start->setTimezone($eventTz)->toDateString();
+        $hasStart = collect($starts)->contains(fn (CarbonImmutable $d): bool => $d->setTimezone($eventTz)->toDateString() === $startDateStr);
+
+        if (! $hasStart) {
+            $starts = collect($starts)->prepend($start)->sortBy(fn (CarbonImmutable $d): int => $d->getTimestamp())->values()->all();
+        }
+
+        return $starts;
     }
 
     private function daily(CarbonImmutable $start, CarbonImmutable $until, int $interval): array

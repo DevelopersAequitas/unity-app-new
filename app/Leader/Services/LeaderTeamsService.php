@@ -1167,6 +1167,7 @@ class LeaderTeamsService
         $effectiveCircleId = $circle ? (string) $circle->id : $circleId;
         $memberUsers = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])
             ->where(function (Builder $q) use ($effectiveCircleId): void {
                 $q->whereHas('circleMembers', function (Builder $cq) use ($effectiveCircleId): void {
@@ -1396,6 +1397,7 @@ class LeaderTeamsService
 
         $query = User::query()
             ->whereNull('deleted_at')
+            ->withoutSystemUser()
             ->where(function (Builder $q) use ($circleId): void {
                 $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
                     $cq->where('circle_id', $circleId)->whereNull('deleted_at');
@@ -1479,6 +1481,9 @@ class LeaderTeamsService
         $data = [];
 
         foreach ($paginator->items() as $u) {
+            if ($u->isSystemUser()) {
+                continue;
+            }
             $card = $peersService->formatPeerCard($u, $circleId, $circleName);
             $card['circle'] = $circleName;
             $card['circle_id'] = $circleId;
@@ -1636,7 +1641,10 @@ class LeaderTeamsService
         $seenPhones = [];
 
         if (Schema::hasTable('contact_posts')) {
-            $query = DB::table('contact_posts')->orderByDesc('created_at');
+            $query = DB::table('contact_posts')
+                ->whereRaw("LOWER(COALESCE(email, '')) != 'info@peersglobal.com'")
+                ->whereRaw("LOWER(COALESCE(full_name, '')) NOT LIKE '%genie%'")
+                ->orderByDesc('created_at');
             if ($user) {
                 $userCount = (clone $query)->where('user_id', (string) $user->id)->count();
                 if ($userCount > 0) {

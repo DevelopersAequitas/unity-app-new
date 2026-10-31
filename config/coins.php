@@ -12,6 +12,7 @@ return [
         'requirement' => 3000,
         'recommend_peer' => 1000,
         'introduction_video' => 1000,
+        'ask_fulfillment' => 2500,
     ],
     'recommend_peer' => 1000,
     'register_visitor' => 1000,

@@ -163,6 +163,25 @@ class AskResponseService
 
         $this->notificationService->notifyResponseStatusUpdated($response, $status);
 
+        if ($status === AskResponse::STATUS_COMPLETED || $status === 'completed') {
+            $ask = $response->ask ?? Ask::find($response->ask_id);
+            if ($ask) {
+                if ($ask->status !== Ask::STATUS_FULFILLED) {
+                    $ask->update([
+                        'status' => Ask::STATUS_FULFILLED,
+                        'fulfilled_at' => now(),
+                        'outcome_status' => 'completed',
+                        'outcome_notes' => $note,
+                    ]);
+                }
+                $helper = $response->responder ?? User::find($response->responder_user_id);
+                $askOwner = $ask->user ?? User::find($ask->user_id);
+                if ($helper && $askOwner) {
+                    app(AskService::class)->rewardHelperForFulfillment($ask, $helper, $askOwner, $note);
+                }
+            }
+        }
+
         return $response->fresh(['responder', 'introducedUser', 'contact']);
     }
 
