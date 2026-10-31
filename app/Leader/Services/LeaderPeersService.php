@@ -76,13 +76,13 @@ class LeaderPeersService
 
             $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
             if ($resolvedDistrictId) {
-                $circleIds = Circle::query()->where('district_id', $resolvedDistrictId)->pluck('id')->all();
+                $circleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
                 if (! empty($circleIds)) {
                     return $circleIds;
                 }
             }
 
-            $circleIds = Circle::query()->where('ded_user_id', $userId)->pluck('id')->all();
+            $circleIds = Circle::query()->where('ded_user_id', $userId)->whereNull('deleted_at')->pluck('id')->all();
             if (! empty($circleIds)) {
                 return $circleIds;
             }
@@ -300,93 +300,49 @@ class LeaderPeersService
                 : null;
 
             if ($role === 'districtExecDirector' || ($adminUser && AdminAccess::isDed($adminUser))) {
-                // Restrict to DED district circles and district city peers
-                $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-                $districtCircleIds = [];
-                if ($resolvedDistrictId) {
-                    $districtCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
-                }
-                if (! empty($scopedCircleIds)) {
-                    $districtCircleIds = array_values(array_unique(array_merge($districtCircleIds, $scopedCircleIds)));
-                }
+                // Strictly restrict to peers who have joined circles created under this DED's district
+                $districtCircleIds = $scopedCircleIds ?? [];
 
-                $districtName = null;
-                if ($resolvedDistrictId && Schema::hasTable('districts')) {
-                    $districtName = District::query()->where('id', $resolvedDistrictId)->value('name');
-                }
-                if (! $districtName && $adminUser) {
-                    $districtName = AdminAccess::assignedDedDistrictName($adminUser);
-                }
-                if (! $districtName && Schema::hasTable('admin_ded_districts') && $user) {
-                    $districtName = DB::table('admin_ded_districts')
-                        ->where('admin_user_id', $user->id)
-                        ->orWhere('user_id', $user->id)
-                        ->value('district_name');
-                }
-                if (! $districtName && ! empty($districtCircleIds)) {
-                    $firstCircle = Circle::query()->whereIn('id', $districtCircleIds)->first();
-                    if ($firstCircle && preg_match('/^(Ahmedabad|Mumbai|Pune|Delhi|Surat|Bangalore|Bengaluru|Vadodara|Rajkot)/i', (string) $firstCircle->name, $matches)) {
-                        $districtName = ucfirst(strtolower($matches[1]));
-                    }
-                }
-                if (! $districtName && $user) {
-                    $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
-                    if (str_contains($userCity, 'ahmedabad')) {
-                        $districtName = 'Ahmedabad';
+                if (empty($districtCircleIds)) {
+                    $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+                    if ($resolvedDistrictId) {
+                        $districtCircleIds = Circle::query()
+                            ->where('district_id', $resolvedDistrictId)
+                            ->whereNull('deleted_at')
+                            ->pluck('id')
+                            ->all();
                     }
                 }
 
-                if (empty($districtCircleIds) && ! empty($districtName)) {
-                    $dName = strtolower(trim((string) $districtName));
-                    $districtCircleIds = Circle::query()
-                        ->whereNull('deleted_at')
-                        ->where(function (Builder $q) use ($dName): void {
-                            $q->whereRaw('LOWER(name) LIKE ?', ['%'.$dName.'%']);
-                            if (Schema::hasColumn('circles', 'city')) {
-                                $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
-                                    ->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) LIKE ?", ['%'.$dName.'%']);
-                            }
+                if (empty($districtCircleIds) && $adminUser && AdminAccess::isDed($adminUser)) {
+                    $districtCircleIds = AdminCircleScope::getDedCircleIds($adminUser);
+                }
+
+                if (empty($districtCircleIds)) {
+                    // No circles exist under this district yet -> strictly 0 peers
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->where(function (Builder $q) use ($districtCircleIds): void {
+                        $q->whereHas('circleMembers', function (Builder $cq) use ($districtCircleIds): void {
+                            $cq->whereIn('circle_id', $districtCircleIds)
+                                ->whereNull('deleted_at')
+                                ->where(function ($sq): void {
+                                    $sq->whereNull('status')
+                                        ->orWhereIn(DB::raw('status::text'), ['approved', 'active', 'pending']);
+                                });
                         })
-                        ->pluck('id')
-                        ->all();
+                        ->orWhereIn('active_circle_id', $districtCircleIds)
+                        ->orWhereExists(function ($sq) use ($districtCircleIds): void {
+                            $sq->selectRaw(1)
+                                ->from('circles')
+                                ->whereIn('circles.id', $districtCircleIds)
+                                ->whereNull('circles.deleted_at')
+                                ->where(function ($lq): void {
+                                    $this->applyCircleLeadershipColumnsCondition($lq);
+                                });
+                        });
+                    });
                 }
-
-                $query->where(function (Builder $q) use ($districtCircleIds, $districtName, $adminUser): void {
-                    $hasCondition = false;
-                    if (! empty($districtCircleIds)) {
-                        $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at'))
-                            ->orWhereIn('active_circle_id', $districtCircleIds)
-                            ->orWhereExists(function ($sq) use ($districtCircleIds): void {
-                                $sq->selectRaw(1)
-                                    ->from('circles')
-                                    ->whereIn('circles.id', $districtCircleIds)
-                                    ->whereNull('circles.deleted_at')
-                                    ->where(function ($lq): void {
-                                        $this->applyCircleLeadershipColumnsCondition($lq);
-                                    });
-                            });
-                        $hasCondition = true;
-                    }
-
-                    if ($adminUser && AdminAccess::isDed($adminUser)) {
-                        $dedQ = User::query()->whereNull('deleted_at')->withoutSystemUser();
-                        AdminCircleScope::applyDedDistrictScope($dedQ, $adminUser);
-                        $dedUserIds = $dedQ->pluck('id')->all();
-                        if (! empty($dedUserIds)) {
-                            $q->orWhereIn('users.id', $dedUserIds);
-                            $hasCondition = true;
-                        }
-                    } elseif (! empty($districtName)) {
-                        $dName = strtolower(trim((string) $districtName));
-                        $q->orWhereRaw("LOWER(NULLIF(TRIM(users.city), '')) = ?", [$dName])
-                            ->orWhereRaw("LOWER(NULLIF(TRIM(users.city_of_residence), '')) = ?", [$dName]);
-                        $hasCondition = true;
-                    }
-
-                    if (! $hasCondition) {
-                        $q->whereRaw('1 = 0');
-                    }
-                });
             } elseif ($role === 'industryDirector') {
                 // Strictly the peers inside circles built under the director's assigned main categories.
                 // A category without any circle contributes no peers.
