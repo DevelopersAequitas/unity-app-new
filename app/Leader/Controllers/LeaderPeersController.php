@@ -120,6 +120,15 @@ class LeaderPeersController extends Controller
      */
     public function meetings(string $id): JsonResponse
     {
+        $peer = User::query()->where('id', $id)->first();
+        if (! $peer || $peer->isSystemUser()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Peer not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ], 404);
+        }
+
         $data = $this->peersService->getPeerMeetings($id);
 
         return response()->json([
@@ -133,6 +142,15 @@ class LeaderPeersController extends Controller
      */
     public function activities(string $id, Request $request): JsonResponse
     {
+        $peer = User::query()->where('id', $id)->first();
+        if (! $peer || $peer->isSystemUser()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Peer not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ], 404);
+        }
+
         $page = (int) $request->query('page', 1);
         $limit = (int) $request->query('limit', 20);
         $data = $this->peersService->getPeerActivities($id, $page, $limit);
@@ -182,7 +200,7 @@ class LeaderPeersController extends Controller
         }
 
         $peer = User::query()->where('id', $id)->first();
-        if (! $peer) {
+        if (! $peer || $peer->isSystemUser()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Peer not found.',
