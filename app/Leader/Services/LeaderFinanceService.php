@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Models\Circle;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
