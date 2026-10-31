@@ -58,6 +58,21 @@ class CircleMemberController extends Controller
             }
         }
 
+        if (Schema::hasColumn('circle_members', 'show_on_member_list')) {
+            if ($request->has('show_on_member_list')) {
+                $filterVal = strtolower(trim((string) $request->input('show_on_member_list')));
+                if ($filterVal !== 'all' && $filterVal !== 'any') {
+                    $query->where('circle_members.show_on_member_list', $request->boolean('show_on_member_list'));
+                }
+            } else {
+                // When toggle is ON, member is excluded/hidden from member list API
+                $query->where(function ($q): void {
+                    $q->where('circle_members.show_on_member_list', false)
+                        ->orWhereNull('circle_members.show_on_member_list');
+                });
+            }
+        }
+
         $legacyDedIdToggle = $request->boolean('show_ded_id')
             || $request->boolean('include_ded_id')
             || $request->boolean('ded_id')

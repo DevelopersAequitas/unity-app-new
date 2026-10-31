@@ -25,6 +25,9 @@ class AdminStoreProductController extends BaseApiController
         if ($categoryId = $request->input('category_id')) {
             $query->where('category_id', $categoryId);
         }
+        if ($type = $request->input('type')) {
+            $query->where('type', $type);
+        }
 
         $perPage = (int) $request->input('per_page', 20);
         $products = $query->orderBy('created_at', 'desc')->paginate($perPage);
@@ -62,6 +65,22 @@ class AdminStoreProductController extends BaseApiController
         $product->update(['status' => 'INACTIVE']);
 
         return $this->success($product, 'Product disabled successfully');
+    }
+
+    public function archive(string $id): JsonResponse
+    {
+        $product = Product::findOrFail($id);
+        $product->update(['status' => 'ARCHIVED']);
+
+        return $this->success($product, 'Product archived successfully');
+    }
+
+    public function destroy(string $id): JsonResponse
+    {
+        $product = Product::findOrFail($id);
+        $product->delete();
+
+        return $this->success(['deleted' => true], 'Product deleted successfully');
     }
 
     public function addImage(Request $request, string $id): JsonResponse
