@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
+use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
 use App\Http\Controllers\Admin\CampaignPamphletController;
 use App\Http\Controllers\Admin\DailyNotificationController;
@@ -865,6 +866,9 @@ Route::prefix('v1')->group(function () {
             Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
             Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
             Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
+
+            Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index']);
+            Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
