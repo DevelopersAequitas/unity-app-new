@@ -76,7 +76,18 @@
         </div>
     </div></div>
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center"><span>Occurrences</span><a class="btn btn-sm btn-success" href="{{ route('admin.events.attendance', ['id' => $event->id]) }}">Attendance</a></div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Occurrences</span>
+            <div class="d-flex align-items-center gap-2">
+                <form method="POST" action="{{ route('admin.events.sync-occurrences', $event->id) }}" class="d-inline m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-outline-primary" title="Regenerate future occurrences based on current start date and schedule">
+                        <i class="bi bi-arrow-repeat me-1"></i>Sync Occurrences
+                    </button>
+                </form>
+                <a class="btn btn-sm btn-success" href="{{ route('admin.events.attendance', ['id' => $event->id]) }}">Attendance</a>
+            </div>
+        </div>
         <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Registered</th><th>Checked-in</th><th>Public Visitor Form Link</th><th>Status</th></tr></thead><tbody>
         @forelse($event->occurrences as $occurrence)
             @php
