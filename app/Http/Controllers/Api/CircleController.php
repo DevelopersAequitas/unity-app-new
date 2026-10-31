@@ -71,6 +71,7 @@ class CircleController extends BaseApiController
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -81,6 +82,7 @@ class CircleController extends BaseApiController
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -154,6 +156,7 @@ class CircleController extends BaseApiController
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -164,6 +167,7 @@ class CircleController extends BaseApiController
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -318,6 +322,7 @@ class CircleController extends BaseApiController
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -328,6 +333,7 @@ class CircleController extends BaseApiController
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
                         ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), fn ($sq) => $sq->where('circle_members.show_on_member_list', true))
                         ->whereHas('user', function ($uq) {
                             $uq->where(function ($sq) {
                                 $sq->whereNull('status')->orWhere('status', 'active');
@@ -385,6 +391,16 @@ class CircleController extends BaseApiController
             ->with('user')
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
+            ->when(Schema::hasColumn('circle_members', 'show_on_member_list'), function ($q) use ($request): void {
+                if ($request->has('show_on_member_list')) {
+                    $val = strtolower(trim((string) $request->input('show_on_member_list')));
+                    if ($val !== 'all' && $val !== 'any') {
+                        $q->where('circle_members.show_on_member_list', $request->boolean('show_on_member_list'));
+                    }
+                } else {
+                    $q->where('circle_members.show_on_member_list', true);
+                }
+            })
             ->whereHas('user', function ($uq) {
                 $uq->where(function ($sq) {
                     $sq->whereNull('status')->orWhere('status', 'active');
