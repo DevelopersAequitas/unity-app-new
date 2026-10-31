@@ -94,7 +94,7 @@ class LeaderFinanceService
             $circleCollectionsAmount += ($unitPrice * $pCount);
         }
 
-        $collectionsAmount = $rawPaymentSum > 0 ? $rawPaymentSum : $circleCollectionsAmount;
+        $collectionsAmount = max($rawPaymentSum, $circleCollectionsAmount);
         $circleRevenueAmount = $collectionsAmount;
 
         // Total revenue = deals cut + circle collections
