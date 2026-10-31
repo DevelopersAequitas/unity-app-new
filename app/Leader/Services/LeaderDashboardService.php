@@ -311,7 +311,12 @@ class LeaderDashboardService
             $pendingRes = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
                 ->index($subReq)
                 ->getData(true);
-            $pendingPeersCount = (int) ($pendingRes['meta']['total'] ?? count($pendingRes['data'] ?? []));
+            $pendingPeersCount = (int) (
+                $pendingRes['total'] ??
+                $pendingRes['meta']['total'] ??
+                $pendingRes['data_count'] ??
+                count($pendingRes['data'] ?? [])
+            );
         } catch (\Throwable $e) {
             if ($isGlobalScope) {
                 $pendingPeersCount = CircleMember::query()
