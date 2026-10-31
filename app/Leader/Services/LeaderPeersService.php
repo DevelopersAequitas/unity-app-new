@@ -176,15 +176,16 @@ class LeaderPeersService
         $circleIds = [];
 
         // 1. Direct column associations on circles table
+        $circleCols = Schema::hasTable('circles') ? Schema::getColumnListing('circles') : [];
         $directCircleIds = Circle::query()
             ->whereNull('deleted_at')
-            ->where(function (Builder $q) use ($userId): void {
-                $q->where('circle_founder_user_id', $userId)
-                    ->orWhere('founder_user_id', $userId)
-                    ->orWhere('circle_director_user_id', $userId)
-                    ->orWhere('director_user_id', $userId)
-                    ->orWhere('chair_user_id', $userId)
-                    ->orWhere('vice_chair_user_id', $userId);
+            ->where(function (Builder $q) use ($userId, $circleCols): void {
+                $q->where('founder_user_id', $userId);
+                foreach (['circle_founder_user_id', 'circle_director_user_id', 'director_user_id', 'chair_user_id', 'vice_chair_user_id'] as $col) {
+                    if (in_array($col, $circleCols, true)) {
+                        $q->orWhere($col, $userId);
+                    }
+                }
             })
             ->pluck('id')
             ->all();

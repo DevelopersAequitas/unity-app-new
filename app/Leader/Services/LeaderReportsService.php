@@ -14,6 +14,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -448,25 +449,25 @@ class LeaderReportsService
         $fileName = "Report-{$type}-{$period}.pdf";
         $details['file_name'] = $fileName;
 
-        if (class_exists(\Dompdf\Dompdf::class) && class_exists(\Dompdf\Options::class)) {
+        if (class_exists(Dompdf::class) && class_exists(Options::class)) {
             try {
                 $html = view('reports.performance-report-pdf', [
                     'report' => $details,
                 ])->render();
 
-                $options = new \Dompdf\Options;
+                $options = new Options;
                 $options->set('isHtml5ParserEnabled', true);
                 $options->set('isRemoteEnabled', true);
                 $options->set('defaultFont', 'Helvetica');
 
-                $dompdf = new \Dompdf\Dompdf($options);
+                $dompdf = new Dompdf($options);
                 $dompdf->loadHtml($html);
                 $dompdf->setPaper('A4', 'portrait');
                 $dompdf->render();
 
                 return (string) $dompdf->output();
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Dompdf rendering failed, falling back to LeaderReportPdfGenerator: '.$e->getMessage());
+                Log::warning('Dompdf rendering failed, falling back to LeaderReportPdfGenerator: '.$e->getMessage());
             }
         }
 

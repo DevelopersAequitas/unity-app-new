@@ -1941,7 +1941,7 @@ class LeaderActivitiesService
                 type: 'stories',
                 title: $title,
                 subtitle: (string) ($row->business_name ?? ($row->full_name ?? 'Vyapaar Jagat Story')),
-                description: $storyText !== '' ? $storyText : "Business story submitted by ".($row->full_name ?? 'Peer Member').'.',
+                description: $storyText !== '' ? $storyText : 'Business story submitted by '.($row->full_name ?? 'Peer Member').'.',
                 status: ucfirst((string) ($row->status ?? 'Submitted')),
                 dateStr: $dateStr,
                 createdAtIso: (string) ($row->created_at ?? now()->toIso8601String()),

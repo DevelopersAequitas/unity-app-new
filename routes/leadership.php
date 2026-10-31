@@ -17,6 +17,13 @@ use App\Http\Controllers\Api\V1\Leadership\PublicCampaignController;
 use App\Http\Controllers\Api\V1\Leadership\ReportController;
 use App\Http\Controllers\Api\V1\Leadership\VerificationController;
 use App\Http\Controllers\Api\V1\Leadership\VotingController;
+use App\Http\Controllers\LeadershipForm2Controller;
+use App\Modules\Leadership\Controllers\LeadershipActivitiesController;
+use App\Modules\Leadership\Controllers\LeadershipCirclesController;
+use App\Modules\Leadership\Controllers\LeadershipDashboardController;
+use App\Modules\Leadership\Controllers\LeadershipEventsController;
+use App\Modules\Leadership\Controllers\LeadershipPeersController;
+use App\Modules\Leadership\Controllers\LeadershipReportsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -56,14 +63,14 @@ Route::prefix('public')->group(function (): void {
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
     Route::post('nominations', [NominationController::class, 'nominate']);
-    Route::get('nominations/{id}/form-2', [\App\Http\Controllers\LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
-    Route::get('public/nominations/{id}/form-2', [\App\Http\Controllers\LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
-    Route::post('nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
-    Route::post('public/nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
-    Route::post('nominations/{id}/form-2/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
-    Route::post('public/nominations/{id}/form-2/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
-    Route::post('nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
-    Route::post('public/nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
+    Route::get('nominations/{id}/form-2', [LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
+    Route::get('public/nominations/{id}/form-2', [LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/upload', [LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/upload', [LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
@@ -226,4 +233,34 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('reports/jury', [ReportController::class, 'jury']);
     Route::get('reports/winners', [ReportController::class, 'winners']);
     Route::post('reports/export', [ReportController::class, 'export']);
+});
+
+// =========================================================================
+// 4. LEADERSHIP MOBILE & PORTAL SCOPED APIs (APIs 42–50)
+// Base Prefix: /api/v1/leadership
+// =========================================================================
+Route::middleware(['auth:sanctum', 'leader.user'])->group(function (): void {
+    // API 42: Current Authenticated Leader Context, Roles, Scope, Screens & Capabilities
+    Route::get('me', [LeadershipDashboardController::class, 'me']);
+
+    // API 43: Scoped Leadership Dashboard
+    Route::get('dashboard', [LeadershipDashboardController::class, 'dashboard']);
+
+    // APIs 44–45: Scoped Circles List & Detail
+    Route::get('circles', [LeadershipCirclesController::class, 'index']);
+    Route::get('circles/{circleId}', [LeadershipCirclesController::class, 'show'])->whereUuid('circleId');
+
+    // APIs 46–47: Scoped Peers List & Detail (with dynamic field-access masking)
+    Route::get('peers', [LeadershipPeersController::class, 'index']);
+    Route::get('peers/{peerId}', [LeadershipPeersController::class, 'show'])->whereUuid('peerId');
+
+    // API 48: Unified Scoped Activities Feed
+    Route::get('activities', [LeadershipActivitiesController::class, 'index']);
+
+    // API 49: Scoped Events & Attendance Summary
+    Route::get('events', [LeadershipEventsController::class, 'index']);
+
+    // API 50: Scoped Reports List & Dynamic Report Execution
+    Route::get('reports', [LeadershipReportsController::class, 'index']);
+    Route::get('reports/{reportKey}', [LeadershipReportsController::class, 'execute']);
 });

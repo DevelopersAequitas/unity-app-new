@@ -236,18 +236,27 @@ class LeaderDashboardService
                     ->values()
                     ->all();
 
-                $directLeaderIds = Circle::query()
-                    ->whereIn('id', $targetCircleIds)
-                    ->whereNull('deleted_at')
-                    ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id', 'director_user_id', 'ded_user_id', 'industry_director_user_id', 'secretary_user_id'])
-                    ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->founder_user_id, $c->circle_director_user_id, $c->director_user_id, $c->ded_user_id, $c->industry_director_user_id, $c->secretary_user_id]))
-                    ->all();
+                $circleCols = Schema::hasTable('circles') ? Schema::getColumnListing('circles') : [];
+                $selectLeaderCols = array_values(array_intersect(
+                    ['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id', 'director_user_id', 'ded_user_id', 'industry_director_user_id', 'secretary_user_id'],
+                    $circleCols
+                ));
+                $directLeaderIds = ! empty($selectLeaderCols)
+                    ? Circle::query()
+                        ->whereIn('id', $targetCircleIds)
+                        ->whereNull('deleted_at')
+                        ->get($selectLeaderCols)
+                        ->flatMap(fn ($c) => array_filter(array_map(fn ($col) => $c->{$col} ?? null, $selectLeaderCols)))
+                        ->all()
+                    : [];
 
-                $activeCircleUserIds = User::query()
-                    ->whereNull('deleted_at')
-                    ->whereIn('active_circle_id', $targetCircleIds)
-                    ->pluck('id')
-                    ->all();
+                $activeCircleUserIds = Schema::hasColumn('users', 'active_circle_id')
+                    ? User::query()
+                        ->whereNull('deleted_at')
+                        ->whereIn('active_circle_id', $targetCircleIds)
+                        ->pluck('id')
+                        ->all()
+                    : [];
 
                 $scopedMemberUserIds = array_values(array_unique(array_merge($memberIds, $directLeaderIds, $activeCircleUserIds)));
             }
@@ -845,7 +854,10 @@ class LeaderDashboardService
             }
         }
 
-        $users = $query->orderByDesc('life_impacted_count')
+        $hasLifeImpactedCol = Schema::hasColumn('users', 'life_impacted_count');
+
+        $users = $query
+            ->when($hasLifeImpactedCol, fn ($q) => $q->orderByDesc('life_impacted_count'))
             ->orderByDesc('coins_balance')
             ->take(5)
             ->get();
@@ -853,7 +865,7 @@ class LeaderDashboardService
         // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters for global admin
         if ($users->isEmpty() && $isAdmin) {
             $users = (clone $baseQuery)
-                ->orderByDesc('life_impacted_count')
+                ->when($hasLifeImpactedCol, fn ($q) => $q->orderByDesc('life_impacted_count'))
                 ->orderByDesc('coins_balance')
                 ->take(5)
                 ->get();
@@ -906,7 +918,7 @@ class LeaderDashboardService
             }
 
             $lives = (int) ($u->life_impacted_count ?? 0);
-            if ($lives <= 0) {
+            if ($lives <= 0 && Schema::hasTable('impacts') && Schema::hasColumn('impacts', 'user_id') && Schema::hasColumn('impacts', 'life_impacted')) {
                 try {
                     $impactSum = (int) DB::table('impacts')
                         ->where('user_id', $u->id)
