@@ -717,9 +717,16 @@ class LeaderDashboardService
         }
         $totalPeersGrowth = $growthQuery->count();
 
+        $activeCirclesTotal = count($targetCircleIds);
+
         return [
             'circle_id' => $resolvedCircleId,
             'circle_name' => $resolvedCircleName,
+            'active_circles' => $activeCirclesTotal,
+            'active_circles_count' => $activeCirclesTotal,
+            'chartered_circles' => $activeCirclesTotal,
+            'circles_count' => $activeCirclesTotal,
+            'total_circles' => $activeCirclesTotal,
             'overall_revenue' => $revFormatted,
             'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
@@ -732,6 +739,7 @@ class LeaderDashboardService
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
             'pending_peers_count' => $pendingPeersCount,
+            'pending_clearances_count' => $pendingPeersCount,
             'requirements' => $requirementsCount,
             'visitor_registrations' => $visitorRegistrationsCount,
             'peer_recommendations' => $peerRecommendationsCount,
