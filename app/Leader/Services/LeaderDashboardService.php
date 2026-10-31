@@ -148,9 +148,15 @@ class LeaderDashboardService
                         }
                     }
                     if (! $districtName && $user) {
-                        $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
-                        if (str_contains($userCity, 'ahmedabad')) {
-                            $districtName = 'Ahmedabad';
+                        if (! empty($user->district)) {
+                            $districtName = (string) $user->district;
+                        } elseif (! empty($user->regional_scope)) {
+                            $districtName = (string) $user->regional_scope;
+                        } else {
+                            $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
+                            if (str_contains($userCity, 'ahmedabad')) {
+                                $districtName = 'Ahmedabad';
+                            }
                         }
                     }
 
@@ -167,6 +173,10 @@ class LeaderDashboardService
                             })
                             ->pluck('id')
                             ->all();
+                    }
+
+                    if (empty($targetCircleIds) && ! empty($scopedCircleIds)) {
+                        $targetCircleIds = $scopedCircleIds;
                     }
                 } elseif ($role === 'industryDirector') {
                     // Strictly the circles built under the main categories assigned to this director.
