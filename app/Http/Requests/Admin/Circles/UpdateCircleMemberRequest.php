@@ -14,7 +14,8 @@ class UpdateCircleMemberRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', 'string'],
+            'role' => ['sometimes', 'required', 'string'],
+            'show_on_member_list' => ['nullable', 'boolean'],
         ];
     }
 }

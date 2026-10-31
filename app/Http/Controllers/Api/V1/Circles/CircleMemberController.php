@@ -58,6 +58,10 @@ class CircleMemberController extends Controller
             }
         }
 
+        if ($request->has('show_on_member_list') && Schema::hasColumn('circle_members', 'show_on_member_list')) {
+            $query->where('circle_members.show_on_member_list', $request->boolean('show_on_member_list'));
+        }
+
         $legacyDedIdToggle = $request->boolean('show_ded_id')
             || $request->boolean('include_ded_id')
             || $request->boolean('ded_id')
