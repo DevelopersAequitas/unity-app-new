@@ -1008,7 +1008,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
-            Route::delete('/circles/{id}/members/{userId}', [CircleManagementController::class, 'removeMember'])->whereUuid('id')->whereUuid('userId');
+            Route::put('/circles/{id}/members/{memberId}', [CircleManagementController::class, 'updateMember'])->whereUuid('id');
+            Route::patch('/circles/{id}/members/{memberId}/toggle-member-list', [CircleManagementController::class, 'toggleMemberList'])->whereUuid('id');
+            Route::patch('/circles/{id}/members/{memberId}/category', [CircleManagementController::class, 'updateMemberCategory'])->whereUuid('id');
+            Route::delete('/circles/{id}/members/{memberId}', [CircleManagementController::class, 'removeMember'])->whereUuid('id');
+            Route::get('/circles/{id}/peer-options', [CircleManagementController::class, 'peerOptions'])->whereUuid('id');
             Route::get('/circles/{id}/health', [CircleManagementController::class, 'health'])->whereUuid('id');
             Route::get('/circles/{id}/performance', [CircleManagementController::class, 'performance'])->whereUuid('id');
             Route::patch('/circles/{id}/package', [CircleManagementController::class, 'patchPackage'])->whereUuid('id');

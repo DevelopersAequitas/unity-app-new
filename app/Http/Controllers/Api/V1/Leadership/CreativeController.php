@@ -53,6 +53,16 @@ class CreativeController extends LeadershipBaseController
     }
 
     /**
+     * List all winner creatives for a campaign.
+     */
+    public function campaignCreatives(string $id): JsonResponse
+    {
+        $creatives = $this->creativeService->listCampaignCreatives($id);
+
+        return $this->success($creatives, 'Campaign creatives fetched successfully.');
+    }
+
+    /**
      * K4. Download creative.
      */
     public function download(string $id): JsonResponse

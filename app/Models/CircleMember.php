@@ -123,6 +123,7 @@ class CircleMember extends Model
         'subscription_status',
         'payment_status',
         'meta',
+        'show_on_member_list',
     ];
 
     protected $casts = [
@@ -139,6 +140,7 @@ class CircleMember extends Model
         'level_3_category_id' => 'integer',
         'level_4_category_id' => 'integer',
         'meta' => 'array',
+        'show_on_member_list' => 'boolean',
     ];
 
     public static function isRegionalRole(?string $role): bool

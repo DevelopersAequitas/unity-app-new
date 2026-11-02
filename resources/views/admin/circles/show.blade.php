@@ -1084,8 +1084,8 @@ use Carbon\Carbon;
             </div>
 
             <div class="md:col-span-3">
-                <label class="block text-[11px] t3 mb-1 font-medium">Sub Category <span class="text-rose-500">*</span></label>
-                <select id="circle_level4_category_id" name="level4_category_id" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
+                <label class="block text-[11px] t3 mb-1 font-medium">Sub Category</label>
+                <select id="circle_level4_category_id" name="level4_category_id" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                     <option value="">Select sub category</option>
                     @foreach ($circleSubCategories as $subCat)
                         <option value="{{ $subCat->id }}" data-main-id="{{ $subCat->circle_category_id }}">
@@ -1106,7 +1106,7 @@ use Carbon\Carbon;
             </div>
 
             <div class="md:col-span-4">
-                <button class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring border-0 cursor-pointer">
+                <button class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring border-0 cursor-pointer h-[34px]">
                     <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i> Add Peer
                 </button>
             </div>
@@ -1159,6 +1159,7 @@ use Carbon\Carbon;
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 180px;">Role</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 100px;">Status</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 120px;">Joined At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 150px;">Show on Member List</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 100px;">Actions</th>
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
@@ -1184,6 +1185,7 @@ use Carbon\Carbon;
                                     placeholder="Search email"
                                 >
                             </th>
+                            <th class="px-2 py-1"></th>
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1"></th>
@@ -1293,6 +1295,31 @@ use Carbon\Carbon;
                                     @endif
                                 </td>
 
+                                <td class="px-3 py-2.5 text-center" onclick="event.stopPropagation()">
+                                    @php
+                                        $isOnMemberList = (bool) ($membership->show_on_member_list ?? false);
+                                    @endphp
+                                    <div class="inline-flex items-center justify-center gap-2" onclick="event.stopPropagation()">
+                                        <button type="button"
+                                                id="member-list-btn-{{ $membership->id }}"
+                                                data-member-id="{{ $membership->id }}"
+                                                data-toggle-url="{{ route('admin.circles.members.toggle-member-list', [$circle, $membership]) }}"
+                                                data-is-on="{{ $isOnMemberList ? '1' : '0' }}"
+                                                onclick="toggleMemberListVisibility(this)"
+                                                class="relative inline-flex items-center cursor-pointer select-none border-0 p-0 focus:outline-none"
+                                                title="Toggle visibility on Member List"
+                                                style="width: 38px; height: 22px; border-radius: 9999px; background-color: {{ $isOnMemberList ? '#10b981' : '#cbd5e1' }}; transition: background-color 0.2s ease; cursor: pointer; padding: 0;">
+                                            <span class="toggle-knob"
+                                                  style="display: block; width: 16px; height: 16px; border-radius: 50%; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); position: absolute; top: 3px; left: {{ $isOnMemberList ? '19px' : '3px' }}; transition: left 0.2s ease;"></span>
+                                        </button>
+                                        <span id="member-list-badge-{{ $membership->id }}"
+                                              class="px-2 py-0.5 text-[10px] font-bold rounded"
+                                              style="background-color: {{ $isOnMemberList ? '#d1fae5' : '#f1f5f9' }}; color: {{ $isOnMemberList ? '#065f46' : '#64748b' }};">
+                                            {{ $isOnMemberList ? 'ON' : 'OFF' }}
+                                        </span>
+                                    </div>
+                                </td>
+
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap" onclick="event.stopPropagation()">
                                     <div class="flex items-center justify-end gap-2">
 
@@ -1386,7 +1413,7 @@ use Carbon\Carbon;
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center t3 py-6 text-xs">No peers assigned yet.</td>
+                                <td colspan="7" class="text-center t3 py-6 text-xs">No peers assigned yet.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -1712,7 +1739,7 @@ use Carbon\Carbon;
             const noResultRow = document.createElement('tr');
             noResultRow.id = 'peer-no-result-row';
             noResultRow.style.display = 'none';
-            noResultRow.innerHTML = '<td colspan="6" class="text-center py-8 text-xs t3 italic">No peers match your search.</td>';
+            noResultRow.innerHTML = '<td colspan="7" class="text-center py-8 text-xs t3 italic">No peers match your search.</td>';
             tbody.appendChild(noResultRow);
 
             function filterRows() {
@@ -1758,6 +1785,58 @@ use Carbon\Carbon;
         })();
         // ─────────────────────────────────────────────────────────────────────
     });
+
+    function toggleMemberListVisibility(button) {
+        const memberId = button.dataset.memberId;
+        const url = button.dataset.toggleUrl;
+        const currentIsOn = button.dataset.isOn === '1';
+        const newIsOn = !currentIsOn;
+        const knob = button.querySelector('.toggle-knob');
+        const badge = document.getElementById('member-list-badge-' + memberId);
+
+        button.disabled = true;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            || document.querySelector('input[name="_token"]')?.value || '';
+
+        fetch(url, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                show_on_member_list: newIsOn ? 1 : 0
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            button.disabled = false;
+            const state = !!data.show_on_member_list;
+            button.dataset.isOn = state ? '1' : '0';
+            button.style.backgroundColor = state ? '#10b981' : '#cbd5e1';
+            if (knob) {
+                knob.style.left = state ? '19px' : '3px';
+            }
+            if (badge) {
+                badge.textContent = state ? 'ON' : 'OFF';
+                badge.style.backgroundColor = state ? '#d1fae5' : '#f1f5f9';
+                badge.style.color = state ? '#065f46' : '#64748b';
+            }
+        })
+        .catch(error => {
+            console.error('Failed to toggle member list visibility:', error);
+            button.disabled = false;
+            alert('Could not update member list visibility. Please try again.');
+        });
+    }
 
 </script>
 @endpush

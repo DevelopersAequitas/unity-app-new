@@ -506,6 +506,49 @@ class EventManagementController extends Controller
         return back()->with('success', $message);
     }
 
+    public function syncOccurrences(string $id): RedirectResponse
+    {
+        $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        try {
+            $this->occurrences->regenerateFuture($event);
+
+            return back()->with('success', "Occurrences for '{$event->title}' synchronized successfully.");
+        } catch (\Throwable $e) {
+            Log::error('admin_sync_occurrences_failed', [
+                'event_id' => $event->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'Failed to synchronize occurrences: '.$e->getMessage()]);
+        }
+    }
+
+    public function syncAllOccurrences(): RedirectResponse
+    {
+        try {
+            $admin = Auth::guard('admin')->user();
+            $query = Event::query()->where('is_active', true);
+            AdminCircleScope::applyToEventsQuery($query, $admin);
+            $events = $query->get();
+
+            $count = 0;
+            foreach ($events as $event) {
+                $this->occurrences->regenerateFuture($event);
+                $count++;
+            }
+
+            return back()->with('success', "Synchronized occurrences for {$count} event(s).");
+        } catch (\Throwable $e) {
+            Log::error('admin_sync_all_occurrences_failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'Failed to synchronize all occurrences: '.$e->getMessage()]);
+        }
+    }
+
     public function attendance(Request $request, ?string $id = null): View
     {
         $eventId = $id ?? $request->query('id') ?? $request->query('event_id');

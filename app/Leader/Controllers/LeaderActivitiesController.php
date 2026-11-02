@@ -340,8 +340,28 @@ class LeaderActivitiesController extends Controller
      */
     public function activitiesByType(Request $request, string $type): JsonResponse
     {
-        $items = $this->activitiesService->getActivitiesByType($request, $type);
+        $page = max((int) $request->query('page', 1), 1);
+        $limit = min(max((int) ($request->query('limit', 50)), 1), 100);
+
+        $paginated = $this->activitiesService->getActivitiesByTypePaginated($request, $type);
+        $items = $paginated['items'];
+        $totalItemsCount = $paginated['total'];
+
         $peers = $this->activitiesService->getRankedPeersByActivityType($request, $type);
+
+        // Sum metric counts across all ranked peers who logged this activity
+        $sumPeerMetrics = (int) array_sum(array_column($peers, 'metric_count'));
+        // Total activity count represents the true activity instances logged:
+        // When individual activity records exist ($totalItemsCount > 0), use that directly
+        // to avoid double-counting multi-peer activities like P2P meetings (where both participants count the same meeting).
+        $totalActivitiesCount = $totalItemsCount > 0 ? $totalItemsCount : $sumPeerMetrics;
+
+        $unitLabel = ! empty($peers) && ! empty($peers[0]['metric_label'])
+            ? (string) $peers[0]['metric_label']
+            : $this->activitiesService->resolveUnitLabelForType($type);
+
+        $offset = $paginated['offset'] ?? (($page - 1) * $limit);
+        $hasMore = ($offset + count($items)) < $totalItemsCount;
 
         return response()->json([
             'success' => true,
@@ -352,8 +372,14 @@ class LeaderActivitiesController extends Controller
             ],
             'meta' => [
                 'type' => $type,
+                'unit_label' => $unitLabel,
+                'total_activities' => $totalActivitiesCount,
                 'total_peers' => count($peers),
-                'total' => count($items),
+                'total' => $totalItemsCount,
+                'page' => $page,
+                'per_page' => $limit,
+                'total_pages' => (int) ceil($totalItemsCount / max($limit, 1)),
+                'has_more' => $hasMore,
             ],
         ]);
     }

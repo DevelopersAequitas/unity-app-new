@@ -48,12 +48,14 @@ class CircleMemberController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($circle, $data): void {
+            DB::transaction(function () use ($circle, $data, $request): void {
                 $rawJoinedAt = $data['joined_at'] ?? $data['circle_joined_at'] ?? null;
                 $rawExpiresAt = $data['expires_at'] ?? $data['circle_expires_at'] ?? null;
 
                 $joinedAt = $rawJoinedAt ? Carbon::parse($rawJoinedAt) : now();
                 $expiresAt = $rawExpiresAt ? Carbon::parse($rawExpiresAt) : null;
+
+                $showOnMemberList = $request->boolean('show_on_member_list', false);
 
                 $payload = [
                     'user_id' => $data['user_id'],
@@ -63,6 +65,10 @@ class CircleMemberController extends Controller
 
                 if (Str::isUuid($data['role'])) {
                     $payload['role_id'] = $data['role'];
+                }
+
+                if (Schema::hasColumn('circle_members', 'show_on_member_list')) {
+                    $payload['show_on_member_list'] = $showOnMemberList;
                 }
 
                 if (Schema::hasColumn('circle_members', 'joined_at')) {
@@ -109,6 +115,18 @@ class CircleMemberController extends Controller
                             'level4_category_id' => $level4Id,
                         ]
                     );
+                } elseif (! empty($data['level1_category_id']) && Schema::hasTable('joined_circle_categories')) {
+                    JoinedCircleCategory::query()->updateOrCreate(
+                        ['circle_member_id' => $member->id],
+                        [
+                            'user_id' => $data['user_id'],
+                            'circle_id' => $circle->id,
+                            'level1_category_id' => (int) $data['level1_category_id'],
+                            'level2_category_id' => null,
+                            'level3_category_id' => null,
+                            'level4_category_id' => null,
+                        ]
+                    );
                 }
 
                 $user = User::query()->find($data['user_id']);
@@ -150,41 +168,93 @@ class CircleMemberController extends Controller
             ->with('success', 'Member added to the circle.');
     }
 
-    public function update(UpdateCircleMemberRequest $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function update(UpdateCircleMemberRequest $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
-        $newRole = (string) $request->validated()['role'];
+        $validated = $request->validated();
+        $newRole = isset($validated['role']) ? (string) $validated['role'] : null;
         $oldRole = (string) $circleMember->role;
 
-        DB::transaction(function () use ($circle, $circleMember, $newRole, $oldRole): void {
-            if (Str::isUuid($newRole)) {
-                $circleMember->role_id = $newRole;
-                $circleMember->role = $newRole;
-            } else {
-                $circleMember->role = $newRole;
+        DB::transaction(function () use ($circle, $circleMember, $newRole, $oldRole, $request): void {
+            if ($newRole !== null) {
+                if (Str::isUuid($newRole)) {
+                    $circleMember->role_id = $newRole;
+                    $circleMember->role = $newRole;
+                } else {
+                    $circleMember->role = $newRole;
+                }
             }
+
+            if ($request->has('show_on_member_list')) {
+                $circleMember->show_on_member_list = $request->boolean('show_on_member_list');
+            }
+
             $circleMember->save();
 
-            $user = $circleMember->user;
-            if ($user) {
-                $freshMember = $circleMember->fresh();
-                $resolvedNewRole = (string) ($freshMember?->role ?? $newRole);
-                $this->syncCircleLeadershipColumns($circle, $user->id, $resolvedNewRole, $oldRole);
+            if ($newRole !== null) {
+                $user = $circleMember->user;
+                if ($user) {
+                    $freshMember = $circleMember->fresh();
+                    $resolvedNewRole = (string) ($freshMember?->role ?? $newRole);
+                    $this->syncCircleLeadershipColumns($circle, $user->id, $resolvedNewRole, $oldRole);
 
-                $adminUser = DB::table('admin_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->first();
-                if ($adminUser) {
-                    AdminAccess::clearAdminUserCache($adminUser->id);
+                    $adminUser = DB::table('admin_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->first();
+                    if ($adminUser) {
+                        AdminAccess::clearAdminUserCache($adminUser->id);
+                    }
                 }
             }
         });
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Member updated.',
+                'data' => $circleMember->fresh(),
+            ]);
+        }
+
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
-            ->with('success', 'Member role updated.');
+            ->with('success', 'Member updated.');
+    }
+
+    public function toggleShowOnMemberList(Request $request, Circle $circle, CircleMember $circleMember)
+    {
+        if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
+            abort(404);
+        }
+
+        $newValue = $request->has('show_on_member_list')
+            ? $request->boolean('show_on_member_list')
+            : ! (bool) ($circleMember->show_on_member_list ?? false);
+
+        $circleMember->show_on_member_list = $newValue;
+        $circleMember->save();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'show_on_member_list' => (bool) $circleMember->show_on_member_list,
+                'message' => 'Member list visibility updated successfully.',
+            ]);
+        }
+
+        $redirectQuery = $this->peerFilterQuery($request);
+
+        return redirect()
+            ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
+            ->with('success', 'Member list visibility updated.');
     }
 
     private function syncCircleLeadershipColumns(Circle $circle, string $userId, string $newRole, string $oldRole): void
@@ -192,9 +262,12 @@ class CircleMemberController extends Controller
         Circle::syncLeadershipFromMembers($circle);
     }
 
-    public function updateCategory(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function updateCategory(Request $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
 
@@ -208,6 +281,10 @@ class CircleMemberController extends Controller
         $level4 = CircleCategoryLevel4::find($level4Id);
 
         if (! $level4) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Selected category not found.'], 404);
+            }
+
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Selected category not found.');
@@ -225,20 +302,37 @@ class CircleMemberController extends Controller
             ]
         );
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Category assigned successfully.',
+            ]);
+        }
+
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
             ->with('success', 'Category assigned successfully.');
     }
 
-    public function destroy(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function destroy(Request $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
         // 1. Prevent founder removal
         if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot remove founder. Please transfer founder role first.',
+                ], 422);
+            }
+
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Cannot remove founder. Please transfer founder role first.');
@@ -272,6 +366,13 @@ class CircleMemberController extends Controller
             // 4. Soft delete membership record
             $circleMember->delete();
         });
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Member removed from the circle.',
+            ]);
+        }
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))

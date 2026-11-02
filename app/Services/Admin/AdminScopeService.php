@@ -17,9 +17,16 @@ class AdminScopeService
         return $user->roles()->pluck('roles.key')->unique()->values()->all();
     }
 
-    public function isGlobal(User|AdminUser $user): bool
+    public function isGlobal(User|AdminUser|null $user = null): bool
     {
-        return in_array('global_admin', $this->roleKeys($user), true);
+        if ($user === null) {
+            return true;
+        }
+        $keys = $this->roleKeys($user);
+        if ($user instanceof AdminUser && $keys === []) {
+            return true;
+        }
+        return (bool) array_intersect(['global_admin', 'global_founder', 'super_admin'], $keys);
     }
 
     public function visibleCircleIds(User|AdminUser $user): array

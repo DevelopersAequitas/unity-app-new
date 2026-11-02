@@ -724,6 +724,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/delete-stats', [CircleController::class, 'deleteStats'])->name('circles.delete-stats');
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
+        Route::patch('/circles/{circle}/members/{circleMember}/toggle-member-list', [CircleMemberController::class, 'toggleShowOnMemberList'])->name('circles.members.toggle-member-list');
         Route::patch('/circles/{circle}/members/{circleMember}/category', [CircleMemberController::class, 'updateCategory'])->name('circles.members.update-category');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
@@ -744,7 +745,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
+        Route::post('/events/sync-all-occurrences', [EventManagementController::class, 'syncAllOccurrences'])->name('events.sync-all-occurrences');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/sync-occurrences', [EventManagementController::class, 'syncOccurrences'])->whereUuid('id')->name('events.sync-occurrences');
         Route::post('/events/{id}/toggle-status', [EventManagementController::class, 'toggleStatus'])->whereUuid('id')->name('events.toggle-status');
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');

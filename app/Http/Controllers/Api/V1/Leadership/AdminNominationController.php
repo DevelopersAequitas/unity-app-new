@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Leadership;
 
 use App\Services\Leadership\AdminNominationService;
+use App\Services\Leadership\NominationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\Auth;
 class AdminNominationController extends LeadershipBaseController
 {
     public function __construct(
-        protected AdminNominationService $nominationService
+        protected AdminNominationService $nominationService,
+        protected NominationService $publicNominationService
     ) {}
 
     /**
@@ -48,6 +50,14 @@ class AdminNominationController extends LeadershipBaseController
         $documents = $this->nominationService->getDocuments($id);
 
         return $this->success($documents, 'Documents fetched successfully.');
+    }
+
+    /**
+     * View/stream document file inline.
+     */
+    public function viewFile(string $id, string $documentId): \Symfony\Component\HttpFoundation\Response
+    {
+        return $this->publicNominationService->streamDocument($id, $documentId);
     }
 
     /**
