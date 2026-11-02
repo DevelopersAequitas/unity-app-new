@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
+use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
@@ -93,6 +94,8 @@ use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
+use App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\WebAdminMediaController;
 use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
 use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
 use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
@@ -192,7 +195,6 @@ use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
-use App\Http\Controllers\Api\V1\Admin\WebAdminMediaController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
@@ -879,14 +881,14 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update']);
 
             // AI Chatbot Admin API
-            Route::get('/ai-chatbot', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'index']);
-            Route::put('/ai-chatbot/settings', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'updateSettings']);
-            Route::post('/ai-chatbot/documents', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'storeDocument']);
-            Route::post('/ai-chatbot/documents/{id}/toggle', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'toggleDocument'])->whereUuid('id');
-            Route::delete('/ai-chatbot/documents/{id}', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'destroyDocument'])->whereUuid('id');
+            Route::get('/ai-chatbot', [AiChatbotAdminController::class, 'index']);
+            Route::put('/ai-chatbot/settings', [AiChatbotAdminController::class, 'updateSettings']);
+            Route::post('/ai-chatbot/documents', [AiChatbotAdminController::class, 'storeDocument']);
+            Route::post('/ai-chatbot/documents/{id}/toggle', [AiChatbotAdminController::class, 'toggleDocument'])->whereUuid('id');
+            Route::delete('/ai-chatbot/documents/{id}', [AiChatbotAdminController::class, 'destroyDocument'])->whereUuid('id');
 
             // Web Platform Admin APIs
-            Route::get('/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
+            Route::get('/web/dashboard', [WebAdminDashboardController::class, 'index']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
@@ -1864,7 +1866,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
 
     // Web Dashboard Overview API
-    Route::get('/admin/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
+    Route::get('/admin/web/dashboard', [WebAdminDashboardController::class, 'index']);
 
     // Web Gallery Collection APIs
     Route::get('/web-gallery', [WebPublicApiController::class, 'gallery']);
@@ -2251,5 +2253,19 @@ foreach (['v1/admin/finance', 'admin/finance', 'v1/finance'] as $financePrefix) 
         // 6-Month Leader Tenures & Per-Tenure Financial Attribution
         Route::get('tenures', [FinanceLedgerController::class, 'listTenures']);
         Route::post('tenures', [FinanceLedgerController::class, 'recordTenure']);
+
+        // Leader Personal Performance, Speed, Quality & Milestone Bonuses
+        Route::get('bonuses/rules', [FinanceLedgerController::class, 'listBonusRules']);
+        Route::post('bonuses/rules', [FinanceLedgerController::class, 'storeBonusRule']);
+        Route::put('bonuses/rules/{id}', [FinanceLedgerController::class, 'updateBonusRule'])->whereUuid('id');
+        Route::delete('bonuses/rules/{id}', [FinanceLedgerController::class, 'deleteBonusRule'])->whereUuid('id');
+        Route::post('bonuses/role-configs/toggle', [FinanceLedgerController::class, 'toggleBonusRoleConfig']);
+        Route::get('bonuses/role/{roleCode}', [FinanceLedgerController::class, 'roleBonusCatalog']);
+        Route::post('bonuses/evaluate', [FinanceLedgerController::class, 'evaluateLeaderBonuses']);
+        Route::get('bonuses/awards', [FinanceLedgerController::class, 'listBonusAwards']);
+        Route::post('bonuses/awards/{id}/approve', [FinanceLedgerController::class, 'approveBonusAward'])->whereUuid('id');
+        Route::post('bonuses/awards/{id}/reject', [FinanceLedgerController::class, 'rejectBonusAward'])->whereUuid('id');
+        Route::get('bonuses/leaders/{userId}/wallet', [FinanceLedgerController::class, 'leaderBonusSummary'])->whereUuid('userId');
+        Route::get('bonuses/leader-summary/{userId}', [FinanceLedgerController::class, 'leaderBonusSummary'])->whereUuid('userId');
     });
 }

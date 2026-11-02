@@ -80,4 +80,3 @@ class FinanceWithdrawalRequest extends Model
         return $this->belongsTo(FinanceLedgerTransaction::class, 'ledger_transaction_id');
     }
 }
-

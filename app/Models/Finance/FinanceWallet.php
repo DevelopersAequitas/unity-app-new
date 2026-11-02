@@ -84,4 +84,3 @@ class FinanceWallet extends Model
         return $this->hasMany(FinanceWithdrawalRequest::class, 'wallet_id');
     }
 }
-
