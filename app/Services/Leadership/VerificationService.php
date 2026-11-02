@@ -100,9 +100,32 @@ class VerificationService
             'verified_at' => Carbon::now()->toIso8601String(),
         ], $expiresIn);
 
+        $user = $challenge['contact_type'] === 'email'
+            ? User::where('email', $challenge['contact'])->first()
+            : User::where('phone', $challenge['contact'])->first();
+
+        $profile = null;
+        if ($user) {
+            $photoUrl = $user->profile_photo_url;
+            $profile = [
+                'full_name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? 'Member'),
+                'email' => $user->email,
+                'mobile' => $user->phone,
+                'company_name' => $user->company_name,
+                'designation' => $user->designation,
+                'profile_photo_url' => $photoUrl,
+                'photo_url' => $photoUrl,
+                'avatar_url' => $photoUrl,
+                'image_url' => $photoUrl,
+                'member_since' => $user->created_at?->format('Y-m-d'),
+            ];
+        }
+
         return [
             'verification_token' => $verificationToken,
             'verified' => true,
+            'is_existing_member' => (bool) $user,
+            'profile' => $profile,
             'expires_in_seconds' => $expiresIn,
         ];
     }

@@ -201,4 +201,12 @@ class NominationController extends LeadershipBaseController
             return $this->error($e->getMessage(), 400);
         }
     }
+
+    /**
+     * C10. Stream uploaded nomination document inline.
+     */
+    public function viewDocument(string $id, string $documentId): \Symfony\Component\HttpFoundation\Response
+    {
+        return $this->nominationService->streamDocument($id, $documentId);
+    }
 }

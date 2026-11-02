@@ -168,9 +168,12 @@ class CircleMemberController extends Controller
             ->with('success', 'Member added to the circle.');
     }
 
-    public function update(UpdateCircleMemberRequest $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function update(UpdateCircleMemberRequest $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
         $redirectQuery = $this->peerFilterQuery($request);
@@ -209,6 +212,14 @@ class CircleMemberController extends Controller
                 }
             }
         });
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Member updated.',
+                'data' => $circleMember->fresh(),
+            ]);
+        }
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
@@ -251,9 +262,12 @@ class CircleMemberController extends Controller
         Circle::syncLeadershipFromMembers($circle);
     }
 
-    public function updateCategory(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function updateCategory(Request $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
 
@@ -267,6 +281,10 @@ class CircleMemberController extends Controller
         $level4 = CircleCategoryLevel4::find($level4Id);
 
         if (! $level4) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Selected category not found.'], 404);
+            }
+
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Selected category not found.');
@@ -284,20 +302,37 @@ class CircleMemberController extends Controller
             ]
         );
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Category assigned successfully.',
+            ]);
+        }
+
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
             ->with('success', 'Category assigned successfully.');
     }
 
-    public function destroy(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    public function destroy(Request $request, Circle $circle, CircleMember $circleMember)
     {
         if ($circleMember->circle_id !== $circle->id) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Member not found in circle.'], 404);
+            }
             abort(404);
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
         // 1. Prevent founder removal
         if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot remove founder. Please transfer founder role first.',
+                ], 422);
+            }
+
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Cannot remove founder. Please transfer founder role first.');
@@ -331,6 +366,13 @@ class CircleMemberController extends Controller
             // 4. Soft delete membership record
             $circleMember->delete();
         });
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Member removed from the circle.',
+            ]);
+        }
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
