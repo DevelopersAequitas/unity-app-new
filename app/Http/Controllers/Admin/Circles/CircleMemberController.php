@@ -324,18 +324,20 @@ class CircleMemberController extends Controller
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
-        // 1. Prevent founder removal
-        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot remove founder. Please transfer founder role first.',
-                ], 422);
+        // 1. Prevent founder removal on standard web form unless force is requested
+        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'], true)) {
+            if ($request->expectsJson() || $request->ajax() || $request->boolean('force')) {
+                $circle->circle_founder_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_founder_user_id', null);
+                data_set($calendar, 'leadership.circle_founder_name', null);
+                $circle->calendar = $calendar;
+                $circle->save();
+            } else {
+                return redirect()
+                    ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
+                    ->with('error', 'Cannot remove founder. Please transfer founder role first.');
             }
-
-            return redirect()
-                ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
-                ->with('error', 'Cannot remove founder. Please transfer founder role first.');
         }
 
         DB::transaction(function () use ($circle, $circleMember) {

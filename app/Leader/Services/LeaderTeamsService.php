@@ -200,11 +200,6 @@ class LeaderTeamsService
                 $isOwnCircleOrScoped = true;
             }
 
-            // Committee chairs do not have access to view industry lists; they only see their circle and circle details
-            if (in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'viceChair', 'secretary'], true)) {
-                return [];
-            }
-
             // Industry Directors only see the main categories assigned to them.
             if ($role === 'industryDirector') {
                 $industryDirectorCategoryIds = array_map('strval', app(LeaderPeersService::class)->resolveIndustryDirectorCategoryIds($user));
@@ -358,6 +353,11 @@ class LeaderTeamsService
 
                 $finalCirclesCount = max($matchedCirclesCount, (int) $baseline['circles']);
                 $finalPeersCount = max($matchedPeersCount, (int) $baseline['peers']);
+            }
+
+            if ($isOwnCircleOrScoped && $finalCirclesCount === 0) {
+                // CD, CF, and Chair can ONLY see industries that exist under their circle(s)
+                continue;
             }
 
             $iconUrl = ! empty($cat->icon_url) ? $cat->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
