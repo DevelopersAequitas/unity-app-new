@@ -98,6 +98,7 @@ class VotingController extends LeadershipBaseController
                 }
 
                 $nominationId = $nomination ? $nomination->id : $rawCandId;
+                $leadershipNominationId = ($nominationId && \Illuminate\Support\Str::isUuid((string) $nominationId)) ? (string) $nominationId : null;
                 $campaignId = $validated['campaign_id'] ?? ($nomination?->campaign_id);
                 $candidateName = $validated['candidate_name'] ?? ($nomination?->full_name);
                 $candidateEmail = $validated['candidate_email'] ?? ($nomination?->email);
@@ -134,7 +135,7 @@ class VotingController extends LeadershipBaseController
                                 'id' => (string) \Illuminate\Support\Str::uuid(),
                                 'campaign_id' => $campaignId,
                                 'scope_id' => $scopeId,
-                                'nomination_id' => $nominationId,
+                                'nomination_id' => $leadershipNominationId,
                                 'voter_user_id' => null,
                                 'voter_contact_hash' => $contactHash,
                                 'verification_id' => null,
@@ -149,6 +150,7 @@ class VotingController extends LeadershipBaseController
                                     'voter_designation' => $validated['voter_designation'] ?? null,
                                     'support_reason' => $validated['support_reason'] ?? null,
                                     'candidate_name' => $candidateName,
+                                    'nomination_reference' => $rawCandId,
                                     'channel' => 'Website',
                                 ],
                             ]
