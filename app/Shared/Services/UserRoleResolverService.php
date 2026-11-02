@@ -80,8 +80,12 @@ class UserRoleResolverService
     /**
      * Check if a given User is an authorized Leader.
      */
-    public function isLeader(User $user): bool
+    public function isLeader(User|AdminUser $user): bool
     {
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
         $roleInfo = $this->resolveUserRole($user);
 
         return (bool) ($roleInfo['is_leader'] ?? false);
@@ -115,13 +119,25 @@ class UserRoleResolverService
      *
      * @return array{role: string, custom_role_label: ?string, regional_scope: string, is_leader: bool}
      */
-    public function resolveUserRole(User $user): array
+    public function resolveUserRole(User|AdminUser $user): array
     {
+        if ($user instanceof AdminUser) {
+            $directAdminRole = $this->normalizeRoleKey((string) ($user->role ?? ''));
+            if ($directAdminRole === 'superAdmin' || AdminAccess::isGlobalAdmin($user) || AdminAccess::isSuper($user)) {
+                return [
+                    'role' => 'superAdmin',
+                    'custom_role_label' => 'Super Administrator',
+                    'regional_scope' => 'Global Scope',
+                    'is_leader' => true,
+                ];
+            }
+        }
+
         $userId = (string) $user->id;
         $userEmail = strtolower(trim((string) ($user->email ?? '')));
 
         // 1. Check AdminUser roles & direct user role assignments from Dynamic RBAC
-        $adminUser = AdminUser::query()
+        $adminUser = $user instanceof AdminUser ? $user : AdminUser::query()
             ->where('id', $userId)
             ->when($userEmail !== '', fn ($q) => $q->orWhereRaw('LOWER(email) = ?', [$userEmail]))
             ->first();

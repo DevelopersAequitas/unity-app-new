@@ -6,6 +6,7 @@ namespace App\Leader\Services;
 
 use App\Leader\Models\CirclePeerMembership;
 use App\Leader\Models\LeaderReport;
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\District;
@@ -36,7 +37,7 @@ class LeaderReportsService
         ?string $reportType = null,
         ?string $status = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
         int $page = 1,
         int $perPage = 20,
     ): array {
@@ -95,7 +96,7 @@ class LeaderReportsService
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    public function submitReport(array $data, string $userId, ?User $user = null): array
+    public function submitReport(array $data, string $userId, User|AdminUser|null $user = null): array
     {
         $circleId = $data['circle_id'] ?? null;
         $circle = null;
@@ -181,7 +182,7 @@ class LeaderReportsService
      *
      * @return array<string, mixed>
      */
-    public function getReportDetails(string $reportId, ?User $user = null): array
+    public function getReportDetails(string $reportId, User|AdminUser|null $user = null): array
     {
         $report = null;
         if (Str::isUuid($reportId)) {

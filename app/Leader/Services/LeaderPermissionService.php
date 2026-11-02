@@ -239,8 +239,12 @@ class LeaderPermissionService
     /**
      * Check if a given User is an authorized Leader (Delegated).
      */
-    public function isLeader(User $user): bool
+    public function isLeader(User|AdminUser $user): bool
     {
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
         return $this->roleResolver->isLeader($user);
     }
 
@@ -257,8 +261,17 @@ class LeaderPermissionService
      *
      * @return array{role: string, custom_role_label: ?string, regional_scope: string, is_leader: bool}
      */
-    public function resolveUserRole(User $user): array
+    public function resolveUserRole(User|AdminUser $user): array
     {
+        if ($user instanceof AdminUser) {
+            return [
+                'role' => 'superAdmin',
+                'custom_role_label' => 'Super Administrator',
+                'regional_scope' => 'Global Scope',
+                'is_leader' => true,
+            ];
+        }
+
         return $this->roleResolver->resolveUserRole($user);
     }
 
@@ -452,7 +465,7 @@ class LeaderPermissionService
      *
      * @return array<int, array{id: string, name: string, location: string, category: string}>
      */
-    public function resolveManagedCircles(User $user, string $role): array
+    public function resolveManagedCircles(User|AdminUser $user, string $role): array
     {
         $userId = (string) $user->id;
 

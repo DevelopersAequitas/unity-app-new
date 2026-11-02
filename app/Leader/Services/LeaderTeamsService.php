@@ -25,7 +25,7 @@ class LeaderTeamsService
     /**
      * Resolve the active District ID from explicit argument or authenticated DED user.
      */
-    public function resolveDedDistrictId(?string $districtId = null, ?User $user = null): ?string
+    public function resolveDedDistrictId(?string $districtId = null, User|AdminUser|null $user = null): ?string
     {
         if ($districtId && Str::isUuid($districtId)) {
             return $districtId;
@@ -104,7 +104,7 @@ class LeaderTeamsService
     /**
      * Apply district, DED, industry, and own-circle scope to a circle query.
      */
-    public function applyDistrictScopeToCircles(Builder $query, ?string $districtId = null, ?User $user = null): void
+    public function applyDistrictScopeToCircles(Builder $query, ?string $districtId = null, User|AdminUser|null $user = null): void
     {
         if ($user) {
             $permissionService = app(LeaderPermissionService::class);
@@ -185,7 +185,7 @@ class LeaderTeamsService
      */
     public function getIndustriesList(
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
         ?string $status = null,
     ): array {
         $isOwnCircleOrScoped = false;
@@ -428,7 +428,7 @@ class LeaderTeamsService
      *
      * @return array<string, mixed>
      */
-    public function getTeamsSummary(?string $districtId = null, ?User $user = null): array
+    public function getTeamsSummary(?string $districtId = null, User|AdminUser|null $user = null): array
     {
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
@@ -904,7 +904,7 @@ class LeaderTeamsService
         ?string $status = null,
         ?string $search = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $query = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($query, $districtId, $user);
@@ -1390,7 +1390,7 @@ class LeaderTeamsService
         ?string $status = null,
         ?string $sort = null,
         ?string $search = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
         int $page = 1,
         int $perPage = 20,
     ): array {
@@ -1511,7 +1511,7 @@ class LeaderTeamsService
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    public function referCategory(string $circleId, ?User $user, array $data): array
+    public function referCategory(string $circleId, User|AdminUser|null $user, array $data): array
     {
         $circle = Circle::query()->where('id', $circleId)->first();
         $circleName = $circle ? (string) $circle->name : (string) ($data['circle_name'] ?? 'Peers Global Circle');
@@ -1637,7 +1637,7 @@ class LeaderTeamsService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getUserContacts(?User $user, ?string $search = null, int $limit = 60): array
+    public function getUserContacts(User|AdminUser|null $user, ?string $search = null, int $limit = 60): array
     {
         $contacts = [];
         $seenPhones = [];
