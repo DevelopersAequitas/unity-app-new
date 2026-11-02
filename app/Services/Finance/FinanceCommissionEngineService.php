@@ -670,6 +670,47 @@ class FinanceCommissionEngineService
             'ip_address' => $ipAddress,
         ]);
 
+        // Keep leader_commission_rates table synchronized
+        if (Schema::hasTable('leader_commission_rates')) {
+            $normRoleId = match (strtoupper($roleCode)) {
+                'CF' => 'circleFounder',
+                'CD' => 'circleDirector',
+                'CHAIR' => 'circleChair',
+                'DED' => 'districtExecDirector',
+                'ID' => 'industryDirector',
+                'CDIR' => 'countryDirector',
+                default => strtolower($roleCode),
+            };
+
+            $col = match ($channelKey) {
+                'B' => 'direct_referral_cut_percentage',
+                'D' => 'app_join_cut_percentage',
+                'A' => 'renewal_cut_percentage',
+                default => null,
+            };
+
+            if ($col && Schema::hasColumn('leader_commission_rates', $col)) {
+                $hasRoleName = Schema::hasColumn('leader_commission_rates', 'role_name');
+                $updateFields = [
+                    $col => $percentage,
+                    'updated_at' => now(),
+                ];
+                if ($hasRoleName) {
+                    $updateFields['role_name'] = $roleName;
+                }
+
+                $existingRate = DB::table('leader_commission_rates')->where('role_id', $normRoleId)->first();
+                if ($existingRate) {
+                    DB::table('leader_commission_rates')->where('role_id', $normRoleId)->update($updateFields);
+                } else {
+                    $updateFields['id'] = (string) Str::uuid();
+                    $updateFields['role_id'] = $normRoleId;
+                    $updateFields['created_at'] = now();
+                    DB::table('leader_commission_rates')->insert($updateFields);
+                }
+            }
+        }
+
         return $rule;
     }
 

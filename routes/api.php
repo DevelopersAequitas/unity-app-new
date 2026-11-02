@@ -86,6 +86,7 @@ use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
+use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Api\V1\Admin\FinanceLedgerController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
@@ -2309,5 +2310,17 @@ foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucr
         Route::patch('{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
         Route::get('{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
         Route::get('{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
+    });
+}
+
+// =========================================================================
+// COMMISSION MANAGEMENT & RATES MATRIX APIs (Web Admin & Mobile Dual Alias)
+// =========================================================================
+foreach (['v1/admin/commissions', 'admin/commissions', 'v1/commissions'] as $commPrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($commPrefix)->group(function (): void {
+        Route::get('', [CommissionManagementController::class, 'index']);
+        Route::put('', [CommissionManagementController::class, 'updateBulk']);
+        Route::post('', [CommissionManagementController::class, 'store']);
+        Route::delete('{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id');
     });
 }
