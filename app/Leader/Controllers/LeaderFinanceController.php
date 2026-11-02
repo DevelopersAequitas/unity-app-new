@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderRecordOfflinePaymentRequest;
 use App\Leader\Requests\LeaderUpdateCommissionRatesRequest;
 use App\Leader\Services\LeaderFinanceService;
+use App\Services\Finance\LeaderBonusEngineService;
 use App\Leader\Services\LeaderPermissionService;
 use App\Models\AdminUser;
 use App\Models\User;
@@ -115,5 +116,60 @@ class LeaderFinanceController extends Controller
             'message' => 'Payment recorded successfully.',
             'data' => $data,
         ], 201);
+    }
+
+    /**
+     * Get milestone & performance bonus tracking for the logged-in leader.
+     */
+    public function milestones(Request $request): JsonResponse
+    {
+        /** @var User|AdminUser|null $user */
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $permissionService = app(LeaderPermissionService::class);
+        $roleInfo = $permissionService->resolveUserRole($user);
+        $role = $roleInfo['role'] ?? 'circleFounder';
+
+        $roleCode = match ($role) {
+            'circleFounder' => 'CF',
+            'circleDirector' => 'CD',
+            'circleChair', 'chair' => 'CHAIR',
+            'districtExecDirector' => 'DED',
+            'industryDirector' => 'ID',
+            'countryDirector' => 'CDIR',
+            default => 'CF',
+        };
+
+        $bonusService = app(LeaderBonusEngineService::class);
+
+        // If Super Admin, return the full catalog across all roles
+        if ($role === 'superAdmin' || $user instanceof AdminUser) {
+            return response()->json([
+                'success' => true,
+                'is_applicable' => false,
+                'role' => 'superAdmin',
+                'role_code' => 'SUPER',
+                'message' => 'Super Admin manages milestone policy and does not earn personal bonuses.',
+                'catalog' => $bonusService->listRules(),
+            ]);
+        }
+
+        $summary = $bonusService->getLeaderPersonalBonusSummary((string) $user->id);
+        $catalog = $bonusService->getRoleBonusCatalog($roleCode);
+
+        return response()->json([
+            'success' => true,
+            'is_applicable' => true,
+            'role' => $role,
+            'role_code' => $roleCode,
+            'role_label' => $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($role),
+            'milestones' => $catalog,
+            'awards' => $summary['awards'] ?? [],
+            'wallet' => $summary['wallet'] ?? null,
+            'total_earned_bonuses' => $summary['total_earned_bonuses'] ?? '₹0',
+        ]);
     }
 }
