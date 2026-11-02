@@ -1138,13 +1138,31 @@ class RoleHierarchyController extends Controller
         DB::transaction(function () use ($adminUserId, $role, $scopeId, $adminUser, $request) {
             $roleKey = str_replace(' ', '_', strtolower($role->key));
 
-            // Detach conflicting roles (e.g. detach global_admin when assigning a scoped role like DED)
+            // Detach conflicting roles (e.g. detach global_admin or previous operational leadership roles when assigning a new role)
             if ($roleKey !== 'global_admin' && $roleKey !== 'global_founder') {
-                $superRoleIds = DB::table('roles')->whereIn('key', ['global_admin', 'global_founder'])->pluck('id')->all();
-                if (! empty($superRoleIds)) {
+                $conflictRoleKeys = [
+                    'global_admin', 'global_founder',
+                    'eed', 'country_director',
+                    'ded', 'district_exec_director', 'district_director',
+                    'industry_director', 'id', 'ied',
+                    'circle_director', 'cd',
+                    'circle_founder', 'cf',
+                    'circle_chair', 'chair',
+                    'chair_business_growth_committee', 'business_growth_committee',
+                    'chair_membership_growth_committee', 'membership_growth_committee',
+                    'chair_events_impacts_committee', 'events_impacts_committee',
+                    'vice_chair', 'secretary',
+                ];
+
+                $conflictRoleIds = DB::table('roles')
+                    ->where('id', '!=', $role->id)
+                    ->whereIn('key', $conflictRoleKeys)
+                    ->pluck('id')->all();
+
+                if (! empty($conflictRoleIds)) {
                     DB::table('admin_user_roles')
                         ->where('user_id', $adminUserId)
-                        ->whereIn('role_id', $superRoleIds)
+                        ->whereIn('role_id', $conflictRoleIds)
                         ->delete();
                 }
             } else {

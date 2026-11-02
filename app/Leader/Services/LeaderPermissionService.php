@@ -115,24 +115,28 @@ class LeaderPermissionService
         return [
             'chairBusinessGrowth' => [
                 'access_dashboard',
+                'access_teams',
                 'view_peers',
                 'request_actions',
                 'view_reports',
             ],
             'chairMembership' => [
                 'access_dashboard',
+                'access_teams',
                 'view_peers',
                 'request_actions',
                 'view_reports',
             ],
             'chairEventsPrograms' => [
                 'access_dashboard',
+                'access_teams',
                 'view_peers',
                 'request_actions',
                 'view_reports',
             ],
             'circleChair' => [
                 'access_dashboard',
+                'access_teams',
                 'view_peers',
                 'request_actions',
                 'view_reports',
