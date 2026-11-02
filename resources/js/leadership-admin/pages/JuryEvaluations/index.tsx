@@ -30,9 +30,16 @@ export const JuryEvaluationsPage: React.FC = () => {
         setError(null);
         try {
             const res = await juryApi.getReport(campaignId);
-            setReportData(res.data.data?.evaluations || res.data.data || []);
+            const data = res.data.data;
+            const evaluationsList = Array.isArray(data)
+                ? data
+                : (Array.isArray(data?.assignments)
+                    ? data.assignments
+                    : (Array.isArray(data?.evaluations) ? data.evaluations : []));
+            setReportData(evaluationsList);
         } catch (err: any) {
             setError(err?.response?.data?.message || 'Failed to load jury evaluation reports.');
+            setReportData([]);
         } finally {
             setIsLoading(false);
         }
@@ -90,7 +97,7 @@ export const JuryEvaluationsPage: React.FC = () => {
                         >
                             {campaigns.map((c) => (
                                 <option key={c.id} value={c.id}>
-                                    {c.name} ({c.year})
+                                    {c.name} {c.year || (c as any).campaign_year ? `(${c.year || (c as any).campaign_year})` : ''}
                                 </option>
                             ))}
                         </select>
@@ -120,34 +127,52 @@ export const JuryEvaluationsPage: React.FC = () => {
                                         Fetching evaluation scorecards...
                                     </td>
                                 </tr>
-                            ) : reportData.length === 0 ? (
+                            ) : !Array.isArray(reportData) || reportData.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="text-center py-5 text-muted">
                                         No submitted evaluations recorded for this campaign yet.
                                     </td>
                                 </tr>
                             ) : (
-                                reportData.map((ev, idx) => (
-                                    <tr key={idx}>
-                                        <td className="fw-semibold text-dark">{ev.candidate_name || 'Candidate'}</td>
-                                        <td className="text-muted small">{ev.jury_name || ev.jury_user_id || 'Juror'}</td>
-                                        <td>
-                                            <span className="h6 fw-bold text-primary mb-0">{ev.total_score ?? 'N/A'}</span>
-                                            {ev.max_score && <span className="text-muted small"> / {ev.max_score} pts</span>}
-                                        </td>
-                                        <td>
-                                            <StatusBadge status={ev.status || 'completed'} />
-                                        </td>
-                                        <td>
-                                            <span className="badge bg-light text-dark border">
-                                                {ev.recommendation || 'Recommended for Leadership'}
-                                            </span>
-                                        </td>
-                                        <td className="small text-muted">
-                                            {ev.submitted_at ? new Date(ev.submitted_at).toLocaleDateString() : 'Pending'}
-                                        </td>
-                                    </tr>
-                                ))
+                                reportData.map((ev, idx) => {
+                                    const candName = typeof ev.candidate_name === 'string' 
+                                        ? ev.candidate_name 
+                                        : (typeof ev.nomination?.candidate_name === 'string' 
+                                            ? ev.nomination.candidate_name 
+                                            : (typeof ev.nomination?.full_name === 'string' ? ev.nomination.full_name : 'Candidate'));
+                                    const jurorName = typeof ev.jury_name === 'string' 
+                                        ? ev.jury_name 
+                                        : (typeof ev.juror?.display_name === 'string' 
+                                            ? ev.juror.display_name 
+                                            : (typeof ev.jury_user_id === 'string' ? ev.jury_user_id : 'Juror'));
+                                    const totalScore = ev.report?.total_score ?? ev.report_data?.total_score ?? ev.total_score ?? 'N/A';
+                                    const maxScore = ev.max_score ?? 100;
+                                    const rawRec = ev.report?.overall_recommendation ?? ev.report_data?.overall_recommendation ?? ev.recommendation ?? 'Completed';
+                                    const recText = typeof rawRec === 'string' ? rawRec.replace(/_/g, ' ') : 'Completed';
+                                    const dateStr = ev.completed_at || ev.submitted_at;
+
+                                    return (
+                                        <tr key={ev.id || idx}>
+                                            <td className="fw-semibold text-dark">{candName}</td>
+                                            <td className="text-muted small">{jurorName}</td>
+                                            <td>
+                                                <span className="h6 fw-bold text-primary mb-0">{totalScore}</span>
+                                                {totalScore !== 'N/A' && <span className="text-muted small"> / {maxScore} pts</span>}
+                                            </td>
+                                            <td>
+                                                <StatusBadge status={ev.status || 'completed'} />
+                                            </td>
+                                            <td>
+                                                <span className="badge bg-light text-dark border text-capitalize">
+                                                    {recText}
+                                                </span>
+                                            </td>
+                                            <td className="small text-muted">
+                                                {dateStr ? new Date(dateStr).toLocaleDateString() : 'Pending'}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

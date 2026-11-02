@@ -105,13 +105,14 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getImpacts(Request $request): array
+    public function getImpacts(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $status = $request->query('status') ? strtolower((string) $request->query('status')) : null;
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = Impact::query()->with([
@@ -127,11 +128,27 @@ class LeaderActivitiesService
             'impactedPeer.level4Category',
         ]);
 
+        if (Schema::hasColumn('impacts', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('impacts', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
                     ->orWhereHas('impactedPeer.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($scopedUserIds): void {
+                    $q->whereIn('user_id', $scopedUserIds)
+                        ->orWhereIn('impacted_peer_id', $scopedUserIds);
+                });
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -160,8 +177,13 @@ class LeaderActivitiesService
             });
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $impacts = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $impacts = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $impacts->map(function (Impact $impact): array {
             $fromPeer = $this->formatPeerDetail($impact->user);
@@ -210,12 +232,13 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getP2pMeetings(Request $request): array
+    public function getP2pMeetings(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = P2pMeeting::query()->with([
@@ -231,11 +254,27 @@ class LeaderActivitiesService
             'peer.level4Category',
         ]);
 
+        if (Schema::hasColumn('p2p_meetings', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('p2p_meetings', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->whereHas('initiator.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
                     ->orWhereHas('peer.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($scopedUserIds): void {
+                    $q->whereIn('initiator_user_id', $scopedUserIds)
+                        ->orWhereIn('peer_user_id', $scopedUserIds);
+                });
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -264,8 +303,13 @@ class LeaderActivitiesService
             });
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $meetings = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $meetings = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $meetings->map(function (P2pMeeting $meeting): array {
             $initiatorPeer = $this->formatPeerDetail($meeting->initiator);
@@ -312,12 +356,13 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getBusinessDeals(Request $request): array
+    public function getBusinessDeals(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = BusinessDeal::query()->with([
@@ -334,11 +379,27 @@ class LeaderActivitiesService
             'referral',
         ]);
 
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->whereHas('fromUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
                     ->orWhereHas('toUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($scopedUserIds): void {
+                    $q->whereIn('from_user_id', $scopedUserIds)
+                        ->orWhereIn('to_user_id', $scopedUserIds);
+                });
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -367,8 +428,13 @@ class LeaderActivitiesService
             });
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $deals = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $deals = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $deals->map(function (BusinessDeal $deal): array {
             $giverPeer = $this->formatPeerDetail($deal->fromUser);
@@ -425,12 +491,13 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getReferrals(Request $request): array
+    public function getReferrals(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $status = $request->query('status') ? (string) $request->query('status') : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = Referral::query()->with([
@@ -446,11 +513,27 @@ class LeaderActivitiesService
             'toUser.level4Category',
         ]);
 
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->whereHas('fromUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
                     ->orWhereHas('toUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($scopedUserIds): void {
+                    $q->whereIn('from_user_id', $scopedUserIds)
+                        ->orWhereIn('to_user_id', $scopedUserIds);
+                });
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -466,8 +549,13 @@ class LeaderActivitiesService
             $query->where('status', strtolower($status));
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $referrals = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $referrals = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $referrals->map(function (Referral $r, int $idx): array {
             $fromPeer = $this->formatPeerDetail($r->fromUser);
@@ -523,11 +611,12 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getTestimonials(Request $request): array
+    public function getTestimonials(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = Testimonial::query()->with([
@@ -543,11 +632,27 @@ class LeaderActivitiesService
             'toUser.level4Category',
         ]);
 
+        if (Schema::hasColumn('testimonials', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('testimonials', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->whereHas('fromUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
                     ->orWhereHas('toUser.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($scopedUserIds): void {
+                    $q->whereIn('from_user_id', $scopedUserIds)
+                        ->orWhereIn('to_user_id', $scopedUserIds);
+                });
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -559,8 +664,13 @@ class LeaderActivitiesService
             }
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $testimonials = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $testimonials = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $testimonials->map(function (Testimonial $t): array {
             $authorPeer = $this->formatPeerDetail($t->fromUser);
@@ -664,13 +774,14 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getRequirements(Request $request): array
+    public function getRequirements(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $status = $request->query('status') ? (string) $request->query('status') : null;
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $user = $request->user();
 
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
 
         $query = Requirement::query()->with([
@@ -681,8 +792,21 @@ class LeaderActivitiesService
             'user.level4Category',
         ]);
 
+        if (Schema::hasColumn('requirements', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('requirements', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
         if ($circleId && Str::isUuid($circleId)) {
             $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        } elseif ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('user_id', $scopedUserIds);
+            }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -707,8 +831,13 @@ class LeaderActivitiesService
             });
         }
 
-        $limit = min(max((int) ($request->query('limit', 25)), 1), 100);
-        $requirements = $query->orderByDesc('created_at')->take($limit)->get();
+        $totalCount = (clone $query)->count();
+
+        $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = $offset ?? (($page - 1) * $limit);
+
+        $requirements = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $requirements->map(function (Requirement $req): array {
             $peer = $this->formatPeerDetail($req->user);
@@ -1452,52 +1581,143 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getActivitiesByType(Request $request, string $type): array
+    /**
+     * Resolve user-friendly metric unit label by activity type.
+     */
+    public function resolveUnitLabelForType(string $type): string
+    {
+        $normalizedType = strtolower(trim($type));
+
+        return match ($normalizedType) {
+            'impacts', 'impact', 'life-impacts', 'top-impacters' => 'Impacts',
+            'p2p-meetings', 'peer-meetings', 'p2p' => 'Meetings',
+            'business-deals', 'deals' => 'Deals Closed',
+            'referrals', 'referral', 'highest-givers', 'givers' => 'Referrals',
+            'testimonials', 'endorsements' => 'Testimonials',
+            'requirements', 'requirement' => 'Requirements',
+            'coins', 'peers-by-coins', 'top-contributors', 'contributors' => 'Coins',
+            'visitor-registrations', 'visitors' => 'Visitors',
+            'peer-recommendations', 'recommendations' => 'Recommendations',
+            'introduced-peers', 'community-builders' => 'Introduced Peers',
+            'collaboration-asks', 'collaborations' => 'Collaboration Asks',
+            'referral-asks' => 'Referral Asks',
+            'help-asks', 'need-help' => 'Help Asks',
+            'all-asks', 'asks' => 'Asks',
+            'open-asks' => 'Open Asks',
+            'in-progress-asks' => 'In-Progress Asks',
+            'fulfilled-asks' => 'Fulfilled Asks',
+            'posts', 'timeline-posts' => 'Timeline Posts',
+            'creatives', 'activity-creatives' => 'Creatives',
+            'coin-claims', 'claim-coins' => 'Coin Claims',
+            'stories', 'business-stories', 'vyapaar-jagat' => 'Business Stories',
+            'leadership-interests', 'leader-interests' => 'Leadership Interests',
+            'mentor-applications', 'mentors' => 'Mentor Applications',
+            'speaker-applications', 'speakers' => 'Speaker Applications',
+            'partner-inquiries', 'partners' => 'Partner Inquiries',
+            'certifications', 'certificates' => 'Certifications',
+            'entrepreneur-certifications' => 'Entrepreneur Certifications',
+            'leadership-certifications' => 'Leadership Certifications',
+            'event-registrations', 'events' => 'Event Registrations',
+            'event-attendance', 'attendance' => 'Event Attendance',
+            'pending-requests', 'pending' => 'Pending Clearances',
+            'active-circles', 'chartered-circles' => 'Active Circles',
+            'circulars' => 'Circulars',
+            default => 'Activities',
+        };
+    }
+
+    /**
+     * Get paginated activities by type for Leader App & Admin Web.
+     *
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, offset: int}
+     */
+    public function getActivitiesByTypePaginated(Request $request, string $type): array
     {
         $normalizedType = strtolower(trim($type));
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $limit = min(max((int) ($request->query('limit', 50)), 1), 100);
-        // Pending approvals are scoped by circle / main category (not by existing members),
-        // so applicants who have not joined yet still reach the right circle leaders.
+        $page = max((int) ($request->query('page', 1)), 1);
+        $offset = ($page - 1) * $limit;
+
         if (in_array($normalizedType, ['pending-requests', 'pending'], true)) {
-            return $this->getPendingRequestsFeed($request, $search);
+            $totalCount = 0;
+            $items = $this->getPendingRequestsFeed($request, $search, $limit, $offset, $totalCount);
+
+            return [
+                'items' => $items,
+                'total' => $totalCount,
+                'page' => $page,
+                'per_page' => $limit,
+                'offset' => $offset,
+            ];
         }
 
         $scopedUserIds = $this->resolveActivityScopedUserIds($request);
 
         if (is_array($scopedUserIds) && empty($scopedUserIds)) {
-            return [];
+            return [
+                'items' => [],
+                'total' => 0,
+                'page' => $page,
+                'per_page' => $limit,
+                'offset' => $offset,
+            ];
         }
 
-        return match ($normalizedType) {
-            'impacts', 'impact', 'life-impacts' => $this->getImpacts($request),
-            'p2p-meetings', 'peer-meetings', 'p2p' => $this->getP2pMeetings($request),
-            'business-deals', 'deals' => $this->getBusinessDeals($request),
-            'referrals', 'referral', 'highest-givers', 'givers' => $this->getReferrals($request),
-            'testimonials', 'endorsements' => $this->getTestimonials($request),
-            'requirements', 'requirement' => $this->getRequirements($request),
-            'coins', 'peers-by-coins', 'top-contributors', 'contributors' => $this->getPeersByCoins($request),
-            'visitor-registrations', 'visitors' => $this->getVisitorRegistrationsFeed($scopedUserIds, $search, $limit),
-            'peer-recommendations', 'recommendations' => $this->getPeerRecommendationsFeed($scopedUserIds, $search, $limit),
-            'introduced-peers', 'community-builders' => $this->getIntroducedPeersFeed($scopedUserIds, $search, $limit),
-            'collaboration-asks', 'collaborations' => $this->getAskFlowFeed('collaboration', $scopedUserIds, $search, $limit),
-            'referral-asks' => $this->getAskFlowFeed('referral', $scopedUserIds, $search, $limit),
-            'help-asks', 'need-help' => $this->getAskFlowFeed('help', $scopedUserIds, $search, $limit),
-            'posts', 'timeline-posts' => $this->getPostsFeed($scopedUserIds, $search, $limit),
-            'creatives', 'activity-creatives' => $this->getCreativesFeed($scopedUserIds, $search, $limit),
-            'coin-claims', 'claim-coins' => $this->getCoinClaimsFeed($scopedUserIds, $search, $limit),
-            'stories', 'business-stories', 'vyapaar-jagat' => $this->getStoriesFeed($scopedUserIds, $search, $limit),
-            'leadership-interests', 'leader-interests' => $this->getLeadershipInterestsFeed($scopedUserIds, $search, $limit),
-            'mentor-applications', 'mentors' => $this->getMentorApplicationsFeed($scopedUserIds, $search, $limit),
-            'speaker-applications', 'speakers' => $this->getSpeakerApplicationsFeed($scopedUserIds, $search, $limit),
-            'partner-inquiries', 'partners' => $this->getPartnerInquiriesFeed($scopedUserIds, $search, $limit),
-            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, null),
-            'entrepreneur-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'entrepreneur'),
-            'leadership-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'leadership'),
-            'event-registrations', 'events' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, false),
-            'event-attendance', 'attendance' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, true),
+        $totalCount = 0;
+        $items = match ($normalizedType) {
+            'impacts', 'impact', 'life-impacts' => $this->getImpacts($request, $limit, $offset, $totalCount),
+            'p2p-meetings', 'peer-meetings', 'p2p' => $this->getP2pMeetings($request, $limit, $offset, $totalCount),
+            'business-deals', 'deals' => $this->getBusinessDeals($request, $limit, $offset, $totalCount),
+            'referrals', 'referral', 'highest-givers', 'givers' => $this->getReferrals($request, $limit, $offset, $totalCount),
+            'testimonials', 'endorsements' => $this->getTestimonials($request, $limit, $offset, $totalCount),
+            'requirements', 'requirement' => $this->getRequirements($request, $limit, $offset, $totalCount),
+            'coins', 'peers-by-coins', 'top-contributors', 'contributors' => $this->getPeersByCoinsPaginated($request, $limit, $offset, $totalCount),
+            'visitor-registrations', 'visitors' => $this->getVisitorRegistrationsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'peer-recommendations', 'recommendations' => $this->getPeerRecommendationsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'introduced-peers', 'community-builders' => $this->getIntroducedPeersFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'collaboration-asks', 'collaborations' => $this->getAskFlowFeed('collaboration', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'referral-asks' => $this->getAskFlowFeed('referral', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'help-asks', 'need-help' => $this->getAskFlowFeed('help', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'all-asks', 'asks' => $this->getAskFlowFeed('all', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'open-asks' => $this->getAskFlowFeed('open', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'in-progress-asks' => $this->getAskFlowFeed('in-progress', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'fulfilled-asks' => $this->getAskFlowFeed('fulfilled', $scopedUserIds, $search, $limit, $offset, $totalCount),
+            'posts', 'timeline-posts' => $this->getPostsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'creatives', 'activity-creatives' => $this->getCreativesFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'coin-claims', 'claim-coins' => $this->getCoinClaimsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'stories', 'business-stories', 'vyapaar-jagat' => $this->getStoriesFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'leadership-interests', 'leader-interests' => $this->getLeadershipInterestsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'mentor-applications', 'mentors' => $this->getMentorApplicationsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'speaker-applications', 'speakers' => $this->getSpeakerApplicationsFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'partner-inquiries', 'partners' => $this->getPartnerInquiriesFeed($scopedUserIds, $search, $limit, $offset, $totalCount),
+            'certifications', 'certificates' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, null, $offset, $totalCount),
+            'entrepreneur-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'entrepreneur', $offset, $totalCount),
+            'leadership-certifications' => $this->getCertificationsFeed($scopedUserIds, $search, $limit, 'leadership', $offset, $totalCount),
+            'event-registrations', 'events' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, false, $offset, $totalCount),
+            'event-attendance', 'attendance' => $this->getEventRegistrationsFeed($scopedUserIds, $search, $limit, true, $offset, $totalCount),
             default => [],
         };
+
+        return [
+            'items' => $items,
+            'total' => $totalCount,
+            'page' => $page,
+            'per_page' => $limit,
+            'offset' => $offset,
+        ];
+    }
+
+    /**
+     * Get unified list of user-input activities by type for Leader App (unpaginated/legacy compatibility).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getActivitiesByType(Request $request, string $type): array
+    {
+        $res = $this->getActivitiesByTypePaginated($request, $type);
+
+        return $res['items'];
     }
 
     /**
@@ -1507,7 +1727,7 @@ class LeaderActivitiesService
      *
      * @return array<int, array<string, mixed>>
      */
-    private function getPendingRequestsFeed(Request $request, ?string $search): array
+    private function getPendingRequestsFeed(Request $request, ?string $search, int $limit = 50, int $offset = 0, ?int &$totalCount = null): array
     {
         $sub = Request::create('/leader/pending-requests', 'GET', array_filter([
             'category' => 'all',
@@ -1521,6 +1741,9 @@ class LeaderActivitiesService
         $rows = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
             ->index($sub)
             ->getData(true)['data'] ?? [];
+
+        $totalCount = count($rows);
+        $sliced = array_slice($rows, $offset, $limit);
 
         return array_values(array_map(function (array $r): array {
             $name = (string) ($r['applicant_name'] ?? 'Peer Member');
@@ -1551,15 +1774,70 @@ class LeaderActivitiesService
                     'payment_status' => $r['payment_status'] ?? null,
                 ],
             );
-        }, $rows));
+        }, $sliced));
     }
+
+    /**
+     * Coins leaderboard formatted as paginated activity items.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPeersByCoinsPaginated(Request $request, int $limit, int $offset, ?int &$totalCount = null): array
+    {
+        $scopedUserIds = $this->resolveActivityScopedUserIds($request);
+        $user = $request->user();
+        $query = User::query()->whereNull('deleted_at')->withoutSystemUser();
+
+        if ($scopedUserIds !== null) {
+            if (empty($scopedUserIds)) {
+                $totalCount = 0;
+
+                return [];
+            }
+            $query->whereIn('id', $scopedUserIds);
+        }
+
+        $totalCount = (clone $query)->count();
+        $users = $query->with([
+            'circleMembers.circle',
+            'circleMembers.level4Category',
+            'activeCircle',
+            'businessCategory',
+            'level4Category',
+        ])->orderByDesc('coins_balance')->offset($offset)->limit($limit)->get();
+
+        $items = [];
+        foreach ($users as $idx => $u) {
+            $peer = $this->formatPeerDetail($u);
+            $coins = (int) ($u->coins_balance ?? 0);
+            $rank = $offset + $idx + 1;
+            $items[] = $this->formatStandardActivityItem(
+                id: (string) $u->id,
+                type: 'coins',
+                title: $peer['name'] ?? 'Peer Member',
+                subtitle: ($peer['company_name'] ?? 'Enterprise').' · #'.$rank,
+                description: number_format($coins).' Peers Coins Balance',
+                status: 'Active',
+                dateStr: date('Y-m-d'),
+                createdAtIso: now()->toIso8601String(),
+                fromPeer: $peer,
+                badgeLabel: '#'.$rank.' Ranked',
+                amount: number_format($coins).' Coins',
+            );
+        }
+
+        return $items;
+    }
+
     /**
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getVisitorRegistrationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getVisitorRegistrationsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('visitor_registrations')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1582,7 +1860,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->merge($rows->pluck('invited_by_user_id'))->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -1630,9 +1909,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getPeerRecommendationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getPeerRecommendationsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('peer_recommendations')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1650,7 +1931,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -1687,9 +1969,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getIntroducedPeersFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getIntroducedPeersFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasColumn('users', 'introduced_by')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1722,7 +2006,8 @@ class LeaderActivitiesService
             });
         }
 
-        $users = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $users = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $introducersMap = $this->loadFormattedPeersMap($users->pluck('introduced_by')->all());
 
         return $users->map(function (User $newPeer) use ($introducersMap): array {
@@ -1751,46 +2036,62 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getAskFlowFeed(string $flowCode, ?array $scopedUserIds, ?string $search, int $limit): array
+    private function getAskFlowFeed(string $flowCode, ?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         $items = [];
+        $totalCount = 0;
 
-        if (Schema::hasTable('asks') && Schema::hasTable('ask_flows')) {
-            $flowId = DB::table('ask_flows')->where('code', $flowCode)->value('id');
-            if ($flowId) {
-                $query = DB::table('asks')->where('flow_id', $flowId);
-                if (Schema::hasColumn('asks', 'deleted_at')) {
-                    $query->whereNull('deleted_at');
-                }
-                if ($scopedUserIds !== null) {
-                    $query->whereIn('user_id', $scopedUserIds);
-                }
-                if ($search) {
-                    $query->where(function ($q) use ($search): void {
-                        $q->where('title', 'ilike', "%{$search}%")
-                            ->orWhere('description', 'ilike', "%{$search}%");
-                    });
-                }
+        if (Schema::hasTable('asks')) {
+            $query = DB::table('asks');
+            if (Schema::hasColumn('asks', 'deleted_at')) {
+                $query->whereNull('deleted_at');
+            }
+            if ($scopedUserIds !== null) {
+                $query->whereIn('user_id', $scopedUserIds);
+            }
 
-                $rows = $query->orderByDesc('created_at')->limit($limit)->get();
-                $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
-
-                foreach ($rows as $row) {
-                    $peer = $peersMap[(string) ($row->user_id ?? '')] ?? null;
-                    $dateStr = ! empty($row->created_at) ? substr((string) $row->created_at, 0, 10) : date('Y-m-d');
-                    $items[] = $this->formatStandardActivityItem(
-                        id: (string) $row->id,
-                        type: "{$flowCode}-asks",
-                        title: (string) ($row->title ?? ucfirst($flowCode).' Ask'),
-                        subtitle: (string) ($row->visibility ?? 'Global Community'),
-                        description: (string) ($row->description ?? ''),
-                        status: ucfirst((string) ($row->status ?? 'Open')),
-                        dateStr: $dateStr,
-                        createdAtIso: (string) ($row->created_at ?? now()->toIso8601String()),
-                        fromPeer: $peer,
-                        badgeLabel: ucfirst($flowCode).' Ask',
-                    );
+            if ($flowCode === 'open') {
+                $query->whereIn('status', ['open', 'published', 'active']);
+            } elseif ($flowCode === 'in-progress') {
+                $query->where('status', 'ilike', '%progress%');
+            } elseif ($flowCode === 'fulfilled') {
+                $query->where(function ($q): void {
+                    $q->where('status', 'ilike', '%fulfill%')->orWhere('status', 'completed');
+                });
+            } elseif ($flowCode !== 'all' && Schema::hasTable('ask_flows')) {
+                $flowId = DB::table('ask_flows')->where('code', $flowCode)->value('id');
+                if ($flowId) {
+                    $query->where('flow_id', $flowId);
                 }
+            }
+
+            if ($search) {
+                $query->where(function ($q) use ($search): void {
+                    $q->where('title', 'ilike', "%{$search}%")
+                        ->orWhere('description', 'ilike', "%{$search}%");
+                });
+            }
+
+            $totalCount = (clone $query)->count();
+            $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
+            $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
+
+            foreach ($rows as $row) {
+                $peer = $peersMap[(string) ($row->user_id ?? '')] ?? null;
+                $dateStr = ! empty($row->created_at) ? substr((string) $row->created_at, 0, 10) : date('Y-m-d');
+                $label = ucfirst($flowCode === 'all' ? 'Ask' : $flowCode).' Ask';
+                $items[] = $this->formatStandardActivityItem(
+                    id: (string) $row->id,
+                    type: "{$flowCode}-asks",
+                    title: (string) ($row->title ?? $label),
+                    subtitle: (string) ($row->visibility ?? 'Global Community'),
+                    description: (string) ($row->description ?? ''),
+                    status: ucfirst((string) ($row->status ?? 'Open')),
+                    dateStr: $dateStr,
+                    createdAtIso: (string) ($row->created_at ?? now()->toIso8601String()),
+                    fromPeer: $peer,
+                    badgeLabel: $label,
+                );
             }
         }
 
@@ -1810,7 +2111,11 @@ class LeaderActivitiesService
                 });
             }
 
-            $cpRows = $cpQuery->orderByDesc('created_at')->limit($limit - count($items))->get();
+            $cpTotal = (clone $cpQuery)->count();
+            $totalCount += $cpTotal;
+
+            $remainingLimit = $limit - count($items);
+            $cpRows = $cpQuery->orderByDesc('created_at')->offset($offset)->limit($remainingLimit)->get();
             $cpPeersMap = $this->loadFormattedPeersMap($cpRows->pluck('user_id')->all());
 
             foreach ($cpRows as $row) {
@@ -1838,9 +2143,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getPostsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getPostsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('posts')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1868,7 +2175,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -1899,9 +2207,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getCreativesFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getCreativesFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('activity_creatives')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1923,7 +2233,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -1950,9 +2261,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getCoinClaimsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getCoinClaimsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('coin_claim_requests')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -1964,7 +2277,8 @@ class LeaderActivitiesService
             $query->where('activity_code', 'ilike', "%{$search}%");
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -1993,9 +2307,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getStoriesFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getStoriesFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('sme_business_story_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2012,7 +2328,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -2047,9 +2364,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getLeadershipInterestsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getLeadershipInterestsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('leader_interest_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2065,7 +2384,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -2098,9 +2418,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getMentorApplicationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getMentorApplicationsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('become_mentor_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2114,6 +2436,8 @@ class LeaderActivitiesService
                 ->filter()
                 ->all();
             if (empty($scopedEmails)) {
+                $totalCount = 0;
+
                 return [];
             }
             $query->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails);
@@ -2126,7 +2450,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $rows->map(function ($row): array {
             $fullName = trim(((string) ($row->first_name ?? '')).' '.((string) ($row->last_name ?? ''))) ?: 'Mentor Applicant';
@@ -2154,9 +2479,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getSpeakerApplicationsFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getSpeakerApplicationsFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('become_speaker_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2170,6 +2497,8 @@ class LeaderActivitiesService
                 ->filter()
                 ->all();
             if (empty($scopedEmails)) {
+                $totalCount = 0;
+
                 return [];
             }
             $query->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails);
@@ -2183,7 +2512,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $rows->map(function ($row): array {
             $fullName = trim(((string) ($row->first_name ?? '')).' '.((string) ($row->last_name ?? ''))) ?: 'Speaker Applicant';
@@ -2213,9 +2543,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getPartnerInquiriesFeed(?array $scopedUserIds, ?string $search, int $limit): array
+    private function getPartnerInquiriesFeed(?array $scopedUserIds, ?string $search, int $limit, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('partner_with_us_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2229,6 +2561,8 @@ class LeaderActivitiesService
                 ->filter()
                 ->all();
             if (empty($scopedEmails)) {
+                $totalCount = 0;
+
                 return [];
             }
             $query->whereIn(DB::raw('LOWER(TRIM(email_id))'), $scopedEmails);
@@ -2242,7 +2576,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
 
         return $rows->map(function ($row): array {
             $fullName = trim(((string) ($row->first_name ?? '')).' '.((string) ($row->last_name ?? ''))) ?: 'Partner Applicant';
@@ -2273,9 +2608,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit, ?string $certFilter = null): array
+    private function getCertificationsFeed(?array $scopedUserIds, ?string $search, int $limit, ?string $certFilter = null, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('certification_submissions')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2298,7 +2635,8 @@ class LeaderActivitiesService
             });
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         return $rows->map(function ($row) use ($peersMap): array {
@@ -2332,9 +2670,11 @@ class LeaderActivitiesService
      * @param  array<int, string>|null  $scopedUserIds
      * @return array<int, array<string, mixed>>
      */
-    private function getEventRegistrationsFeed(?array $scopedUserIds, ?string $search, int $limit, bool $checkedInOnly): array
+    private function getEventRegistrationsFeed(?array $scopedUserIds, ?string $search, int $limit, bool $checkedInOnly, int $offset = 0, ?int &$totalCount = null): array
     {
         if (! Schema::hasTable('event_registrations')) {
+            $totalCount = 0;
+
             return [];
         }
 
@@ -2346,7 +2686,8 @@ class LeaderActivitiesService
             $query->where('checkin_status', 'checked_in');
         }
 
-        $rows = $query->orderByDesc('created_at')->limit($limit)->get();
+        $totalCount = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
         $peersMap = $this->loadFormattedPeersMap($rows->pluck('user_id')->all());
 
         $eventsMap = [];

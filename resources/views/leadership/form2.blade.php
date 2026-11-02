@@ -160,7 +160,7 @@
                 </div>
                 <h3 class="h4 fw-bold text-dark mb-2">Form 2 Successfully Submitted!</h3>
                 <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
-                    Thank you, <strong>{{ $candidateName }}</strong>. Your Jury Evaluation Data and Leadership Bench records have been securely stored in <strong>Sub form 2</strong> and forwarded to the Scrutiny Committee and Jury Board.
+                    Thank you, <strong>{{ $candidateName }}</strong>. Your Jury Evaluation Data and Leadership Bench records have been securely stored in <strong>Jury Forms (2)</strong> and forwarded to the Scrutiny Committee and Jury Board.
                 </p>
                 <div class="bg-light p-3 rounded-3 border mb-4 text-start small font-monospace">
                     <div><strong>Reference ID:</strong> {{ $nomination->application_number }}-F2</div>

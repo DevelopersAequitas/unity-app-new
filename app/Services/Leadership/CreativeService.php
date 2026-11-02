@@ -109,6 +109,20 @@ class CreativeService
     }
 
     /**
+     * List all winner creatives for a campaign.
+     *
+     * @return Collection<int, LeadershipWinnerCreative>
+     */
+    public function listCampaignCreatives(string $campaignId): Collection
+    {
+        return LeadershipWinnerCreative::query()
+            ->whereHas('finalDecision', fn ($q) => $q->where('campaign_id', $campaignId))
+            ->with(['finalDecision.nomination', 'generator'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    /**
      * Download or retrieve short-lived link for creative (K4).
      */
     public function getDownloadUrl(string $creativeId): string

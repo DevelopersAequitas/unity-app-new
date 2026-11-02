@@ -87,6 +87,39 @@ class LeaderPeersService
                 return $circleIds;
             }
 
+            // Fallback: match by assigned district name or user city
+            $districtName = null;
+            if ($resolvedDistrictId && Schema::hasTable('districts')) {
+                $districtName = District::query()->where('id', $resolvedDistrictId)->value('name');
+            }
+            if (! $districtName && $adminUser) {
+                $districtName = AdminAccess::assignedDedDistrictName($adminUser);
+            }
+            if (! $districtName && $user) {
+                $districtName = $user->district ?? $user->regional_scope ?? $user->city ?? null;
+            }
+            if ($districtName) {
+                $dName = strtolower(trim((string) $districtName));
+                $matchedCircleIds = Circle::query()
+                    ->whereNull('deleted_at')
+                    ->where(function ($q) use ($dName): void {
+                        $q->whereRaw('LOWER(name) LIKE ?', ['%'.$dName.'%']);
+                        if (Schema::hasColumn('circles', 'city')) {
+                            $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
+                                ->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) LIKE ?", ['%'.$dName.'%']);
+                        }
+                    })
+                    ->pluck('id')
+                    ->all();
+                if (! empty($matchedCircleIds)) {
+                    return $matchedCircleIds;
+                }
+            }
+
+            if (! empty($joinedCircleIds)) {
+                return $joinedCircleIds;
+            }
+
             return [];
         }
 

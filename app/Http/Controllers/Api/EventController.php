@@ -332,9 +332,18 @@ class EventController extends BaseApiController
 
             $generator = app(EventOccurrenceGeneratorService::class);
             foreach ($futureEvents as $event) {
+                $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+                if ($eventTz === 'UTC') {
+                    $eventTz = 'Asia/Kolkata';
+                }
                 $startUtc = Carbon::parse($event->start_at);
+                $localStartDate = Carbon::parse($event->start_at)->setTimezone($eventTz)->toDateString();
+
                 $hasStartOccurrence = $event->occurrences()
-                    ->whereBetween('start_at', [$startUtc->copy()->subMinutes(30), $startUtc->copy()->addMinutes(30)])
+                    ->where(function ($q) use ($startUtc, $localStartDate): void {
+                        $q->whereBetween('start_at', [$startUtc->copy()->subHours(2), $startUtc->copy()->addHours(2)])
+                            ->orWhere('occurrence_date', $localStartDate);
+                    })
                     ->exists();
 
                 if (! $hasStartOccurrence) {
