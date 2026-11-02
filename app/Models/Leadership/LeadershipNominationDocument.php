@@ -61,15 +61,20 @@ class LeadershipNominationDocument extends Model
 
     public function getFileUrlAttribute(): ?string
     {
-        if (! empty($this->storage_key)) {
-            if (str_starts_with($this->storage_key, 'http://') || str_starts_with($this->storage_key, 'https://')) {
-                return $this->storage_key;
-            }
-
-            return \Illuminate\Support\Facades\Storage::disk($this->storage_disk ?? 'public')->url($this->storage_key);
+        if (empty($this->storage_key)) {
+            return null;
         }
 
-        return null;
+        if (str_starts_with($this->storage_key, 'http://') || str_starts_with($this->storage_key, 'https://')) {
+            return $this->storage_key;
+        }
+
+        // Dedicated streaming endpoint guarantees file is served inline regardless of local/public/s3 disk
+        if (! empty($this->nomination_id) && ! empty($this->id)) {
+            return url("/api/v1/leadership/public/nominations/{$this->nomination_id}/documents/{$this->id}/file");
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk($this->storage_disk ?? 'public')->url($this->storage_key);
     }
 
     protected static function booted(): void

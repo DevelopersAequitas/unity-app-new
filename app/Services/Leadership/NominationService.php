@@ -236,14 +236,15 @@ class NominationService
             throw new RuntimeException('Documents can only be uploaded while the application is in draft or correction state.');
         }
 
-        $path = $file->store("leadership/nominations/{$nomination->id}", 'local');
+        $disk = config('filesystems.default') === 's3' ? 's3' : 'public';
+        $path = $file->store("leadership/nominations/{$nomination->id}", $disk);
 
         /** @var LeadershipNominationDocument $document */
         $document = LeadershipNominationDocument::create([
             'nomination_id' => $nomination->id,
             'document_type' => $documentType,
             'original_filename' => $file->getClientOriginalName(),
-            'storage_disk' => 'local',
+            'storage_disk' => $disk,
             'storage_key' => $path,
             'mime_type' => $file->getClientMimeType(),
             'file_size_bytes' => $file->getSize(),
@@ -585,5 +586,60 @@ class NominationService
                 // Ignore secondary log failures
             }
         }
+    }
+
+    /**
+     * Stream a nomination document inline to the browser.
+     */
+    public function streamDocument(string $nominationId, string $documentId): \Symfony\Component\HttpFoundation\Response
+    {
+        /** @var LeadershipNominationDocument $document */
+        $document = LeadershipNominationDocument::where('nomination_id', $nominationId)->findOrFail($documentId);
+
+        $key = (string) $document->storage_key;
+
+        if (str_starts_with($key, 'http://') || str_starts_with($key, 'https://')) {
+            return redirect()->away($key);
+        }
+
+        $filename = $document->original_filename ?: basename($key);
+        $encodedFilename = addslashes($filename);
+
+        // Check configured storage disks
+        $disks = array_filter(array_unique([
+            $document->storage_disk,
+            'public',
+            'local',
+            's3',
+        ]));
+
+        foreach ($disks as $disk) {
+            if ($disk && Storage::disk($disk)->exists($key)) {
+                $mime = $document->mime_type ?: Storage::disk($disk)->mimeType($key) ?: 'application/octet-stream';
+
+                return Storage::disk($disk)->response($key, $filename, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="'.$encodedFilename.'"',
+                ]);
+            }
+        }
+
+        // Direct filesystem path fallbacks for standard storage layouts
+        $directPaths = [
+            storage_path('app/public/'.$key),
+            storage_path('app/'.$key),
+            storage_path('app/private/'.$key),
+            public_path('storage/'.$key),
+        ];
+
+        foreach ($directPaths as $path) {
+            if (file_exists($path) && is_file($path)) {
+                return response()->file($path, [
+                    'Content-Disposition' => 'inline; filename="'.$encodedFilename.'"',
+                ]);
+            }
+        }
+
+        abort(404, 'The requested document file could not be found on storage.');
     }
 }
