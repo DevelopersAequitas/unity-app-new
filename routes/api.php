@@ -2301,11 +2301,13 @@ foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucr
     Route::middleware('auth:sanctum,admin')->prefix($ucrAdminPrefix)->group(function (): void {
         Route::get('', [UserCircleRequestAdminController::class, 'index']);
         Route::get('stats', [UserCircleRequestAdminController::class, 'stats']);
+        Route::get('config', [UserCircleRequestAdminController::class, 'getConfig']);
+        Route::put('config', [UserCircleRequestAdminController::class, 'updateConfig']);
+        Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::get('{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');
         Route::post('{id}/approve', [UserCircleRequestAdminController::class, 'approve'])->whereUuid('id');
         Route::patch('{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
         Route::get('{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
         Route::get('{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
-        Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
     });
 }

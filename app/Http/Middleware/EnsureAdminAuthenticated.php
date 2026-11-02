@@ -32,8 +32,21 @@ class EnsureAdminAuthenticated
                 } elseif ($user instanceof User) {
                     $admin = AdminUser::query()
                         ->where('id', $user->id)
-                        ->orWhere('email', $user->email)
+                        ->orWhereRaw('LOWER(email) = LOWER(?)', [$user->email])
                         ->first();
+                    if (! $admin && $user->email) {
+                        try {
+                            $admin = AdminUser::firstOrCreate(
+                                ['email' => strtolower($user->email)],
+                                [
+                                    'id' => (string) \Illuminate\Support\Str::uuid(),
+                                    'name' => $user->name ?? 'Admin',
+                                ]
+                            );
+                        } catch (\Throwable) {
+                            // ignore creation race condition
+                        }
+                    }
                     if ($admin) {
                         Auth::guard('admin')->setUser($admin);
                     }

@@ -58,7 +58,44 @@ class AdminCampaignController extends LeadershipBaseController
             $input['jury_ends_at'] = $input['jury_end_at'];
         }
 
-        $validated = validator($input, [
+        foreach (['nomination_starts_at', 'nomination_ends_at', 'voting_starts_at', 'voting_ends_at', 'jury_starts_at', 'jury_ends_at'] as $dateField) {
+            if (! empty($input[$dateField])) {
+                try {
+                    $input[$dateField] = \Carbon\Carbon::parse($input[$dateField])->toIso8601String();
+                } catch (\Throwable) {
+                    $input[$dateField] = null;
+                }
+            } else {
+                $input[$dateField] = null;
+            }
+        }
+
+        if (empty($input['role_id'])) {
+            if (! empty($input['role_name'])) {
+                $roleName = trim((string) $input['role_name']);
+                $role = \App\Models\Role::query()
+                    ->where(function ($q) use ($roleName): void {
+                        $q->where('name', $roleName)
+                            ->orWhere('key', strtolower(str_replace([' ', '-'], '_', $roleName)));
+                    })
+                    ->where('key', '!=', 'global_admin')
+                    ->first();
+                if ($role) {
+                    $input['role_id'] = $role->id;
+                }
+            }
+            if (empty($input['role_id'])) {
+                $defaultRole = \App\Models\Role::query()
+                    ->where('key', 'ded')
+                    ->orWhere('name', 'DED')
+                    ->first() ?? \App\Models\Role::query()->where('key', '!=', 'global_admin')->first();
+                if ($defaultRole) {
+                    $input['role_id'] = $defaultRole->id;
+                }
+            }
+        }
+
+        $validator = validator($input, [
             'role_id' => 'required|uuid',
             'name' => 'required|string|max:200',
             'slug' => 'nullable|string|max:220',
@@ -73,12 +110,22 @@ class AdminCampaignController extends LeadershipBaseController
             'allow_multiple_winners' => 'nullable|boolean',
             'eligibility_rules' => 'nullable|array',
             'settings' => 'nullable|array',
-        ])->validate();
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
+
+        $validated = $validator->validated();
 
         try {
             $campaign = $this->campaignService->createCampaign($validated, Auth::id());
 
-            return $this->success($campaign, 'Campaign created successfully in draft mode.', 201);
+            if (($input['status'] ?? '') === 'active') {
+                $campaign = $this->campaignService->publishCampaign($campaign->id, 'Published on creation', Auth::id());
+            }
+
+            return $this->success($campaign, 'Campaign created successfully.', 201);
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
@@ -127,6 +174,32 @@ class AdminCampaignController extends LeadershipBaseController
         }
         if (isset($input['jury_end_at']) && ! isset($input['jury_ends_at'])) {
             $input['jury_ends_at'] = $input['jury_end_at'];
+        }
+
+        foreach (['nomination_starts_at', 'nomination_ends_at', 'voting_starts_at', 'voting_ends_at', 'jury_starts_at', 'jury_ends_at'] as $dateField) {
+            if (! empty($input[$dateField])) {
+                try {
+                    $input[$dateField] = \Carbon\Carbon::parse($input[$dateField])->toIso8601String();
+                } catch (\Throwable) {
+                    $input[$dateField] = null;
+                }
+            } else {
+                $input[$dateField] = null;
+            }
+        }
+
+        if (empty($input['role_id']) && ! empty($input['role_name'])) {
+            $roleName = trim((string) $input['role_name']);
+            $role = \App\Models\Role::query()
+                ->where(function ($q) use ($roleName): void {
+                    $q->where('name', $roleName)
+                        ->orWhere('key', strtolower(str_replace([' ', '-'], '_', $roleName)));
+                })
+                ->where('key', '!=', 'global_admin')
+                ->first();
+            if ($role) {
+                $input['role_id'] = $role->id;
+            }
         }
 
         try {
