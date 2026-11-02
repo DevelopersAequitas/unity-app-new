@@ -34,7 +34,8 @@ class PendingRequestAdminController extends Controller
             $status = 'pending';
         }
 
-        $breakdown = [
+        return \Illuminate\Support\Facades\Cache::remember("admin.pending_requests.summary.{$status}", 30, function () use ($status): array {
+            $breakdown = [
             'visitor_registrations' => $this->getCategoryCount($status, 'visitor_registrations'),
             'coin_claims' => $this->getCategoryCount($status, 'coin_claim_requests', 'coin_claims'),
             'circle_joining_requests' => $this->getCategoryCount($status, 'circle_join_requests'),
@@ -56,12 +57,13 @@ class PendingRequestAdminController extends Controller
         $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
         $breakdown['visitors'] = $breakdown['visitor_registrations'];
 
-        return [
-            'status' => $status,
-            'total' => $total,
-            'total_pending' => $status === 'pending' ? $total : $this->getCategoryCount('pending', 'visitor_registrations', 'coin_claims', 'circle_join_requests', 'impacts', 'ad_bookings'),
-            'breakdown' => $breakdown,
-        ];
+            return [
+                'status' => $status,
+                'total' => $total,
+                'total_pending' => $status === 'pending' ? $total : $this->getCategoryCount('pending', 'visitor_registrations', 'coin_claims', 'circle_join_requests', 'impacts', 'ad_bookings'),
+                'breakdown' => $breakdown,
+            ];
+        });
     }
 
     /**
