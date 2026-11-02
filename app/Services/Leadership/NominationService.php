@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services\Leadership;
 
+use App\Mail\Leadership\LeadershipNominationSubmittedMail;
 use App\Models\Leadership\LeadershipCampaign;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationAnswer;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
+use App\Models\Leadership\LeadershipNotificationLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -334,6 +338,11 @@ class NominationService
                 'submitted_at' => $now->toIso8601String(),
             ];
         });
+
+        // Dispatch confirmation email with branded template & audit log
+        $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
+
+        return $result;
     }
 
     protected function generateApplicationNumber(int $year): string
@@ -494,6 +503,9 @@ class NominationService
                 remarks: "Nomination {$nomination->application_number} submitted via website portal"
             );
 
+            // Dispatch confirmation email with branded template & audit log
+            $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
+
             return [
                 'id' => $nomination->id,
                 'nomination_id' => $nomination->id,
@@ -502,5 +514,76 @@ class NominationService
                 'submitted_at' => $now->toIso8601String(),
             ];
         });
+    }
+
+    /**
+     * Dispatch submission confirmation email to the candidate and log notification.
+     */
+    protected function sendSubmissionConfirmationEmail(?LeadershipNomination $nomination): void
+    {
+        if (! $nomination) {
+            return;
+        }
+
+        $recipientEmail = $nomination->email;
+        if (empty($recipientEmail) && is_array($nomination->profile_snapshot) && ! empty($nomination->profile_snapshot['email'])) {
+            $recipientEmail = (string) $nomination->profile_snapshot['email'];
+        }
+        if (empty($recipientEmail) && is_array($nomination->edited_profile) && ! empty($nomination->edited_profile['email'])) {
+            $recipientEmail = (string) $nomination->edited_profile['email'];
+        }
+        if (empty($recipientEmail) && $nomination->user) {
+            $recipientEmail = (string) $nomination->user->email;
+        }
+
+        if (empty($recipientEmail)) {
+            Log::warning("Leadership nomination submission email skipped: no email found for nomination {$nomination->id}");
+
+            return;
+        }
+
+        try {
+            Mail::to($recipientEmail)->send(new LeadershipNominationSubmittedMail($nomination));
+
+            LeadershipNotificationLog::create([
+                'campaign_id' => $nomination->campaign_id,
+                'nomination_id' => $nomination->id,
+                'recipient_user_id' => $nomination->user_id,
+                'recipient' => $recipientEmail,
+                'channel' => 'email',
+                'template_key' => 'nomination_submitted',
+                'status' => 'sent',
+                'attempt_count' => 1,
+                'sent_at' => Carbon::now(),
+                'payload_metadata' => [
+                    'application_number' => $nomination->application_number,
+                    'role' => $nomination->applied_role_name,
+                    'jurisdiction' => $nomination->scope_name,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("Failed to dispatch leadership nomination submission email for {$nomination->id}: ".$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            try {
+                LeadershipNotificationLog::create([
+                    'campaign_id' => $nomination->campaign_id,
+                    'nomination_id' => $nomination->id,
+                    'recipient_user_id' => $nomination->user_id,
+                    'recipient' => $recipientEmail,
+                    'channel' => 'email',
+                    'template_key' => 'nomination_submitted',
+                    'status' => 'failed',
+                    'attempt_count' => 1,
+                    'error_message' => $e->getMessage(),
+                    'payload_metadata' => [
+                        'application_number' => $nomination->application_number,
+                    ],
+                ]);
+            } catch (\Throwable) {
+                // Ignore secondary log failures
+            }
+        }
     }
 }
