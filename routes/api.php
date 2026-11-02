@@ -802,6 +802,7 @@ Route::prefix('v1')->group(function () {
 
         // Build Your Own Circle
         Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::post('/user-circle-requests/check-peer', [UserCircleRequestController::class, 'checkPeer']);
         Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
         Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
         Route::post('/user-circle-requests', [UserCircleRequestController::class, 'store']);

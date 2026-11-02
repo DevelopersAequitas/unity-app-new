@@ -231,6 +231,15 @@ final class UserCircleNomineeStatusResolver
                 'name' => $nominee->name,
                 'phone' => $nominee->phone,
                 'email' => $nominee->email,
+                'business_name' => $nominee->business_name,
+                'category_id' => $nominee->category_id,
+                'category' => $nominee->category ? [
+                    'id' => $nominee->category->id,
+                    'name' => $nominee->category->name,
+                    'slug' => $nominee->category->slug,
+                ] : null,
+                'interest_level' => $nominee->interest_level,
+                'is_complete' => (!empty($nominee->name) && !empty($nominee->phone) && !empty($nominee->business_name) && !empty($nominee->category_id)),
                 'user_id' => $matchedUser?->id ?? $nominee->nominee_user_id,
                 'nominee_user_id' => $matchedUser?->id ?? $nominee->nominee_user_id,
 
