@@ -25,4 +25,3 @@ class ProcessWithdrawalActionRequest extends FormRequest
         ];
     }
 }
-

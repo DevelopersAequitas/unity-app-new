@@ -127,4 +127,3 @@ class FinanceLedgerTransaction extends Model
         return $this->belongsTo(FinanceCommissionRule::class, 'rule_id');
     }
 }
-

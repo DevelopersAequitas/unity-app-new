@@ -36,4 +36,3 @@ class UpsertCommissionRuleRequest extends FormRequest
         ];
     }
 }
-

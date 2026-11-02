@@ -35,7 +35,7 @@ class LeaderPeersService
      *
      * @return array<string>|null
      */
-    public function resolveScopedCircleIds(?User $user, ?string $districtId = null): ?array
+    public function resolveScopedCircleIds(User|AdminUser|null $user, ?string $districtId = null): ?array
     {
         if (! $user) {
             return [];
@@ -272,7 +272,7 @@ class LeaderPeersService
         ?string $sort = null,
         ?string $search = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
         int $page = 1,
         int $perPage = 20,
     ): array {
@@ -623,7 +623,7 @@ class LeaderPeersService
      *
      * @return array<string, mixed>
      */
-    public function getPeer(string $peerId, ?User $requestingUser = null): array
+    public function getPeer(string $peerId, User|AdminUser|null $requestingUser = null): array
     {
         $user = User::query()->where('id', $peerId)->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->first();
 
@@ -807,7 +807,7 @@ class LeaderPeersService
      *
      * @return array<string, mixed>
      */
-    public function getPeerSubscriptions(string $userId, ?User $user = null): array
+    public function getPeerSubscriptions(string $userId, User|AdminUser|null $user = null): array
     {
         $user ??= User::query()->find($userId);
 
@@ -1130,7 +1130,7 @@ class LeaderPeersService
     public function getCelebrations(
         ?string $circleId = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 

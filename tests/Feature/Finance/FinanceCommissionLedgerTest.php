@@ -126,6 +126,9 @@ class FinanceCommissionLedgerTest extends TestCase
 
         $migration = require base_path('database/migrations/2026_11_02_123000_create_finance_commission_and_ledger_tables.php');
         $migration->up();
+
+        $bonusMigration = require base_path('database/migrations/2026_11_02_151500_create_finance_leader_bonus_tables.php');
+        $bonusMigration->up();
     }
 
     public function test_cd_policy_specification_matches_executive_schema(): void
@@ -329,6 +332,84 @@ class FinanceCommissionLedgerTest extends TestCase
         $this->assertEquals(6300.0, $tenuresByUser[$leaderPriya->id]['financial_summary']['total_credited_inr']);
         $this->assertEquals(0.0, $tenuresByUser[$leaderPriya->id]['financial_summary']['total_withdrawn_inr']);
         $this->assertEquals(6300.0, $tenuresByUser[$leaderPriya->id]['financial_summary']['net_budget_generated_inr']);
+    }
+
+    public function test_leader_personal_bonuses_for_cd_cf_id_ded_and_personal_wallet_payouts(): void
+    {
+        $cdLeader = $this->createPeer('Vikram', 'Desai', 'vikram.cd@peersglobal.com');
+        $idLeader = $this->createPeer('Neha', 'Kapoor', 'neha.id@peersglobal.com');
+        Sanctum::actingAs($cdLeader);
+
+        // 1. Verify CD, CF, and ID bonus catalogs are active by default
+        $cdCatalog = $this->getJson('/api/v1/admin/finance/bonuses/role/CD')->assertOk();
+        $this->assertGreaterThanOrEqual(10, $cdCatalog->json('data.active_rules_count'));
+
+        $cfCatalog = $this->getJson('/api/v1/admin/finance/bonuses/role/CF')->assertOk();
+        $this->assertGreaterThanOrEqual(9, $cfCatalog->json('data.active_rules_count'));
+
+        $idCatalog = $this->getJson('/api/v1/admin/finance/bonuses/role/ID')->assertOk();
+        $this->assertEquals(6, $idCatalog->json('data.active_rules_count'));
+
+        // 2. Assign Vikram as CD of a Circle -> creates tenure
+        $circleId = (string) Str::uuid();
+        $tenureRes = $this->postJson('/api/v1/admin/finance/tenures', [
+            'user_id' => $cdLeader->id,
+            'role_code' => 'CD',
+            'scope_type' => 'circle',
+            'scope_id' => $circleId,
+        ])->assertCreated();
+        $cdTenureId = (string) $tenureRes->json('data.id');
+
+        // 3. Evaluate CD bonuses when 10 peers join in 10 days AND circle strength hits 50 peers
+        //    + 0 category disputes (which requires approval)
+        $evalRes = $this->postJson('/api/v1/admin/finance/bonuses/evaluate', [
+            'leader_tenure_id' => $cdTenureId,
+            'metrics' => [
+                'new_members_count' => 10,
+                'net_member_strength' => 50,
+                'meeting_attendance_rate' => 92.5,
+                'meetings_evaluated_count' => 6,
+                'category_disputes_count' => 0,
+            ],
+        ])->assertOk();
+
+        // Auto-credited personal bonuses for Vikram (CD):
+        // - SPEED_10M_20D: ₹10,000
+        // - CD_SPEED_10M_10D: ₹25,000
+        // - CD_QUALITY_ATTENDANCE_90_LAST6: ₹15,000
+        // - CD_STRENGTH_50P: ₹50,000
+        // Total auto-credited to Personal Wallet = ₹1,00,000!
+        // While QUALITY_ZERO_DISPUTES_12M (₹10,000) is 'pending_approval'!
+        $this->assertEquals(100000.0, $evalRes->json('data.newly_credited_personal_bonus_inr'));
+        $this->assertSame('leader_wallet', $evalRes->json('data.personal_wallet.wallet_type'));
+        $this->assertEquals(100000.0, $evalRes->json('data.personal_wallet.current_balance_inr'));
+
+        $bonusesByCode = collect($evalRes->json('data.bonuses'))->keyBy('rule_code');
+        $this->assertSame('credited', $bonusesByCode['CD_SPEED_10M_10D']['status']);
+        $this->assertSame('credited', $bonusesByCode['CD_STRENGTH_50P']['status']);
+        $this->assertSame('pending_approval', $bonusesByCode['QUALITY_ZERO_DISPUTES_12M']['status']);
+
+        // 4. Approve the 'pending_approval' Zero Disputes bonus -> adds ₹10,000 to Vikram's Personal Wallet (now ₹1,10,000)
+        $disputeAwardId = (string) $bonusesByCode['QUALITY_ZERO_DISPUTES_12M']['award_id'];
+        $approveRes = $this->postJson("/api/v1/admin/finance/bonuses/awards/{$disputeAwardId}/approve", [
+            'admin_notes' => 'Verified zero category disputes across 12 months',
+        ])->assertOk();
+
+        $this->assertSame('credited', $approveRes->json('data.status'));
+        $this->assertEquals(110000.0, (float) $approveRes->json('data.wallet.current_balance'));
+
+        // 5. Activate Circle Launch Bonus (ID_CIRCLE_LAUNCH_5_1Y) for DED role as well, with a custom ₹75,000 override!
+        $launchRuleId = collect($idCatalog->json('data.bonus_rules'))->firstWhere('rule_code', 'ID_CIRCLE_LAUNCH_5_1Y')['bonus_rule_id'];
+        $toggleRes = $this->postJson('/api/v1/admin/finance/bonuses/role-configs/toggle', [
+            'bonus_rule_id' => $launchRuleId,
+            'role_code' => 'DED',
+            'is_active' => true,
+            'override_bonus_amount_inr' => 75000,
+        ])->assertOk();
+
+        $this->assertTrue($toggleRes->json('data.is_active'));
+        $this->assertNotNull($toggleRes->json('data.activated_at'));
+        $this->assertEquals(75000.0, (float) $toggleRes->json('data.override_bonus_amount_inr'));
     }
 
     private function createPeer(string $first, string $last, string $email, ?string $introducedBy = null): User

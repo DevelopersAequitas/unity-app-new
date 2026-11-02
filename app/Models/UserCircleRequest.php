@@ -52,6 +52,7 @@ class UserCircleRequest extends Model
         'reviewed_at',
         'created_circle_id',
         'circle_created_at',
+        'metadata',
     ];
 
     protected $casts = [
@@ -59,6 +60,7 @@ class UserCircleRequest extends Model
         'reviewed_at'            => 'datetime',
         'circle_created_at'      => 'datetime',
         'minimum_peers_required' => 'integer',
+        'metadata'               => 'array',
     ];
 
     protected static function booted(): void

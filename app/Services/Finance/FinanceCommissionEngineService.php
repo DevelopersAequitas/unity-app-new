@@ -408,6 +408,22 @@ class FinanceCommissionEngineService
                 ];
             }
 
+            // Automatically evaluate Speed & Milestone Bonuses for any leader tenures credited in this payment
+            $bonusEvaluations = [];
+            if (Schema::hasTable('finance_bonus_rules') && Schema::hasTable('finance_leader_bonus_awards')) {
+                $tenureIds = collect($createdTransactions)
+                    ->pluck('leader_tenure_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $bonusEngine = app(LeaderBonusEngineService::class);
+                foreach ($tenureIds as $tId) {
+                    $bonusEvaluations[] = $bonusEngine->evaluateTenureBonuses((string) $tId, [], $actorAdminId);
+                }
+            }
+
             return [
                 'member_user_id' => $member->id,
                 'circle_id' => $circle->id,
@@ -416,6 +432,7 @@ class FinanceCommissionEngineService
                 'total_credited_inr' => round((float) collect($createdTransactions)->sum('credited_amount'), 2),
                 'transactions_created_count' => count($createdTransactions),
                 'transactions' => $createdTransactions,
+                'leader_bonus_evaluations' => $bonusEvaluations,
             ];
         });
     }

@@ -21,6 +21,14 @@ class UserCircleRequestAdminController extends BaseApiController
         private readonly UserCircleNomineeStatusResolver $nomineeResolver,
     ) {}
 
+    public function getMinimumRequired(): int
+    {
+        return (int) \Illuminate\Support\Facades\Cache::get(
+            'circle.build_your_own.minimum_nominees',
+            config('circle.build_your_own.minimum_nominees', 40)
+        );
+    }
+
     /**
      * List all "Build Your Own Circle" requests with filters.
      */
@@ -53,7 +61,7 @@ class UserCircleRequestAdminController extends BaseApiController
         $perPage = min(100, max(1, (int) $request->input('per_page', 20)));
         $paginated = $query->orderByDesc('created_at')->paginate($perPage);
 
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = $this->getMinimumRequired();
 
         $items = collect($paginated->items())->map(fn (UserCircleRequest $r) => $this->formatForAdmin($r, $minimum));
 
@@ -75,7 +83,7 @@ class UserCircleRequestAdminController extends BaseApiController
      */
     public function show(string $id): JsonResponse
     {
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = $this->getMinimumRequired();
 
         $circleRequest = UserCircleRequest::query()
             ->with(['user', 'category', 'nominees.nomineeUser', 'reviewer'])
@@ -106,7 +114,7 @@ class UserCircleRequestAdminController extends BaseApiController
         // Idempotency: already approved with a circle
         if ($circleRequest->status === UserCircleRequest::STATUS_APPROVED && $circleRequest->created_circle_id) {
             $circle  = Circle::find($circleRequest->created_circle_id);
-            $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+            $minimum = $this->getMinimumRequired();
 
             return $this->success([
                 'circle_request' => $this->formatForAdmin($circleRequest->loadCount('nominees'), $minimum, detailed: false),
@@ -148,7 +156,7 @@ class UserCircleRequestAdminController extends BaseApiController
             ], 500);
         }
 
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = $this->getMinimumRequired();
         $result['circle_request']->loadCount('nominees');
 
         return $this->success([
@@ -177,33 +185,51 @@ class UserCircleRequestAdminController extends BaseApiController
         $circleRequest->reviewed_at = now();
         $circleRequest->save();
 
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = $this->getMinimumRequired();
         $circleRequest->load(['user', 'nominees']);
 
         return $this->success($this->formatForAdmin($circleRequest, $minimum), 'Status updated successfully.');
     }
 
     /**
-     * Update minimum nominees config (stored in DB config or app config table if available).
+     * Get dynamic minimum recommended peers requirement configuration.
+     */
+    public function getConfig(): JsonResponse
+    {
+        $limit = $this->getMinimumRequired();
+
+        return $this->success([
+            'minimum_recommended_peers_required' => $limit,
+            'minimum_nominees_required'          => $limit,
+        ]);
+    }
+
+    /**
+     * Update dynamic minimum recommended peers requirement.
      */
     public function updateConfig(Request $request): JsonResponse
     {
         $v = $request->validate([
-            'minimum_nominees_required' => ['required', 'integer', 'min:1', 'max:500'],
+            'minimum_recommended_peers' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'minimum_nominees'          => ['nullable', 'integer', 'min:1', 'max:500'],
+            'minimum_nominees_required' => ['nullable', 'integer', 'min:1', 'max:500'],
         ]);
 
-        // Store in app_configs if table exists, else return error/success with note
+        $limit = (int) ($v['minimum_recommended_peers'] ?? $v['minimum_nominees'] ?? $v['minimum_nominees_required'] ?? 40);
+        \Illuminate\Support\Facades\Cache::forever('circle.build_your_own.minimum_nominees', $limit);
+
         if (\Illuminate\Support\Facades\Schema::hasTable('app_configs')) {
             DB::table('app_configs')->updateOrInsert(
                 ['key' => 'circle_build_minimum_nominees'],
-                ['value' => (string) $v['minimum_nominees_required'], 'updated_at' => now()]
+                ['value' => (string) $limit, 'updated_at' => now()]
             );
         }
 
         return $this->success([
-            'minimum_nominees_required' => $v['minimum_nominees_required'],
-            'note' => 'This will take effect on next request. Restart cache if needed.',
-        ], 'Minimum nominees limit updated.');
+            'minimum_recommended_peers_required' => $limit,
+            'minimum_nominees_required'          => $limit,
+            'message'                            => "Dynamic requirement successfully updated to {$limit} recommended peers.",
+        ], 'Dynamic configuration updated successfully.');
     }
 
     /**
@@ -219,7 +245,7 @@ class UserCircleRequestAdminController extends BaseApiController
         $resolvedPeers = $this->nomineeResolver->resolveNominees($circleRequest);
         $summary = $this->nomineeResolver->getSummary($circleRequest, $resolvedPeers);
 
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = $this->getMinimumRequired();
         $count   = $resolvedPeers->count();
 
         return $this->success([
@@ -259,7 +285,7 @@ class UserCircleRequestAdminController extends BaseApiController
      */
     public function stats(): JsonResponse
     {
-        $minimum = (int) config('circle.build_your_own.minimum_nominees', 40);
+        $minimum = \App\Http\Controllers\Api\UserCircleRequestController::getMinimumRequired();
 
         $totalByStatus = UserCircleRequest::query()
             ->selectRaw('status, count(*) as count')
@@ -278,6 +304,8 @@ class UserCircleRequestAdminController extends BaseApiController
             'minimum_nominees_required' => $minimum,
         ], 'Stats fetched.');
     }
+
+
 
     private function formatForAdmin(UserCircleRequest $r, int $minimum, bool $detailed = false): array
     {
