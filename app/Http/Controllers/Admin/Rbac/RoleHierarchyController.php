@@ -6,9 +6,12 @@ namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
 use App\Leader\Services\LeaderTeamsService;
+use App\Models\Circle;
+use App\Models\Finance\FinanceLeaderTenure;
 use App\Models\Role;
 use App\Models\RoleHierarchy;
 use App\Services\Admin\AdminAuditService;
+use App\Services\Finance\LeaderTenureService;
 use App\Support\AdminAccess;
 use App\Support\ScopeCascadeResolver;
 use Illuminate\Http\JsonResponse;
@@ -216,35 +219,35 @@ class RoleHierarchyController extends Controller
          */
         $standardRoles = [
             // ── Top-level system ────────────────────────────────────────────
-            'global_admin'                       => ['name' => 'Global Admin',                        'type' => 'admin', 'scope' => 'not_applicable'],
+            'global_admin' => ['name' => 'Global Admin',                        'type' => 'admin', 'scope' => 'not_applicable'],
 
             // ── Governance tier ─────────────────────────────────────────────
-            'eed'                                => ['name' => 'EED',                                 'type' => 'admin', 'scope' => 'mandatory'],
-            'ded'                                => ['name' => 'DED',                                 'type' => 'admin', 'scope' => 'mandatory'],
-            'industry_director'                  => ['name' => 'Industry Director',                   'type' => 'admin', 'scope' => 'optional'],
+            'eed' => ['name' => 'EED',                                 'type' => 'admin', 'scope' => 'mandatory'],
+            'ded' => ['name' => 'DED',                                 'type' => 'admin', 'scope' => 'mandatory'],
+            'industry_director' => ['name' => 'Industry Director',                   'type' => 'admin', 'scope' => 'optional'],
 
             // ── Circle leadership ────────────────────────────────────────────
-            'circle_leader'                      => ['name' => 'Circle Leader',                       'type' => 'admin', 'scope' => 'mandatory'],
-            'circle_director'                    => ['name' => 'Circle Director',                     'type' => 'admin', 'scope' => 'mandatory'],
-            'circle_founder'                     => ['name' => 'Circle Founder',                      'type' => 'admin', 'scope' => 'mandatory'],
-            'chair'                              => ['name' => 'Circle Chair',                        'type' => 'admin', 'scope' => 'mandatory'],
-            'vice_chair'                         => ['name' => 'Vice Chair',                          'type' => 'admin', 'scope' => 'mandatory'],
-            'secretary'                          => ['name' => 'Secretary',                           'type' => 'admin', 'scope' => 'mandatory'],
+            'circle_leader' => ['name' => 'Circle Leader',                       'type' => 'admin', 'scope' => 'mandatory'],
+            'circle_director' => ['name' => 'Circle Director',                     'type' => 'admin', 'scope' => 'mandatory'],
+            'circle_founder' => ['name' => 'Circle Founder',                      'type' => 'admin', 'scope' => 'mandatory'],
+            'chair' => ['name' => 'Circle Chair',                        'type' => 'admin', 'scope' => 'mandatory'],
+            'vice_chair' => ['name' => 'Vice Chair',                          'type' => 'admin', 'scope' => 'mandatory'],
+            'secretary' => ['name' => 'Secretary',                           'type' => 'admin', 'scope' => 'mandatory'],
 
             // ── Committee tier ───────────────────────────────────────────────
-            'committee_leader'                   => ['name' => 'Committee Leader',                    'type' => 'admin', 'scope' => 'mandatory'],
-            'marketing_team'                     => ['name' => 'Marketing Team',                      'type' => 'admin', 'scope' => 'optional'],
-            'analytics_team'                     => ['name' => 'Analytics Team',                      'type' => 'admin', 'scope' => 'optional'],
-            'content_team'                       => ['name' => 'Content Team',                        'type' => 'admin', 'scope' => 'optional'],
-            'read_only'                          => ['name' => 'Read Only Staff',                     'type' => 'admin', 'scope' => 'optional'],
+            'committee_leader' => ['name' => 'Committee Leader',                    'type' => 'admin', 'scope' => 'mandatory'],
+            'marketing_team' => ['name' => 'Marketing Team',                      'type' => 'admin', 'scope' => 'optional'],
+            'analytics_team' => ['name' => 'Analytics Team',                      'type' => 'admin', 'scope' => 'optional'],
+            'content_team' => ['name' => 'Content Team',                        'type' => 'admin', 'scope' => 'optional'],
+            'read_only' => ['name' => 'Read Only Staff',                     'type' => 'admin', 'scope' => 'optional'],
 
             // ── Base member ──────────────────────────────────────────────────
-            'member'                             => ['name' => 'Circle Member',                       'type' => 'user',  'scope' => 'mandatory'],
+            'member' => ['name' => 'Circle Member',                       'type' => 'user',  'scope' => 'mandatory'],
 
             // ── Committee chairs (USER-level, scoped to circle committees) ───
-            'chair_business_growth_committee'    => ['name' => 'Chair - Business Growth Committee',   'type' => 'user',  'scope' => 'mandatory'],
-            'chair_membership_growth_committee'  => ['name' => 'Chair - Membership Growth Committee', 'type' => 'user',  'scope' => 'mandatory'],
-            'chair_events_impacts_committee'     => ['name' => 'Chair - Events & Impacts Committee',  'type' => 'user',  'scope' => 'mandatory'],
+            'chair_business_growth_committee' => ['name' => 'Chair - Business Growth Committee',   'type' => 'user',  'scope' => 'mandatory'],
+            'chair_membership_growth_committee' => ['name' => 'Chair - Membership Growth Committee', 'type' => 'user',  'scope' => 'mandatory'],
+            'chair_events_impacts_committee' => ['name' => 'Chair - Events & Impacts Committee',  'type' => 'user',  'scope' => 'mandatory'],
         ];
 
         DB::transaction(function () use ($standardRoles): void {
@@ -252,12 +255,12 @@ class RoleHierarchyController extends Controller
                 Role::query()->updateOrCreate(
                     ['key' => $key],
                     [
-                        'name'          => $meta['name'],
-                        'role_type'     => $meta['type'],
-                        'scope_rule'    => $meta['scope'],
-                        'status'        => 'active',
+                        'name' => $meta['name'],
+                        'role_type' => $meta['type'],
+                        'scope_rule' => $meta['scope'],
+                        'status' => 'active',
                         'is_assignable' => true,
-                        'role_code'     => $key,
+                        'role_code' => $key,
                     ]
                 );
             }
@@ -267,25 +270,25 @@ class RoleHierarchyController extends Controller
             $roles = Role::all()->keyBy('key');
 
             // ── Resolve IDs ───────────────────────────────────────────────────
-            $gAdmin     = $roles->get('global_admin')?->id;
-            $eed        = $roles->get('eed')?->id;
-            $ded        = $roles->get('ded')?->id;
-            $indDir     = $roles->get('industry_director')?->id;
-            $cLeader    = $roles->get('circle_leader')?->id;
-            $cDirector  = $roles->get('circle_director')?->id;
-            $cFounder   = $roles->get('circle_founder')?->id;
-            $chair      = $roles->get('chair')?->id;
-            $vChair     = $roles->get('vice_chair')?->id;
-            $secretary  = $roles->get('secretary')?->id;
+            $gAdmin = $roles->get('global_admin')?->id;
+            $eed = $roles->get('eed')?->id;
+            $ded = $roles->get('ded')?->id;
+            $indDir = $roles->get('industry_director')?->id;
+            $cLeader = $roles->get('circle_leader')?->id;
+            $cDirector = $roles->get('circle_director')?->id;
+            $cFounder = $roles->get('circle_founder')?->id;
+            $chair = $roles->get('chair')?->id;
+            $vChair = $roles->get('vice_chair')?->id;
+            $secretary = $roles->get('secretary')?->id;
             $commLeader = $roles->get('committee_leader')?->id;
-            $marketing  = $roles->get('marketing_team')?->id;
-            $analytics  = $roles->get('analytics_team')?->id;
-            $content    = $roles->get('content_team')?->id;
-            $readOnly   = $roles->get('read_only')?->id;
-            $member     = $roles->get('member')?->id;
-            $bgcChair   = $roles->get('chair_business_growth_committee')?->id;
-            $mgcChair   = $roles->get('chair_membership_growth_committee')?->id;
-            $eicChair   = $roles->get('chair_events_impacts_committee')?->id;
+            $marketing = $roles->get('marketing_team')?->id;
+            $analytics = $roles->get('analytics_team')?->id;
+            $content = $roles->get('content_team')?->id;
+            $readOnly = $roles->get('read_only')?->id;
+            $member = $roles->get('member')?->id;
+            $bgcChair = $roles->get('chair_business_growth_committee')?->id;
+            $mgcChair = $roles->get('chair_membership_growth_committee')?->id;
+            $eicChair = $roles->get('chair_events_impacts_committee')?->id;
 
             // ── Rebuild hierarchy clean ───────────────────────────────────────
             DB::table('role_hierarchies')->truncate();
@@ -330,7 +333,7 @@ class RoleHierarchyController extends Controller
                 if ($link['parent'] && $link['child']) {
                     RoleHierarchy::create([
                         'parent_role_id' => $link['parent'],
-                        'child_role_id'  => $link['child'],
+                        'child_role_id' => $link['child'],
                     ]);
                 }
             }
@@ -1077,12 +1080,20 @@ class RoleHierarchyController extends Controller
                         $dbRole = 'secretary';
                     }
 
-                    if ($colName) {
+                    if ($colName && Schema::hasColumn('circles', $colName)) {
                         DB::table('circles')->where($colName, $appUser->id)->update([
                             $colName => null,
                             'updated_at' => now(),
                         ]);
                     }
+
+                    $affectedCircleIds = DB::table('circle_members')
+                        ->where('user_id', $appUser->id)
+                        ->pluck('circle_id')
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
 
                     $rolesToDelete = [$dbRole];
                     if ($dbRole === 'circle_director') {
@@ -1095,6 +1106,25 @@ class RoleHierarchyController extends Controller
                         ->where('user_id', $appUser->id)
                         ->whereIn(DB::raw('circle_members.role::text'), $rolesToDelete)
                         ->delete();
+
+                    foreach ($affectedCircleIds as $cId) {
+                        Circle::syncLeadershipFromMembers((string) $cId);
+                    }
+
+                    if (Schema::hasTable('finance_leader_tenures')) {
+                        $tenureService = app(LeaderTenureService::class);
+                        $normalizedRoleCode = $tenureService->normalizeRoleCode($dbRole);
+                        FinanceLeaderTenure::query()
+                            ->where('user_id', $appUser->id)
+                            ->where('role_code', $normalizedRoleCode)
+                            ->where('is_active', true)
+                            ->update([
+                                'is_active' => false,
+                                'tenure_end_at' => now(),
+                                'removed_by_admin_id' => auth('admin')->id() ? (string) auth('admin')->id() : null,
+                                'removal_reason' => 'Closed via RBAC removeAssignment',
+                            ]);
+                    }
 
                     if (Schema::hasTable('tbl_permission_cache')) {
                         DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
@@ -1412,7 +1442,7 @@ class RoleHierarchyController extends Controller
                             $dbRole = 'chair';
                         }
 
-                        if ($colName) {
+                        if ($colName && Schema::hasColumn('circles', $colName)) {
                             DB::table('circles')->where($colName, $appUser->id)->update([
                                 $colName => null,
                                 'updated_at' => now(),
@@ -1460,6 +1490,19 @@ class RoleHierarchyController extends Controller
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ]);
+                        }
+
+                        Circle::syncLeadershipFromMembers((string) $scopeId);
+
+                        if (Schema::hasTable('finance_leader_tenures')) {
+                            app(LeaderTenureService::class)->assignOrRotateTenure(
+                                userId: (string) $appUser->id,
+                                roleKeyOrCode: $dbRole,
+                                scopeType: 'circle',
+                                scopeId: (string) $scopeId,
+                                assignedByAdminId: auth('admin')->id() ? (string) auth('admin')->id() : null,
+                                assignmentSource: 'rbac_hierarchy_assign',
+                            );
                         }
 
                         if (Schema::hasTable('tbl_permission_cache')) {
