@@ -159,14 +159,20 @@ class LeaderFinanceController extends Controller
 
         $summary = $bonusService->getLeaderPersonalBonusSummary((string) $user->id);
         $catalog = $bonusService->getRoleBonusCatalog($roleCode);
+        $rules = $catalog['bonus_rules'] ?? [];
+        $activeRulesCount = (int) ($catalog['active_rules_count'] ?? count($rules));
+
+        // If Super Admin disabled all milestone rules for this role, mark not applicable
+        $isApplicable = $activeRulesCount > 0;
 
         return response()->json([
             'success' => true,
-            'is_applicable' => true,
+            'is_applicable' => $isApplicable,
             'role' => $role,
             'role_code' => $roleCode,
             'role_label' => $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($role),
-            'milestones' => $catalog,
+            'milestones' => $rules,
+            'catalog' => $catalog,
             'awards' => $summary['awards'] ?? [],
             'wallet' => $summary['wallet'] ?? null,
             'total_earned_bonuses' => $summary['total_earned_bonuses'] ?? '₹0',
