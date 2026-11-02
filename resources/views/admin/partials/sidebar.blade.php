@@ -511,6 +511,13 @@
                                     <span class="menu-text">Campaign Management</span>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/forms*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/forms') }}" title="Dynamic Form Builder">
+                                    <i class="bi bi-ui-checks me-2 text-primary"></i>
+                                    <span class="menu-text">Dynamic Form Builder</span>
+                                </a>
+                            </li>
 
                             @php
                                 $isNominationsActive = request()->is('admin/web/leadership/nominations*');
