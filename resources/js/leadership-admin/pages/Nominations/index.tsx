@@ -1682,12 +1682,6 @@ export const NominationsPage: React.FC = () => {
                                     >
                                         <UserCheck size={14} /> Approve Candidate
                                     </button>
-                                    <button
-                                        onClick={() => setActionModal({ type: 'shortlist', nomination: selectedNomination })}
-                                        className="btn btn-primary btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
-                                    >
-                                        <Award size={14} /> Shortlist for Voting
-                                    </button>
                                 </div>
                             </div>
                         </div>
