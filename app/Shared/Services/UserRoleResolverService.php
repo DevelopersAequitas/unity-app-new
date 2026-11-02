@@ -44,9 +44,9 @@ class UserRoleResolverService
             in_array($lower, ['industrydirector', 'industry_director', 'id', 'ied'], true) || str_contains($lowerNormalized, 'industry director') => 'industryDirector',
             in_array($lower, ['circledirector', 'circle_director', 'cd', 'director'], true) || str_contains($lowerNormalized, 'circle director') => 'circleDirector',
             in_array($lower, ['circlefounder', 'circle_founder', 'cf', 'founder'], true) || str_contains($lowerNormalized, 'circle founder') => 'circleFounder',
-            in_array($lower, ['business_growth_committee', 'business growth committee', 'chairbusinessgrowth', 'chair_business_growth', 'businessgrowthcommitteechair', 'business_growth_committee_chair', 'business_growth_chair', 'chair - business growth committee', 'business_growth'], true) || str_contains($lowerNormalized, 'business growth') => 'chairBusinessGrowth',
-            in_array($lower, ['membership_growth_committee', 'membership growth committee', 'chairmembership', 'chair_membership', 'membershipgrowthcommitteechair', 'membership_growth_committee_chair', 'membership_committee_chair', 'membershipgrowthchair', 'membership_chair', 'chair - membership committee', 'chair - membership growth committee', 'membership_growth'], true) || str_contains($lowerNormalized, 'membership growth') || str_contains($lowerNormalized, 'membership committee') => 'chairMembership',
-            in_array($lower, ['events_impacts_committee', 'events impacts committee', 'chaireventsprograms', 'chair_events_programs', 'eventsimpactscommitteechair', 'events_impacts_committee_chair', 'events_programs_committee_chair', 'eventsprogramscommitteechair', 'events_impacts_chair', 'events_chair', 'chair - events & programs committee', 'chair - events & impacts committee', 'events_programs_committee', 'events_impacts'], true) || str_contains($lowerNormalized, 'events impacts') || str_contains($lowerNormalized, 'events programs') || str_contains($lowerNormalized, 'events & programs') || str_contains($lowerNormalized, 'events & impacts') => 'chairEventsPrograms',
+            in_array($lower, ['chair_business_growth_committee', 'chair business growth committee', 'business_growth_committee', 'business growth committee', 'chairbusinessgrowth', 'chair_business_growth', 'businessgrowthcommitteechair', 'business_growth_committee_chair', 'business_growth_chair', 'chair - business growth committee', 'business_growth'], true) || str_contains($lowerNormalized, 'business growth') => 'chairBusinessGrowth',
+            in_array($lower, ['chair_membership_growth_committee', 'chair membership growth committee', 'membership_growth_committee', 'membership growth committee', 'chairmembership', 'chair_membership', 'membershipgrowthcommitteechair', 'membership_growth_committee_chair', 'membership_committee_chair', 'membershipgrowthchair', 'membership_chair', 'chair - membership committee', 'chair - membership growth committee', 'membership_growth'], true) || str_contains($lowerNormalized, 'membership growth') || str_contains($lowerNormalized, 'membership committee') => 'chairMembership',
+            in_array($lower, ['chair_events_impacts_committee', 'chair events impacts committee', 'events_impacts_committee', 'events impacts committee', 'chaireventsprograms', 'chair_events_programs', 'eventsimpactscommitteechair', 'events_impacts_committee_chair', 'events_programs_committee_chair', 'eventsprogramscommitteechair', 'events_impacts_chair', 'events_chair', 'chair - events & programs committee', 'chair - events & impacts committee', 'events_programs_committee', 'events_impacts'], true) || str_contains($lowerNormalized, 'events impacts') || str_contains($lowerNormalized, 'events programs') || str_contains($lowerNormalized, 'events & programs') || str_contains($lowerNormalized, 'events & impacts') => 'chairEventsPrograms',
             in_array($lower, ['circlechair', 'circle_chair', 'chair'], true) => 'chairBusinessGrowth',
             in_array($lower, ['vice_chair', 'vicechair', 'vice chair'], true) || str_contains($lowerNormalized, 'vice chair') => 'viceChair',
             in_array($lower, ['secretary', 'circle_secretary'], true) || str_contains($lowerNormalized, 'secretary') => 'secretary',
@@ -100,8 +100,8 @@ class UserRoleResolverService
             'circleDirector' => 'Circle Director',
             'circleFounder' => 'Circle Founder',
             'chairBusinessGrowth' => 'Chair - Business Growth Committee',
-            'chairMembership' => 'Chair - Membership Committee',
-            'chairEventsPrograms' => 'Chair - Events & Programs Committee',
+            'chairMembership' => 'Chair - Membership Growth Committee',
+            'chairEventsPrograms' => 'Chair - Events & Impacts Committee',
             'circleChair' => 'Chair - Business Growth Committee',
             'viceChair' => 'Vice Chair',
             'secretary' => 'Secretary',
@@ -193,10 +193,24 @@ class UserRoleResolverService
                             ];
                         }
                         $rbacRoles[] = $norm;
-                        $candidateRoles[] = $norm;
                     }
                 }
             }
+        }
+
+        // Authoritative Dynamic RBAC: If administrator explicitly assigned role(s) in Dynamic RBAC (admin_user_roles),
+        // that assignment is the single source of truth and takes precedence over legacy database columns.
+        if (! empty($rbacRoles)) {
+            $rbacRoles = array_values(array_unique($rbacRoles));
+            usort($rbacRoles, fn ($a, $b) => (self::ROLE_HIERARCHY_RANK[$b] ?? 0) <=> (self::ROLE_HIERARCHY_RANK[$a] ?? 0));
+            $bestRole = $rbacRoles[0];
+
+            return [
+                'role' => $bestRole,
+                'custom_role_label' => $this->getRoleLabel($bestRole),
+                'regional_scope' => $this->resolveRegionalScope($bestRole),
+                'is_leader' => true,
+            ];
         }
 
         if ($hasActiveIndustryDirector) {

@@ -89,6 +89,17 @@ PROMPT;
         'get_my_stats',
     ];
 
+    /**
+     * @var array<string, string>
+     */
+    public const AVAILABLE_TOOLS = [
+        'search_docs' => 'Search Knowledge Docs (RAG Policies & Rules)',
+        'find_peers' => 'Find Peers (Live Users Table)',
+        'get_events' => 'Get Upcoming Events (Live Events Table)',
+        'get_speed_networking' => 'Get Speed Networking Sessions',
+        'get_my_stats' => 'Get Peer Referrals, Coins & Impact Summary',
+    ];
+
     protected $table = 'ai_chatbot_settings';
 
     protected $primaryKey = 'id';

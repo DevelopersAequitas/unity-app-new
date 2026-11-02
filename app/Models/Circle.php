@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
-use Carbon\Carbon;
+use App\Services\Finance\LeaderTenureService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -235,6 +235,26 @@ class Circle extends Model
         static::saved(function (Circle $circle): void {
             if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromCircle($circle);
+            }
+
+            if ($circle->wasRecentlyCreated || $circle->wasChanged([
+                'circle_founder_user_id',
+                'founder_user_id',
+                'circle_director_user_id',
+                'director_user_id',
+                'industry_director_user_id',
+                'ded_user_id',
+                'eed_user_id',
+                'chair_user_id',
+                'vice_chair_user_id',
+                'secretary_user_id',
+                'calendar',
+            ])) {
+                app(LeaderTenureService::class)->syncFromCircle(
+                    $circle,
+                    auth('admin')->id() ? (string) auth('admin')->id() : null,
+                    'circle_model_saved'
+                );
             }
 
             if (Schema::hasTable('tbl_permission_cache')) {
@@ -981,6 +1001,12 @@ class Circle extends Model
 
         DB::table('circles')->where('id', $circleModel->id)->update($updates);
         $circleModel->refresh();
+
+        app(LeaderTenureService::class)->syncFromCircle(
+            $circleModel,
+            auth('admin')->id() ? (string) auth('admin')->id() : null,
+            'circle_member_sync'
+        );
     }
 
     public function payments(): HasMany

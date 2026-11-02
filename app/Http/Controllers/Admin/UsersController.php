@@ -29,6 +29,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
+use App\Services\Finance\FinanceCommissionEngineService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\LifeImpact\LifeImpactService;
@@ -1476,6 +1477,19 @@ class UsersController extends Controller
                     $request->input('membership_expiry_date_remark'),
                     $adminName
                 );
+
+                $normalizedNewTier = strtolower(trim(str_replace(' ', '_', (string) $updatedUser->membership_status)));
+                if (in_array($normalizedNewTier, ['only_unity_peer', 'circle_peer', 'multi_circle_peer', 'global_peer'], true)) {
+                    try {
+                        app(FinanceCommissionEngineService::class)->autoProcessPeerMembershipUpgrade(
+                            $updatedUser,
+                            Auth::guard('admin')->id() ? (string) Auth::guard('admin')->id() : null,
+                            $selectedCircleId ? (string) $selectedCircleId : null
+                        );
+                    } catch (Throwable $financeEx) {
+                        Log::warning('Finance auto-allocation skipped on user update: '.$financeEx->getMessage());
+                    }
+                }
             }
         }
 
@@ -2982,6 +2996,15 @@ class UsersController extends Controller
             }
 
             $user->forceFill($attributes)->save();
+
+            try {
+                app(FinanceCommissionEngineService::class)->autoProcessPeerMembershipUpgrade(
+                    $user->fresh() ?? $user,
+                    $adminId
+                );
+            } catch (Throwable $financeEx) {
+                Log::warning('Finance auto-allocation skipped on membership approval: '.$financeEx->getMessage());
+            }
 
             Log::info('Membership approved', [
                 'user_id' => $user->id,

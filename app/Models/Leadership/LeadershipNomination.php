@@ -66,6 +66,9 @@ class LeadershipNomination extends Model
         'designation',
         'scope_name',
         'photo_url',
+        'profile_photo_url',
+        'avatar_url',
+        'image_url',
         'bio',
         'vision_statement',
         'form_type',
@@ -259,12 +262,85 @@ class LeadershipNomination extends Model
 
     public function getPhotoUrlAttribute(): ?string
     {
+        // 1. Check profile snapshot
         $snapshot = $this->profile_snapshot;
         if (is_array($snapshot)) {
-            return $snapshot['photo_url'] ?? $snapshot['profile_photo_url'] ?? null;
+            $url = $snapshot['photo_url']
+                ?? $snapshot['profile_photo_url']
+                ?? $snapshot['avatar_url']
+                ?? $snapshot['avatar']
+                ?? $snapshot['image_url']
+                ?? $snapshot['image']
+                ?? null;
+
+            if (! empty($url) && is_string($url) && (str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || str_starts_with($url, '/'))) {
+                return $url;
+            }
+        }
+
+        // 2. Check edited profile
+        $edited = $this->edited_profile;
+        if (is_array($edited)) {
+            $url = $edited['photo_url']
+                ?? $edited['profile_photo_url']
+                ?? $edited['avatar_url']
+                ?? $edited['avatar']
+                ?? $edited['image_url']
+                ?? null;
+
+            if (! empty($url) && is_string($url) && (str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || str_starts_with($url, '/'))) {
+                return $url;
+            }
+        }
+
+        // 3. Check attached Unity user account
+        if ($this->user && ! empty($this->user->profile_photo_url)) {
+            return $this->user->profile_photo_url;
+        }
+
+        // 4. Resolve Unity user by candidate email or mobile if relation not loaded/linked
+        $user = null;
+        if (! empty($this->email)) {
+            $user = User::where('email', strtolower(trim((string) $this->email)))->first();
+        }
+        if (! $user && ! empty($this->mobile)) {
+            $user = User::where('phone', trim((string) $this->mobile))->first();
+        }
+        if ($user && ! empty($user->profile_photo_url)) {
+            return $user->profile_photo_url;
+        }
+
+        // 5. Check uploaded documents for portrait photo or image
+        if ($this->relationLoaded('documents') && $this->documents->isNotEmpty()) {
+            $photoDoc = $this->documents->first(function ($doc) {
+                $type = strtolower((string) ($doc->document_type ?? ''));
+
+                return in_array($type, ['profile_photo', 'photo', 'avatar', 'profile_image', 'candidate_photo', 'kyc_id_proof', 'image'], true)
+                    || str_contains($type, 'photo')
+                    || str_contains($type, 'image');
+            });
+
+            if ($photoDoc && ! empty($photoDoc->file_url)) {
+                return $photoDoc->file_url;
+            }
         }
 
         return null;
+    }
+
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        return $this->getPhotoUrlAttribute();
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->getPhotoUrlAttribute();
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->getPhotoUrlAttribute();
     }
 
     public function getBioAttribute(): string

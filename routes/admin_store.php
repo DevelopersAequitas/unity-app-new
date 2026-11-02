@@ -159,6 +159,8 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::prefix('wishlists')->group(function () {
         Route::get('/', [AdminStoreWishlistController::class, 'index']);
         Route::get('stats', [AdminStoreWishlistController::class, 'stats']);
+        Route::get('grouped-by-peer', [AdminStoreWishlistController::class, 'groupedByPeer']);
+        Route::get('popular-products', [AdminStoreWishlistController::class, 'popularProducts']);
         Route::get('user/{userId}', [AdminStoreWishlistController::class, 'userWishlist'])->whereUuid('userId');
         Route::delete('{id}', [AdminStoreWishlistController::class, 'destroy'])->whereUuid('id');
     });

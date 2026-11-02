@@ -2,7 +2,6 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardPage } from './pages/Dashboard';
 import { CampaignsPage } from './pages/Campaigns';
-import { FormBuilderPage } from './pages/FormBuilder';
 import { NominationsPage } from './pages/Nominations';
 import { VotingPage } from './pages/Voting';
 import { JuryPage } from './pages/Jury';
@@ -70,7 +69,7 @@ export const App: React.FC = () => {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/campaigns" element={<CampaignsPage />} />
-                    <Route path="/forms" element={<FormBuilderPage />} />
+                    <Route path="/forms" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/nominations" element={<NominationsPage />} />
                     <Route path="/nominations/main" element={<NominationsPage />} />
                     <Route path="/nominations/main-form-1" element={<NominationsPage />} />
