@@ -56,4 +56,3 @@ class FinanceAcquisitionChannel extends Model
         return $this->hasMany(FinanceCommissionRule::class, 'channel_id');
     }
 }
-

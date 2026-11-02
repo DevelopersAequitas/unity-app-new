@@ -29,4 +29,3 @@ class StoreWithdrawalRequest extends FormRequest
         ];
     }
 }
-
