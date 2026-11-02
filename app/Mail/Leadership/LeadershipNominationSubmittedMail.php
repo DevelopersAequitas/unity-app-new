@@ -33,8 +33,8 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        $roleName = $this->nomination->applied_role_name
-            ?? $this->nomination->campaign?->role?->name
+        $roleName = $this->nomination->applied_role_name 
+            ?? $this->nomination->campaign?->role?->name 
             ?? 'Leadership Role';
 
         $jurisdiction = $this->nomination->scope_name;
@@ -63,3 +63,4 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
         );
     }
 }
+

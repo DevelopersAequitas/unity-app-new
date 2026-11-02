@@ -66,7 +66,7 @@ class VotingService
     {
         /** @var LeadershipNomination $candidate */
         $candidate = LeadershipNomination::query()
-            ->with(['campaign.role', 'scope'])
+            ->with(['campaign.role', 'scope', 'user', 'documents'])
             ->where('campaign_id', $campaignId)
             ->whereIn('status', ['shortlisted', 'approved'])
             ->findOrFail($nominationId);

@@ -54,6 +54,8 @@ class NominationService
             ];
         }
 
+        $photoUrl = $user->profile_photo_url;
+
         return [
             'profile_found' => true,
             'profile' => [
@@ -62,7 +64,10 @@ class NominationService
                 'mobile' => $user->phone,
                 'company_name' => $user->company_name,
                 'designation' => $user->designation,
-                'profile_photo_url' => $user->profile_photo_url,
+                'profile_photo_url' => $photoUrl,
+                'photo_url' => $photoUrl,
+                'avatar_url' => $photoUrl,
+                'image_url' => $photoUrl,
                 'member_since' => $user->created_at?->format('Y-m-d'),
             ],
         ];
@@ -121,13 +126,22 @@ class NominationService
 
                 $origProfile = [];
                 if ($user) {
+                    $photo = $user->profile_photo_url;
                     $origProfile = [
                         'full_name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->display_name,
                         'email' => $user->email,
                         'mobile' => $user->phone,
                         'company_name' => $user->company_name,
                         'designation' => $user->designation,
+                        'photo_url' => $photo,
+                        'profile_photo_url' => $photo,
+                        'avatar_url' => $photo,
                     ];
+                    if ($photo && empty($profileData['photo_url']) && empty($profileData['profile_photo_url'])) {
+                        $profileData['photo_url'] = $photo;
+                        $profileData['profile_photo_url'] = $photo;
+                        $profileData['avatar_url'] = $photo;
+                    }
                 }
 
                 $nomination = LeadershipNomination::create([
@@ -427,6 +441,13 @@ class NominationService
             }
             $email = $email ?: $user->email;
             $mobile = $mobile ?: $user->phone;
+            $photo = $user->profile_photo_url;
+            if ($photo && empty($profile['photo_url']) && empty($profile['profile_photo_url'])) {
+                $profile['photo_url'] = $photo;
+                $profile['profile_photo_url'] = $photo;
+                $profile['avatar_url'] = $photo;
+                $profile['image_url'] = $photo;
+            }
         }
 
         $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
@@ -448,6 +469,10 @@ class NominationService
                     'full_name' => $fullName,
                     'email' => $email,
                     'mobile' => $mobile,
+                    'photo_url' => $user->profile_photo_url,
+                    'profile_photo_url' => $user->profile_photo_url,
+                    'avatar_url' => $user->profile_photo_url,
+                    'image_url' => $user->profile_photo_url,
                 ] : [],
                 'edited_profile' => $profile,
                 'profile_changes' => [],
