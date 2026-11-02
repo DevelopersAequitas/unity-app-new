@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\Payment;
 use App\Models\User;
@@ -30,7 +31,7 @@ class LeaderFinanceService
     public function getMetrics(
         ?string $circleId = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $leaderScope = app(LeaderDashboardService::class)->resolveLeaderScope($circleId, $districtId, $user);
         $isGlobalScope = $leaderScope['is_global_scope'];
@@ -202,6 +203,42 @@ class LeaderFinanceService
             $userRole = $roleInfo['role'] ?? 'circleFounder';
         }
 
+        $dbRates = Schema::hasTable('leader_commission_rates')
+            ? DB::table('leader_commission_rates')->get()->keyBy('role_id')
+            : collect();
+
+        $getRate = function (string $roleId, float $defaultReferral, float $defaultAppJoin) use ($rulesByRole, $dbRates): array {
+            $roleCode = match (strtolower(str_replace(['_', ' '], '', $roleId))) {
+                'circlefounder', 'cf' => 'CF',
+                'circledirector', 'cd' => 'CD',
+                'circlechair', 'chair', 'chairbusinessgrowth', 'chairmembership', 'chaireventsprograms' => 'CHAIR',
+                'districtexecdirector', 'ded' => 'DED',
+                'industrydirector', 'id' => 'ID',
+                'superadmin' => 'SUPERADMIN',
+                'countrydirector' => 'CDIR',
+                default => strtoupper(substr($roleId, 0, 4)),
+            };
+
+            $rulesForRole = $rulesByRole->get($roleCode);
+            $refRule = $rulesForRole?->firstWhere('category_code', 'B');
+            $appRule = $rulesForRole?->firstWhere('category_code', 'D');
+
+            $row = $dbRates->get($roleId);
+
+            $ref = $refRule
+                ? (float) $refRule->share_percentage
+                : ($row ? (float) $row->direct_referral_cut_percentage : $defaultReferral);
+
+            $app = $appRule
+                ? (float) $appRule->share_percentage
+                : ($row ? (float) $row->app_join_cut_percentage : $defaultAppJoin);
+
+            return [
+                'referral' => number_format($ref, 1).'%',
+                'app_join' => number_format($app, 1).'%',
+            ];
+        };
+
         $userRate = match ($userRole) {
             'superAdmin' => $getRate('superAdmin', 12.0, 6.0),
             'countryDirector' => $getRate('countryDirector', 11.0, 5.5),
@@ -267,7 +304,7 @@ class LeaderFinanceService
         ?string $circleId = null,
         ?string $status = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $leaderScope = app(LeaderDashboardService::class)->resolveLeaderScope($circleId, $districtId, $user);
         $isGlobalScope = $leaderScope['is_global_scope'];
@@ -384,7 +421,7 @@ class LeaderFinanceService
      * @param  array<int, array<string, mixed>>  $rates
      * @return array<string, mixed>
      */
-    public function updateCommissionRates(array $rates, ?User $user = null): array
+    public function updateCommissionRates(array $rates, User|AdminUser|null $user = null): array
     {
         $updatedRates = [];
 
@@ -467,7 +504,7 @@ class LeaderFinanceService
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    public function recordOfflinePayment(User $recorder, array $data): array
+    public function recordOfflinePayment(User|AdminUser $recorder, array $data): array
     {
         $id = (string) Str::uuid();
         $targetPeerId = (string) $data['peer_id'];

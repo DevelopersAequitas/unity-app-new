@@ -47,7 +47,7 @@ class LeaderDashboardService
     public function resolveLeaderScope(
         ?string $circleId = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $peersService = app(LeaderPeersService::class);
         $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
@@ -277,7 +277,7 @@ class LeaderDashboardService
     public function getMetrics(
         ?string $circleId = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $scope = $this->resolveLeaderScope($circleId, $districtId, $user);
         $isGlobalScope = $scope['is_global_scope'];
@@ -809,7 +809,7 @@ class LeaderDashboardService
     public function getTopImpacters(
         ?string $circleId = null,
         ?string $districtId = null,
-        ?User $user = null,
+        User|AdminUser|null $user = null,
     ): array {
         $permissionService = app(LeaderPermissionService::class);
         $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];

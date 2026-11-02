@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Leader\Middleware;
 
 use App\Leader\Services\LeaderPermissionService;
+use App\Models\AdminUser;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class EnsureLeaderUser
      */
     public function handle(Request $request, Closure $next): Response
     {
-        /** @var User|null $user */
+        /** @var User|AdminUser|null $user */
         $user = $request->user();
 
         if (! $user) {
