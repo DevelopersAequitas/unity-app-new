@@ -14,6 +14,7 @@ use App\Models\Industry;
 use App\Models\Payment;
 use App\Models\PostReport;
 use App\Models\SupportTicket;
+use App\Models\AdminUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -27,7 +28,7 @@ class AdminDashboardMetricsService
     /**
      * Compute authoritative dashboard metrics from PostgreSQL.
      */
-    public function getMetrics(?User $actor = null): array
+    public function getMetrics(User|AdminUser|null $actor = null): array
     {
         $now = now();
         $startOfThisMonth = $now->copy()->startOfMonth();
@@ -156,7 +157,7 @@ class AdminDashboardMetricsService
 
         $pendingJoinRequests = Schema::hasTable('circle_join_requests')
             ? CircleJoinRequest::query()
-                ->whereIn('status', ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee', 'pending'])
+                ->whereIn(DB::raw('status::text'), ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee', 'pending'])
                 ->when($actor !== null && ! $this->scope->isGlobal($actor), fn ($q) => $q->whereIn('circle_id', $circleIds))
                 ->count()
             : 0;

@@ -262,6 +262,9 @@ class UserManagementController extends BaseApiController
         $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
 
         $old = $target->toArray();
+        if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
+            $target->forceFill(['gdpr_deleted_at' => now(), 'status' => 'inactive'])->save();
+        }
         $target->delete();
 
         $this->audit->log($request->user(), 'admin.user.delete', 'users', $id, $old, [], $request);
