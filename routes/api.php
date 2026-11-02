@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
+use App\Http\Controllers\Api\UserCircleRequestController;
 use App\Http\Controllers\Api\CircleLeadershipController;
 use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\EventController;
@@ -84,12 +85,14 @@ use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
+use App\Http\Controllers\Api\V1\Admin\FinanceLedgerController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
+use App\Http\Controllers\Api\V1\Admin\UserCircleRequestAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
 use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
@@ -191,6 +194,7 @@ use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
+use App\Http\Controllers\Api\V1\Admin\WebAdminMediaController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
@@ -796,6 +800,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/circle-join-requests/{id}/verify-payment', [CircleJoinRequestController::class, 'verifyPayment'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
+        // Build Your Own Circle
+        Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
+        Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
+        Route::post('/user-circle-requests', [UserCircleRequestController::class, 'store']);
+        Route::put('/user-circle-requests/{id}/recommended-peers', [UserCircleRequestController::class, 'updateNominees'])->whereUuid('id');
+        Route::put('/user-circle-requests/{id}/nominees', [UserCircleRequestController::class, 'updateNominees'])->whereUuid('id');
+        Route::patch('/user-circle-requests/{id}/cancel', [UserCircleRequestController::class, 'cancel'])->whereUuid('id');
+
         Route::prefix('admin')->group(function () {
             Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
             Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
@@ -876,6 +889,16 @@ Route::prefix('v1')->group(function () {
             Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index']);
             Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update']);
 
+            // AI Chatbot Admin API
+            Route::get('/ai-chatbot', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'index']);
+            Route::put('/ai-chatbot/settings', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'updateSettings']);
+            Route::post('/ai-chatbot/documents', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'storeDocument']);
+            Route::post('/ai-chatbot/documents/{id}/toggle', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'toggleDocument'])->whereUuid('id');
+            Route::delete('/ai-chatbot/documents/{id}', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'destroyDocument'])->whereUuid('id');
+
+            // Web Platform Admin APIs
+            Route::get('/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
+
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
             Route::post('/app-config/upload-brand-asset', [AppConfigAdminController::class, 'uploadBrandAsset']);
@@ -911,6 +934,17 @@ Route::prefix('v1')->group(function () {
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+
+            // Build Your Own Circle (Admin)
+            Route::get('/user-circle-requests', [UserCircleRequestAdminController::class, 'index']);
+            Route::get('/user-circle-requests/stats', [UserCircleRequestAdminController::class, 'stats']);
+            Route::get('/user-circle-requests/{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/user-circle-requests/{id}/approve', [UserCircleRequestAdminController::class, 'approve'])->whereUuid('id');
+            Route::patch('/user-circle-requests/{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
+            Route::get('/user-circle-requests/{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
+            Route::get('/user-circle-requests/{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
+            Route::put('/user-circle-requests/config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
+
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
@@ -1851,11 +1885,20 @@ Route::prefix('v1')->group(function () {
     Route::delete('/web/success-stories/{id}', [WebPublicApiController::class, 'destroyStory'])->whereUuid('id');
     Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
 
+    // Web Dashboard Overview API
+    Route::get('/admin/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
+
     // Web Gallery Collection APIs
     Route::get('/web-gallery', [WebPublicApiController::class, 'gallery']);
     Route::get('/web/gallery', [WebPublicApiController::class, 'gallery']);
     Route::get('/web-gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
     Route::get('/web/gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
+    Route::get('/admin/web/gallery', [WebAdminMediaController::class, 'gallery']);
+    Route::post('/admin/web/gallery', [WebAdminMediaController::class, 'storeGallery']);
+    Route::patch('/admin/web/gallery/{id}/toggle-status', [WebAdminMediaController::class, 'toggleGalleryStatus'])->whereUuid('id');
+    Route::delete('/admin/web/gallery/{id}', [WebAdminMediaController::class, 'destroyGallery'])->whereUuid('id');
+    Route::post('/admin/web/gallery/bulk-delete', [WebAdminMediaController::class, 'bulkDeleteGallery']);
+    Route::put('/admin/web/gallery/{id}', [WebAdminMediaController::class, 'updateGallery'])->whereUuid('id');
 
     // Web Podcasts & Media Channels APIs
     Route::get('/web-podcasts', [WebPublicApiController::class, 'podcasts']);
@@ -1863,6 +1906,19 @@ Route::prefix('v1')->group(function () {
     Route::get('/web/podcasts/featured', [WebPublicApiController::class, 'featuredPodcasts']);
     Route::get('/web-media-channels', [WebPublicApiController::class, 'podcasts']);
     Route::get('/web/media-channels', [WebPublicApiController::class, 'podcasts']);
+    Route::get('/admin/web/podcasts', [WebAdminMediaController::class, 'podcasts']);
+    Route::post('/admin/web/podcasts', [WebAdminMediaController::class, 'storePodcast']);
+    Route::put('/admin/web/podcasts/{id}', [WebAdminMediaController::class, 'updatePodcast'])->whereUuid('id');
+    Route::delete('/admin/web/podcasts/{id}', [WebAdminMediaController::class, 'destroyPodcast'])->whereUuid('id');
+    Route::patch('/admin/web/podcasts/{id}/toggle-status', [WebAdminMediaController::class, 'togglePodcastStatus'])->whereUuid('id');
+    Route::patch('/admin/web/podcasts/{id}/toggle-featured', [WebAdminMediaController::class, 'togglePodcastFeatured'])->whereUuid('id');
+
+    // Admin Success Stories APIs
+    Route::get('/admin/web/success-stories', [WebAdminMediaController::class, 'successStories']);
+    Route::post('/admin/web/success-stories', [WebAdminMediaController::class, 'storeSuccessStory']);
+    Route::put('/admin/web/success-stories/{id}', [WebAdminMediaController::class, 'updateSuccessStory'])->whereUuid('id');
+    Route::delete('/admin/web/success-stories/{id}', [WebAdminMediaController::class, 'destroySuccessStory'])->whereUuid('id');
+    Route::patch('/admin/web/success-stories/{id}/toggle-status', [WebAdminMediaController::class, 'toggleSuccessStoryStatus'])->whereUuid('id');
 
     // Web Blogs & Publications
     Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
@@ -2117,65 +2173,105 @@ foreach (['admin', 'v1/admin'] as $adminPrefix) {
 foreach (['admin', 'v1/admin'] as $adminPrefix) {
     Route::middleware('auth:sanctum,admin')->prefix($adminPrefix)->group(function (): void {
         // API 1: Access System Bootstrap
-        Route::get('access-system/bootstrap', [\App\Modules\DynamicAccess\Controllers\AccessBootstrapController::class, 'bootstrap']);
+        Route::get('access-system/bootstrap', [AccessBootstrapController::class, 'bootstrap']);
 
         // API 21: Current User Navigation Menu & Screen Permissions
-        Route::get('access/me/navigation', [\App\Modules\DynamicAccess\Controllers\AccessBootstrapController::class, 'navigation']);
+        Route::get('access/me/navigation', [AccessBootstrapController::class, 'navigation']);
 
         // APIs 2–8: Role Configuration CRUD
-        Route::get('access/roles', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'index']);
-        Route::post('access/roles', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'store']);
-        Route::get('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'show']);
-        Route::put('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'update']);
-        Route::patch('access/roles/{roleId}/status', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'updateStatus']);
-        Route::post('access/roles/{roleId}/clone', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'cloneRole']);
-        Route::delete('access/roles/{roleId}', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'destroy']);
+        Route::get('access/roles', [RoleConfigController::class, 'index']);
+        Route::post('access/roles', [RoleConfigController::class, 'store']);
+        Route::get('access/roles/{roleId}', [RoleConfigController::class, 'show']);
+        Route::put('access/roles/{roleId}', [RoleConfigController::class, 'update']);
+        Route::patch('access/roles/{roleId}/status', [RoleConfigController::class, 'updateStatus']);
+        Route::post('access/roles/{roleId}/clone', [RoleConfigController::class, 'cloneRole']);
+        Route::delete('access/roles/{roleId}', [RoleConfigController::class, 'destroy']);
 
         // APIs 9–10: Role Hierarchy Configuration
-        Route::get('access/role-hierarchy', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'hierarchyIndex']);
-        Route::put('access/role-hierarchy', [\App\Modules\DynamicAccess\Controllers\RoleConfigController::class, 'hierarchyUpdate']);
+        Route::get('access/role-hierarchy', [RoleConfigController::class, 'hierarchyIndex']);
+        Route::put('access/role-hierarchy', [RoleConfigController::class, 'hierarchyUpdate']);
 
         // APIs 11–15: Permission Registry & Role Permission Matrix
-        Route::get('access/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'index']);
-        Route::post('access/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'store']);
-        Route::put('access/permissions/{permissionId}', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'update']);
-        Route::get('access/roles/{roleId}/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'rolePermissions']);
-        Route::put('access/roles/{roleId}/permissions', [\App\Modules\DynamicAccess\Controllers\PermissionConfigController::class, 'syncRolePermissions']);
+        Route::get('access/permissions', [PermissionConfigController::class, 'index']);
+        Route::post('access/permissions', [PermissionConfigController::class, 'store']);
+        Route::put('access/permissions/{permissionId}', [PermissionConfigController::class, 'update']);
+        Route::get('access/roles/{roleId}/permissions', [PermissionConfigController::class, 'rolePermissions']);
+        Route::put('access/roles/{roleId}/permissions', [PermissionConfigController::class, 'syncRolePermissions']);
 
         // APIs 16–20: Screen Registry & Role Screen Access Matrix
-        Route::get('access/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'index']);
-        Route::post('access/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'store']);
-        Route::put('access/screens/{screenId}', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'update'])->whereUuid('screenId');
-        Route::get('access/roles/{roleId}/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'roleScreens']);
-        Route::put('access/roles/{roleId}/screens', [\App\Modules\DynamicAccess\Controllers\ScreenConfigController::class, 'syncRoleScreens']);
+        Route::get('access/screens', [ScreenConfigController::class, 'index']);
+        Route::post('access/screens', [ScreenConfigController::class, 'store']);
+        Route::put('access/screens/{screenId}', [ScreenConfigController::class, 'update'])->whereUuid('screenId');
+        Route::get('access/roles/{roleId}/screens', [ScreenConfigController::class, 'roleScreens']);
+        Route::put('access/roles/{roleId}/screens', [ScreenConfigController::class, 'syncRoleScreens']);
 
         // APIs 22–25: Role Scope Policies & Field Access Rules
-        Route::get('access/roles/{roleId}/scope-policies', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'showScopePolicies']);
-        Route::put('access/roles/{roleId}/scope-policies', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'updateScopePolicies']);
-        Route::get('access/roles/{roleId}/field-access', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'showFieldAccess']);
-        Route::put('access/roles/{roleId}/field-access', [\App\Modules\DynamicAccess\Controllers\PolicyAndFieldConfigController::class, 'updateFieldAccess']);
+        Route::get('access/roles/{roleId}/scope-policies', [PolicyAndFieldConfigController::class, 'showScopePolicies']);
+        Route::put('access/roles/{roleId}/scope-policies', [PolicyAndFieldConfigController::class, 'updateScopePolicies']);
+        Route::get('access/roles/{roleId}/field-access', [PolicyAndFieldConfigController::class, 'showFieldAccess']);
+        Route::put('access/roles/{roleId}/field-access', [PolicyAndFieldConfigController::class, 'updateFieldAccess']);
 
         // APIs 26–30: User Role Assignments & Effective Access Profile
-        Route::get('access/user-roles', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listUserRoles']);
-        Route::post('access/user-roles', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'storeUserRole']);
-        Route::put('access/user-roles/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'updateUserRole']);
-        Route::delete('access/user-roles/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'destroyUserRole']);
-        Route::get('access/users/{userId}/effective-access', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'effectiveAccess'])->whereUuid('userId');
+        Route::get('access/user-roles', [AssignmentAndReportConfigController::class, 'listUserRoles']);
+        Route::post('access/user-roles', [AssignmentAndReportConfigController::class, 'storeUserRole']);
+        Route::put('access/user-roles/{assignmentId}', [AssignmentAndReportConfigController::class, 'updateUserRole']);
+        Route::delete('access/user-roles/{assignmentId}', [AssignmentAndReportConfigController::class, 'destroyUserRole']);
+        Route::get('access/users/{userId}/effective-access', [AssignmentAndReportConfigController::class, 'effectiveAccess'])->whereUuid('userId');
 
         // APIs 31–36: Organizational Assignments & User Scope Summary
-        Route::get('organizational-assignments', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listOrgAssignments']);
-        Route::post('organizational-assignments', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'storeOrgAssignment']);
-        Route::post('organizational-assignments/bulk', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'bulkStoreOrgAssignments']);
-        Route::put('organizational-assignments/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'updateOrgAssignment'])->whereUuid('assignmentId');
-        Route::delete('organizational-assignments/{assignmentId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'destroyOrgAssignment'])->whereUuid('assignmentId');
-        Route::get('users/{userId}/organizational-scope', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'userScopeSummary'])->whereUuid('userId');
+        Route::get('organizational-assignments', [AssignmentAndReportConfigController::class, 'listOrgAssignments']);
+        Route::post('organizational-assignments', [AssignmentAndReportConfigController::class, 'storeOrgAssignment']);
+        Route::post('organizational-assignments/bulk', [AssignmentAndReportConfigController::class, 'bulkStoreOrgAssignments']);
+        Route::put('organizational-assignments/{assignmentId}', [AssignmentAndReportConfigController::class, 'updateOrgAssignment'])->whereUuid('assignmentId');
+        Route::delete('organizational-assignments/{assignmentId}', [AssignmentAndReportConfigController::class, 'destroyOrgAssignment'])->whereUuid('assignmentId');
+        Route::get('users/{userId}/organizational-scope', [AssignmentAndReportConfigController::class, 'userScopeSummary'])->whereUuid('userId');
 
         // APIs 37–41: Report Definitions & Role Report Access Matrix
-        Route::get('reports/definitions', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'listReports']);
-        Route::post('reports/definitions', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'saveReportDefinition']);
-        Route::put('reports/definitions/{reportId}', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'saveReportDefinition']);
-        Route::get('access/roles/{roleId}/reports', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'roleReports']);
-        Route::put('access/roles/{roleId}/reports', [\App\Modules\DynamicAccess\Controllers\AssignmentAndReportConfigController::class, 'syncRoleReports']);
+        Route::get('reports/definitions', [AssignmentAndReportConfigController::class, 'listReports']);
+        Route::post('reports/definitions', [AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::put('reports/definitions/{reportId}', [AssignmentAndReportConfigController::class, 'saveReportDefinition']);
+        Route::get('access/roles/{roleId}/reports', [AssignmentAndReportConfigController::class, 'roleReports']);
+        Route::put('access/roles/{roleId}/reports', [AssignmentAndReportConfigController::class, 'syncRoleReports']);
     });
 }
 
+// =========================================================================
+// FINANCE, COMMISSION MATRIX, BUDGET WALLETS & LEADER TENURE LEDGER APIs
+// (Supports /api/v1/admin/finance/*, /api/admin/finance/*, and /api/v1/finance/*)
+// =========================================================================
+foreach (['v1/admin/finance', 'admin/finance', 'v1/finance'] as $financePrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($financePrefix)->group(function (): void {
+        Route::get('overview', [FinanceLedgerController::class, 'overview']);
+        Route::get('policy/{roleCode?}', [FinanceLedgerController::class, 'policySpecification']);
+
+        // Acquisition Channels (Conditions A, B, C, D, etc.)
+        Route::get('channels', [FinanceLedgerController::class, 'listChannels']);
+        Route::post('channels', [FinanceLedgerController::class, 'storeChannel']);
+        Route::put('channels/{id}', [FinanceLedgerController::class, 'updateChannel'])->whereUuid('id');
+
+        // Commission Rules (Role x Condition Percentage Matrix)
+        Route::get('rules', [FinanceLedgerController::class, 'listRules']);
+        Route::post('rules', [FinanceLedgerController::class, 'upsertRule']);
+
+        // Simulation & Payment Processing
+        Route::post('simulate', [FinanceLedgerController::class, 'simulate']);
+        Route::post('process-payment', [FinanceLedgerController::class, 'processPayment']);
+
+        // Wallets & Bank-Style Passbook Statement
+        Route::get('wallets', [FinanceLedgerController::class, 'listWallets']);
+        Route::get('wallets/{id}/passbook', [FinanceLedgerController::class, 'walletPassbook'])->whereUuid('id');
+
+        // Global Immutable Credit/Debit Ledger
+        Route::get('ledger', [FinanceLedgerController::class, 'listLedger']);
+
+        // Withdrawals & Expense Payouts (Debits)
+        Route::get('withdrawals', [FinanceLedgerController::class, 'listWithdrawals']);
+        Route::post('withdrawals', [FinanceLedgerController::class, 'storeWithdrawal']);
+        Route::post('withdrawals/{id}/approve', [FinanceLedgerController::class, 'approveWithdrawal'])->whereUuid('id');
+        Route::post('withdrawals/{id}/reject', [FinanceLedgerController::class, 'rejectWithdrawal'])->whereUuid('id');
+
+        // 6-Month Leader Tenures & Per-Tenure Financial Attribution
+        Route::get('tenures', [FinanceLedgerController::class, 'listTenures']);
+        Route::post('tenures', [FinanceLedgerController::class, 'recordTenure']);
+    });
+}

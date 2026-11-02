@@ -518,6 +518,7 @@
                                     <span class="menu-text">Dynamic Form Builder</span>
                                 </a>
                             </li>
+
                             @php
                                 $isNominationsActive = request()->is('admin/web/leadership/nominations*');
                             @endphp

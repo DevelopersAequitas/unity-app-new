@@ -274,20 +274,19 @@ export const VotingPage: React.FC = () => {
                                 <th>Total Verified Votes</th>
                                 <th>Vote Share (%)</th>
                                 <th>Private Result Link</th>
-                                <th className="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-5 text-muted">
+                                    <td colSpan={5} className="text-center py-5 text-muted">
                                         <div className="spinner-border spinner-border-sm text-primary me-2"></div>
                                         Fetching voting counts...
                                     </td>
                                 </tr>
                             ) : tallies.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-5 text-muted">
+                                    <td colSpan={5} className="text-center py-5 text-muted">
                                         No votes or shortlisted candidates recorded for this campaign yet.
                                     </td>
                                 </tr>
@@ -339,19 +338,6 @@ export const VotingPage: React.FC = () => {
                                                 ) : (
                                                     <span className="text-muted small">Not generated</span>
                                                 )}
-                                            </td>
-                                            <td className="text-end">
-                                                <button
-                                                    onClick={() => handleGenerateResultLink(item.nomination_id)}
-                                                    disabled={isGeneratingToken === item.nomination_id}
-                                                    className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
-                                                >
-                                                    {isGeneratingToken === item.nomination_id
-                                                        ? 'Generating...'
-                                                        : item.result_token
-                                                        ? 'Regenerate Link'
-                                                        : 'Generate Link'}
-                                                </button>
                                             </td>
                                         </tr>
                                     );

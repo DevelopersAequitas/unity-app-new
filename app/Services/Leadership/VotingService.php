@@ -251,12 +251,6 @@ class VotingService
         string $sortBy = 'vote_count',
         string $sortOrder = 'desc'
     ): array {
-        $totalVotesQuery = LeadershipVote::where('campaign_id', $campaignId);
-        if ($scopeId) {
-            $totalVotesQuery->where('scope_id', $scopeId);
-        }
-        $totalLeadershipVotes = $totalVotesQuery->count();
-
         $candidatesQuery = LeadershipNomination::query()
             ->with(['scope', 'campaign.role'])
             ->where('campaign_id', $campaignId)
@@ -276,26 +270,87 @@ class VotingService
         $candidates = $candidatesQuery->get();
 
         $hasWebVotes = Schema::hasTable('web_votes');
+        $hasLeadershipVotes = Schema::hasTable('web_leadership_votes');
+
         $candidateResults = [];
-        $totalVotesCalculated = 0;
+        $campaignAllVoteRefs = [];
+        $campaignVoterEmails = [];
 
         foreach ($candidates as $cand) {
-            $vCount = (int) $cand->votes_count;
+            $candidateVoteRefs = [];
 
-            if ($hasWebVotes) {
-                $webVotesCount = WebVote::query()
-                    ->where(function ($q) use ($cand) {
-                        $q->where('nomination_id', $cand->id)
-                            ->orWhere('candidate_name', $cand->full_name);
-                        if (! empty($cand->email)) {
-                            $q->orWhere('candidate_email', strtolower((string) $cand->email));
-                        }
-                    })
-                    ->count();
-                $vCount += $webVotesCount;
+            // 1. Check web_leadership_votes
+            if ($hasLeadershipVotes) {
+                $lQuery = LeadershipVote::query();
+                if ($scopeId) {
+                    $lQuery->where('scope_id', $scopeId);
+                }
+                $candIds = array_values(array_filter([$cand->id, $cand->user_id, $cand->application_number]));
+                $lQuery->where(function ($q) use ($candIds, $cand): void {
+                    $q->whereIn('nomination_id', $candIds);
+                    if (! empty($cand->full_name)) {
+                        $name = strtolower(trim((string) $cand->full_name));
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name])
+                            ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$name.'%']);
+                    }
+                });
+                $lVotes = $lQuery->get();
+                foreach ($lVotes as $lv) {
+                    $ref = $lv->vote_reference ?: (string) $lv->id;
+                    $candidateVoteRefs[$ref] = true;
+                    $campaignAllVoteRefs[$ref] = true;
+                    $email = $lv->voterUser?->email ?? ($lv->metadata['voter_email'] ?? null);
+                    if ($email) {
+                        $campaignVoterEmails[strtolower(trim((string) $email))] = true;
+                    } elseif ($lv->voter_contact_hash) {
+                        $campaignVoterEmails[$lv->voter_contact_hash] = true;
+                    }
+                }
             }
 
-            $totalVotesCalculated += $vCount;
+            // 2. Check web_votes
+            if ($hasWebVotes) {
+                $wQuery = WebVote::query();
+                $candIds = array_values(array_filter([$cand->id, $cand->user_id, $cand->application_number]));
+                $wQuery->where(function ($q) use ($candIds, $cand): void {
+                    $q->whereIn('nomination_id', $candIds);
+                    if (! empty($cand->full_name)) {
+                        $name = strtolower(trim((string) $cand->full_name));
+                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
+                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
+                    }
+                    if (! empty($cand->email)) {
+                        $email = strtolower(trim((string) $cand->email));
+                        $q->orWhereRaw('LOWER(candidate_email) = ?', [$email]);
+                    }
+                });
+                $wVotes = $wQuery->get();
+                foreach ($wVotes as $wv) {
+                    $ref = $wv->vote_reference ?: ('WV-'.$wv->id);
+                    $candidateVoteRefs[$ref] = true;
+                    $campaignAllVoteRefs[$ref] = true;
+                    if (! empty($wv->voter_email)) {
+                        $campaignVoterEmails[strtolower(trim((string) $wv->voter_email))] = true;
+                    }
+                }
+            }
+
+            $vCount = count($candidateVoteRefs);
+            if ($vCount === 0 && (int) $cand->votes_count > 0) {
+                $vCount = (int) $cand->votes_count;
+            }
+
+            // Retrieve candidate result token if active
+            $resultToken = null;
+            if (Schema::hasTable('web_leadership_candidate_result_tokens')) {
+                $tokenModel = LeadershipCandidateResultToken::where('nomination_id', $cand->id)
+                    ->where(function ($q): void {
+                        $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                    })
+                    ->latest()
+                    ->first();
+                $resultToken = $tokenModel?->token;
+            }
 
             $candidateResults[] = [
                 'nomination_id' => $cand->id,
@@ -305,27 +360,14 @@ class VotingService
                 'scope_name' => $cand->scope?->scope_name,
                 'vote_count' => $vCount,
                 'percentage' => 0.0,
+                'result_token' => $resultToken,
             ];
         }
 
-        $finalTotalVotes = max($totalLeadershipVotes, $totalVotesCalculated);
-
-        // Calculate unique voters
-        $uniqueVotersCount = $finalTotalVotes;
-        if ($hasWebVotes) {
-            $candIds = $candidates->pluck('id')->toArray();
-            $candNames = $candidates->pluck('full_name')->toArray();
-            $uniqueWeb = WebVote::query()
-                ->where(function ($q) use ($campaignId, $candIds, $candNames) {
-                    $q->where('campaign_id', $campaignId)
-                        ->orWhereIn('nomination_id', $candIds)
-                        ->orWhereIn('candidate_name', $candNames);
-                })
-                ->distinct('voter_email')
-                ->count('voter_email');
-            if ($uniqueWeb > 0) {
-                $uniqueVotersCount = max($uniqueWeb, $totalLeadershipVotes);
-            }
+        $finalTotalVotes = max(count($campaignAllVoteRefs), array_sum(array_column($candidateResults, 'vote_count')));
+        $uniqueVotersCount = max(count($campaignVoterEmails), $finalTotalVotes > 0 ? min(count($campaignVoterEmails) ?: $finalTotalVotes, $finalTotalVotes) : 0);
+        if ($uniqueVotersCount === 0 && $finalTotalVotes > 0) {
+            $uniqueVotersCount = $finalTotalVotes;
         }
 
         // Sort candidates
@@ -364,67 +406,72 @@ class VotingService
         int $page = 1,
         int $perPage = 25
     ): array {
-        $hasWebVotes = Schema::hasTable('web_votes');
-        $items = [];
-        $total = 0;
+        $candidates = LeadershipNomination::where('campaign_id', $campaignId)->get();
+        $candIds = $candidates->pluck('id')->toArray();
+        $candUserIds = array_filter($candidates->pluck('user_id')->toArray());
+        $candAppNos = array_filter($candidates->pluck('application_number')->toArray());
+        $allCandIdentifiers = array_unique(array_merge($candIds, $candUserIds, $candAppNos));
+        $candNames = array_map('strtolower', array_map('trim', $candidates->pluck('full_name')->toArray()));
 
-        if ($hasWebVotes) {
-            $query = WebVote::query();
+        $targetCand = null;
+        $targetIds = [];
+        if (! empty($nominationId)) {
+            $targetCand = $candidates->first(fn ($c) => $c->id === $nominationId || $c->user_id === $nominationId || $c->application_number === $nominationId);
+            if ($targetCand) {
+                $targetIds = array_values(array_filter([$targetCand->id, $targetCand->user_id, $targetCand->application_number]));
+            } else {
+                $targetIds = [$nominationId];
+            }
+        }
 
-            // Match campaign or candidate nominations
-            $candidates = LeadershipNomination::where('campaign_id', $campaignId)->get();
-            $candIds = $candidates->pluck('id')->toArray();
-            $candNames = $candidates->pluck('full_name')->toArray();
+        $mergedVotes = [];
 
-            $query->where(function ($q) use ($campaignId, $candIds, $candNames) {
+        // 1. Fetch from web_votes if exists
+        if (Schema::hasTable('web_votes')) {
+            $wQuery = WebVote::query();
+            $wQuery->where(function ($q) use ($campaignId, $allCandIdentifiers, $candNames): void {
                 $q->where('campaign_id', $campaignId)
-                    ->orWhereIn('nomination_id', $candIds)
-                    ->orWhereIn('candidate_name', $candNames);
+                    ->orWhereIn('nomination_id', $allCandIdentifiers);
+                foreach ($candNames as $name) {
+                    if (! empty($name)) {
+                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
+                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
+                    }
+                }
             });
 
-            if (! empty($nominationId)) {
-                $targetCand = $candidates->firstWhere('id', $nominationId);
-                $query->where(function ($q) use ($nominationId, $targetCand) {
-                    $q->where('nomination_id', $nominationId);
+            if (! empty($targetIds)) {
+                $wQuery->where(function ($q) use ($targetIds, $targetCand): void {
+                    $q->whereIn('nomination_id', $targetIds);
                     if ($targetCand) {
-                        $q->orWhere('candidate_name', $targetCand->full_name);
+                        $name = strtolower(trim((string) $targetCand->full_name));
+                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
+                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
                         if (! empty($targetCand->email)) {
-                            $q->orWhere('candidate_email', strtolower((string) $targetCand->email));
+                            $q->orWhereRaw('LOWER(candidate_email) = ?', [strtolower(trim((string) $targetCand->email))]);
                         }
                     }
                 });
             }
 
-            if (! empty($search)) {
-                $s = '%'.trim($search).'%';
-                $query->where(function ($q) use ($s) {
-                    $q->where('voter_name', 'ilike', $s)
-                        ->orWhere('voter_email', 'ilike', $s)
-                        ->orWhere('voter_phone', 'ilike', $s)
-                        ->orWhere('candidate_name', 'ilike', $s)
-                        ->orWhere('voter_city', 'ilike', $s)
-                        ->orWhere('voter_company', 'ilike', $s)
-                        ->orWhere('vote_reference', 'ilike', $s);
+            foreach ($wQuery->get() as $r) {
+                $matched = $candidates->first(function ($c) use ($r) {
+                    return $c->id === $r->nomination_id
+                        || $c->user_id === $r->nomination_id
+                        || $c->application_number === $r->nomination_id
+                        || (! empty($r->candidate_name) && strtolower(trim((string) $c->full_name)) === strtolower(trim((string) $r->candidate_name)));
                 });
-            }
 
-            $total = (clone $query)->count();
-
-            $records = $query->orderBy('created_at', 'desc')
-                ->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get();
-
-            foreach ($records as $r) {
-                $items[] = [
+                $ref = $r->vote_reference ?: ('WV-'.$r->id);
+                $mergedVotes[$ref] = [
                     'id' => (string) $r->id,
-                    'vote_reference' => $r->vote_reference,
-                    'campaign_id' => $r->campaign_id,
-                    'nomination_id' => $r->nomination_id,
-                    'candidate_name' => $r->candidate_name ?? 'Nominee',
-                    'candidate_email' => $r->candidate_email,
-                    'voter_name' => $r->voter_name,
-                    'voter_email' => $r->voter_email,
+                    'vote_reference' => $ref,
+                    'campaign_id' => $r->campaign_id ?: $campaignId,
+                    'nomination_id' => $matched?->id ?? $r->nomination_id,
+                    'candidate_name' => $matched?->full_name ?? $r->candidate_name ?? 'Nominee',
+                    'candidate_email' => $matched?->email ?? $r->candidate_email,
+                    'voter_name' => $r->voter_name ?: 'Voter',
+                    'voter_email' => $r->voter_email ?: '-',
                     'voter_phone' => $r->voter_phone,
                     'voter_company' => $r->voter_company,
                     'voter_designation' => $r->voter_designation,
@@ -432,52 +479,99 @@ class VotingService
                     'support_reason' => $r->support_reason,
                     'created_at' => $r->created_at ? $r->created_at->toIso8601String() : null,
                     'created_at_human' => $r->created_at ? $r->created_at->format('d M Y, h:i A') : '-',
+                    'timestamp' => $r->created_at ? $r->created_at->timestamp : 0,
                     'channel' => 'Website',
                 ];
             }
         }
 
-        // Also check if any leadership_votes exist and should be included
-        if (empty($items)) {
-            $lVotesQuery = LeadershipVote::with(['nomination', 'voterUser'])
-                ->where('campaign_id', $campaignId);
+        // 2. Fetch from web_leadership_votes if exists
+        if (Schema::hasTable('web_leadership_votes')) {
+            $lQuery = LeadershipVote::with(['nomination', 'voterUser']);
+            $lQuery->where(function ($q) use ($campaignId, $allCandIdentifiers): void {
+                $q->where('campaign_id', $campaignId)
+                    ->orWhereIn('nomination_id', $allCandIdentifiers);
+            });
 
-            if (! empty($nominationId)) {
-                $lVotesQuery->where('nomination_id', $nominationId);
+            if (! empty($targetIds)) {
+                $lQuery->whereIn('nomination_id', $targetIds);
             }
 
-            $total = (clone $lVotesQuery)->count();
-            $lRecords = $lVotesQuery->orderBy('cast_at', 'desc')
-                ->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get();
+            foreach ($lQuery->get() as $lv) {
+                $ref = $lv->vote_reference ?: (string) $lv->id;
 
-            foreach ($lRecords as $lv) {
-                $items[] = [
-                    'id' => (string) $lv->id,
-                    'vote_reference' => $lv->vote_reference,
-                    'campaign_id' => $lv->campaign_id,
-                    'nomination_id' => $lv->nomination_id,
-                    'candidate_name' => $lv->nomination?->full_name ?? 'Nominee',
-                    'candidate_email' => $lv->nomination?->email,
-                    'voter_name' => $lv->voterUser?->name ?? 'Verified Member',
-                    'voter_email' => $lv->voterUser?->email ?? '-',
-                    'voter_phone' => $lv->voterUser?->mobile ?? '-',
-                    'voter_company' => $lv->voterUser?->company_name,
-                    'voter_designation' => null,
-                    'voter_city' => $lv->voterUser?->city?->name ?? null,
-                    'support_reason' => null,
-                    'created_at' => $lv->cast_at ? $lv->cast_at->toIso8601String() : null,
-                    'created_at_human' => $lv->cast_at ? $lv->cast_at->format('d M Y, h:i A') : '-',
-                    'channel' => 'App',
-                ];
+                $matched = $lv->nomination ?: $candidates->first(function ($c) use ($lv) {
+                    return $c->id === $lv->nomination_id
+                        || $c->user_id === $lv->nomination_id
+                        || $c->application_number === $lv->nomination_id;
+                });
+
+                $meta = is_array($lv->metadata) ? $lv->metadata : [];
+                $vName = $lv->voterUser?->name ?? ($meta['voter_name'] ?? null) ?? 'Verified Member';
+                $vEmail = $lv->voterUser?->email ?? ($meta['voter_email'] ?? null) ?? '-';
+                $vPhone = $lv->voterUser?->mobile ?? ($meta['voter_phone'] ?? null) ?? '-';
+                $vCompany = $lv->voterUser?->company_name ?? ($meta['voter_company'] ?? null);
+                $vCity = $lv->voterUser?->city?->name ?? ($meta['voter_city'] ?? null);
+                $reason = $meta['support_reason'] ?? null;
+                $channel = $meta['channel'] ?? ($lv->voterUser ? 'App' : 'Website');
+
+                if (isset($mergedVotes[$ref])) {
+                    if (empty($mergedVotes[$ref]['candidate_name']) || $mergedVotes[$ref]['candidate_name'] === 'Nominee') {
+                        $mergedVotes[$ref]['candidate_name'] = $matched?->full_name ?? $mergedVotes[$ref]['candidate_name'];
+                    }
+                    if (empty($mergedVotes[$ref]['candidate_email'])) {
+                        $mergedVotes[$ref]['candidate_email'] = $matched?->email ?? $mergedVotes[$ref]['candidate_email'];
+                    }
+                } else {
+                    $createdAt = $lv->cast_at ?? $lv->created_at;
+                    $mergedVotes[$ref] = [
+                        'id' => (string) $lv->id,
+                        'vote_reference' => $ref,
+                        'campaign_id' => $lv->campaign_id ?: $campaignId,
+                        'nomination_id' => $matched?->id ?? $lv->nomination_id,
+                        'candidate_name' => $matched?->full_name ?? ($meta['candidate_name'] ?? 'Nominee'),
+                        'candidate_email' => $matched?->email,
+                        'voter_name' => $vName,
+                        'voter_email' => $vEmail,
+                        'voter_phone' => $vPhone,
+                        'voter_company' => $vCompany,
+                        'voter_designation' => $meta['voter_designation'] ?? null,
+                        'voter_city' => $vCity,
+                        'support_reason' => $reason,
+                        'created_at' => $createdAt ? $createdAt->toIso8601String() : null,
+                        'created_at_human' => $createdAt ? $createdAt->format('d M Y, h:i A') : '-',
+                        'timestamp' => $createdAt ? $createdAt->timestamp : 0,
+                        'channel' => $channel,
+                    ];
+                }
             }
         }
 
+        // 3. Search filtering
+        $filtered = array_values($mergedVotes);
+        if (! empty($search)) {
+            $s = strtolower(trim($search));
+            $filtered = array_filter($filtered, function ($item) use ($s): bool {
+                return str_contains(strtolower((string) $item['voter_name']), $s)
+                    || str_contains(strtolower((string) $item['voter_email']), $s)
+                    || str_contains(strtolower((string) ($item['voter_phone'] ?? '')), $s)
+                    || str_contains(strtolower((string) $item['candidate_name']), $s)
+                    || str_contains(strtolower((string) ($item['voter_city'] ?? '')), $s)
+                    || str_contains(strtolower((string) ($item['voter_company'] ?? '')), $s)
+                    || str_contains(strtolower((string) $item['vote_reference']), $s);
+            });
+            $filtered = array_values($filtered);
+        }
+
+        // Sort descending by timestamp
+        usort($filtered, fn ($a, $b) => ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0));
+
+        $total = count($filtered);
         $lastPage = (int) ceil(max($total, 1) / $perPage);
+        $paginated = array_slice($filtered, ($page - 1) * $perPage, $perPage);
 
         return [
-            'data' => $items,
+            'data' => $paginated,
             'total' => $total,
             'current_page' => $page,
             'last_page' => $lastPage,
@@ -491,10 +585,6 @@ class VotingService
     public function exportVotesCsv(string $campaignId): StreamedResponse
     {
         $campaign = LeadershipCampaign::findOrFail($campaignId);
-        $candidates = LeadershipNomination::where('campaign_id', $campaignId)->get();
-        $candIds = $candidates->pluck('id')->toArray();
-        $candNames = $candidates->pluck('full_name')->toArray();
-
         $fileName = 'vote_audit_'.Str::slug($campaign->name).'_'.date('Ymd_His').'.csv';
 
         $headers = [
@@ -505,7 +595,7 @@ class VotingService
             'Expires' => '0',
         ];
 
-        return new StreamedResponse(function () use ($campaignId, $candIds, $candNames): void {
+        return new StreamedResponse(function () use ($campaignId): void {
             $handle = fopen('php://output', 'w');
             if ($handle === false) {
                 return;
@@ -526,32 +616,22 @@ class VotingService
                 'Voted At',
             ]);
 
-            if (Schema::hasTable('web_votes')) {
-                WebVote::query()
-                    ->where(function ($q) use ($campaignId, $candIds, $candNames) {
-                        $q->where('campaign_id', $campaignId)
-                            ->orWhereIn('nomination_id', $candIds)
-                            ->orWhereIn('candidate_name', $candNames);
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->chunk(200, function ($votes) use ($handle): void {
-                        foreach ($votes as $v) {
-                            fputcsv($handle, [
-                                $v->vote_reference,
-                                $v->candidate_name,
-                                $v->candidate_email,
-                                $v->voter_name,
-                                $v->voter_email,
-                                $v->voter_phone,
-                                $v->voter_city,
-                                $v->voter_company,
-                                $v->voter_designation,
-                                $v->support_reason,
-                                'Website',
-                                $v->created_at ? $v->created_at->format('Y-m-d H:i:s') : '',
-                            ]);
-                        }
-                    });
+            $detailed = $this->getDetailedVotes($campaignId, null, null, 1, 10000);
+            foreach ($detailed['data'] as $v) {
+                fputcsv($handle, [
+                    $v['vote_reference'] ?? '',
+                    $v['candidate_name'] ?? '',
+                    $v['candidate_email'] ?? '',
+                    $v['voter_name'] ?? '',
+                    $v['voter_email'] ?? '',
+                    $v['voter_phone'] ?? '',
+                    $v['voter_city'] ?? '',
+                    $v['voter_company'] ?? '',
+                    $v['voter_designation'] ?? '',
+                    $v['support_reason'] ?? '',
+                    $v['channel'] ?? 'Website',
+                    $v['created_at_human'] ?? '',
+                ]);
             }
 
             fclose($handle);

@@ -198,9 +198,10 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('nominations/{id}/jury-summary', [JuryEvaluationController::class, 'summary'])->whereUuid('id');
 
     // Module J: Final Decisions and Winners
+    Route::post('decisions', [FinalDecisionController::class, 'submitDecision']);
     Route::get('campaigns/{id}/decision-candidates', [FinalDecisionController::class, 'candidates'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-summary', [FinalDecisionController::class, 'summary'])->whereUuid('id');
-    Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'index'])->whereUuid('id');
+    Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'campaignDecisions'])->whereUuid('id');
     Route::post('decisions/campaigns/{id}/publish-winners', [FinalDecisionController::class, 'publishBatch'])->whereUuid('id');
     Route::post('campaigns/{id}/decisions', [FinalDecisionController::class, 'store'])->whereUuid('id');
     Route::put('decisions/{id}', [FinalDecisionController::class, 'update'])->whereUuid('id');

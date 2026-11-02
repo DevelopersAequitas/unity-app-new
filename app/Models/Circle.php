@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
+use App\Services\Finance\LeaderTenureService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -236,6 +237,26 @@ class Circle extends Model
                 app(DistrictSyncService::class)->syncFromCircle($circle);
             }
 
+            if ($circle->wasRecentlyCreated || $circle->wasChanged([
+                'circle_founder_user_id',
+                'founder_user_id',
+                'circle_director_user_id',
+                'director_user_id',
+                'industry_director_user_id',
+                'ded_user_id',
+                'eed_user_id',
+                'chair_user_id',
+                'vice_chair_user_id',
+                'secretary_user_id',
+                'calendar',
+            ])) {
+                app(LeaderTenureService::class)->syncFromCircle(
+                    $circle,
+                    auth('admin')->id() ? (string) auth('admin')->id() : null,
+                    'circle_model_saved'
+                );
+            }
+
             if (Schema::hasTable('tbl_permission_cache')) {
                 DB::table('tbl_permission_cache')->truncate();
             }
@@ -421,6 +442,164 @@ class Circle extends Model
         $value = $this->calendarGet('meeting_schedule', []);
 
         return is_array($value) ? $value : [];
+    }
+
+    public static function normalizeCadencePayload(array $rawRepeat, ?array $calendar = null): array
+    {
+        $rawWeek = (string) ($rawRepeat['week_of_month'] ?? $rawRepeat['monthly_rule'] ?? $rawRepeat['week_number'] ?? data_get($calendar, 'monthly_rule') ?? 'week_1');
+        $weekNum = match (strtolower(trim($rawWeek))) {
+            'week_1', 'first', '1', '1st' => 1,
+            'week_2', 'second', '2', '2nd' => 2,
+            'week_3', 'third', '3', '3rd' => 3,
+            'week_4', 'week_4_provisional', 'fourth', '4', '4th' => 4,
+            'last', 'fifth', '5', '5th' => 5,
+            default => 1,
+        };
+
+        $ordinalText = match ($weekNum) {
+            1 => '1st',
+            2 => '2nd',
+            3 => '3rd',
+            4 => '4th',
+            default => 'Last',
+        };
+
+        $monthlyRule = match ($weekNum) {
+            1 => 'first',
+            2 => 'second',
+            3 => 'third',
+            4 => 'fourth',
+            default => 'last',
+        };
+
+        $weekday = strtolower(trim((string) ($rawRepeat['weekday'] ?? $rawRepeat['day_of_week'] ?? $rawRepeat['default_meet_day'] ?? data_get($calendar, 'default_meet_day') ?? 'wednesday')));
+        $time = trim((string) ($rawRepeat['start_time'] ?? $rawRepeat['time'] ?? $rawRepeat['default_meet_time'] ?? data_get($calendar, 'default_meet_time') ?? '18:30'));
+        $endTime = trim((string) ($rawRepeat['end_time'] ?? $rawRepeat['default_meet_end_time'] ?? data_get($calendar, 'end_time') ?? '21:00'));
+        $frequency = strtolower(trim((string) ($rawRepeat['frequency'] ?? $rawRepeat['unit'] ?? data_get($calendar, 'frequency') ?? 'monthly')));
+        if ($frequency === 'month') {
+            $frequency = 'monthly';
+        }
+        if ($frequency === 'week') {
+            $frequency = 'weekly';
+        }
+
+        return [
+            'repeat_every' => (int) ($rawRepeat['repeat_every'] ?? 1),
+            'interval' => (int) ($rawRepeat['interval'] ?? 1),
+            'unit' => $frequency === 'weekly' ? 'week' : 'month',
+            'frequency' => $frequency,
+            'week_of_month' => "week_{$weekNum}",
+            'week_number' => $weekNum,
+            'week' => $weekNum,
+            'ordinal' => $weekNum,
+            'ordinal_text' => $ordinalText,
+            'monthly_rule' => $monthlyRule,
+            'weekday' => $weekday,
+            'day_of_week' => $weekday,
+            'default_meet_day' => $weekday,
+            'start_time' => $time,
+            'time' => $time,
+            'default_meet_time' => $time,
+            'end_time' => $endTime,
+            'default_meet_end_time' => $endTime,
+        ];
+    }
+
+    public function calculateUpcomingMeeting(?Carbon $now = null): ?array
+    {
+        $repeat = $this->meeting_repeat;
+        if (! is_array($repeat) || empty($repeat)) {
+            $repeat = $this->calendarGet('settings.meeting_repeat');
+        }
+        if (! is_array($repeat) || empty($repeat)) {
+            $firstSchedule = $this->calendarGet('meeting_schedule.0') ?? $this->calendarGet('meetings.0');
+            if (is_array($firstSchedule)) {
+                $repeat = $firstSchedule;
+            }
+        }
+        if (! is_array($repeat) || empty($repeat)) {
+            return null;
+        }
+
+        $normalized = self::normalizeCadencePayload($repeat, is_array($this->calendar) ? $this->calendar : null);
+        $now = $now ? $now->copy() : Carbon::now(config('app.timezone', 'Asia/Kolkata'));
+
+        $frequency = $normalized['frequency'];
+        $weekday = $normalized['weekday'];
+        $time = $normalized['start_time'];
+        $weekNum = $normalized['week_number'];
+        $ordinalText = $normalized['ordinal_text'];
+        $monthlyRule = $normalized['monthly_rule'];
+
+        if ($frequency === 'weekly') {
+            $candidate = $now->copy();
+            while (strtolower($candidate->format('l')) !== $weekday) {
+                $candidate->addDay();
+            }
+            [$h, $m] = explode(':', $time) + [0, 0];
+            $candidate->setTime((int) $h, (int) $m, 0);
+            if ($candidate->lt($now)) {
+                $candidate->addWeek();
+            }
+        } else {
+            // Monthly
+            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time);
+            if ($candidate->lt($now)) {
+                $nextMonth = $now->copy()->startOfMonth()->addMonth();
+                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time);
+            }
+        }
+
+        $formattedTime = Carbon::createFromFormat('H:i', substr($time, 0, 5))->format('h:i A');
+        $shortDay = $candidate->format('D');
+        $datePart = $candidate->format('j M');
+        $display = "{$ordinalText} {$shortDay}, {$datePart} • {$formattedTime}";
+
+        return [
+            'date' => $candidate->toDateString(),
+            'time' => $time,
+            'end_time' => $normalized['end_time'],
+            'day' => $shortDay,
+            'day_name' => $candidate->format('l'),
+            'ordinal' => $ordinalText,
+            'week_number' => $weekNum,
+            'week_of_month' => "week_{$weekNum}",
+            'monthly_rule' => $monthlyRule,
+            'formatted_date' => $candidate->format('j M Y'),
+            'formatted_time' => $formattedTime,
+            'display' => $display,
+            'starts_at' => $candidate->toIso8601String(),
+        ];
+    }
+
+    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time): Carbon
+    {
+        $dt = Carbon::create($year, $month, 1, 0, 0, 0);
+        [$hour, $minute] = explode(':', $time) + [0, 0];
+
+        while (strtolower($dt->format('l')) !== strtolower($weekday)) {
+            $dt->addDay();
+        }
+
+        if ($nth > 1) {
+            $dt->addWeeks($nth - 1);
+        }
+
+        $dt->setTime((int) $hour, (int) $minute, 0);
+
+        return $dt;
+    }
+
+    public function getUpcomingMeetingAttribute(): ?array
+    {
+        return $this->calculateUpcomingMeeting();
+    }
+
+    public function getUpcomingMeetingDisplayAttribute(): ?string
+    {
+        $meeting = $this->calculateUpcomingMeeting();
+
+        return $meeting['display'] ?? null;
     }
 
     public function getCityDisplayAttribute(): ?string
@@ -822,6 +1001,12 @@ class Circle extends Model
 
         DB::table('circles')->where('id', $circleModel->id)->update($updates);
         $circleModel->refresh();
+
+        app(LeaderTenureService::class)->syncFromCircle(
+            $circleModel,
+            auth('admin')->id() ? (string) auth('admin')->id() : null,
+            'circle_member_sync'
+        );
     }
 
     public function payments(): HasMany

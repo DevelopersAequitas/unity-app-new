@@ -184,7 +184,9 @@ class CircleMember extends Model
         });
 
         static::saving(function (CircleMember $member): void {
-            if (! $member->role && ! $member->role_id) {
+            $hasRoleIdColumn = Schema::hasColumn('circle_members', 'role_id');
+
+            if (! $member->role && (! $hasRoleIdColumn || ! $member->role_id)) {
                 return;
             }
 
@@ -192,7 +194,7 @@ class CircleMember extends Model
                 return;
             }
 
-            if ($member->role_id && (! $member->role || $member->isDirty('role_id'))) {
+            if ($hasRoleIdColumn && $member->role_id && (! $member->role || $member->isDirty('role_id'))) {
                 $roleModel = Role::find($member->role_id);
                 if ($roleModel && $roleModel->key) {
                     $member->role = $roleModel->key;
@@ -201,9 +203,11 @@ class CircleMember extends Model
 
             if ($member->role) {
                 if (Str::isUuid($member->role) && $roleById = Role::find($member->role)) {
-                    $member->role_id = $roleById->id;
+                    if ($hasRoleIdColumn) {
+                        $member->role_id = $roleById->id;
+                    }
                     $member->role = $roleById->key;
-                } elseif (! $member->role_id || $member->isDirty('role')) {
+                } elseif ($hasRoleIdColumn && (! $member->role_id || $member->isDirty('role'))) {
                     try {
                         $member->role_id = Role::mustIdByKey($member->role);
                     } catch (RuntimeException $exception) {

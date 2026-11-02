@@ -215,8 +215,25 @@ class CircleManagementController extends BaseApiController
         }
 
         $calendar = isset($validated['calendar']) && is_array($validated['calendar']) ? $validated['calendar'] : [];
-        if (!empty($circle->meeting_repeat)) {
-            data_set($calendar, 'settings.meeting_repeat', $circle->meeting_repeat);
+        $rawRepeat = $circle->meeting_repeat
+            ?? data_get($validated, 'calendar.settings.meeting_repeat')
+            ?? data_get($validated, 'calendar.meeting_schedule.0');
+        if (is_array($rawRepeat) && !empty($rawRepeat)) {
+            $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $calendar);
+            $circle->meeting_repeat = $normalizedRepeat;
+            data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
+            data_set($calendar, 'meeting_schedule', [$normalizedRepeat]);
+            data_set($calendar, 'meetings', [$normalizedRepeat]);
+            data_set($calendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
+            data_set($calendar, 'week_of_month', $normalizedRepeat['week_of_month']);
+            data_set($calendar, 'week_number', $normalizedRepeat['week_number']);
+            data_set($calendar, 'ordinal', $normalizedRepeat['ordinal']);
+            data_set($calendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
+            data_set($calendar, 'day_of_week', $normalizedRepeat['day_of_week']);
+            data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
+            data_set($calendar, 'start_time', $normalizedRepeat['start_time']);
+            data_set($calendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($calendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->filled('meeting_venue')) {
             data_set($calendar, 'settings.meeting_venue', $request->input('meeting_venue'));
@@ -398,8 +415,26 @@ class CircleManagementController extends BaseApiController
         if (isset($validated['calendar']) && is_array($validated['calendar'])) {
             $currentCalendar = array_replace_recursive($currentCalendar, $validated['calendar']);
         }
-        if (!empty($circle->meeting_repeat)) {
-            data_set($currentCalendar, 'settings.meeting_repeat', $circle->meeting_repeat);
+        $rawRepeat = $circle->meeting_repeat
+            ?? data_get($validated, 'calendar.settings.meeting_repeat')
+            ?? data_get($validated, 'calendar.meeting_schedule.0')
+            ?? data_get($currentCalendar, 'settings.meeting_repeat');
+        if (is_array($rawRepeat) && !empty($rawRepeat)) {
+            $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $currentCalendar);
+            $circle->meeting_repeat = $normalizedRepeat;
+            data_set($currentCalendar, 'settings.meeting_repeat', $normalizedRepeat);
+            data_set($currentCalendar, 'meeting_schedule', [$normalizedRepeat]);
+            data_set($currentCalendar, 'meetings', [$normalizedRepeat]);
+            data_set($currentCalendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
+            data_set($currentCalendar, 'week_of_month', $normalizedRepeat['week_of_month']);
+            data_set($currentCalendar, 'week_number', $normalizedRepeat['week_number']);
+            data_set($currentCalendar, 'ordinal', $normalizedRepeat['ordinal']);
+            data_set($currentCalendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
+            data_set($currentCalendar, 'day_of_week', $normalizedRepeat['day_of_week']);
+            data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
+            data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time']);
+            data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->has('meeting_venue')) {
             data_set($currentCalendar, 'settings.meeting_venue', $request->input('meeting_venue'));

@@ -200,6 +200,11 @@ class LeaderTeamsService
                 $isOwnCircleOrScoped = true;
             }
 
+            // Committee chairs do not have access to view industry lists; they only see their circle and circle details
+            if (in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'viceChair', 'secretary'], true)) {
+                return [];
+            }
+
             // Industry Directors only see the main categories assigned to them.
             if ($role === 'industryDirector') {
                 $industryDirectorCategoryIds = array_map('strval', app(LeaderPeersService::class)->resolveIndustryDirectorCategoryIds($user));
