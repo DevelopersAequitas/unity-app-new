@@ -211,7 +211,22 @@ class FinanceLedgerController extends BaseApiController
     {
         $wallet = FinanceWallet::query()
             ->with('custodian:id,first_name,last_name,display_name,email')
-            ->findOrFail($id);
+            ->where(function ($q) use ($id) {
+                $q->where('id', $id)
+                  ->orWhere('account_number', $id)
+                  ->orWhere('scope_id', $id);
+            })
+            ->first();
+
+        if (! $wallet) {
+            $wallet = FinanceWallet::query()
+                ->with('custodian:id,first_name,last_name,display_name,email')
+                ->find($id);
+        }
+
+        if (! $wallet) {
+            abort(404, "Wallet not found for identifier: {$id}");
+        }
 
         if ($this->isCircleLeaderUser($request->user()) && $wallet->wallet_type !== 'circle_budget') {
             abort(403, 'Unauthorized. Circle leaders can only view Circle Budget statements.');

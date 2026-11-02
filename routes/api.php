@@ -2262,7 +2262,7 @@ foreach (['v1/admin/finance', 'admin/finance', 'v1/finance'] as $financePrefix) 
 
         // Wallets & Bank-Style Passbook Statement
         Route::get('wallets', [FinanceLedgerController::class, 'listWallets']);
-        Route::get('wallets/{id}/passbook', [FinanceLedgerController::class, 'walletPassbook'])->whereUuid('id');
+        Route::get('wallets/{id}/passbook', [FinanceLedgerController::class, 'walletPassbook']);
 
         // Global Immutable Credit/Debit Ledger
         Route::get('ledger', [FinanceLedgerController::class, 'listLedger']);

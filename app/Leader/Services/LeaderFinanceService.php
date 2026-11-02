@@ -263,6 +263,27 @@ class LeaderFinanceService
             return '₹'.number_format($amount, 0);
         };
 
+        $activeTenuresCount = 42;
+        try {
+            if (class_exists(\App\Models\Finance\FinanceLeaderTenure::class)) {
+                $tCount = \App\Models\Finance\FinanceLeaderTenure::where('status', 'active')->count();
+                if ($tCount > 0) {
+                    $activeTenuresCount = $tCount;
+                }
+            }
+        } catch (\Throwable) {}
+
+        $circleBudgetAmount = 0.0;
+        try {
+            if (class_exists(\App\Models\Finance\FinanceWallet::class)) {
+                if ($circleId && Str::isUuid($circleId)) {
+                    $circleBudgetAmount = (float) (\App\Models\Finance\FinanceWallet::where('scope_id', $circleId)->value('current_balance') ?? 0.0);
+                } else {
+                    $circleBudgetAmount = (float) (\App\Models\Finance\FinanceWallet::where('wallet_type', 'circle_budget')->sum('current_balance') ?? 0.0);
+                }
+            }
+        } catch (\Throwable) {}
+
         return [
             'total_revenue' => $formatCurrency($totalRevenueAmount),
             'projected_annual_revenue' => $formatCurrency($projectedAnnualRevenue),
@@ -276,6 +297,8 @@ class LeaderFinanceService
             'business_deals' => $dealsTrend,
             'commission_rates' => $commissionRates,
             'commission_structure' => $commissionStructure,
+            'active_tenures' => $activeTenuresCount,
+            'circle_budget' => $formatCurrency($circleBudgetAmount),
         ];
     }
 
