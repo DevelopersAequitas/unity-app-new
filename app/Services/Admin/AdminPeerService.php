@@ -50,9 +50,11 @@ class AdminPeerService
      */
     public function listPeers(array $filters = [], User|AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
-        $query = User::query()
+        $query = User::withTrashed()
+            ->whereNull('gdpr_deleted_at')
             ->with([
                 'roles:id,key,name',
+                'introducedBy:id,first_name,last_name,display_name,email',
                 'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
                 'mainBusinessCategory:id,name',
                 'businessCategory:id,name',
@@ -400,7 +402,7 @@ class AdminPeerService
             'gender' => $toStr($user->gender),
             'dob' => $user->dob ? (string) $user->dob : null,
             'experience_years' => $user->experience_years,
-            'country' => $toStr($user->country ?? $user->business_country, 'India'),
+            'country' => $toStr($user->country ?? $user->business_country),
             'state' => $toStr($user->state ?? $user->business_state),
             'city' => trim((string) $cityName),
             'avatar_url' => $avatarUrl,
@@ -440,6 +442,7 @@ class AdminPeerService
             'sponsor_user_id' => $user->referred_by_user_id ?? $user->introducedBy?->id,
             'circle_id' => $primaryCircle?->id,
             'circle_name' => $primaryCircle?->name ?? '',
+            'circles_count' => count($circlesList),
             'circles' => $circlesList,
             'status' => (string) ($user->status ?? ($user->is_active ? 'active' : 'inactive')),
             'is_active' => (bool) ($user->is_active ?? true),
