@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\Admin\LeadAdminApiController;
+use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
-use App\Http\Controllers\Api\V1\CircularController;
+use App\Http\Controllers\Api\CircularController;
 use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAskFlowController;
 use App\Leader\Controllers\LeaderAuthController;
