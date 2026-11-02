@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
+use App\Http\Controllers\Api\UserCircleRequestController;
 use App\Http\Controllers\Api\CircleLeadershipController;
 use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\EventController;
@@ -92,6 +93,7 @@ use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
+use App\Http\Controllers\Api\V1\Admin\UserCircleRequestAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
 use App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController;
@@ -800,6 +802,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/circle-join-requests/{id}/verify-payment', [CircleJoinRequestController::class, 'verifyPayment'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
+        // Build Your Own Circle
+        Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
+        Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
+        Route::post('/user-circle-requests', [UserCircleRequestController::class, 'store']);
+        Route::put('/user-circle-requests/{id}/recommended-peers', [UserCircleRequestController::class, 'updateNominees'])->whereUuid('id');
+        Route::put('/user-circle-requests/{id}/nominees', [UserCircleRequestController::class, 'updateNominees'])->whereUuid('id');
+        Route::patch('/user-circle-requests/{id}/cancel', [UserCircleRequestController::class, 'cancel'])->whereUuid('id');
+
         Route::prefix('admin')->group(function () {
             Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
             Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
@@ -925,6 +936,17 @@ Route::prefix('v1')->group(function () {
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
             Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+
+            // Build Your Own Circle (Admin)
+            Route::get('/user-circle-requests', [UserCircleRequestAdminController::class, 'index']);
+            Route::get('/user-circle-requests/stats', [UserCircleRequestAdminController::class, 'stats']);
+            Route::get('/user-circle-requests/{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/user-circle-requests/{id}/approve', [UserCircleRequestAdminController::class, 'approve'])->whereUuid('id');
+            Route::patch('/user-circle-requests/{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
+            Route::get('/user-circle-requests/{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
+            Route::get('/user-circle-requests/{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
+            Route::put('/user-circle-requests/config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
+
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
@@ -2267,5 +2289,22 @@ foreach (['v1/admin/finance', 'admin/finance', 'v1/finance'] as $financePrefix) 
         Route::post('bonuses/awards/{id}/reject', [FinanceLedgerController::class, 'rejectBonusAward'])->whereUuid('id');
         Route::get('bonuses/leaders/{userId}/wallet', [FinanceLedgerController::class, 'leaderBonusSummary'])->whereUuid('userId');
         Route::get('bonuses/leader-summary/{userId}', [FinanceLedgerController::class, 'leaderBonusSummary'])->whereUuid('userId');
+    });
+}
+
+// =========================================================================
+// BUILD YOUR OWN CIRCLE DUAL ALIAS ADMIN ROUTES
+// Supports both /api/admin/user-circle-requests/* and /api/v1/admin/user-circle-requests/*
+// =========================================================================
+foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucrAdminPrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($ucrAdminPrefix)->group(function (): void {
+        Route::get('', [UserCircleRequestAdminController::class, 'index']);
+        Route::get('stats', [UserCircleRequestAdminController::class, 'stats']);
+        Route::get('{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');
+        Route::post('{id}/approve', [UserCircleRequestAdminController::class, 'approve'])->whereUuid('id');
+        Route::patch('{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
+        Route::get('{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
+        Route::get('{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
+        Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
     });
 }

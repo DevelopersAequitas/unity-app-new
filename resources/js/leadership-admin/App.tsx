@@ -71,6 +71,7 @@ export const App: React.FC = () => {
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/campaigns" element={<CampaignsPage />} />
                     <Route path="/forms" element={<FormBuilderPage />} />
+                    <Route path="/forms" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/nominations" element={<NominationsPage />} />
                     <Route path="/nominations/main" element={<NominationsPage />} />
                     <Route path="/nominations/main-form-1" element={<NominationsPage />} />
