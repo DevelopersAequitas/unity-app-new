@@ -976,14 +976,51 @@ class CircleManagementController extends BaseApiController
             })
             ->firstOrFail();
 
-        if ($circle->circle_founder_user_id === $membership->user_id || in_array($membership->role, ['circle_founder', 'founder'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot remove founder. Please transfer founder role first.',
-            ], 422);
-        }
-
         DB::transaction(function () use ($circle, $membership) {
+            $circleChanged = false;
+
+            // If the member being removed holds founder or leadership roles on the circle, unassign them
+            if ($circle->circle_founder_user_id === $membership->user_id || in_array($membership->role, ['circle_founder', 'founder'], true)) {
+                $circle->circle_founder_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_founder_user_id', null);
+                data_set($calendar, 'leadership.circle_founder_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->circle_director_user_id === $membership->user_id || in_array($membership->role, ['circle_director', 'director'], true)) {
+                $circle->circle_director_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_director_user_id', null);
+                data_set($calendar, 'leadership.circle_director_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->industry_director_user_id === $membership->user_id) {
+                $circle->industry_director_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.industry_director_user_id', null);
+                data_set($calendar, 'leadership.industry_director_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->ded_user_id === $membership->user_id) {
+                $circle->ded_user_id = null;
+                $circleChanged = true;
+            }
+
+            if ($circle->eed_user_id === $membership->user_id) {
+                $circle->eed_user_id = null;
+                $circleChanged = true;
+            }
+
+            if ($circleChanged) {
+                $circle->save();
+            }
+
             DB::table('users')
                 ->where('id', $membership->user_id)
                 ->where('active_circle_id', $circle->id)

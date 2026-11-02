@@ -484,15 +484,21 @@ class Circle extends Model
             $frequency = 'weekly';
         }
 
+        $weekOffset = max(0, $weekNum - 1);
+
         return [
             'repeat_every' => (int) ($rawRepeat['repeat_every'] ?? 1),
             'interval' => (int) ($rawRepeat['interval'] ?? 1),
             'unit' => $frequency === 'weekly' ? 'week' : 'month',
             'frequency' => $frequency,
             'week_of_month' => "week_{$weekNum}",
-            'week_number' => $weekNum,
-            'week' => $weekNum,
-            'ordinal' => $weekNum,
+            'week_number' => $weekOffset,
+            'week' => $weekOffset,
+            'ordinal' => $weekOffset,
+            'week_offset' => $weekOffset,
+            'week_index' => $weekOffset,
+            'nth_week' => $weekNum,
+            'calendar_week' => $weekNum,
             'ordinal_text' => $ordinalText,
             'monthly_rule' => $monthlyRule,
             'weekday' => $weekday,
@@ -528,7 +534,7 @@ class Circle extends Model
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
         $time = $normalized['start_time'];
-        $weekNum = $normalized['week_number'];
+        $weekNum = $normalized['calendar_week'] ?? $normalized['nth_week'] ?? ($normalized['week_number'] + 1);
         $ordinalText = $normalized['ordinal_text'];
         $monthlyRule = $normalized['monthly_rule'];
 
