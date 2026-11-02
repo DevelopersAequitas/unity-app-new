@@ -144,56 +144,75 @@ class LeaderFinanceService
             ->get();
         $rulesByRole = $rules->groupBy('role_code');
 
-        $formatRulePct = function (string $roleCode, string $catCode, float $fallback) use ($rulesByRole): string {
+        $dbRates = Schema::hasTable('leader_commission_rates')
+            ? DB::table('leader_commission_rates')->get()->keyBy('role_id')
+            : collect();
+
+        $formatRulePct = function (string $roleId, string $roleCode, string $catCode, float $fallback) use ($rulesByRole, $dbRates): string {
+            // 1. Check authoritative finance_commission_rules
             $r = $rulesByRole->get($roleCode)?->firstWhere('category_code', $catCode);
-            $pct = $r ? (float) $r->share_percentage : $fallback;
-            return number_format($pct, 1).'%';
+            if ($r && isset($r->share_percentage)) {
+                return number_format((float) $r->share_percentage, 1).'%';
+            }
+            // 2. Check leader_commission_rates (set by Super Admin from app/web)
+            $row = $dbRates->get($roleId);
+            if ($row) {
+                if ($catCode === 'B' && isset($row->direct_referral_cut_percentage)) {
+                    return number_format((float) $row->direct_referral_cut_percentage, 1).'%';
+                }
+                if ($catCode === 'D' && isset($row->app_join_cut_percentage)) {
+                    return number_format((float) $row->app_join_cut_percentage, 1).'%';
+                }
+                if ($catCode === 'A' && isset($row->renewal_cut_percentage)) {
+                    return number_format((float) $row->renewal_cut_percentage, 1).'%';
+                }
+            }
+            return number_format($fallback, 1).'%';
         };
 
-        $commissionStructure = [
-            [
-                'role' => 'Circle Founder (CF)',
-                'role_id' => 'circleFounder',
-                'direct_referral_cut' => $formatRulePct('CF', 'B', 10.0),
-                'app_join_cut' => $formatRulePct('CF', 'D', 5.0),
-                'renewal_cut' => $formatRulePct('CF', 'A', 10.0),
-            ],
-            [
-                'role' => 'Circle Director (CD)',
-                'role_id' => 'circleDirector',
-                'direct_referral_cut' => $formatRulePct('CD', 'B', 10.0),
-                'app_join_cut' => $formatRulePct('CD', 'D', 5.0),
-                'renewal_cut' => $formatRulePct('CD', 'A', 10.0),
-            ],
-            [
-                'role' => 'Circle Chair (CHAIR)',
-                'role_id' => 'circleChair',
-                'direct_referral_cut' => $formatRulePct('CHAIR', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('CHAIR', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('CHAIR', 'A', 5.0),
-            ],
-            [
-                'role' => 'District Exec Director (DED)',
-                'role_id' => 'districtExecDirector',
-                'direct_referral_cut' => $formatRulePct('DED', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('DED', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('DED', 'A', 5.0),
-            ],
-            [
-                'role' => 'Industry Director (ID)',
-                'role_id' => 'industryDirector',
-                'direct_referral_cut' => $formatRulePct('ID', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('ID', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('ID', 'A', 5.0),
-            ],
-            [
-                'role' => 'Super Admin',
-                'role_id' => 'superAdmin',
-                'direct_referral_cut' => '100%',
-                'app_join_cut' => '100%',
-                'renewal_cut' => '100%',
-            ],
+        // Standard leadership roles (Super Admin is excluded because Super Admin does not earn commissions)
+        $rolesList = [
+            'circleFounder' => ['name' => 'Circle Founder (CF)', 'code' => 'CF', 'ref' => 10.0, 'app' => 5.0, 'ren' => 10.0],
+            'circleDirector' => ['name' => 'Circle Director (CD)', 'code' => 'CD', 'ref' => 10.0, 'app' => 5.0, 'ren' => 10.0],
+            'circleChair' => ['name' => 'Circle Chair (CHAIR)', 'code' => 'CHAIR', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'districtExecDirector' => ['name' => 'District Exec Director (DED)', 'code' => 'DED', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'industryDirector' => ['name' => 'Industry Director (ID)', 'code' => 'ID', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'countryDirector' => ['name' => 'Country Director (CDIR)', 'code' => 'CDIR', 'ref' => 0.0, 'app' => 0.0, 'ren' => 0.0],
         ];
+
+        // Discover newly added roles in the future dynamically from roles table
+        if (Schema::hasTable('roles')) {
+            try {
+                $dbRoles = DB::table('roles')->get();
+                foreach ($dbRoles as $dr) {
+                    $rawKey = (string) ($dr->key ?? $dr->slug ?? $dr->name);
+                    $normKey = app(UserRoleResolverService::class)->normalizeRoleKey($rawKey);
+                    if ($normKey === 'superAdmin' || isset($rolesList[$normKey])) {
+                        continue;
+                    }
+                    $name = (string) ($dr->name ?? $dr->display_name ?? $normKey);
+                    $code = strtoupper(substr(str_replace(' ', '', $name), 0, 5));
+                    $rolesList[$normKey] = [
+                        'name' => $name,
+                        'code' => $code,
+                        'ref' => 0.0,
+                        'app' => 0.0,
+                        'ren' => 0.0,
+                    ];
+                }
+            } catch (\Throwable) {}
+        }
+
+        $commissionStructure = [];
+        foreach ($rolesList as $roleKey => $rInfo) {
+            $commissionStructure[] = [
+                'role' => $rInfo['name'],
+                'role_id' => $roleKey,
+                'direct_referral_cut' => $formatRulePct($roleKey, $rInfo['code'], 'B', $rInfo['ref']),
+                'app_join_cut' => $formatRulePct($roleKey, $rInfo['code'], 'D', $rInfo['app']),
+                'renewal_cut' => $formatRulePct($roleKey, $rInfo['code'], 'A', $rInfo['ren']),
+            ];
+        }
 
         // Resolve logged-in leader's personal commission rate
         $userRole = 'circleFounder';
@@ -203,71 +222,36 @@ class LeaderFinanceService
             $userRole = $roleInfo['role'] ?? 'circleFounder';
         }
 
-        $dbRates = Schema::hasTable('leader_commission_rates')
-            ? DB::table('leader_commission_rates')->get()->keyBy('role_id')
-            : collect();
+        if ($userRole === 'superAdmin') {
+            // Super Admin has NO personal commissions and is not an earner
+            $commissionRates = [];
+            $commissionDueAmount = 0.0;
+            $totalDuesAmount = 0.0;
+        } else {
+            $matchedRoleInfo = $rolesList[$userRole] ?? ($rolesList['circleFounder'] ?? null);
+            $userRef = $matchedRoleInfo ? $formatRulePct($userRole, $matchedRoleInfo['code'], 'B', $matchedRoleInfo['ref']) : '0.0%';
+            $userApp = $matchedRoleInfo ? $formatRulePct($userRole, $matchedRoleInfo['code'], 'D', $matchedRoleInfo['app']) : '0.0%';
 
-        $getRate = function (string $roleId, float $defaultReferral, float $defaultAppJoin) use ($rulesByRole, $dbRates): array {
-            $roleCode = match (strtolower(str_replace(['_', ' '], '', $roleId))) {
-                'circlefounder', 'cf' => 'CF',
-                'circledirector', 'cd' => 'CD',
-                'circlechair', 'chair', 'chairbusinessgrowth', 'chairmembership', 'chaireventsprograms' => 'CHAIR',
-                'districtexecdirector', 'ded' => 'DED',
-                'industrydirector', 'id' => 'ID',
-                'superadmin' => 'SUPERADMIN',
-                'countrydirector' => 'CDIR',
-                default => strtoupper(substr($roleId, 0, 4)),
-            };
-
-            $rulesForRole = $rulesByRole->get($roleCode);
-            $refRule = $rulesForRole?->firstWhere('category_code', 'B');
-            $appRule = $rulesForRole?->firstWhere('category_code', 'D');
-
-            $row = $dbRates->get($roleId);
-
-            $ref = $refRule
-                ? (float) $refRule->share_percentage
-                : ($row ? (float) $row->direct_referral_cut_percentage : $defaultReferral);
-
-            $app = $appRule
-                ? (float) $appRule->share_percentage
-                : ($row ? (float) $row->app_join_cut_percentage : $defaultAppJoin);
-
-            return [
-                'referral' => number_format($ref, 1).'%',
-                'app_join' => number_format($app, 1).'%',
+            $commissionRates = [
+                [
+                    'label' => 'Direct Referral Cut',
+                    'rate' => $userRef,
+                    'description' => 'Earned on every closed peer referral',
+                    'status' => 'Active',
+                ],
+                [
+                    'label' => 'App Join Cut',
+                    'rate' => $userApp,
+                    'description' => 'Credited on new member onboarding',
+                    'status' => 'Active',
+                ],
             ];
-        };
 
-        $userRate = match ($userRole) {
-            'superAdmin' => $getRate('superAdmin', 12.0, 6.0),
-            'countryDirector' => $getRate('countryDirector', 11.0, 5.5),
-            'districtExecDirector' => $getRate('districtExecDirector', 10.0, 4.0),
-            'industryDirector' => $getRate('industryDirector', 10.0, 4.0),
-            'circleChair', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms' => $getRate('circleChair', 0.0, 0.0),
-            'circleDirector' => $getRate('circleDirector', 7.5, 3.0),
-            default => $getRate('circleFounder', 8.5, 3.5),
-        };
-
-        $commissionRates = [
-            [
-                'label' => 'Direct Referral Cut',
-                'rate' => $userRate['referral'],
-                'description' => 'Earned on every closed peer referral',
-                'status' => 'Active',
-            ],
-            [
-                'label' => 'App Join Cut',
-                'rate' => $userRate['app_join'],
-                'description' => 'Credited on new member onboarding',
-                'status' => 'Active',
-            ],
-        ];
-
-        // Commission due = collections in scope x referral rate
-        $referralRate = (float) rtrim($userRate['referral'], '%');
-        $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
-        $totalDuesAmount = $commissionDueAmount;
+            // Commission due = collections in scope x referral rate
+            $referralRate = (float) rtrim($userRef, '%');
+            $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
+            $totalDuesAmount = $commissionDueAmount;
+        }
 
         $formatCurrency = function (float $amount): string {
             if ($amount >= 10000000) {
@@ -464,21 +448,38 @@ class LeaderFinanceService
                 default => strtoupper(substr($roleId, 0, 4)),
             };
 
-            FinanceCommissionRule::query()
-                ->where('role_code', $roleCode)
-                ->where('category_code', 'B')
-                ->update(['share_percentage' => $referralCut]);
+            if (Schema::hasTable('finance_commission_rules')) {
+                FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'B'],
+                    [
+                        'rule_name' => "{$roleCode} Direct Referral Commission",
+                        'share_percentage' => $referralCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
 
-            FinanceCommissionRule::query()
-                ->where('role_code', $roleCode)
-                ->where('category_code', 'D')
-                ->update(['share_percentage' => $appJoinCut]);
+                FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'D'],
+                    [
+                        'rule_name' => "{$roleCode} App Join Commission",
+                        'share_percentage' => $appJoinCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
 
-            if ($renewalCut !== null) {
-                FinanceCommissionRule::query()
-                    ->where('role_code', $roleCode)
-                    ->where('category_code', 'A')
-                    ->update(['share_percentage' => $renewalCut]);
+                if ($renewalCut !== null) {
+                    FinanceCommissionRule::query()->updateOrCreate(
+                        ['role_code' => $roleCode, 'category_code' => 'A'],
+                        [
+                            'rule_name' => "{$roleCode} Annual Renewal Commission",
+                            'share_percentage' => $renewalCut,
+                            'is_active' => true,
+                            'allocation_target' => 'leader_payout',
+                        ]
+                    );
+                }
             }
 
             $updatedRates[] = [
@@ -488,7 +489,7 @@ class LeaderFinanceService
             ];
         }
 
-        $adminCode = $user ? ($user->peer_id ?: 'USR-SUPERADMIN-'.substr((string) $user->id, 0, 4)) : 'USR-SUPERADMIN-001';
+        $adminCode = $user ? (($user instanceof User ? $user->peer_id : null) ?: 'USR-SUPERADMIN-'.substr((string) $user->id, 0, 4)) : 'USR-SUPERADMIN-001';
 
         return [
             'updated_count' => count($updatedRates),

@@ -70,11 +70,13 @@ class LeaderFinanceController extends Controller
         $isSuperAdmin = false;
         if ($role === 'superAdmin') {
             $isSuperAdmin = true;
+        } elseif ($user instanceof AdminUser) {
+            $isSuperAdmin = AdminAccess::isSuperAdmin($user) || AdminAccess::isGlobalAdmin($user) || in_array($user->role, ['super_admin', 'superAdmin']);
         } elseif ($user) {
             $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
             if ($admin && AdminAccess::isSuperAdmin($admin)) {
                 $isSuperAdmin = true;
-            } elseif ($user->hasRole('super_admin') || $user->hasRole('superAdmin') || ! empty($user->is_super_admin)) {
+            } elseif ($user instanceof User && ($user->hasRole('super_admin') || $user->hasRole('superAdmin') || ! empty($user->is_super_admin))) {
                 $isSuperAdmin = true;
             }
         }
