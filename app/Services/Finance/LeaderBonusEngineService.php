@@ -121,6 +121,7 @@ class LeaderBonusEngineService
             'active_rules_count' => collect($formatted)->where('is_active_for_role', true)->count(),
             'bonus_rules' => $formatted,
         ];
+    }
 
     /**
      * Default standard bonus rules fallback when database table has not yet seeded configs.
@@ -268,9 +269,6 @@ class LeaderBonusEngineService
         }
 
         return [];
-    }
-
-
     }
 
     /**
