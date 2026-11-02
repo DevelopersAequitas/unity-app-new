@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services\Leadership;
 
+use App\Mail\Leadership\LeadershipNominationSubmittedMail;
 use App\Models\Leadership\LeadershipCampaign;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationAnswer;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
+use App\Models\Leadership\LeadershipNotificationLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -50,6 +54,8 @@ class NominationService
             ];
         }
 
+        $photoUrl = $user->profile_photo_url;
+
         return [
             'profile_found' => true,
             'profile' => [
@@ -58,7 +64,10 @@ class NominationService
                 'mobile' => $user->phone,
                 'company_name' => $user->company_name,
                 'designation' => $user->designation,
-                'profile_photo_url' => $user->profile_photo_url,
+                'profile_photo_url' => $photoUrl,
+                'photo_url' => $photoUrl,
+                'avatar_url' => $photoUrl,
+                'image_url' => $photoUrl,
                 'member_since' => $user->created_at?->format('Y-m-d'),
             ],
         ];
@@ -117,13 +126,22 @@ class NominationService
 
                 $origProfile = [];
                 if ($user) {
+                    $photo = $user->profile_photo_url;
                     $origProfile = [
                         'full_name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->display_name,
                         'email' => $user->email,
                         'mobile' => $user->phone,
                         'company_name' => $user->company_name,
                         'designation' => $user->designation,
+                        'photo_url' => $photo,
+                        'profile_photo_url' => $photo,
+                        'avatar_url' => $photo,
                     ];
+                    if ($photo && empty($profileData['photo_url']) && empty($profileData['profile_photo_url'])) {
+                        $profileData['photo_url'] = $photo;
+                        $profileData['profile_photo_url'] = $photo;
+                        $profileData['avatar_url'] = $photo;
+                    }
                 }
 
                 $nomination = LeadershipNomination::create([
@@ -232,14 +250,15 @@ class NominationService
             throw new RuntimeException('Documents can only be uploaded while the application is in draft or correction state.');
         }
 
-        $path = $file->store("leadership/nominations/{$nomination->id}", 'local');
+        $disk = config('filesystems.default') === 's3' ? 's3' : 'public';
+        $path = $file->store("leadership/nominations/{$nomination->id}", $disk);
 
         /** @var LeadershipNominationDocument $document */
         $document = LeadershipNominationDocument::create([
             'nomination_id' => $nomination->id,
             'document_type' => $documentType,
             'original_filename' => $file->getClientOriginalName(),
-            'storage_disk' => 'local',
+            'storage_disk' => $disk,
             'storage_key' => $path,
             'mime_type' => $file->getClientMimeType(),
             'file_size_bytes' => $file->getSize(),
@@ -334,6 +353,11 @@ class NominationService
                 'submitted_at' => $now->toIso8601String(),
             ];
         });
+
+        // Dispatch confirmation email with branded template & audit log
+        $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
+
+        return $result;
     }
 
     protected function generateApplicationNumber(int $year): string
@@ -417,6 +441,13 @@ class NominationService
             }
             $email = $email ?: $user->email;
             $mobile = $mobile ?: $user->phone;
+            $photo = $user->profile_photo_url;
+            if ($photo && empty($profile['photo_url']) && empty($profile['profile_photo_url'])) {
+                $profile['photo_url'] = $photo;
+                $profile['profile_photo_url'] = $photo;
+                $profile['avatar_url'] = $photo;
+                $profile['image_url'] = $photo;
+            }
         }
 
         $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
@@ -438,6 +469,10 @@ class NominationService
                     'full_name' => $fullName,
                     'email' => $email,
                     'mobile' => $mobile,
+                    'photo_url' => $user->profile_photo_url,
+                    'profile_photo_url' => $user->profile_photo_url,
+                    'avatar_url' => $user->profile_photo_url,
+                    'image_url' => $user->profile_photo_url,
                 ] : [],
                 'edited_profile' => $profile,
                 'profile_changes' => [],
@@ -494,6 +529,9 @@ class NominationService
                 remarks: "Nomination {$nomination->application_number} submitted via website portal"
             );
 
+            // Dispatch confirmation email with branded template & audit log
+            $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
+
             return [
                 'id' => $nomination->id,
                 'nomination_id' => $nomination->id,
@@ -502,5 +540,131 @@ class NominationService
                 'submitted_at' => $now->toIso8601String(),
             ];
         });
+    }
+
+    /**
+     * Dispatch submission confirmation email to the candidate and log notification.
+     */
+    protected function sendSubmissionConfirmationEmail(?LeadershipNomination $nomination): void
+    {
+        if (! $nomination) {
+            return;
+        }
+
+        $recipientEmail = $nomination->email;
+        if (empty($recipientEmail) && is_array($nomination->profile_snapshot) && ! empty($nomination->profile_snapshot['email'])) {
+            $recipientEmail = (string) $nomination->profile_snapshot['email'];
+        }
+        if (empty($recipientEmail) && is_array($nomination->edited_profile) && ! empty($nomination->edited_profile['email'])) {
+            $recipientEmail = (string) $nomination->edited_profile['email'];
+        }
+        if (empty($recipientEmail) && $nomination->user) {
+            $recipientEmail = (string) $nomination->user->email;
+        }
+
+        if (empty($recipientEmail)) {
+            Log::warning("Leadership nomination submission email skipped: no email found for nomination {$nomination->id}");
+
+            return;
+        }
+
+        try {
+            Mail::to($recipientEmail)->send(new LeadershipNominationSubmittedMail($nomination));
+
+            LeadershipNotificationLog::create([
+                'campaign_id' => $nomination->campaign_id,
+                'nomination_id' => $nomination->id,
+                'recipient_user_id' => $nomination->user_id,
+                'recipient' => $recipientEmail,
+                'channel' => 'email',
+                'template_key' => 'nomination_submitted',
+                'status' => 'sent',
+                'attempt_count' => 1,
+                'sent_at' => Carbon::now(),
+                'payload_metadata' => [
+                    'application_number' => $nomination->application_number,
+                    'role' => $nomination->applied_role_name,
+                    'jurisdiction' => $nomination->scope_name,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("Failed to dispatch leadership nomination submission email for {$nomination->id}: ".$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            try {
+                LeadershipNotificationLog::create([
+                    'campaign_id' => $nomination->campaign_id,
+                    'nomination_id' => $nomination->id,
+                    'recipient_user_id' => $nomination->user_id,
+                    'recipient' => $recipientEmail,
+                    'channel' => 'email',
+                    'template_key' => 'nomination_submitted',
+                    'status' => 'failed',
+                    'attempt_count' => 1,
+                    'error_message' => $e->getMessage(),
+                    'payload_metadata' => [
+                        'application_number' => $nomination->application_number,
+                    ],
+                ]);
+            } catch (\Throwable) {
+                // Ignore secondary log failures
+            }
+        }
+    }
+
+    /**
+     * Stream a nomination document inline to the browser.
+     */
+    public function streamDocument(string $nominationId, string $documentId): \Symfony\Component\HttpFoundation\Response
+    {
+        /** @var LeadershipNominationDocument $document */
+        $document = LeadershipNominationDocument::where('nomination_id', $nominationId)->findOrFail($documentId);
+
+        $key = (string) $document->storage_key;
+
+        if (str_starts_with($key, 'http://') || str_starts_with($key, 'https://')) {
+            return redirect()->away($key);
+        }
+
+        $filename = $document->original_filename ?: basename($key);
+        $encodedFilename = addslashes($filename);
+
+        // Check configured storage disks
+        $disks = array_filter(array_unique([
+            $document->storage_disk,
+            'public',
+            'local',
+            's3',
+        ]));
+
+        foreach ($disks as $disk) {
+            if ($disk && Storage::disk($disk)->exists($key)) {
+                $mime = $document->mime_type ?: Storage::disk($disk)->mimeType($key) ?: 'application/octet-stream';
+
+                return Storage::disk($disk)->response($key, $filename, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="'.$encodedFilename.'"',
+                ]);
+            }
+        }
+
+        // Direct filesystem path fallbacks for standard storage layouts
+        $directPaths = [
+            storage_path('app/public/'.$key),
+            storage_path('app/'.$key),
+            storage_path('app/private/'.$key),
+            public_path('storage/'.$key),
+        ];
+
+        foreach ($directPaths as $path) {
+            if (file_exists($path) && is_file($path)) {
+                return response()->file($path, [
+                    'Content-Disposition' => 'inline; filename="'.$encodedFilename.'"',
+                ]);
+            }
+        }
+
+        abort(404, 'The requested document file could not be found on storage.');
     }
 }

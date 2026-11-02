@@ -1657,37 +1657,70 @@ export const NominationsPage: React.FC = () => {
                                 </div>
 
                                 <div className="d-flex gap-2">
-                                    {['approved', 'shortlisted'].includes(selectedNomination.status) && (
-                                        <button
-                                            onClick={() => handleSendManualEmail(selectedNomination)}
-                                            disabled={sendingEmailId === selectedNomination.id}
-                                            className="btn btn-outline-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
-                                            title="Send or resend email notification to candidate"
-                                        >
-                                            {sendingEmailId === selectedNomination.id ? (
-                                                <>
-                                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                    Sending...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Mail size={14} /> Resend Email
-                                                </>
+                                    {isSubForm2 ? (
+                                        <>
+                                            {selectedNomination.profile_snapshot?.form_2_link && (
+                                                <button
+                                                    onClick={() => handleCopyForm2Link(selectedNomination)}
+                                                    className="btn btn-outline-secondary btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5"
+                                                >
+                                                    {copiedForm2Id === selectedNomination.id ? (
+                                                        <>
+                                                            <Check size={14} className="text-success" /> Copied Form 2 Link
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy size={14} /> Copy Form 2 Link
+                                                        </>
+                                                    )}
+                                                </button>
                                             )}
-                                        </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm rounded-3 px-3"
+                                                onClick={() => setSelectedNomination(null)}
+                                            >
+                                                Close
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {['approved', 'shortlisted'].includes(selectedNomination.status) && (
+                                                <button
+                                                    onClick={() => handleSendManualEmail(selectedNomination)}
+                                                    disabled={sendingEmailId === selectedNomination.id}
+                                                    className="btn btn-outline-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
+                                                    title="Send or resend email notification to candidate"
+                                                >
+                                                    {sendingEmailId === selectedNomination.id ? (
+                                                        <>
+                                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                            Sending...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Mail size={14} /> Resend Email
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                            {selectedNomination.status !== 'approved' && (
+                                                <button
+                                                    onClick={() => setActionModal({ type: 'approve', nomination: selectedNomination })}
+                                                    className="btn btn-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
+                                                >
+                                                    <UserCheck size={14} /> Approve Candidate
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm rounded-3 px-3"
+                                                onClick={() => setSelectedNomination(null)}
+                                            >
+                                                Close
+                                            </button>
+                                        </>
                                     )}
-                                    <button
-                                        onClick={() => setActionModal({ type: 'approve', nomination: selectedNomination })}
-                                        className="btn btn-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
-                                    >
-                                        <UserCheck size={14} /> Approve Candidate
-                                    </button>
-                                    <button
-                                        onClick={() => setActionModal({ type: 'shortlist', nomination: selectedNomination })}
-                                        className="btn btn-primary btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
-                                    >
-                                        <Award size={14} /> Shortlist for Voting
-                                    </button>
                                 </div>
                             </div>
                         </div>

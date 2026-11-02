@@ -12,6 +12,7 @@ use App\Models\Leadership\LeadershipNotificationLog;
 use App\Models\Leadership\LeadershipVote;
 use App\Models\Leadership\LeadershipWinnerCreative;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ReportingService
@@ -24,17 +25,17 @@ class ReportingService
     public function getDashboardOverview(): array
     {
         return [
-            'total_campaigns' => LeadershipCampaign::count(),
-            'active_campaigns' => LeadershipCampaign::where('status', 'active')->count(),
-            'total_nominations' => LeadershipNomination::count(),
-            'pending_reviews' => LeadershipNomination::where('status', 'submitted')->count(),
-            'shortlisted_candidates' => LeadershipNomination::where('status', 'shortlisted')->count(),
-            'total_votes' => LeadershipVote::count(),
-            'pending_jury_evaluations' => LeadershipJuryAssignment::whereIn('status', ['assigned', 'invited', 'in_progress'])->count(),
-            'completed_jury_evaluations' => LeadershipJuryAssignment::where('status', 'completed')->count(),
-            'declared_winners' => LeadershipFinalDecision::where('is_winner', true)->count(),
-            'pending_creatives' => LeadershipWinnerCreative::where('generation_status', 'pending')->count(),
-            'failed_notifications' => LeadershipNotificationLog::where('status', 'failed')->count(),
+            'total_campaigns' => Schema::hasTable('web_leadership_campaigns') ? LeadershipCampaign::count() : 0,
+            'active_campaigns' => (Schema::hasTable('web_leadership_campaigns') && Schema::hasColumn('web_leadership_campaigns', 'status')) ? LeadershipCampaign::where('status', 'active')->count() : 0,
+            'total_nominations' => Schema::hasTable('web_leadership_nominations') ? LeadershipNomination::count() : 0,
+            'pending_reviews' => (Schema::hasTable('web_leadership_nominations') && Schema::hasColumn('web_leadership_nominations', 'status')) ? LeadershipNomination::where('status', 'submitted')->count() : 0,
+            'shortlisted_candidates' => (Schema::hasTable('web_leadership_nominations') && Schema::hasColumn('web_leadership_nominations', 'status')) ? LeadershipNomination::where('status', 'shortlisted')->count() : 0,
+            'total_votes' => Schema::hasTable('web_leadership_votes') ? LeadershipVote::count() : 0,
+            'pending_jury_evaluations' => (Schema::hasTable('web_leadership_jury_assignments') && Schema::hasColumn('web_leadership_jury_assignments', 'status')) ? LeadershipJuryAssignment::whereIn('status', ['assigned', 'invited', 'in_progress'])->count() : 0,
+            'completed_jury_evaluations' => (Schema::hasTable('web_leadership_jury_assignments') && Schema::hasColumn('web_leadership_jury_assignments', 'status')) ? LeadershipJuryAssignment::where('status', 'completed')->count() : 0,
+            'declared_winners' => (Schema::hasTable('web_leadership_final_decisions') && Schema::hasColumn('web_leadership_final_decisions', 'is_winner')) ? LeadershipFinalDecision::where('is_winner', true)->count() : 0,
+            'pending_creatives' => (Schema::hasTable('web_leadership_winner_creatives') && Schema::hasColumn('web_leadership_winner_creatives', 'generation_status')) ? LeadershipWinnerCreative::where('generation_status', 'pending')->count() : 0,
+            'failed_notifications' => (Schema::hasTable('web_leadership_notification_logs') && Schema::hasColumn('web_leadership_notification_logs', 'status')) ? LeadershipNotificationLog::where('status', 'failed')->count() : 0,
         ];
     }
 

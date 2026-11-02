@@ -71,7 +71,7 @@ class CampaignService
     public function getApprovedPublicCandidates(string $campaignId, ?string $scopeId = null, int $perPage = 20): LengthAwarePaginator
     {
         $query = LeadershipNomination::query()
-            ->with(['scope', 'campaign.role'])
+            ->with(['scope', 'campaign.role', 'user', 'documents'])
             ->where('campaign_id', $campaignId)
             ->whereIn('status', ['approved', 'shortlisted', 'winner']);
 

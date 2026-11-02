@@ -59,6 +59,7 @@ Route::prefix('public')->group(function (): void {
     Route::get('nominations/{id}/draft', [NominationController::class, 'getDraft'])->whereUuid('id');
     Route::put('nominations/{id}/draft', [NominationController::class, 'updateDraft'])->whereUuid('id');
     Route::post('nominations/{id}/documents', [NominationController::class, 'uploadDocument'])->whereUuid('id');
+    Route::get('nominations/{id}/documents/{documentId}/file', [NominationController::class, 'viewDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::delete('nominations/{id}/documents/{documentId}', [NominationController::class, 'deleteDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
@@ -151,6 +152,7 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('nominations', [AdminNominationController::class, 'index']);
     Route::get('nominations/{id}', [AdminNominationController::class, 'show'])->whereUuid('id');
     Route::get('nominations/{id}/documents', [AdminNominationController::class, 'documents'])->whereUuid('id');
+    Route::get('nominations/{id}/documents/{documentId}/file', [AdminNominationController::class, 'viewFile'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/documents/{documentId}/verify', [AdminNominationController::class, 'verifyDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/request-changes', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
     Route::post('nominations/{id}/request-correction', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
@@ -196,9 +198,10 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('nominations/{id}/jury-summary', [JuryEvaluationController::class, 'summary'])->whereUuid('id');
 
     // Module J: Final Decisions and Winners
+    Route::post('decisions', [FinalDecisionController::class, 'submitDecision']);
     Route::get('campaigns/{id}/decision-candidates', [FinalDecisionController::class, 'candidates'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-summary', [FinalDecisionController::class, 'summary'])->whereUuid('id');
-    Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'index'])->whereUuid('id');
+    Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'campaignDecisions'])->whereUuid('id');
     Route::post('decisions/campaigns/{id}/publish-winners', [FinalDecisionController::class, 'publishBatch'])->whereUuid('id');
     Route::post('campaigns/{id}/decisions', [FinalDecisionController::class, 'store'])->whereUuid('id');
     Route::put('decisions/{id}', [FinalDecisionController::class, 'update'])->whereUuid('id');

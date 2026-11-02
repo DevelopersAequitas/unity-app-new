@@ -68,29 +68,99 @@ class VotingController extends LeadershipBaseController
 
             try {
                 $ref = $validated['vote_reference'] ?? ('PG-VOTE-'.date('Y').'-'.strtoupper(\Illuminate\Support\Str::random(6)));
-                $nominationId = $validated['nomination_id'] ?? ($validated['candidate_id'] ?? null);
+                $rawCandId = $validated['nomination_id'] ?? ($validated['candidate_id'] ?? null);
 
-                $webVote = \App\Models\Web\WebVote::updateOrCreate(
-                    ['vote_reference' => $ref],
-                    [
-                        'campaign_id' => $validated['campaign_id'] ?? null,
-                        'nomination_id' => $nominationId,
-                        'candidate_name' => $validated['candidate_name'] ?? null,
-                        'candidate_email' => $validated['candidate_email'] ?? null,
-                        'voter_name' => $validated['voter_name'],
-                        'voter_email' => strtolower($validated['voter_email']),
-                        'voter_phone' => $validated['voter_phone'] ?? null,
-                        'voter_city' => $validated['voter_city'] ?? null,
-                        'voter_company' => $validated['voter_company'] ?? null,
-                        'voter_designation' => $validated['voter_designation'] ?? null,
-                        'support_reason' => $validated['support_reason'] ?? null,
-                        'created_at' => now(),
-                    ]
-                );
+                // Robust candidate resolution from database
+                $nomination = null;
+                if (! empty($rawCandId)) {
+                    $nomination = \App\Models\Leadership\LeadershipNomination::query()
+                        ->where('id', $rawCandId)
+                        ->orWhere('user_id', $rawCandId)
+                        ->orWhere('application_number', $rawCandId)
+                        ->first();
+                }
+
+                if (! $nomination && ! empty($validated['candidate_name'])) {
+                    $cName = trim((string) $validated['candidate_name']);
+                    $nomination = \App\Models\Leadership\LeadershipNomination::query()
+                        ->where(function ($q) use ($cName): void {
+                            $q->whereRaw('LOWER(full_name) = ?', [strtolower($cName)])
+                                ->orWhereRaw('LOWER(full_name) LIKE ?', ['%'.strtolower($cName).'%']);
+                        })
+                        ->first();
+                }
+
+                if (! $nomination && ! empty($validated['candidate_email'])) {
+                    $cEmail = strtolower(trim((string) $validated['candidate_email']));
+                    $nomination = \App\Models\Leadership\LeadershipNomination::query()
+                        ->whereRaw('LOWER(email) = ?', [$cEmail])
+                        ->first();
+                }
+
+                $nominationId = $nomination ? $nomination->id : $rawCandId;
+                $campaignId = $validated['campaign_id'] ?? ($nomination?->campaign_id);
+                $candidateName = $validated['candidate_name'] ?? ($nomination?->full_name);
+                $candidateEmail = $validated['candidate_email'] ?? ($nomination?->email);
+                $scopeId = $nomination?->scope_id;
+
+                // 1. Record into web_votes if table exists
+                if (\Illuminate\Support\Facades\Schema::hasTable('web_votes')) {
+                    \App\Models\Web\WebVote::updateOrCreate(
+                        ['vote_reference' => $ref],
+                        [
+                            'campaign_id' => $campaignId,
+                            'nomination_id' => $nominationId,
+                            'candidate_name' => $candidateName,
+                            'candidate_email' => $candidateEmail,
+                            'voter_name' => $validated['voter_name'],
+                            'voter_email' => strtolower($validated['voter_email']),
+                            'voter_phone' => $validated['voter_phone'] ?? null,
+                            'voter_city' => $validated['voter_city'] ?? null,
+                            'voter_company' => $validated['voter_company'] ?? null,
+                            'voter_designation' => $validated['voter_designation'] ?? null,
+                            'support_reason' => $validated['support_reason'] ?? null,
+                            'created_at' => now(),
+                        ]
+                    );
+                }
+
+                // 2. Also record into web_leadership_votes if table exists
+                if (\Illuminate\Support\Facades\Schema::hasTable('web_leadership_votes')) {
+                    try {
+                        $contactHash = hash('sha256', strtolower($validated['voter_email']));
+                        \App\Models\Leadership\LeadershipVote::firstOrCreate(
+                            ['vote_reference' => $ref],
+                            [
+                                'id' => (string) \Illuminate\Support\Str::uuid(),
+                                'campaign_id' => $campaignId,
+                                'scope_id' => $scopeId,
+                                'nomination_id' => $nominationId,
+                                'voter_user_id' => null,
+                                'voter_contact_hash' => $contactHash,
+                                'verification_id' => null,
+                                'vote_reference' => $ref,
+                                'cast_at' => now(),
+                                'metadata' => [
+                                    'voter_name' => $validated['voter_name'],
+                                    'voter_email' => strtolower($validated['voter_email']),
+                                    'voter_phone' => $validated['voter_phone'] ?? null,
+                                    'voter_city' => $validated['voter_city'] ?? null,
+                                    'voter_company' => $validated['voter_company'] ?? null,
+                                    'voter_designation' => $validated['voter_designation'] ?? null,
+                                    'support_reason' => $validated['support_reason'] ?? null,
+                                    'candidate_name' => $candidateName,
+                                    'channel' => 'Website',
+                                ],
+                            ]
+                        );
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Could not record into web_leadership_votes: '.$e->getMessage());
+                    }
+                }
 
                 return $this->success([
-                    'vote_reference' => $webVote->vote_reference,
-                    'created_at' => $webVote->created_at,
+                    'vote_reference' => $ref,
+                    'created_at' => now()->toIso8601String(),
                 ], 'Your vote has been recorded.');
             } catch (\Throwable $e) {
                 return $this->error($e->getMessage(), 400);
