@@ -72,4 +72,3 @@ class FinanceCommissionRule extends Model
         return $this->belongsTo(FinanceAcquisitionChannel::class, 'channel_id');
     }
 }
-

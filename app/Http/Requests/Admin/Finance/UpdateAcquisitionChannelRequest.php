@@ -31,4 +31,3 @@ class UpdateAcquisitionChannelRequest extends FormRequest
         ];
     }
 }
-

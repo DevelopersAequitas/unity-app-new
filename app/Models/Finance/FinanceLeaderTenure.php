@@ -80,4 +80,3 @@ class FinanceLeaderTenure extends Model
         return $this->hasMany(FinanceWithdrawalRequest::class, 'leader_tenure_id');
     }
 }
-
