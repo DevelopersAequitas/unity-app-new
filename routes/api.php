@@ -191,6 +191,7 @@ use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
+use App\Http\Controllers\Api\V1\Admin\WebAdminMediaController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
@@ -875,6 +876,16 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index']);
             Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update']);
+
+            // AI Chatbot Admin API
+            Route::get('/ai-chatbot', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'index']);
+            Route::put('/ai-chatbot/settings', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'updateSettings']);
+            Route::post('/ai-chatbot/documents', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'storeDocument']);
+            Route::post('/ai-chatbot/documents/{id}/toggle', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'toggleDocument'])->whereUuid('id');
+            Route::delete('/ai-chatbot/documents/{id}', [\App\Http\Controllers\Admin\AiChatbotAdminController::class, 'destroyDocument'])->whereUuid('id');
+
+            // Web Platform Admin APIs
+            Route::get('/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
@@ -1847,11 +1858,20 @@ Route::prefix('v1')->group(function () {
     Route::delete('/web/success-stories/{id}', [WebPublicApiController::class, 'destroyStory'])->whereUuid('id');
     Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
 
+    // Web Dashboard Overview API
+    Route::get('/admin/web/dashboard', [\App\Http\Controllers\Api\V1\Admin\WebAdminDashboardController::class, 'index']);
+
     // Web Gallery Collection APIs
     Route::get('/web-gallery', [WebPublicApiController::class, 'gallery']);
     Route::get('/web/gallery', [WebPublicApiController::class, 'gallery']);
     Route::get('/web-gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
     Route::get('/web/gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
+    Route::get('/admin/web/gallery', [WebAdminMediaController::class, 'gallery']);
+    Route::post('/admin/web/gallery', [WebAdminMediaController::class, 'storeGallery']);
+    Route::patch('/admin/web/gallery/{id}/toggle-status', [WebAdminMediaController::class, 'toggleGalleryStatus'])->whereUuid('id');
+    Route::delete('/admin/web/gallery/{id}', [WebAdminMediaController::class, 'destroyGallery'])->whereUuid('id');
+    Route::post('/admin/web/gallery/bulk-delete', [WebAdminMediaController::class, 'bulkDeleteGallery']);
+    Route::put('/admin/web/gallery/{id}', [WebAdminMediaController::class, 'updateGallery'])->whereUuid('id');
 
     // Web Podcasts & Media Channels APIs
     Route::get('/web-podcasts', [WebPublicApiController::class, 'podcasts']);
@@ -1859,6 +1879,19 @@ Route::prefix('v1')->group(function () {
     Route::get('/web/podcasts/featured', [WebPublicApiController::class, 'featuredPodcasts']);
     Route::get('/web-media-channels', [WebPublicApiController::class, 'podcasts']);
     Route::get('/web/media-channels', [WebPublicApiController::class, 'podcasts']);
+    Route::get('/admin/web/podcasts', [WebAdminMediaController::class, 'podcasts']);
+    Route::post('/admin/web/podcasts', [WebAdminMediaController::class, 'storePodcast']);
+    Route::put('/admin/web/podcasts/{id}', [WebAdminMediaController::class, 'updatePodcast'])->whereUuid('id');
+    Route::delete('/admin/web/podcasts/{id}', [WebAdminMediaController::class, 'destroyPodcast'])->whereUuid('id');
+    Route::patch('/admin/web/podcasts/{id}/toggle-status', [WebAdminMediaController::class, 'togglePodcastStatus'])->whereUuid('id');
+    Route::patch('/admin/web/podcasts/{id}/toggle-featured', [WebAdminMediaController::class, 'togglePodcastFeatured'])->whereUuid('id');
+
+    // Admin Success Stories APIs
+    Route::get('/admin/web/success-stories', [WebAdminMediaController::class, 'successStories']);
+    Route::post('/admin/web/success-stories', [WebAdminMediaController::class, 'storeSuccessStory']);
+    Route::put('/admin/web/success-stories/{id}', [WebAdminMediaController::class, 'updateSuccessStory'])->whereUuid('id');
+    Route::delete('/admin/web/success-stories/{id}', [WebAdminMediaController::class, 'destroySuccessStory'])->whereUuid('id');
+    Route::patch('/admin/web/success-stories/{id}/toggle-status', [WebAdminMediaController::class, 'toggleSuccessStoryStatus'])->whereUuid('id');
 
     // Web Blogs & Publications
     Route::get('/web-blogs', [WebBlogApiController::class, 'index']);

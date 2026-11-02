@@ -96,9 +96,13 @@ class WebDashboardController extends Controller
             ],
         ];
 
-        $successStoriesCount = WebSuccessStory::count();
-        $activeStoriesCount = WebSuccessStory::where('is_active', true)->count();
-        $recentSuccessStories = WebSuccessStory::latest()->take(4)->get();
+        $successStoriesCount = Schema::hasTable('web_success_stories') ? WebSuccessStory::count() : 0;
+        $activeStoriesCount = (Schema::hasTable('web_success_stories') && Schema::hasColumn('web_success_stories', 'is_active'))
+            ? WebSuccessStory::where('is_active', true)->count()
+            : 0;
+        $recentSuccessStories = Schema::hasTable('web_success_stories')
+            ? WebSuccessStory::latest()->take(4)->get()
+            : collect();
 
         return view('admin.web.dashboard', [
             'totalPeers' => $totalPeers,
