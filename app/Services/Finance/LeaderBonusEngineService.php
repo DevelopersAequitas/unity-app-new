@@ -109,6 +109,11 @@ class LeaderBonusEngineService
             ];
         })->all();
 
+        // If no role configs exist in DB yet, fallback to active standard rules for this role
+        if (count($formatted) === 0) {
+            $formatted = $this->getDefaultRoleBonusRules($normalizedRole);
+        }
+
         return [
             'role_code' => $normalizedRole,
             'payout_wallet_type' => 'leader_wallet',
@@ -116,6 +121,156 @@ class LeaderBonusEngineService
             'active_rules_count' => collect($formatted)->where('is_active_for_role', true)->count(),
             'bonus_rules' => $formatted,
         ];
+
+    /**
+     * Default standard bonus rules fallback when database table has not yet seeded configs.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getDefaultRoleBonusRules(string $roleCode): array
+    {
+        $normalized = strtoupper(trim($roleCode));
+
+        if ($normalized === 'CD') {
+            return [
+                [
+                    'role_config_id' => 'cd_def_1',
+                    'bonus_rule_id' => 'rule_speed_10m_20d',
+                    'rule_code' => 'SPEED_10M_20D',
+                    'role_code' => 'CD',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'speed_bonus',
+                    'metric_type' => 'NEW_MEMBERS_IN_DAYS',
+                    'title' => '10 new Peers in 20 days',
+                    'description' => 'Leader brings or onboards 10 new paid Peers within 20 days of tenure start or activation.',
+                    'target_members_count' => 10,
+                    'timeframe_days' => 20,
+                    'bonus_amount_inr' => 10000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+                [
+                    'role_config_id' => 'cd_def_2',
+                    'bonus_rule_id' => 'rule_cd_speed_10m_10d',
+                    'rule_code' => 'CD_SPEED_10M_10D',
+                    'role_code' => 'CD',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'speed_bonus',
+                    'metric_type' => 'NEW_MEMBERS_IN_DAYS',
+                    'title' => '10 new Peers in 10 days',
+                    'description' => 'Fast-track speed bonus: 10 new paid Peers within 10 days.',
+                    'target_members_count' => 10,
+                    'timeframe_days' => 10,
+                    'bonus_amount_inr' => 25000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+                [
+                    'role_config_id' => 'cd_def_3',
+                    'bonus_rule_id' => 'rule_cd_scale_50m_90d',
+                    'rule_code' => 'CD_SCALE_50M_90D',
+                    'role_code' => 'CD',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'growth_milestone',
+                    'metric_type' => 'TOTAL_CIRCLE_MEMBERS',
+                    'title' => '50 Active Circle Members',
+                    'description' => 'Reach 50 active paid peers in circle within 90 days.',
+                    'target_members_count' => 50,
+                    'timeframe_days' => 90,
+                    'bonus_amount_inr' => 25000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+                [
+                    'role_config_id' => 'cd_def_4',
+                    'bonus_rule_id' => 'rule_cd_scale_100m_180d',
+                    'rule_code' => 'CD_SCALE_100M_180D',
+                    'role_code' => 'CD',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'growth_milestone',
+                    'metric_type' => 'TOTAL_CIRCLE_MEMBERS',
+                    'title' => '100 Active Circle Members',
+                    'description' => 'Reach 100 active paid peers in circle within 180-day tenure window.',
+                    'target_members_count' => 100,
+                    'timeframe_days' => 180,
+                    'bonus_amount_inr' => 50000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+            ];
+        }
+
+        if ($normalized === 'CF') {
+            return [
+                [
+                    'role_config_id' => 'cf_def_1',
+                    'bonus_rule_id' => 'rule_speed_10m_20d',
+                    'rule_code' => 'SPEED_10M_20D',
+                    'role_code' => 'CF',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'speed_bonus',
+                    'metric_type' => 'NEW_MEMBERS_IN_DAYS',
+                    'title' => '10 new Peers in 20 days',
+                    'description' => 'Bring 10 new paid Peers within 20 days of tenure activation.',
+                    'target_members_count' => 10,
+                    'timeframe_days' => 20,
+                    'bonus_amount_inr' => 10000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+                [
+                    'role_config_id' => 'cf_def_2',
+                    'bonus_rule_id' => 'rule_cf_speed_30m_40d',
+                    'rule_code' => 'CF_SPEED_30M_40D',
+                    'role_code' => 'CF',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'speed_bonus',
+                    'metric_type' => 'NEW_MEMBERS_IN_DAYS',
+                    'title' => '30 members in 40 days',
+                    'description' => 'Momentum bonus: 30 paid members within 40 days.',
+                    'target_members_count' => 30,
+                    'timeframe_days' => 40,
+                    'bonus_amount_inr' => 25000.00,
+                    'reward_perks' => null,
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+                [
+                    'role_config_id' => 'cf_def_3',
+                    'bonus_rule_id' => 'rule_cf_speed_50m_75d',
+                    'rule_code' => 'CF_SPEED_50M_75D',
+                    'role_code' => 'CF',
+                    'scope_type' => 'circle',
+                    'is_active_for_role' => true,
+                    'bonus_category' => 'growth_milestone',
+                    'metric_type' => 'TOTAL_CIRCLE_MEMBERS',
+                    'title' => '50 members in 75 days',
+                    'description' => 'Founder milestone: 50 paid members within 75 days.',
+                    'target_members_count' => 50,
+                    'timeframe_days' => 75,
+                    'bonus_amount_inr' => 50000.00,
+                    'reward_perks' => 'Founder Dinner / Retreat',
+                    'requires_approval' => false,
+                    'payout_destination' => 'leader_wallet (Personal Bonus Account)',
+                ],
+            ];
+        }
+
+        return [];
+    }
+
+
     }
 
     /**

@@ -21,14 +21,6 @@ class CommissionManagementService
      * @var array<string, array<string, mixed>>
      */
     private const DEFAULT_ROLES = [
-        'superAdmin' => [
-            'role_name' => 'Super Admin',
-            'direct_referral_cut_percentage' => 12.00,
-            'app_join_cut_percentage' => 6.00,
-            'renewal_cut_percentage' => 4.00,
-            'description' => 'Global supreme administrative leadership rate.',
-            'badge_color' => 'indigo',
-        ],
         'countryDirector' => [
             'role_name' => 'Country Director',
             'direct_referral_cut_percentage' => 10.00,
@@ -223,6 +215,51 @@ class CommissionManagementService
                 DB::table('leader_commission_rates')->insert($updateData);
             }
 
+            // Synchronize with authoritative finance_commission_rules table
+            $roleCode = match (strtolower(str_replace(['_', ' '], '', $roleId))) {
+                'circlefounder', 'cf' => 'CF',
+                'circledirector', 'cd' => 'CD',
+                'circlechair', 'chair' => 'CHAIR',
+                'districtexecdirector', 'ded' => 'DED',
+                'industrydirector', 'id' => 'ID',
+                'countrydirector', 'cdir' => 'CDIR',
+                default => strtoupper(substr($roleId, 0, 4)),
+            };
+
+            if (Schema::hasTable('finance_commission_rules')) {
+                \App\Models\Finance\FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'B'],
+                    [
+                        'rule_name' => "{$roleCode} Direct Referral Commission",
+                        'share_percentage' => $referralCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
+
+                \App\Models\Finance\FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'D'],
+                    [
+                        'rule_name' => "{$roleCode} App Join Commission",
+                        'share_percentage' => $appJoinCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
+
+                if ($hasRenewal && isset($rate['renewal_cut_percentage'])) {
+                    \App\Models\Finance\FinanceCommissionRule::query()->updateOrCreate(
+                        ['role_code' => $roleCode, 'category_code' => 'A'],
+                        [
+                            'rule_name' => "{$roleCode} Annual Renewal Commission",
+                            'share_percentage' => $renewalCut,
+                            'is_active' => true,
+                            'allocation_target' => 'leader_payout',
+                        ]
+                    );
+                }
+            }
+
             $updatedCount++;
         }
 
@@ -280,6 +317,11 @@ class CommissionManagementService
      */
     private function ensureDefaultRolesExist(Collection $existingRows): void
     {
+        // Strictly purge Super Admin if previously inserted; Super Admin never earns commissions
+        DB::table('leader_commission_rates')
+            ->whereIn('role_id', ['superAdmin', 'super_admin'])
+            ->delete();
+
         $hasRenewal = Schema::hasColumn('leader_commission_rates', 'renewal_cut_percentage');
         $hasRoleName = Schema::hasColumn('leader_commission_rates', 'role_name');
         $hasDesc = Schema::hasColumn('leader_commission_rates', 'description');
@@ -311,6 +353,42 @@ class CommissionManagementService
 
                 DB::table('leader_commission_rates')->insert($insertData);
             }
+        }
+
+        // Dynamically discover custom leadership roles added in future from roles table (default 0.00% commission)
+        if (Schema::hasTable('roles')) {
+            try {
+                $dbRoles = DB::table('roles')->get();
+                foreach ($dbRoles as $dr) {
+                    $rawKey = (string) ($dr->key ?? $dr->slug ?? $dr->name);
+                    $normKey = app(\App\Shared\Services\UserRoleResolverService::class)->normalizeRoleKey($rawKey);
+                    if ($normKey === 'superAdmin' || isset(self::DEFAULT_ROLES[$normKey]) || $existingRows->has($normKey)) {
+                        continue;
+                    }
+                    $name = (string) ($dr->name ?? $dr->display_name ?? $normKey);
+                    $insertData = [
+                        'id' => (string) Str::uuid(),
+                        'role_id' => $normKey,
+                        'direct_referral_cut_percentage' => 0.00,
+                        'app_join_cut_percentage' => 0.00,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                    if ($hasRenewal) {
+                        $insertData['renewal_cut_percentage'] = 0.00;
+                    }
+                    if ($hasRoleName) {
+                        $insertData['role_name'] = $name;
+                    }
+                    if ($hasDesc) {
+                        $insertData['description'] = "Custom dynamic role: {$name}";
+                    }
+                    if ($hasActive) {
+                        $insertData['is_active'] = true;
+                    }
+                    DB::table('leader_commission_rates')->insert($insertData);
+                }
+            } catch (\Throwable) {}
         }
     }
 }

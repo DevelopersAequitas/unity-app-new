@@ -98,6 +98,9 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::put('/leader/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
     Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
     Route::post('/leader/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+    Route::get('/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+    Route::get('/leader/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+    Route::get('/leader/milestones', [LeaderFinanceController::class, 'milestones']);
 
     // Tab 4: Reports & Analytics
     Route::get('/reports', [LeaderReportsController::class, 'index']);
@@ -259,6 +262,7 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('finance/transactions', [LeaderFinanceController::class, 'transactions']);
         Route::put('finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
         Route::post('finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+        Route::get('finance/milestones', [LeaderFinanceController::class, 'milestones']);
 
         Route::get('reports', [LeaderReportsController::class, 'index']);
         Route::post('reports', [LeaderReportsController::class, 'store']);
