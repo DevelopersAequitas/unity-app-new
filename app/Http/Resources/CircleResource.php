@@ -86,6 +86,34 @@ class CircleResource extends JsonResource
             unset($calendar['leadership']);
         }
 
+        $rawRepeat = $this->meeting_repeat
+            ?? data_get($calendar, 'settings.meeting_repeat')
+            ?? data_get($calendar, 'meeting_schedule.0');
+        $normalizedRepeat = null;
+        if (is_array($rawRepeat) && ! empty($rawRepeat)) {
+            $normalizedRepeat = \App\Models\Circle::normalizeCadencePayload($rawRepeat, is_array($calendar) ? $calendar : null);
+            if (is_array($calendar)) {
+                $calendar['monthly_rule'] = $normalizedRepeat['monthly_rule'];
+                $calendar['week_of_month'] = $normalizedRepeat['week_of_month'];
+                $calendar['week_number'] = $normalizedRepeat['week_number'];
+                $calendar['ordinal'] = $normalizedRepeat['ordinal'];
+                $calendar['default_meet_day'] = $normalizedRepeat['default_meet_day'];
+                $calendar['day_of_week'] = $normalizedRepeat['day_of_week'];
+                $calendar['weekday'] = $normalizedRepeat['weekday'];
+                $calendar['default_meet_time'] = $normalizedRepeat['default_meet_time'];
+                $calendar['start_time'] = $normalizedRepeat['start_time'];
+                $calendar['end_time'] = $normalizedRepeat['end_time'];
+                $calendar['frequency'] = $normalizedRepeat['frequency'];
+                $calendar['meeting_schedule'] = [$normalizedRepeat];
+                $calendar['meetings'] = [$normalizedRepeat];
+                data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
+            }
+        }
+
+        $upcomingMeeting = method_exists($this->resource, 'calculateUpcomingMeeting')
+            ? $this->resource->calculateUpcomingMeeting()
+            : null;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -106,7 +134,10 @@ class CircleResource extends JsonResource
             'meeting_passcode' => $this->meeting_passcode,
             'meeting_venue' => $this->meeting_venue,
             'meeting_landmark' => $this->meeting_landmark,
-            'meeting_repeat' => $this->meeting_repeat,
+            'meeting_repeat' => $normalizedRepeat ?? $this->meeting_repeat,
+            'upcoming_meeting' => $upcomingMeeting,
+            'next_meeting' => $upcomingMeeting,
+            'upcoming_meeting_display' => $upcomingMeeting['display'] ?? null,
             'launch_date' => $this->launch_date,
             'circle_stage' => $this->circle_stage,
             'circle_ranking' => $this->getCircleRanking(),
