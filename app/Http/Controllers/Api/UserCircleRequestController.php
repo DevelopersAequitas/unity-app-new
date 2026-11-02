@@ -211,15 +211,35 @@ class UserCircleRequestController extends BaseApiController
             ]);
 
             foreach ($peers as $peer) {
+                $peerId = $peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? null;
+                $peerName = $peer['name'] ?? null;
+                $peerPhone = $peer['phone'] ?? null;
+                $peerEmail = $peer['email'] ?? null;
+                $peerBusiness = $peer['business_name'] ?? null;
+                $peerCategory = $peer['category_id'] ?? null;
+                $source = $peer['source'] ?? (! empty($peerId) ? 'app' : 'manual');
+
+                if (! empty($peerId)) {
+                    $existingUser = User::find($peerId);
+                    if ($existingUser) {
+                        $peerName = $peerName ?: (trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? '')) ?: $existingUser->display_name ?: $existingUser->name);
+                        $peerPhone = $peerPhone ?: $existingUser->phone;
+                        $peerEmail = $peerEmail ?: $existingUser->email;
+                        $peerBusiness = $peerBusiness ?: ($existingUser->company_name ?? $existingUser->business_name ?? null);
+                        $peerCategory = $peerCategory ?: ($existingUser->category_id ?? $existingUser->business_category_id ?? null);
+                    }
+                }
+
                 UserCircleRequestNominee::create([
                     'user_circle_request_id' => $req->id,
-                    'nominee_user_id'        => $peer['user_id'] ?? $peer['nominee_user_id'] ?? null,
-                    'name'                   => $peer['name'],
-                    'phone'                  => $peer['phone'] ?? null,
-                    'email'                  => $peer['email'] ?? null,
-                    'business_name'          => $peer['business_name'] ?? null,
-                    'category_id'            => $peer['category_id'] ?? null,
+                    'nominee_user_id'        => $peerId,
+                    'name'                   => $peerName,
+                    'phone'                  => $peerPhone,
+                    'email'                  => $peerEmail,
+                    'business_name'          => $peerBusiness,
+                    'category_id'            => $peerCategory,
                     'interest_level'         => $peer['interest_level'] ?? 'medium',
+                    'source'                 => $source,
                 ]);
             }
 
@@ -238,8 +258,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $allCount - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $allCount >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $allCount),
         ], 'Circle request submitted successfully.', 201);
     }
 
@@ -297,15 +317,35 @@ class UserCircleRequestController extends BaseApiController
             UserCircleRequestNominee::where('user_circle_request_id', $circleRequest->id)->delete();
 
             foreach ($peers as $peer) {
+                $peerId = $peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? null;
+                $peerName = $peer['name'] ?? null;
+                $peerPhone = $peer['phone'] ?? null;
+                $peerEmail = $peer['email'] ?? null;
+                $peerBusiness = $peer['business_name'] ?? null;
+                $peerCategory = $peer['category_id'] ?? null;
+                $source = $peer['source'] ?? (! empty($peerId) ? 'app' : 'manual');
+
+                if (! empty($peerId)) {
+                    $existingUser = User::find($peerId);
+                    if ($existingUser) {
+                        $peerName = $peerName ?: (trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? '')) ?: $existingUser->display_name ?: $existingUser->name);
+                        $peerPhone = $peerPhone ?: $existingUser->phone;
+                        $peerEmail = $peerEmail ?: $existingUser->email;
+                        $peerBusiness = $peerBusiness ?: ($existingUser->company_name ?? $existingUser->business_name ?? null);
+                        $peerCategory = $peerCategory ?: ($existingUser->category_id ?? $existingUser->business_category_id ?? null);
+                    }
+                }
+
                 UserCircleRequestNominee::create([
                     'user_circle_request_id' => $circleRequest->id,
-                    'nominee_user_id'        => $peer['user_id'] ?? $peer['nominee_user_id'] ?? null,
-                    'name'                   => $peer['name'],
-                    'phone'                  => $peer['phone'] ?? null,
-                    'email'                  => $peer['email'] ?? null,
-                    'business_name'          => $peer['business_name'] ?? null,
-                    'category_id'            => $peer['category_id'] ?? null,
+                    'nominee_user_id'        => $peerId,
+                    'name'                   => $peerName,
+                    'phone'                  => $peerPhone,
+                    'email'                  => $peerEmail,
+                    'business_name'          => $peerBusiness,
+                    'category_id'            => $peerCategory,
                     'interest_level'         => $peer['interest_level'] ?? 'medium',
+                    'source'                 => $source,
                 ]);
             }
         });
@@ -322,8 +362,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $allCount - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $allCount >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $allCount),
         ], 'Recommended peers updated successfully.');
     }
 
@@ -372,8 +412,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $count - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $count >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $count),
             'summary'                        => $summary,
             'recommended_peers_joined_unity_count'  => $summary['joined_unity_count'],
             'recommended_peers_joined_circle_count' => $summary['joined_circle_count'],

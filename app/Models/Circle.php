@@ -870,7 +870,11 @@ class Circle extends Model
 
     public static function syncLeadershipFromMembers(Circle|string $circle): void
     {
-        if (! Schema::hasTable('circles')) {
+        try {
+            if (! Schema::hasTable('circles')) {
+                return;
+            }
+        } catch (\Throwable) {
             return;
         }
 
@@ -882,8 +886,13 @@ class Circle extends Model
         $members = CircleMember::query()
             ->where('circle_id', $circleModel->id)
             ->whereNull('deleted_at')
-            ->whereIn(DB::raw('status::text'), ['approved', 'active'])
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active', 'pending', 'accepted']);
+            })
             ->with(['roleRef'])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('joined_at')
             ->get();
 
         $roleToColumns = [
@@ -924,6 +933,7 @@ class Circle extends Model
             $newValues[$col] = $existingVal;
         }
 
+        $assignedCols = [];
         foreach ($members as $member) {
             $userId = $member->user_id;
             if (! $userId) {
@@ -933,6 +943,17 @@ class Circle extends Model
             $roleKeys = [];
             if (! empty($member->role)) {
                 $roleKeys[] = strtolower(trim((string) $member->role));
+            }
+            if (! empty($member->role_id) && Schema::hasTable('roles')) {
+                $r = Role::find($member->role_id);
+                if ($r) {
+                    if (! empty($r->key)) {
+                        $roleKeys[] = strtolower(trim((string) $r->key));
+                    }
+                    if (! empty($r->name)) {
+                        $roleKeys[] = strtolower(trim((string) $r->name));
+                    }
+                }
             }
             if ($member->roleRef && ! empty($member->roleRef->key)) {
                 $roleKeys[] = strtolower(trim((string) $member->roleRef->key));
@@ -948,8 +969,9 @@ class Circle extends Model
                 $targetCols = $roleToColumns[$rk] ?? $roleToColumns[$normalizedRk] ?? null;
                 if ($targetCols) {
                     foreach ($targetCols as $col) {
-                        if (array_key_exists($col, $newValues)) {
+                        if (array_key_exists($col, $newValues) && ! isset($assignedCols[$col])) {
                             $newValues[$col] = $userId;
+                            $assignedCols[$col] = true;
                         }
                     }
                 }
