@@ -308,8 +308,12 @@ class MemberController extends BaseApiController
         );
     }
 
-    protected function buildLimitedUsersQuery(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
-    {
+    protected function buildLimitedUsersQuery(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService,
+        bool $includeConnectionCounts = false
+    ) {
         $selectColumns = [
             'id',
             'first_name',
@@ -384,7 +388,7 @@ class MemberController extends BaseApiController
                 'level4Category:id,name',
             ]);
 
-        if (Schema::hasTable('connections')) {
+        if ($includeConnectionCounts && Schema::hasTable('connections')) {
             $query->withCount([
                 'approvedSentConnections as approved_sent_count',
                 'approvedReceivedConnections as approved_received_count',
@@ -456,7 +460,7 @@ class MemberController extends BaseApiController
 
     public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService, true);
         $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
 
         return UserResource::collection($users)->additional([
@@ -474,12 +478,40 @@ class MemberController extends BaseApiController
         ProfileVisibilityService $profileVisibilityService,
         MemberMatchingService $memberMatchingService
     ): AnonymousResourceCollection {
-        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService, false);
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
         $page = max(1, (int) $request->query('page', 1));
         $perPage = min(100, max(1, (int) $request->query('per_page', 15)));
+
+        $shouldPaginate = $request->has('page')
+            || $request->has('per_page')
+            || ($request->has('paginate') && $request->boolean('paginate'));
+
+        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->input('per_page') === 'all') {
+            $shouldPaginate = false;
+        }
+
+        if (! $shouldPaginate && ! $request->has('page') && ! $request->has('per_page')) {
+            if ($authUser instanceof User) {
+                $users = $memberMatchingService->rank($authUser, $query);
+            } else {
+                $users = $query->orderByRaw(
+                    "CASE WHEN (is_verified = true OR (membership_status IS NOT NULL AND LOWER(membership_status) NOT IN ('free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'))) THEN 0 ELSE 1 END"
+                )->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+            }
+
+            $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
+
+            return LimitedUserResource::collection($users)->additional([
+                'success' => true,
+                'message' => 'Limited user data fetched successfully.',
+                'total_users' => $users->count(),
+                'total_user' => $users->count(),
+                'total' => $users->count(),
+            ]);
+        }
 
         if ($authUser instanceof User) {
             $paginator = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
@@ -535,14 +567,11 @@ class MemberController extends BaseApiController
 
         $connections = collect();
         if (Schema::hasTable('connections') && ! empty($userIds)) {
-            $sent = Connection::query()
-                ->where('requester_id', $authUserId)
-                ->whereIn('addressee_id', $userIds);
-
             $connections = Connection::query()
-                ->where('addressee_id', $authUserId)
-                ->whereIn('requester_id', $userIds)
-                ->union($sent)
+                ->where(function ($q) use ($authUserId): void {
+                    $q->where('requester_id', $authUserId)
+                        ->orWhere('addressee_id', $authUserId);
+                })
                 ->get()
                 ->keyBy(function (Connection $connection) use ($authUserId): string {
                     return (string) ((string) $connection->requester_id === $authUserId
@@ -555,7 +584,6 @@ class MemberController extends BaseApiController
         if (Schema::hasTable('user_follows')) {
             $followedUserIds = UserFollow::query()
                 ->where('follower_id', $authUserId)
-                ->whereIn('following_id', $userIds)
                 ->whereIn('status', ['accepted', 'pending'])
                 ->pluck('following_id')
                 ->map(fn ($id): string => (string) $id)

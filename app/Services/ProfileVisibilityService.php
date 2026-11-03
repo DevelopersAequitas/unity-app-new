@@ -47,7 +47,19 @@ class ProfileVisibilityService
 
         $viewerId = (string) $viewer->id;
 
-        return $query->where(function (Builder $visibilityQuery) use ($viewerId, $userTable): void {
+        $viewerCircleIds = [];
+        if (Schema::hasTable('circle_members')) {
+            $viewerCircleIds = DB::table('circle_members')
+                ->where('user_id', $viewerId)
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->whereNull('left_at')
+                ->pluck('circle_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        return $query->where(function (Builder $visibilityQuery) use ($viewerId, $userTable, $viewerCircleIds): void {
             $visibilityQuery
                 ->where("{$userTable}.id", $viewerId)
                 ->orWhereNull("{$userTable}.profile_visibility")
@@ -56,12 +68,15 @@ class ProfileVisibilityService
                     $connectedQuery
                         ->where("{$userTable}.profile_visibility", self::CONNECTED_ONLY)
                         ->whereExists($this->acceptedConnectionExistsQuery($viewerId, $userTable));
-                })
-                ->orWhere(function (Builder $circleQuery) use ($viewerId, $userTable): void {
+                });
+
+            if (! empty($viewerCircleIds)) {
+                $visibilityQuery->orWhere(function (Builder $circleQuery) use ($viewerCircleIds, $userTable): void {
                     $circleQuery
                         ->where("{$userTable}.profile_visibility", self::CIRCLE_ONLY)
-                        ->whereExists($this->sharedCircleExistsQuery($viewerId, $userTable));
+                        ->whereExists($this->sharedCircleExistsQuery($viewerCircleIds, $userTable));
                 });
+            }
         });
     }
 
@@ -138,19 +153,18 @@ class ProfileVisibilityService
         };
     }
 
-    private function sharedCircleExistsQuery(string $viewerId, string $userTable): \Closure
+    /**
+     * @param  array<int, string>  $viewerCircleIds
+     */
+    private function sharedCircleExistsQuery(array $viewerCircleIds, string $userTable): \Closure
     {
-        return function ($query) use ($viewerId, $userTable): void {
+        return function ($query) use ($viewerCircleIds, $userTable): void {
             $query->selectRaw('1')
-                ->from('circle_members as viewer_cm')
-                ->join('circle_members as owner_cm', 'owner_cm.circle_id', '=', 'viewer_cm.circle_id')
-                ->where('viewer_cm.user_id', $viewerId)
+                ->from('circle_members as owner_cm')
+                ->whereIn('owner_cm.circle_id', $viewerCircleIds)
                 ->whereColumn('owner_cm.user_id', "{$userTable}.id")
-                ->where('viewer_cm.status', 'approved')
                 ->where('owner_cm.status', 'approved')
-                ->whereNull('viewer_cm.deleted_at')
                 ->whereNull('owner_cm.deleted_at')
-                ->whereNull('viewer_cm.left_at')
                 ->whereNull('owner_cm.left_at');
         };
     }
