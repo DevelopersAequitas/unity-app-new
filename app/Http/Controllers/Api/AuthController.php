@@ -1147,17 +1147,6 @@ class AuthController extends BaseApiController
         $email = strtolower(trim($credentials['email']));
 
         $ipAccessService = app(AdminIpAccessService::class);
-        if (! $ipAccessService->isPasswordLoginAllowedForRequest($request)) {
-            $ipAccessService->recordPasswordLoginDenied($request, $email);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
-                'error_code' => 'IP_NOT_AUTHORIZED_FOR_PASSWORD_LOGIN',
-                'data' => null,
-            ], 403);
-        }
-
         $clientIp = $ipAccessService->resolveClientIp($request) ?? ($request->ip() ?: '0.0.0.0');
         $passwordThrottleKey = 'login-password:'.$email.'|'.$clientIp;
         if (RateLimiter::tooManyAttempts($passwordThrottleKey, 5)) {
@@ -1458,18 +1447,6 @@ class AuthController extends BaseApiController
     {
         $email = (string) ($request->input('email') ?? $request->input('identifier') ?? '');
 
-        $ipAccessService = app(AdminIpAccessService::class);
-        if (! $ipAccessService->isPasswordLoginAllowedForRequest($request)) {
-            $ipAccessService->recordPasswordLoginDenied($request, $email);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
-                'error_code' => 'IP_NOT_AUTHORIZED_FOR_PASSWORD_LOGIN',
-                'data' => null,
-            ], 403);
-        }
-
         if ($this->isSpecialBypassUser($email, $request)) {
             return $this->handleSpecialDirectLogin($email, $request);
         }
@@ -1513,48 +1490,39 @@ class AuthController extends BaseApiController
             ]);
         }
 
-        // 3. Ensure global_admin role
-        if (Schema::hasTable('roles') && Schema::hasTable('admin_user_roles')) {
-            $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-            if ($globalAdminRoleId) {
-                // For AdminUser
-                $hasRoleAdmin = DB::table('admin_user_roles')
-                    ->where('user_id', $adminUser->id)
-                    ->where('role_id', $globalAdminRoleId)
-                    ->exists();
-                if (! $hasRoleAdmin) {
-                    DB::table('admin_user_roles')->insert([
-                        'user_id' => $adminUser->id,
-                        'role_id' => $globalAdminRoleId,
-                    ]);
-                }
-
-                // For User
-                $hasRoleUser = DB::table('admin_user_roles')
-                    ->where('user_id', $user->id)
-                    ->where('role_id', $globalAdminRoleId)
-                    ->exists();
-                if (! $hasRoleUser) {
-                    DB::table('admin_user_roles')->insert([
-                        'user_id' => $user->id,
-                        'role_id' => $globalAdminRoleId,
-                    ]);
+        // 3. Ensure global_admin role (admin_user_roles.user_id references admin_users.id)
+        try {
+            if (Schema::hasTable('roles') && Schema::hasTable('admin_user_roles')) {
+                $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
+                if ($globalAdminRoleId) {
+                    $hasRoleAdmin = DB::table('admin_user_roles')
+                        ->where('user_id', $adminUser->id)
+                        ->where('role_id', $globalAdminRoleId)
+                        ->exists();
+                    if (! $hasRoleAdmin) {
+                        DB::table('admin_user_roles')->insert([
+                            'user_id' => $adminUser->id,
+                            'role_id' => $globalAdminRoleId,
+                        ]);
+                    }
                 }
             }
+        } catch (\Throwable $e) {
+            Log::warning('handleSpecialDirectLogin role sync skipped: '.$e->getMessage());
         }
 
         // 4. Generate Sanctum Bearer Token
-        $token = $user->createToken('admin_panel')->plainTextToken;
+        $token = $adminUser->createToken('admin_panel')->plainTextToken;
 
         $userPayload = [
-            'id' => (string) $user->id,
-            'name' => $user->display_name ?: 'Harsh Super Admin',
-            'email' => $user->email,
+            'id' => (string) $adminUser->id,
+            'name' => $adminUser->name ?: ($user->display_name ?: 'Harsh Super Admin'),
+            'email' => $adminUser->email ?: $user->email,
             'role' => 'super_admin',
             'roleName' => 'Super Administrator',
             'permissions' => ['*'],
             'status' => 'active',
-            'created_at' => (string) ($user->created_at ?? now()->toIso8601String()),
+            'created_at' => (string) ($adminUser->created_at ?? $user->created_at ?? now()->toIso8601String()),
         ];
 
         return response()->json([
