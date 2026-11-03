@@ -83,9 +83,11 @@ Route::prefix('public')->group(function (): void {
     Route::get('results', [VotingController::class, 'privateResults']);
 });
 
-// Direct alias outside prefix group (supports /api/v1/leadership/votes)
+// Direct alias outside prefix group (supports /api/v1/leadership/votes and /api/v1/leadership/circles)
 Route::post('votes', [VotingController::class, 'castVote']);
 Route::post('public/votes', [VotingController::class, 'castVote']);
+Route::get('circles', [FinalDecisionController::class, 'circles']);
+Route::get('public/circles', [FinalDecisionController::class, 'circles']);
 
 // ==========================================
 // 2. JUROR ROUTES (Sanctum Authenticated)
