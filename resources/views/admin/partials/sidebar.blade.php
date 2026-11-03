@@ -392,7 +392,8 @@
         </a>
     </div>
 
-    {{-- App / Web Switcher --}}
+    {{-- App / Web Switcher (Super Admin Only) --}}
+    @if ($isSuper)
     <div class="px-3 mb-3">
         <div class="p-1 rounded-3 d-flex align-items-center justify-content-between" style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1);">
             <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : ($isDed ? 'admin.ded.dashboard' : ($isCircleScoped ? 'admin.circle-member.dashboard' : 'admin.dashboard'))) }}" 
@@ -409,6 +410,7 @@
             </a>
         </div>
     </div>
+    @endif
 
     <nav class="flex-grow-1">
         @if ($isWebMode)

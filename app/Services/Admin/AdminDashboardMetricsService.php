@@ -105,7 +105,16 @@ class AdminDashboardMetricsService
         $impactsQuery = Impact::query()->where('status', 'approved');
         if ($actor !== null && ! $this->scope->isGlobal($actor)) {
             $visibleCircleIds = $this->scope->visibleCircleIds($actor);
-            $impactsQuery->whereIn('circle_id', $visibleCircleIds);
+            if (Schema::hasColumn('impacts', 'circle_id')) {
+                $impactsQuery->whereIn('circle_id', $visibleCircleIds);
+            } else {
+                $impactsQuery->whereIn('user_id', function ($q) use ($visibleCircleIds): void {
+                    $q->select('user_id')->from('circle_members')
+                        ->whereIn('circle_id', $visibleCircleIds)
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at');
+                });
+            }
         }
 
         $impactScoreCol = '1';
@@ -137,7 +146,17 @@ class AdminDashboardMetricsService
 
         $paymentsQuery = Payment::query()->whereIn('status', $paidStatuses);
         if ($actor !== null && ! $this->scope->isGlobal($actor)) {
-            $paymentsQuery->whereIn('circle_id', $this->scope->visibleCircleIds($actor));
+            $visibleCircleIds = $this->scope->visibleCircleIds($actor);
+            if (Schema::hasColumn('payments', 'circle_id')) {
+                $paymentsQuery->whereIn('circle_id', $visibleCircleIds);
+            } else {
+                $paymentsQuery->whereIn('user_id', function ($q) use ($visibleCircleIds): void {
+                    $q->select('user_id')->from('circle_members')
+                        ->whereIn('circle_id', $visibleCircleIds)
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at');
+                });
+            }
         }
 
         $totalRevenue = (float) (clone $paymentsQuery)->sum($amountColumn);

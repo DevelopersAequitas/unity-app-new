@@ -125,7 +125,7 @@ class RoleHierarchyController extends Controller
         ]);
     }
 
-    public function storeRole(Request $request): RedirectResponse
+    public function storeRole(Request $request): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -139,7 +139,8 @@ class RoleHierarchyController extends Controller
             'parent_role_ids.*' => ['exists:roles,id'],
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
+        $role = null;
+        DB::transaction(function () use ($validated, $request, &$role) {
             $roleId = (string) Str::uuid();
             $role = Role::create([
                 'id' => $roleId,
@@ -184,13 +185,15 @@ class RoleHierarchyController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Role created successfully.',
+                'data' => $role,
+                'role' => $role,
             ], 201);
         }
 
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role created successfully.');
     }
 
-    public function generateStandardTree(): RedirectResponse
+    public function generateStandardTree(): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -407,7 +410,7 @@ class RoleHierarchyController extends Controller
         ]);
     }
 
-    public function cloneProfile(Request $request): RedirectResponse
+    public function cloneProfile(Request $request): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -484,10 +487,18 @@ class RoleHierarchyController extends Controller
             }
         });
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile cloned successfully.',
+                'role_id' => $newRoleId,
+            ]);
+        }
+
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Profile cloned successfully.');
     }
 
-    public function updateRole(Request $request, string $id): RedirectResponse
+    public function updateRole(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -552,10 +563,19 @@ class RoleHierarchyController extends Controller
             }
         });
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role "'.$role->name.'" updated successfully.',
+                'data' => $role->fresh(),
+                'role' => $role->fresh(),
+            ]);
+        }
+
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role "'.$role->name.'" updated successfully.');
     }
 
-    public function deleteRole(Request $request, string $id): RedirectResponse
+    public function deleteRole(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -586,10 +606,17 @@ class RoleHierarchyController extends Controller
             }
         });
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role deleted successfully.',
+            ]);
+        }
+
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role deleted successfully.');
     }
 
-    public function assignRole(Request $request): RedirectResponse
+    public function assignRole(Request $request): RedirectResponse|JsonResponse
     {
         $this->checkEditPermission();
 
@@ -1562,7 +1589,7 @@ class RoleHierarchyController extends Controller
         }
     }
 
-    public function removeCurrentRole(Request $request): RedirectResponse
+    public function removeCurrentRole(Request $request): RedirectResponse|JsonResponse
     {
         $admin = Auth::guard('admin')->user();
         if (! $admin) {

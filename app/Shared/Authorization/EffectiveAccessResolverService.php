@@ -113,12 +113,20 @@ class EffectiveAccessResolverService
         $granted = [];
 
         if (Schema::hasTable('role_page_permissions') && Schema::hasTable('permissions') && Schema::hasTable('roles') && ! empty($roleKeys)) {
-            $roleIds = Role::query()->whereIn('key', $roleKeys)->pluck('id')->all();
+            $normalizedRoleKeys = array_map(fn ($k) => strtolower(str_replace(['_', '-', ' '], '', (string) $k)), $roleKeys);
+            $roleIds = Role::query()->get()->filter(function ($r) use ($roleKeys, $normalizedRoleKeys) {
+                $rNormKey = strtolower(str_replace(['_', '-', ' '], '', (string) $r->key));
+                $rNormName = strtolower(str_replace(['_', '-', ' '], '', (string) $r->name));
+                return in_array((string) $r->id, $roleKeys, true)
+                    || in_array((string) $r->key, $roleKeys, true)
+                    || in_array($rNormKey, $normalizedRoleKeys, true)
+                    || in_array($rNormName, $normalizedRoleKeys, true);
+            })->pluck('id')->all();
+
             if (! empty($roleIds)) {
                 $dbPerms = DB::table('role_page_permissions')
                     ->join('permissions', 'permissions.id', '=', 'role_page_permissions.permission_id')
                     ->whereIn('role_page_permissions.role_id', $roleIds)
-                    ->where('role_page_permissions.is_granted', true)
                     ->pluck('permissions.key')
                     ->all();
                 $granted = array_merge($granted, $dbPerms);
@@ -164,13 +172,22 @@ class EffectiveAccessResolverService
         if (Schema::hasTable('admin_modules') && Schema::hasTable('admin_pages')) {
             $modules = AdminModule::query()->where('is_active', true)->orderBy('sort_order')->with('pages')->get();
             if ($modules->isNotEmpty()) {
-                $roleIds = Schema::hasTable('roles') ? Role::query()->whereIn('key', $roleKeys)->pluck('id')->all() : [];
+                $normalizedRoleKeys = array_map(fn ($k) => strtolower(str_replace(['_', '-', ' '], '', (string) $k)), $roleKeys);
+                $roleIds = Schema::hasTable('roles')
+                    ? Role::query()->get()->filter(function ($r) use ($roleKeys, $normalizedRoleKeys) {
+                        $rNormKey = strtolower(str_replace(['_', '-', ' '], '', (string) $r->key));
+                        $rNormName = strtolower(str_replace(['_', '-', ' '], '', (string) $r->name));
+                        return in_array((string) $r->id, $roleKeys, true)
+                            || in_array((string) $r->key, $roleKeys, true)
+                            || in_array($rNormKey, $normalizedRoleKeys, true)
+                            || in_array($rNormName, $normalizedRoleKeys, true);
+                    })->pluck('id')->all()
+                    : [];
                 $grantedPageIds = [];
 
                 if (! $isGlobal && ! empty($roleIds) && Schema::hasTable('role_page_permissions')) {
                     $grantedPageIds = DB::table('role_page_permissions')
                         ->whereIn('role_id', $roleIds)
-                        ->where('is_granted', true)
                         ->pluck('page_id')
                         ->unique()
                         ->all();
@@ -186,7 +203,7 @@ class EffectiveAccessResolverService
                         if ($targetApp && Schema::hasColumn('admin_pages', 'target_app') && $page->target_app !== 'both' && $page->target_app !== $targetApp) {
                             continue;
                         }
-                        if (! $isGlobal && ! empty($grantedPageIds) && ! in_array($page->id, $grantedPageIds, true)) {
+                        if (! $isGlobal && ! in_array($page->id, $grantedPageIds, true)) {
                             continue;
                         }
                         $pages[] = [

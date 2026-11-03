@@ -45,14 +45,26 @@ class FinalDecisionController extends LeadershipBaseController
     {
         $search = trim((string) $request->query('search', ''));
         $query = Circle::query()
-            ->select(['id', 'name', 'slug', 'city_id', 'city', 'type', 'status', 'meeting_mode'])
+            ->select(['id', 'name', 'slug', 'city_id', 'type', 'status', 'meeting_mode'])
+            ->with(['city:id,name,state'])
             ->whereNull('deleted_at');
 
         if ($search !== '') {
             $query->where('name', 'ILIKE', "%{$search}%");
         }
 
-        $circles = $query->orderBy('name')->limit(150)->get();
+        $circles = $query->orderBy('name')->limit(200)->get()->map(function (Circle $c): array {
+            return [
+                'id' => (string) $c->id,
+                'name' => (string) $c->name,
+                'slug' => (string) $c->slug,
+                'city_id' => $c->city_id ? (string) $c->city_id : null,
+                'city' => $c->city?->name ?? '',
+                'type' => (string) ($c->type ?? 'public'),
+                'status' => (string) ($c->status ?? 'active'),
+                'meeting_mode' => (string) ($c->meeting_mode ?? 'hybrid'),
+            ];
+        });
 
         return $this->success($circles, 'Circles fetched successfully.');
     }
@@ -245,7 +257,6 @@ class FinalDecisionController extends LeadershipBaseController
                     'description' => $validated['new_circle_description'] ?? null,
                     'purpose' => $validated['new_circle_purpose'] ?? $validated['new_circle_description'] ?? null,
                     'city_id' => $validated['new_circle_city_id'] ?? null,
-                    'city' => $cityName,
                     'status' => 'active',
                     'type' => $validated['new_circle_type'] ?? 'public',
                     'country' => 'India',

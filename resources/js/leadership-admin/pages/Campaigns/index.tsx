@@ -400,15 +400,13 @@ export const CampaignsPage: React.FC = () => {
                                                     </button>
                                                 )}
 
-                                                {camp.status === 'draft' && (
-                                                    <button
-                                                        onClick={() => setConfirmAction({ type: 'delete', campaign: camp })}
-                                                        className="btn btn-outline-danger py-1 px-2"
-                                                        title="Delete draft"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => setConfirmAction({ type: 'delete', campaign: camp })}
+                                                    className="btn btn-outline-danger py-1 px-2"
+                                                    title="Delete campaign"
+                                                >
+                                                    Delete
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -557,7 +555,7 @@ export const CampaignsPage: React.FC = () => {
                             ? `Are you sure you want to publish "${confirmAction.campaign.name}"? Candidates will immediately be able to submit nominations.`
                             : confirmAction.type === 'close'
                             ? `Are you sure you want to close nominations for "${confirmAction.campaign.name}"? No further nominations will be accepted.`
-                            : `Are you sure you want to permanently delete draft campaign "${confirmAction.campaign.name}"?`
+                            : `Are you sure you want to permanently delete campaign "${confirmAction.campaign.name}"?`
                     }
                     variant={confirmAction.type === 'delete' ? 'danger' : confirmAction.type === 'close' ? 'warning' : 'primary'}
                     confirmText={confirmAction.type === 'publish' ? 'Publish Now' : confirmAction.type === 'close' ? 'Close Window' : 'Delete'}
