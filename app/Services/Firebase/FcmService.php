@@ -25,6 +25,14 @@ class FcmService
     ): array {
         $notificationType = $context['notification_type'] ?? ($data['notification_type'] ?? ($data['type'] ?? null));
 
+        if ($notificationType === 'circle_join_request_submitted') {
+            return [
+                'success' => false,
+                'firebase_response' => null,
+                'error' => 'Notification type circle_join_request_submitted is disabled.',
+            ];
+        }
+
         try {
             $projectId = $this->projectId();
 
