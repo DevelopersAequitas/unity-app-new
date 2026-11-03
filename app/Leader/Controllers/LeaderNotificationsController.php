@@ -1143,6 +1143,100 @@ class LeaderNotificationsController extends Controller
         }
 
         // If logs table had 0 entries, provide mock historical security logs so Super Admin can immediately see the layout
+        // Fallback: If app_notifications yielded 0 logs, check universal notifications table
+        if (empty($logs) && Schema::hasTable('notifications')) {
+            $nq = Notification::query();
+
+            if (! empty($search)) {
+                $nq->where(function ($sub) use ($search): void {
+                    $sub->where('title', 'like', "%{$search}%")
+                        ->orWhere('message', 'like', "%{$search}%")
+                        ->orWhere('user_id', 'like', "%{$search}%");
+                });
+            }
+
+            $nResults = $nq->orderByDesc('created_at')->take(100)->get();
+            $nUserIds = $nResults->pluck('user_id')->unique()->all();
+            $nUsersMap = [];
+
+            if (! empty($nUserIds) && Schema::hasTable('users')) {
+                $cols = Schema::getColumnListing('users');
+                $selectCols = ['id'];
+                if (in_array('name', $cols, true)) {
+                    $selectCols[] = 'name';
+                }
+                if (in_array('email', $cols, true)) {
+                    $selectCols[] = 'email';
+                }
+                if (in_array('phone', $cols, true)) {
+                    $selectCols[] = 'phone';
+                }
+                $users = User::query()->whereIn('id', $nUserIds)->get($selectCols);
+                foreach ($users as $u) {
+                    $nUsersMap[(string) $u->id] = $u;
+                }
+            }
+
+            $permissionService = app(LeaderPermissionService::class);
+            foreach ($nResults as $nItem) {
+                $payload = is_array($nItem->payload) ? $nItem->payload : (is_array($nItem->data) ? $nItem->data : []);
+                $category = $payload['category'] ?? 'system';
+
+                if (! empty($categoryFilter) && $categoryFilter !== 'all' && $category !== $categoryFilter) {
+                    continue;
+                }
+
+                $created = $nItem->created_at ?: now();
+                try {
+                    $localTime = $created->copy()->setTimezone($timezone);
+                    $formattedTime = $localTime->format('d M Y, h:i A') . ' (' . $timezone . ')';
+                } catch (\Throwable) {
+                    $formattedTime = $created->format('d M Y, h:i A');
+                }
+
+                $userObj = $nUsersMap[(string) $nItem->user_id] ?? null;
+                $recipientName = $userObj ? (string) ($userObj->name ?? $userObj->email) : ('Leader ID: ' . substr((string) $nItem->user_id, 0, 8));
+
+                $roleLabel = 'Circle Leader';
+                $roleKey = 'leader';
+                if ($userObj) {
+                    $resolvedRole = $permissionService->resolveUserRole($userObj);
+                    $roleKey = strtolower($resolvedRole['canonical_role'] ?? 'leader');
+                    $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
+                }
+
+                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
+                    continue;
+                }
+
+                $triggerType = ($payload['sent_by_admin'] ?? false)
+                    ? 'Super Admin Broadcast'
+                    : (str_contains((string) $nItem->type, 'milestone') ? 'Milestone Automation' : 'Circle Event Escalation');
+
+                $logs[] = [
+                    'id' => (string) $nItem->id,
+                    'title' => (string) ($nItem->title ?: 'Leader Alert'),
+                    'message' => (string) $nItem->message,
+                    'category' => (string) $category,
+                    'type' => (string) ($payload['type'] ?? $nItem->type ?? 'general'),
+                    'screen' => (string) ($payload['screen'] ?? '/dashboard'),
+                    'recipient_id' => (string) $nItem->user_id,
+                    'recipient_name' => $recipientName,
+                    'recipient_role' => $roleLabel,
+                    'recipient_circle' => $payload['circle_name'] ?? ($userObj?->activeCircle?->name ?? 'Ahmedabad Pioneers'),
+                    'trigger_type' => $triggerType,
+                    'channel' => 'In-App Push',
+                    'priority' => (string) ($payload['priority'] ?? 'medium'),
+                    'status' => $nItem->is_read ? 'Read' : 'Delivered',
+                    'is_read' => (bool) $nItem->is_read,
+                    'timezone' => $timezone,
+                    'sent_at' => $created->toIso8601String(),
+                    'sent_at_formatted' => $formattedTime,
+                    'time_ago' => $created->diffForHumans(),
+                ];
+            }
+        }
+
         if (empty($logs)) {
             $sampleDate = now()->setTimezone($timezone);
             $logs = [

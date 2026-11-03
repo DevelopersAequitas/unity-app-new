@@ -66,8 +66,8 @@ class PushTokenController extends BaseApiController
                 $updates['last_used_at'] = now();
             }
 
-            if (array_key_exists('device_id', $validated) && Schema::hasColumn('user_push_tokens', 'device_id')) {
-                $updates['device_id'] = $validated['device_id'];
+            if (filled($deviceId) && Schema::hasColumn('user_push_tokens', 'device_id')) {
+                $updates['device_id'] = $deviceId;
             }
 
             if (array_key_exists('app_version', $validated) && Schema::hasColumn('user_push_tokens', 'app_version')) {
