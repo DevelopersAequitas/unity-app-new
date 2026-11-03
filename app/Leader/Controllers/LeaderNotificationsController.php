@@ -953,8 +953,11 @@ class LeaderNotificationsController extends Controller
             $users = $q->take(100)->get();
 
             foreach ($users as $u) {
+                if (! $permissionService->isLeader($u)) {
+                    continue;
+                }
                 $roleInfo = $permissionService->resolveUserRole($u);
-                $canon = strtolower($roleInfo['canonical_role'] ?? 'leader');
+                $canon = strtolower((string) ($roleInfo['role'] ?? 'leader'));
                 $roleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canon);
 
                 if (! empty($roleFilter) && $roleFilter !== 'all' && $canon !== strtolower($roleFilter)) {
@@ -1012,14 +1015,14 @@ class LeaderNotificationsController extends Controller
         $dispatchedCount = 0;
         $targetUserIds = [];
 
-        if ($targetType === 'leader' && ! empty($leaderId)) {
+        if (($targetType === 'leader' || $targetType === 'specific') && ! empty($leaderId)) {
             $targetUserIds[] = $leaderId;
         } elseif ($targetType === 'role' && ! empty($targetRole)) {
             if (Schema::hasTable('users')) {
                 $allUsers = User::query()->take(500)->get();
                 foreach ($allUsers as $u) {
                     $roleInfo = $permissionService->resolveUserRole($u);
-                    $canon = strtolower($roleInfo['canonical_role'] ?? '');
+                    $canon = strtolower((string) ($roleInfo['role'] ?? ''));
                     if ($canon === strtolower($targetRole)) {
                         $targetUserIds[] = (string) $u->id;
                     }
@@ -1136,18 +1139,20 @@ class LeaderNotificationsController extends Controller
                 }
 
                 $userObj = $usersMap[(string) $item->user_id] ?? null;
-                $recipientName = $userObj ? (string) $userObj->name : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
+                $recipientName = $userObj ? (string) ($userObj->name ?: $userObj->email) : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
                 $permissionService = app(LeaderPermissionService::class);
                 $roleLabel = 'Circle Leader';
                 $roleKey = 'leader';
                 if ($userObj) {
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
-                    $roleKey = strtolower($resolvedRole['canonical_role'] ?? 'leader');
+                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
-                }
 
-                // Strictly filter: Only show notifications destined for Leader roles
-                if (in_array($roleKey, ['peer_member', 'peer', 'member'], true)) {
+                    // Strictly filter: Only show notifications destined for Leader roles
+                    if (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true)) {
+                        continue;
+                    }
+                } else {
                     continue;
                 }
 
@@ -1242,12 +1247,14 @@ class LeaderNotificationsController extends Controller
                 $roleKey = 'leader';
                 if ($userObj) {
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
-                    $roleKey = strtolower($resolvedRole['canonical_role'] ?? 'leader');
+                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
-                }
 
-                // Strictly filter: Only show notifications destined for Leader roles
-                if (in_array($roleKey, ['peer_member', 'peer', 'member'], true)) {
+                    // Strictly filter: Only show notifications destined for Leader roles
+                    if (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true)) {
+                        continue;
+                    }
+                } else {
                     continue;
                 }
 
