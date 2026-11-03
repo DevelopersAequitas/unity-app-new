@@ -314,7 +314,22 @@ class LeaderPermissionService
                     ? Role::query()->where('id', $roleKey)->first()
                     : Role::query()->where('key', $roleKey)->first();
 
+                if (! $role) {
+                    $normKey = strtolower(str_replace(['_', '-', ' '], '', (string) $roleKey));
+                    $role = Role::query()->get()->first(function ($r) use ($normKey) {
+                        return strtolower(str_replace(['_', '-', ' '], '', (string) $r->key)) === $normKey
+                            || strtolower(str_replace(['_', '-', ' '], '', (string) $r->name)) === $normKey;
+                    });
+                }
+
                 if ($role) {
+                    $hasRbacConfig = (Schema::hasTable('role_module_access') && DB::table('role_module_access')->where('role_id', (string) $role->id)->exists())
+                        || (Schema::hasTable('role_page_permissions') && DB::table('role_page_permissions')->where('role_id', (string) $role->id)->exists());
+
+                    if ($hasRbacConfig) {
+                        return $this->resolveCapabilitiesFromDynamicRbac($role);
+                    }
+
                     $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
                     if (! empty($dynamicCaps)) {
                         return $dynamicCaps;

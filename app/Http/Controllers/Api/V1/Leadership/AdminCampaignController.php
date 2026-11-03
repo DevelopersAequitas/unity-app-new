@@ -289,18 +289,15 @@ class AdminCampaignController extends LeadershipBaseController
     }
 
     /**
-     * Delete campaign (draft only).
+     * Delete campaign.
      */
     public function destroy(string $id): JsonResponse
     {
         try {
             $campaign = LeadershipCampaign::findOrFail($id);
-            if ($campaign->status !== 'draft') {
-                return $this->error('Only draft campaigns can be deleted. Published or active campaigns should be closed.', 400);
-            }
             $campaign->delete();
 
-            return $this->success(null, 'Draft campaign deleted successfully.');
+            return $this->success(null, 'Campaign deleted successfully.');
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
