@@ -562,6 +562,17 @@ class MemberController extends BaseApiController
             return;
         }
 
+        // If items already have connection statuses attached (e.g. from MemberMatchingService), skip redundant queries
+        $alreadyAttached = $userCollection->every(fn (User $user): bool => 
+            $user->getAttribute('is_connected') !== null 
+            && $user->getAttribute('is_following') !== null 
+            && $user->getAttribute('is_bookmark') !== null
+        );
+
+        if ($alreadyAttached) {
+            return;
+        }
+
         $authUserId = (string) $authUser->id;
         $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
 
