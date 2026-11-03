@@ -46,7 +46,17 @@ class LeaderReportsService
         $query = LeaderReport::query()
             ->with(['circle.district', 'submitter'])
             ->when($circleId, fn (Builder $q) => $q->where('circle_id', $circleId))
-            ->when(! $circleId && $scopedCircleIds !== null, fn (Builder $q) => $q->whereIn('circle_id', $scopedCircleIds))
+            ->when(! $circleId && $scopedCircleIds !== null, function (Builder $q) use ($scopedCircleIds, $user, $districtId) {
+                $q->where(function (Builder $sub) use ($scopedCircleIds, $user, $districtId) {
+                    $sub->whereIn('circle_id', $scopedCircleIds);
+                    if ($user) {
+                        $sub->orWhere('submitted_by_user_id', (string) $user->id);
+                    }
+                    if ($districtId) {
+                        $sub->orWhere('district_id', $districtId);
+                    }
+                });
+            })
             ->when($reportType && strtolower($reportType) !== 'all', fn (Builder $q) => $q->whereRaw('LOWER(report_type) = ?', [strtolower($reportType)]))
             ->when($status && strtolower($status) !== 'all', fn (Builder $q) => $q->whereRaw('LOWER(status) = ?', [strtolower($status)]))
             ->orderByDesc('created_at');
@@ -129,10 +139,11 @@ class LeaderReportsService
         $submitterRole = $roleTitleMap[$roleKey] ?? 'Chair - Business Growth Committee';
 
         $visibleToRoles = match ($roleKey) {
-            'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair' => ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'superAdmin'],
-            'circleFounder', 'circleDirector' => ['industryDirector', 'districtExecDirector', 'superAdmin'],
-            'industryDirector' => ['districtExecDirector', 'superAdmin'],
-            'districtExecDirector' => ['superAdmin'],
+            'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair' => ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'],
+            'circleFounder', 'circleDirector' => ['industryDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'],
+            'industryDirector' => ['districtExecDirector', 'countryDirector', 'superAdmin'],
+            'districtExecDirector' => ['countryDirector', 'superAdmin'],
+            'countryDirector' => ['superAdmin'],
             default => ['superAdmin'],
         };
 

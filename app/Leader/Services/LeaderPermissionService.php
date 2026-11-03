@@ -492,7 +492,7 @@ class LeaderPermissionService
             'can_modify_finance_settings' => $isSuper || $hasCap('manage_finance') || in_array($role, ['districtExecDirector', 'countryDirector'], true),
             'can_issue_coins' => $isSuper || $hasCap('coin_payouts') || in_array($role, ['countryDirector'], true),
             'can_access_reports_tab' => $isSuper || $hasCap('view_reports'),
-            'can_submit_reports' => $isSuper || ($hasCap('view_reports') && in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector'], true)),
+            'can_submit_reports' => $isSuper || ($hasCap('view_reports') && in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector'], true)),
             'can_export_peer_data' => $isSuper || ($hasCap('view_peers') && in_array($role, ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector'], true)),
             'can_export_financial_data' => $isSuper || ($hasCap('access_finance') && in_array($role, ['districtExecDirector', 'countryDirector'], true)),
             'can_export_global_data' => $isSuper || $hasCap('regional_data'),
