@@ -308,8 +308,12 @@ class MemberController extends BaseApiController
         );
     }
 
-    protected function buildLimitedUsersQuery(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
-    {
+    protected function buildLimitedUsersQuery(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService,
+        bool $includeConnectionCounts = false
+    ) {
         $selectColumns = [
             'id',
             'first_name',
@@ -333,25 +337,20 @@ class MemberController extends BaseApiController
             'business_type',
             'created_at',
             'updated_at',
+            'members_introduced_count',
+            'is_online',
         ];
 
-        if (Schema::hasColumn('users', 'profile_visibility')) {
-            $selectColumns[] = 'profile_visibility';
-        }
-
-        if (Schema::hasColumn('users', 'contact_visibility')) {
-            $selectColumns[] = 'contact_visibility';
-        }
-
-        if (Schema::hasColumn('users', 'is_verified')) {
-            $selectColumns[] = 'is_verified';
-        }
-
-        if (Schema::hasColumn('users', 'country')) {
-            $selectColumns[] = 'country';
+        static $userColumnsMap = null;
+        if ($userColumnsMap === null) {
+            $userColumnsMap = array_flip(Schema::getColumnListing('users'));
         }
 
         $optionalMatchingColumns = [
+            'profile_visibility',
+            'contact_visibility',
+            'is_verified',
+            'country',
             'main_business_category_id',
             'business_sub_category',
             'business_city',
@@ -369,12 +368,12 @@ class MemberController extends BaseApiController
         ];
 
         foreach ($optionalMatchingColumns as $col) {
-            if (Schema::hasColumn('users', $col)) {
+            if (isset($userColumnsMap[$col])) {
                 $selectColumns[] = $col;
             }
         }
 
-        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
+        $selectColumns = array_values(array_intersect($selectColumns, array_keys($userColumnsMap)));
 
         $query = User::query()
             ->select($selectColumns)
@@ -384,7 +383,7 @@ class MemberController extends BaseApiController
                 'level4Category:id,name',
             ]);
 
-        if (Schema::hasTable('connections')) {
+        if ($includeConnectionCounts && Schema::hasTable('connections')) {
             $query->withCount([
                 'approvedSentConnections as approved_sent_count',
                 'approvedReceivedConnections as approved_received_count',
@@ -403,10 +402,7 @@ class MemberController extends BaseApiController
 
             $profileVisibilityService->applyVisibleTo($query, $authUser);
 
-            $excludedUserIds = array_values(array_unique(array_filter(array_merge(
-                $peerBlockService->blockedUserIdsFor((string) $authUser->id),
-                $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
-            ))));
+            $excludedUserIds = $peerBlockService->allBlockedUserIdsFor((string) $authUser->id);
 
             if (! empty($excludedUserIds)) {
                 $query->whereNotIn('users.id', $excludedUserIds);
@@ -456,7 +452,7 @@ class MemberController extends BaseApiController
 
     public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService, true);
         $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
 
         return UserResource::collection($users)->additional([
@@ -474,12 +470,36 @@ class MemberController extends BaseApiController
         ProfileVisibilityService $profileVisibilityService,
         MemberMatchingService $memberMatchingService
     ): AnonymousResourceCollection {
-        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService, false);
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = min(100, max(1, (int) $request->query('per_page', 15)));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 12)));
+
+        $isPaginateFalse = $request->input('paginate') === 'false'
+            || $request->input('paginate') === '0'
+            || $request->input('per_page') === 'all';
+
+        if ($isPaginateFalse) {
+            if ($authUser instanceof User) {
+                $users = $memberMatchingService->rank($authUser, $query);
+            } else {
+                $users = $query->orderByRaw(
+                    "CASE WHEN (is_verified = true OR (membership_status IS NOT NULL AND LOWER(membership_status) NOT IN ('free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'))) THEN 0 ELSE 1 END"
+                )->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+            }
+
+            $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
+
+            return LimitedUserResource::collection($users)->additional([
+                'success' => true,
+                'message' => 'Limited user data fetched successfully.',
+                'total_users' => $users->count(),
+                'total_user' => $users->count(),
+                'total' => $users->count(),
+            ]);
+        }
 
         if ($authUser instanceof User) {
             $paginator = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
@@ -501,6 +521,18 @@ class MemberController extends BaseApiController
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
+            ],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
             ],
             // kept for backward compatibility
             'total_users' => $paginator->total(),
@@ -535,14 +567,11 @@ class MemberController extends BaseApiController
 
         $connections = collect();
         if (Schema::hasTable('connections') && ! empty($userIds)) {
-            $sent = Connection::query()
-                ->where('requester_id', $authUserId)
-                ->whereIn('addressee_id', $userIds);
-
             $connections = Connection::query()
-                ->where('addressee_id', $authUserId)
-                ->whereIn('requester_id', $userIds)
-                ->union($sent)
+                ->where(function ($q) use ($authUserId): void {
+                    $q->where('requester_id', $authUserId)
+                        ->orWhere('addressee_id', $authUserId);
+                })
                 ->get()
                 ->keyBy(function (Connection $connection) use ($authUserId): string {
                     return (string) ((string) $connection->requester_id === $authUserId
@@ -555,14 +584,17 @@ class MemberController extends BaseApiController
         if (Schema::hasTable('user_follows')) {
             $followedUserIds = UserFollow::query()
                 ->where('follower_id', $authUserId)
-                ->whereIn('following_id', $userIds)
                 ->whereIn('status', ['accepted', 'pending'])
                 ->pluck('following_id')
                 ->map(fn ($id): string => (string) $id)
                 ->all();
         }
 
-        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds): void {
+        $bookmarks = (array) ($authUser->bookmarks ?? []);
+        $bookmarkSet = ! empty($bookmarks) ? array_flip($bookmarks) : [];
+
+        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds, $bookmarkSet): void {
+            $user->setAttribute('is_bookmark', isset($bookmarkSet[(string) $user->id]));
             $user->setAttribute('is_following', in_array((string) $user->id, $followedUserIds, true));
 
             $rawVerified = $user->is_verified ?? null;

@@ -529,7 +529,8 @@ class Circle extends Model
         }
 
         $normalized = self::normalizeCadencePayload($repeat, is_array($this->calendar) ? $this->calendar : null);
-        $now = $now ? $now->copy() : Carbon::now(config('app.timezone', 'Asia/Kolkata'));
+        $tz = config('app.timezone', 'Asia/Kolkata');
+        $now = $now ? $now->copy() : Carbon::now($tz);
 
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
@@ -550,10 +551,10 @@ class Circle extends Model
             }
         } else {
             // Monthly
-            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time);
+            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time, $tz);
             if ($candidate->lt($now)) {
                 $nextMonth = $now->copy()->startOfMonth()->addMonth();
-                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time);
+                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time, $tz);
             }
         }
 
@@ -576,12 +577,15 @@ class Circle extends Model
             'formatted_time' => $formattedTime,
             'display' => $display,
             'starts_at' => $candidate->toIso8601String(),
+            'starts_at_utc' => $candidate->copy()->utc()->toIso8601String(),
+            'timezone' => $tz,
         ];
     }
 
-    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time): Carbon
+    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time, ?string $timezone = null): Carbon
     {
-        $dt = Carbon::create($year, $month, 1, 0, 0, 0);
+        $tz = $timezone ?: config('app.timezone', 'Asia/Kolkata');
+        $dt = Carbon::create($year, $month, 1, 0, 0, 0, $tz);
         [$hour, $minute] = explode(':', $time) + [0, 0];
 
         while (strtolower($dt->format('l')) !== strtolower($weekday)) {
