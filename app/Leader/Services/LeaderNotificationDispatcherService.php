@@ -79,26 +79,31 @@ class LeaderNotificationDispatcherService
 
             // 2. Also record in notifications table for universal inbox compatibility
             if (Schema::hasTable('notifications')) {
-                Notification::create([
-                    'id' => (string) Str::uuid(),
-                    'user_id' => $userIdStr,
-                    'type' => $type,
-                    'title' => $title,
-                    'message' => $message,
-                    'payload' => array_merge($data, [
-                        'type' => $type,
-                        'category' => $category,
-                        'screen' => $screen,
+                try {
+                    Notification::create([
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $userIdStr,
+                        'type' => 'activity_update', // Postgres enum compatible type
                         'title' => $title,
-                        'body' => $message,
-                    ]),
-                    'data' => $data,
-                    'source_type' => 'leader_event',
-                    'source_id' => $data['reference_id'] ?? null,
-                    'source_event' => $type,
-                    'is_read' => false,
-                    'created_at' => now(),
-                ]);
+                        'message' => $message,
+                        'payload' => array_merge($data, [
+                            'notification_type' => $type,
+                            'type' => $type,
+                            'category' => $category,
+                            'screen' => $screen,
+                            'title' => $title,
+                            'body' => $message,
+                        ]),
+                        'data' => $data,
+                        'source_type' => 'leader_event',
+                        'source_id' => $data['reference_id'] ?? null,
+                        'source_event' => $type,
+                        'is_read' => false,
+                        'created_at' => now(),
+                    ]);
+                } catch (\Throwable $ne) {
+                    Log::warning('Failed to insert into notifications table: ' . $ne->getMessage());
+                }
             }
 
             return $appNotification;
