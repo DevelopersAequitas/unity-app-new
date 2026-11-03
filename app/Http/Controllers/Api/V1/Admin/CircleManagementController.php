@@ -14,9 +14,12 @@ use App\Models\JoinedCircleCategory;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserCircleRequest;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Circles\BuildYourOwnCircleApprovalService;
+use App\Services\Circles\UserCircleNomineeStatusResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -267,6 +270,29 @@ class CircleManagementController extends BaseApiController
         data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id'] ?? null);
         $circle->calendar = $calendar;
 
+        // Auto-resolve DED if not explicitly set
+        if (empty($circle->ded_user_id)) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $dedId = $approvalService->resolveDedForLocation($circle->city, $circle->city_id);
+            if ($dedId) {
+                $circle->ded_user_id = $dedId;
+                data_set($calendar, 'leadership.ded_user_id', $dedId);
+                $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
+            }
+        }
+
+        // Auto-resolve Industry Director if not explicitly set
+        if (empty($circle->industry_director_user_id)) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $firstCatId = ! empty($validated['categories'][0]) ? (int) $validated['categories'][0] : null;
+            $idUserId = $approvalService->resolveIndustryDirector($firstCatId, $circle->name);
+            if ($idUserId) {
+                $circle->industry_director_user_id = $idUserId;
+                data_set($calendar, 'leadership.industry_director_user_id', $idUserId);
+                $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
+            }
+        }
+
         $circle->save();
 
         if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
@@ -274,19 +300,110 @@ class CircleManagementController extends BaseApiController
             $circle->categories()->sync($categoryIds);
         }
 
-        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+        $circle->load(['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
 
         return $this->success($circle, 'Circle created successfully.', 201);
     }
 
     public function show(string $id): JsonResponse
     {
-        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
+        $relations = ['members', 'cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
         if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
             $relations[] = 'categories';
         }
 
-        return $this->success(Circle::query()->with($relations)->findOrFail($id));
+        $circle = Circle::query()->with($relations)->findOrFail($id);
+
+        // Auto-heal leadership if circle was created from a user_circle_request but leadership is missing
+        $linkedRequest = UserCircleRequest::where('created_circle_id', $circle->id)->first();
+        if ($linkedRequest) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $updated = false;
+
+            if (empty($circle->circle_founder_user_id) && ! empty($linkedRequest->user_id)) {
+                $circle->circle_founder_user_id = $linkedRequest->user_id;
+                $circle->founder_user_id = $linkedRequest->user_id;
+                $approvalService->addFounderMember($circle->id, (string) $linkedRequest->user_id);
+                $updated = true;
+            }
+
+            if (empty($circle->ded_user_id)) {
+                $dedId = $approvalService->resolveDedForLocation($circle->cityRef?->name ?? $circle->city, $circle->city_id);
+                if ($dedId) {
+                    $circle->ded_user_id = $dedId;
+                    $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
+                    $updated = true;
+                }
+            }
+
+            if (empty($circle->industry_director_user_id)) {
+                $idUserId = $approvalService->resolveIndustryDirector($linkedRequest->category_id, $circle->name);
+                if ($idUserId) {
+                    $circle->industry_director_user_id = $idUserId;
+                    $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
+                    $updated = true;
+                }
+            }
+
+            if ($updated) {
+                $cal = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($cal, 'leadership.circle_founder_user_id', $circle->circle_founder_user_id);
+                data_set($cal, 'leadership.founder_user_id', $circle->circle_founder_user_id);
+                data_set($cal, 'leadership.ded_user_id', $circle->ded_user_id);
+                data_set($cal, 'leadership.industry_director_user_id', $circle->industry_director_user_id);
+                $circle->calendar = $cal;
+                $circle->save();
+                Circle::syncLeadershipFromMembers($circle->id);
+                $circle->load($relations);
+            }
+        }
+
+        $data = $circle->toArray();
+        if ($linkedRequest) {
+            $data['has_proposal'] = true;
+            $data['proposal_id'] = $linkedRequest->id;
+            $data['recommended_peers_count'] = $linkedRequest->nominees()->count();
+        }
+
+        return $this->success($data);
+    }
+
+    /**
+     * Get recommended peers submitted for this circle proposal.
+     */
+    public function recommendedPeers(string $id): JsonResponse
+    {
+        Circle::query()->findOrFail($id);
+        $request = UserCircleRequest::where('created_circle_id', $id)
+            ->with(['category', 'user'])
+            ->first();
+
+        if (! $request) {
+            return $this->success([
+                'has_proposal'      => false,
+                'recommended_peers' => [],
+                'count'             => 0,
+            ]);
+        }
+
+        $resolver = app(UserCircleNomineeStatusResolver::class);
+        $peers = $resolver->resolveNominees($request);
+        $summary = $resolver->getSummary($request, $peers);
+
+        return $this->success([
+            'has_proposal'      => true,
+            'request_id'        => $request->id,
+            'circle_name'       => $request->circle_name,
+            'founder'           => [
+                'id'    => $request->user?->id,
+                'name'  => $request->user?->display_name ?: trim(($request->user?->first_name ?? '').' '.($request->user?->last_name ?? '')),
+                'email' => $request->user?->email,
+                'phone' => $request->user?->phone,
+            ],
+            'recommended_peers' => $peers,
+            'count'             => $peers->count(),
+            'summary'           => $summary,
+        ]);
     }
 
     public function update(Request $request, string $id): JsonResponse
