@@ -4,6 +4,7 @@ namespace App\Services\Blocks;
 
 use App\Models\PeerBlock;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class PeerBlockService
@@ -27,6 +28,10 @@ class PeerBlockService
     {
         $this->assertNotSelf($blocker->id, $blocked->id);
 
+        if (! Schema::hasTable('peer_blocks')) {
+            return false;
+        }
+
         return PeerBlock::query()
             ->where('blocker_user_id', (string) $blocker->id)
             ->where('blocked_user_id', (string) $blocked->id)
@@ -35,6 +40,10 @@ class PeerBlockService
 
     public function hasBlocked(string $blockerId, string $blockedId): bool
     {
+        if (! Schema::hasTable('peer_blocks')) {
+            return false;
+        }
+
         return PeerBlock::query()
             ->where('blocker_user_id', $blockerId)
             ->where('blocked_user_id', $blockedId)
@@ -43,6 +52,10 @@ class PeerBlockService
 
     public function isBlockedEitherWay(string $userAId, string $userBId): bool
     {
+        if (! Schema::hasTable('peer_blocks')) {
+            return false;
+        }
+
         return PeerBlock::query()
             ->where(function ($query) use ($userAId, $userBId): void {
                 $query

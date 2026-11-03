@@ -18,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class BusinessDealController extends BaseApiController
@@ -151,23 +152,28 @@ class BusinessDealController extends BaseApiController
         }
 
         try {
-            $businessDeal = BusinessDeal::create([
+            $dealData = [
                 'from_user_id' => $authUser->id,
                 'to_user_id' => $request->input('to_user_id'),
                 'deal_date' => $request->input('deal_date'),
                 'deal_amount' => $request->input('deal_amount'),
                 'business_type' => $request->input('business_type'),
                 'comment' => $request->input('comment'),
-                'referral_id' => $request->input('referral_id'),
                 'is_deleted' => false,
-            ]);
+            ];
+            if (Schema::hasColumn('business_deals', 'referral_id')) {
+                $dealData['referral_id'] = $request->input('referral_id');
+            }
+            $businessDeal = BusinessDeal::create($dealData);
 
             $coinsLedger = app(CoinsService::class)->rewardForActivity(
                 $authUser,
                 'business_deal',
-                null,
+                (string) $businessDeal->id,
                 'Activity: business_deal',
-                $authUser->id
+                (string) $authUser->id,
+                'business_deal',
+                (string) $businessDeal->id
             );
 
             if ($coinsLedger) {
@@ -294,7 +300,9 @@ class BusinessDealController extends BaseApiController
 
             return $this->success($businessDeal, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {
-            return $this->error('Something went wrong', 500);
+            Log::error('Failed to store business deal: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return $this->error('Something went wrong: '.$e->getMessage(), 500);
         }
     }
 

@@ -73,26 +73,53 @@ class CoinHistoryController extends BaseApiController
             $activityType = $activity->type ?? null;
             $activityId = $ledger->activity_id;
 
-            $reasonKey = $ledger->reason_key ?? $ledger->reference ?? ($activityType ? 'activity_'.$activityType : 'coins_transaction');
-            $reasonLabel = $this->formatReasonLabel($reasonKey);
+            $refString = (string) ($ledger->reference ?? '');
+            $entryType = strtoupper((string) ($ledger->entry_type ?? ''));
+            $refType = strtoupper((string) ($ledger->reference_type ?? ''));
+            $remarkText = trim((string) ($ledger->remark ?? ''));
 
-            $relatedUser = null;
+            $isDeactivation = $entryType === 'DEACTIVATION_REVERSAL'
+                || $refType === 'POST_DEACTIVATION'
+                || str_starts_with(strtolower($refString), 'post deactivation reversal');
 
-            $relatedUserId = $ledger->related_user_id ?? ($activity->related_user_id ?? null);
-            if ($relatedUserId) {
-                $relatedUser = $relatedUserService->loadUserById($relatedUserId);
+            $isRestoration = $entryType === 'RESTORATION_CREDIT'
+                || $refType === 'POST_RESTORATION'
+                || str_starts_with(strtolower($refString), 'post restoration credit');
+
+            if ($isDeactivation) {
+                $activityType = 'post_deactivation_reversal';
+                $activityId = $ledger->reference_id ?? $activityId;
+                $reasonLabel = $remarkText !== '' ? $remarkText : 'Post Deactivated - Coins Reversed';
+                $activityTitle = 'Post Deactivated - Coins Reversed';
+                $relatedUser = null;
+            } elseif ($isRestoration) {
+                $activityType = 'post_restoration_credit';
+                $activityId = $ledger->reference_id ?? $activityId;
+                $reasonLabel = $remarkText !== '' ? $remarkText : 'Post Restored - Coins Credited';
+                $activityTitle = 'Post Restored - Coins Credited';
+                $relatedUser = null;
+            } else {
+                $reasonKey = $ledger->reason_key ?? $ledger->reference ?? ($activityType ? 'activity_'.$activityType : 'coins_transaction');
+                $reasonLabel = $this->formatReasonLabel($reasonKey);
+
+                $relatedUser = null;
+
+                $relatedUserId = $ledger->related_user_id ?? ($activity->related_user_id ?? null);
+                if ($relatedUserId) {
+                    $relatedUser = $relatedUserService->loadUserById($relatedUserId);
+                }
+
+                if (! $relatedUser) {
+                    $fallback = $relatedUserService->enrichLedgerItem($ledger, $user->id, $reasonLabel);
+                    $relatedUser = $fallback['related_user'] ?? null;
+                    $activityType = $activityType ?? $fallback['activity_type'];
+                    $activityId = $activityId ?? $fallback['activity_id'];
+                }
+
+                $activityTitle = $activity
+                    ? ($activityTitles[$activity->id] ?? $titleResolver->defaultTitle($activityType))
+                    : $titleResolver->defaultTitle($activityType);
             }
-
-            if (! $relatedUser) {
-                $fallback = $relatedUserService->enrichLedgerItem($ledger, $user->id, $reasonLabel);
-                $relatedUser = $fallback['related_user'] ?? null;
-                $activityType = $activityType ?? $fallback['activity_type'];
-                $activityId = $activityId ?? $fallback['activity_id'];
-            }
-
-            $activityTitle = $activity
-                ? ($activityTitles[$activity->id] ?? $titleResolver->defaultTitle($activityType))
-                : $titleResolver->defaultTitle($activityType);
 
             $coinsDelta = (int) ($ledger->coins_delta ?? $ledger->amount ?? 0);
             $changeType = $coinsDelta > 0 ? 'increased' : ($coinsDelta < 0 ? 'decreased' : 'unchanged');
@@ -100,8 +127,12 @@ class CoinHistoryController extends BaseApiController
             return [
                 'id' => $ledger->transaction_id ?? $ledger->id ?? null,
                 'coins_delta' => $coinsDelta,
+                'amount' => $coinsDelta,
+                'balance_after' => isset($ledger->balance_after) ? (int) $ledger->balance_after : null,
                 'change_type' => $changeType,
                 'reason_label' => $reasonLabel,
+                'remark' => $remarkText !== '' ? $remarkText : $reasonLabel,
+                'remarks' => $remarkText !== '' ? $remarkText : $reasonLabel,
                 'activity_type' => $activityType,
                 'activity_id' => $activityId,
                 'activity_title' => $activityTitle,

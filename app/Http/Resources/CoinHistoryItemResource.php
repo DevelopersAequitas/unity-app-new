@@ -22,8 +22,12 @@ class CoinHistoryItemResource extends JsonResource
         return [
             'id' => $this->resource['id'] ?? null,
             'coins_delta' => $coinsDelta,
+            'amount' => $coinsDelta,
+            'balance_after' => $this->resource['balance_after'] ?? null,
             'change_type' => $changeType,
             'reason_label' => $this->resource['reason_label'] ?? null,
+            'remark' => $this->resource['remark'] ?? $this->resource['reason_label'] ?? null,
+            'remarks' => $this->resource['remarks'] ?? $this->resource['reason_label'] ?? null,
             'activity_type' => $this->resource['activity_type'] ?? null,
             'activity_id' => $this->resource['activity_id'] ?? null,
             'activity_title' => $this->resource['activity_title'] ?? null,
