@@ -1070,7 +1070,18 @@ class LeaderNotificationsController extends Controller
             $userIds = $results->pluck('user_id')->unique()->all();
             $usersMap = [];
             if (! empty($userIds) && Schema::hasTable('users')) {
-                $users = User::query()->whereIn('id', $userIds)->get(['id', 'name', 'email', 'role']);
+                $cols = Schema::getColumnListing('users');
+                $selectCols = ['id'];
+                if (in_array('name', $cols, true)) {
+                    $selectCols[] = 'name';
+                }
+                if (in_array('email', $cols, true)) {
+                    $selectCols[] = 'email';
+                }
+                if (in_array('phone', $cols, true)) {
+                    $selectCols[] = 'phone';
+                }
+                $users = User::query()->whereIn('id', $userIds)->get($selectCols);
                 foreach ($users as $u) {
                     $usersMap[(string) $u->id] = $u;
                 }
@@ -1090,7 +1101,18 @@ class LeaderNotificationsController extends Controller
 
                 $userObj = $usersMap[(string) $item->user_id] ?? null;
                 $recipientName = $userObj ? (string) $userObj->name : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
-                $roleLabel = $userObj && ! empty($userObj->role) ? ucwords(str_replace('_', ' ', (string) $userObj->role)) : 'Circle Leader';
+                $permissionService = app(LeaderPermissionService::class);
+                $roleLabel = 'Circle Leader';
+                $roleKey = 'leader';
+                if ($userObj) {
+                    $resolvedRole = $permissionService->resolveUserRole($userObj);
+                    $roleKey = strtolower($resolvedRole['canonical_role'] ?? 'leader');
+                    $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
+                }
+
+                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
+                    continue;
+                }
 
                 $triggerType = ($payload['sent_by_admin'] ?? false)
                     ? 'Super Admin Broadcast'
