@@ -162,8 +162,11 @@ class LeaderFinanceController extends Controller
         $rules = $catalog['bonus_rules'] ?? [];
         $activeRulesCount = (int) ($catalog['active_rules_count'] ?? count($rules));
 
-        // If Super Admin disabled all milestone rules for this role, mark not applicable
-        $isApplicable = $activeRulesCount > 0;
+        // Check if milestone tracking is enabled in permissions matrix for this role
+        $canTrackMilestones = $permissionService->hasCapability($user, 'track_milestones');
+
+        // Milestone is applicable only if permission is granted by Super Admin and active rules exist
+        $isApplicable = $canTrackMilestones && ($activeRulesCount > 0);
 
         return response()->json([
             'success' => true,
