@@ -445,6 +445,9 @@ class CircleController extends Controller
             'show_ded_id' => ($showDed && $showId) ? '1' : '0',
         ];
 
+        Circle::syncLeadershipFromMembers($circle);
+        $circle->refresh();
+
         $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'coverFile', 'circleImageFile'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {

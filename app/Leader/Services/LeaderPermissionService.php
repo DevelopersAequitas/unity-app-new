@@ -91,6 +91,12 @@ class LeaderPermissionService
                 'description' => 'Allows executing coin reward payouts to leaders and founders.',
             ],
             [
+                'id' => 'track_milestones',
+                'name' => 'Track Leadership Milestones',
+                'category' => 'Finance Control',
+                'description' => 'Allows tracking personal performance milestones, speed goals, and cash bonuses in the Leader App.',
+            ],
+            [
                 'id' => 'manage_roles',
                 'name' => 'Manage Roles & Matrix',
                 'category' => 'Administration',
@@ -157,6 +163,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'view_peers',
                 'manage_peers',
                 'request_actions',
@@ -166,6 +173,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'view_peers',
                 'manage_peers',
                 'request_actions',
@@ -184,6 +192,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'regional_data',
                 'view_peers',
                 'manage_peers',
@@ -239,6 +248,22 @@ class LeaderPermissionService
     /**
      * Check if a given User is an authorized Leader (Delegated).
      */
+    /**
+     * Check if a given User or AdminUser possesses a specific capability.
+     */
+    public function hasCapability(User|AdminUser $user, string $capabilityId): bool
+    {
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
+        $roleInfo = $this->resolveUserRole($user);
+        $roleKey = $roleInfo['role'] ?? 'circleFounder';
+        $caps = $this->getEnabledCapabilitiesForRole($roleKey);
+
+        return in_array($capabilityId, $caps, true);
+    }
+
     public function isLeader(User|AdminUser $user): bool
     {
         if ($user instanceof AdminUser) {
