@@ -35,19 +35,22 @@ class LeaderNotificationDispatcherService
         }
 
         try {
-            $dedupeKey = md5($userIdStr . '_' . $type . '_' . ($data['reference_id'] ?? $title) . '_' . date('Y-m-d'));
+            $isBroadcast = $type === 'admin_broadcast' || ! empty($data['sent_by_admin']);
+            $dedupeKey = md5($userIdStr . '_' . $type . '_' . ($data['reference_id'] ?? $title) . '_' . ($isBroadcast ? Str::random(10) : date('Y-m-d')));
 
             // 1. Create AppNotification entry
             $appNotification = null;
             if (Schema::hasTable('app_notifications')) {
-                // Prevent duplicate notifications for same event on same day
-                $existing = AppNotification::query()
-                    ->where('user_id', $userIdStr)
-                    ->where('dedupe_key', $dedupeKey)
-                    ->first();
+                // Prevent duplicate notifications for same event on same day ONLY for recurring cron/automation events
+                if (! $isBroadcast) {
+                    $existing = AppNotification::query()
+                        ->where('user_id', $userIdStr)
+                        ->where('dedupe_key', $dedupeKey)
+                        ->first();
 
-                if ($existing) {
-                    return $existing;
+                    if ($existing) {
+                        return $existing;
+                    }
                 }
 
                 $appNotification = AppNotification::create([
