@@ -75,4 +75,17 @@ class PublicCampaignController extends LeadershipBaseController
 
         return $this->success($winners, 'Published winners fetched successfully.');
     }
+
+    /**
+     * Public active cities for jurisdiction scope fallback.
+     */
+    public function cities(): JsonResponse
+    {
+        $cities = \App\Models\City::query()
+            ->select(['id', 'name', 'state', 'district', 'country'])
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return $this->success($cities, 'Active cities fetched successfully.');
+    }
 }

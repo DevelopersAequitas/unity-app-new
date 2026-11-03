@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Leadership;
 
 use App\Models\Leadership\LeadershipCampaign;
 use App\Services\Leadership\CampaignService;
+use App\Services\Leadership\ScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +14,8 @@ use Illuminate\Support\Facades\Auth;
 class AdminCampaignController extends LeadershipBaseController
 {
     public function __construct(
-        protected CampaignService $campaignService
+        protected CampaignService $campaignService,
+        protected ScopeService $scopeService
     ) {}
 
     /**
@@ -121,11 +123,15 @@ class AdminCampaignController extends LeadershipBaseController
         try {
             $campaign = $this->campaignService->createCampaign($validated, Auth::id());
 
+            if (isset($input['city_ids']) && is_array($input['city_ids'])) {
+                $this->scopeService->syncCampaignCities($campaign->id, $input['city_ids']);
+            }
+
             if (($input['status'] ?? '') === 'active') {
                 $campaign = $this->campaignService->publishCampaign($campaign->id, 'Published on creation', Auth::id());
             }
 
-            return $this->success($campaign, 'Campaign created successfully.', 201);
+            return $this->success($campaign->load('scopes'), 'Campaign created successfully.', 201);
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
@@ -138,6 +144,7 @@ class AdminCampaignController extends LeadershipBaseController
     {
         try {
             $campaign = $this->campaignService->getAdminCampaignDetails($id);
+            $campaign->load('scopes');
 
             return $this->success($campaign, 'Campaign details fetched successfully.');
         } catch (\Throwable $e) {
@@ -205,7 +212,11 @@ class AdminCampaignController extends LeadershipBaseController
         try {
             $campaign = $this->campaignService->updateCampaign($id, $input, Auth::id());
 
-            return $this->success($campaign, 'Campaign updated successfully.');
+            if (isset($input['city_ids']) && is_array($input['city_ids'])) {
+                $this->scopeService->syncCampaignCities($campaign->id, $input['city_ids']);
+            }
+
+            return $this->success($campaign->load('scopes'), 'Campaign updated successfully.');
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
