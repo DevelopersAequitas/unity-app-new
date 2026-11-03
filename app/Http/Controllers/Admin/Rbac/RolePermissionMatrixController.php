@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminModule;
-use App\Models\AdminPage;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\RoleModuleAccess;
@@ -15,8 +14,6 @@ use App\Services\Admin\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class RolePermissionMatrixController extends Controller
@@ -209,126 +206,83 @@ class RolePermissionMatrixController extends Controller
 
         $matchingRoleIds = $this->getMatchingRoleIds($targetRole, $roles);
 
-        try {
-            DB::transaction(function () use ($matchingRoleIds, $request) {
-                // Delete all existing permissions for this role and its aliases
-                foreach ($matchingRoleIds as $rId) {
-                    RolePagePermission::query()->where('role_id', $rId)->delete();
-                }
+        // Delete all existing permissions for this role and its aliases
+        foreach ($matchingRoleIds as $rId) {
+            RolePagePermission::query()->where('role_id', $rId)->delete();
+        }
 
-                $viewPermission = Permission::query()->where('key', 'view')->first();
+        $viewPermission = Permission::query()->where('key', 'view')->first();
 
-                // Pre-load all admin page IDs and slug mappings to prevent PostgreSQL UUID cast errors or foreign key violations
-                $adminPages = AdminPage::query()->get(['id', 'slug']);
-                $validPageIds = [];
-                $slugToIdMap = [];
-                foreach ($adminPages as $ap) {
-                    $validPageIds[(string) $ap->id] = (string) $ap->id;
-                    if ($ap->slug) {
-                        $slugToIdMap[strtolower(trim($ap->slug))] = (string) $ap->id;
-                    }
-                }
-
-                // 1. Single-checkbox page access form submission
-                if ($request->has('pages')) {
-                    $pages = $request->input('pages', []);
-                    $resolvedPageIds = [];
-
-                    foreach ($pages as $pageKey => $enabled) {
-                        if ((bool) $enabled) {
-                            $keyStr = (string) $pageKey;
-                            if (isset($validPageIds[$keyStr])) {
-                                $resolvedPageIds[$keyStr] = true;
-                            } elseif (isset($slugToIdMap[strtolower(trim($keyStr))])) {
-                                $resolvedPageIds[$slugToIdMap[strtolower(trim($keyStr))]] = true;
-                            }
+        // 1. Single-checkbox page access form submission
+        if ($request->has('pages')) {
+            $pages = $request->input('pages', []);
+            foreach ($pages as $pageId => $enabled) {
+                if ((bool) $enabled) {
+                    if ($viewPermission) {
+                        foreach ($matchingRoleIds as $rId) {
+                            RolePagePermission::query()->create([
+                                'role_id' => $rId,
+                                'page_id' => $pageId,
+                                'permission_id' => $viewPermission->id,
+                            ]);
                         }
                     }
-
-                    if ($viewPermission && !empty($resolvedPageIds)) {
-                        foreach (array_keys($resolvedPageIds) as $pId) {
+                }
+            }
+        }
+        // 2. Backward compatible 2D array form submission
+        elseif ($request->has('permissions')) {
+            $permissionMatrix = $request->input('permissions', []);
+            foreach ($permissionMatrix as $pageId => $permIds) {
+                if (is_array($permIds)) {
+                    foreach ($permIds as $permId => $enabled) {
+                        if ((bool) $enabled) {
                             foreach ($matchingRoleIds as $rId) {
-                                RolePagePermission::query()->firstOrCreate([
+                                RolePagePermission::query()->create([
                                     'role_id' => $rId,
-                                    'page_id' => $pId,
-                                    'permission_id' => $viewPermission->id,
+                                    'page_id' => $pageId,
+                                    'permission_id' => $permId,
                                 ]);
                             }
                         }
                     }
                 }
-                // 2. Backward compatible 2D array form submission
-                elseif ($request->has('permissions')) {
-                    $permissionMatrix = $request->input('permissions', []);
-                    foreach ($permissionMatrix as $pageKey => $permIds) {
-                        $keyStr = (string) $pageKey;
-                        $realPageId = $validPageIds[$keyStr] ?? ($slugToIdMap[strtolower(trim($keyStr))] ?? null);
-
-                        if ($realPageId && is_array($permIds)) {
-                            foreach ($permIds as $permId => $enabled) {
-                                if ((bool) $enabled) {
-                                    foreach ($matchingRoleIds as $rId) {
-                                        RolePagePermission::query()->firstOrCreate([
-                                            'role_id' => $rId,
-                                            'page_id' => $realPageId,
-                                            'permission_id' => $permId,
-                                        ]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Synchronize RoleModuleAccess visibility with granted pages
-                $enabledPageIds = RolePagePermission::query()
-                    ->whereIn('role_id', $matchingRoleIds)
-                    ->pluck('page_id')
-                    ->unique()
-                    ->all();
-
-                $activeModules = AdminModule::with('pages')->get();
-                foreach ($activeModules as $mod) {
-                    $modPageIds = $mod->pages->pluck('id')->all();
-                    $hasAnyPage = !empty(array_intersect($enabledPageIds, $modPageIds));
-                    foreach ($matchingRoleIds as $rId) {
-                        RoleModuleAccess::query()->updateOrCreate(
-                            ['role_id' => $rId, 'module_id' => $mod->id],
-                            ['is_visible' => $hasAnyPage]
-                        );
-                    }
-                }
-
-                // Invalidate caches
-                foreach ($matchingRoleIds as $rId) {
-                    $this->permissionService->invalidateCacheForRole($rId);
-                }
-            });
-
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Permission matrix updated successfully.',
-                    'role_id' => (string) $targetRole->id,
-                ]);
             }
-
-            return redirect()->route('admin.rbac.permission-matrix.index', ['role_id' => (string) $targetRole->id])
-                ->with('success', 'Permission matrix updated successfully.');
-        } catch (\Throwable $e) {
-            Log::error('PermissionMatrixController update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'role_id' => $roleIdInput,
-            ]);
-
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to update permission matrix: ' . $e->getMessage(),
-                ], 500);
-            }
-
-            return back()->withErrors(['error' => 'Failed to update permission matrix: ' . $e->getMessage()]);
         }
+
+        // Synchronize RoleModuleAccess visibility with granted pages
+        $enabledPageIds = RolePagePermission::query()
+            ->whereIn('role_id', $matchingRoleIds)
+            ->pluck('page_id')
+            ->unique()
+            ->all();
+
+        $activeModules = AdminModule::with('pages')->get();
+        foreach ($activeModules as $mod) {
+            $modPageIds = $mod->pages->pluck('id')->all();
+            $hasAnyPage = !empty(array_intersect($enabledPageIds, $modPageIds));
+            foreach ($matchingRoleIds as $rId) {
+                RoleModuleAccess::query()->updateOrCreate(
+                    ['role_id' => $rId, 'module_id' => $mod->id],
+                    ['is_visible' => $hasAnyPage]
+                );
+            }
+        }
+
+        // Invalidate caches
+        foreach ($matchingRoleIds as $rId) {
+            $this->permissionService->invalidateCacheForRole($rId);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Permission matrix updated successfully.',
+                'role_id' => (string) $targetRole->id,
+            ]);
+        }
+
+        return redirect()->route('admin.rbac.permission-matrix.index', ['role_id' => (string) $targetRole->id])
+            ->with('success', 'Permission matrix updated successfully.');
     }
 }
