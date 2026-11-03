@@ -103,6 +103,12 @@ class CircleResource extends JsonResource
                 $calendar['default_meet_time'] = $normalizedRepeat['default_meet_time'];
                 $calendar['start_time'] = $normalizedRepeat['start_time'];
                 $calendar['end_time'] = $normalizedRepeat['end_time'];
+                $calendar['default_meet_time_utc'] = $normalizedRepeat['default_meet_time_utc'];
+                $calendar['start_time_utc'] = $normalizedRepeat['start_time_utc'];
+                $calendar['end_time_utc'] = $normalizedRepeat['end_time_utc'];
+                $calendar['default_meet_time_local'] = $normalizedRepeat['default_meet_time_local'];
+                $calendar['start_time_local'] = $normalizedRepeat['start_time_local'];
+                $calendar['end_time_local'] = $normalizedRepeat['end_time_local'];
                 $calendar['frequency'] = $normalizedRepeat['frequency'];
                 $calendar['meeting_schedule'] = [$normalizedRepeat];
                 $calendar['meetings'] = [$normalizedRepeat];

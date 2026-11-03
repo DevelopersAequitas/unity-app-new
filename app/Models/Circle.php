@@ -482,6 +482,48 @@ class Circle extends Model
         return is_array($value) ? $value : [];
     }
 
+    public static function convertTimeToUtc(string $time, string $timezone = 'Asia/Kolkata'): string
+    {
+        $time = trim($time);
+        if ($time === '') {
+            return $time;
+        }
+
+        if (str_ends_with(strtolower($time), 'z')) {
+            $clean = rtrim(rtrim($time, 'zZ'), ' ');
+
+            return substr($clean, 0, 5);
+        }
+
+        try {
+            if (str_contains($time, 'T')) {
+                return Carbon::parse($time)->utc()->format('H:i');
+            }
+
+            if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i', $time, $matches)) {
+                $hour = (int) $matches[1];
+                $minute = (int) $matches[2];
+                $meridiem = strtolower($matches[3] ?? '');
+
+                if ($meridiem === 'pm' && $hour < 12) {
+                    $hour += 12;
+                } elseif ($meridiem === 'am' && $hour === 12) {
+                    $hour = 0;
+                }
+
+                $dt = Carbon::today($timezone)->setTime($hour, $minute, 0);
+
+                return $dt->utc()->format('H:i');
+            }
+
+            $parsed = Carbon::parse($time, $timezone);
+
+            return $parsed->utc()->format('H:i');
+        } catch (\Throwable) {
+            return substr($time, 0, 5);
+        }
+    }
+
     public static function normalizeCadencePayload(array $rawRepeat, ?array $calendar = null): array
     {
         $rawWeek = (string) ($rawRepeat['week_of_month'] ?? $rawRepeat['monthly_rule'] ?? $rawRepeat['week_number'] ?? data_get($calendar, 'monthly_rule') ?? 'week_1');
@@ -511,8 +553,17 @@ class Circle extends Model
         };
 
         $weekday = strtolower(trim((string) ($rawRepeat['weekday'] ?? $rawRepeat['day_of_week'] ?? $rawRepeat['default_meet_day'] ?? data_get($calendar, 'default_meet_day') ?? 'wednesday')));
-        $time = trim((string) ($rawRepeat['start_time'] ?? $rawRepeat['time'] ?? $rawRepeat['default_meet_time'] ?? data_get($calendar, 'default_meet_time') ?? '18:30'));
-        $endTime = trim((string) ($rawRepeat['end_time'] ?? $rawRepeat['default_meet_end_time'] ?? data_get($calendar, 'end_time') ?? '21:00'));
+        $time = trim((string) ($rawRepeat['start_time_local'] ?? $rawRepeat['time_local'] ?? $rawRepeat['default_meet_time_local'] ?? $rawRepeat['start_time'] ?? $rawRepeat['time'] ?? $rawRepeat['default_meet_time'] ?? data_get($calendar, 'default_meet_time_local') ?? data_get($calendar, 'default_meet_time') ?? '18:30'));
+        $endTime = trim((string) ($rawRepeat['end_time_local'] ?? $rawRepeat['default_meet_end_time_local'] ?? $rawRepeat['end_time'] ?? $rawRepeat['default_meet_end_time'] ?? data_get($calendar, 'end_time_local') ?? data_get($calendar, 'end_time') ?? '21:00'));
+
+        $tz = (string) (data_get($calendar, 'timezone') ?? data_get($calendar, 'settings.timezone') ?? config('app.timezone') ?: 'Asia/Kolkata');
+        if ($tz === 'UTC') {
+            $tz = 'Asia/Kolkata';
+        }
+
+        $utcTime = self::convertTimeToUtc($time, $tz);
+        $utcEndTime = self::convertTimeToUtc($endTime, $tz);
+
         $frequency = strtolower(trim((string) ($rawRepeat['frequency'] ?? $rawRepeat['unit'] ?? data_get($calendar, 'frequency') ?? 'monthly')));
         if ($frequency === 'month') {
             $frequency = 'monthly';
@@ -541,11 +592,22 @@ class Circle extends Model
             'weekday' => $weekday,
             'day_of_week' => $weekday,
             'default_meet_day' => $weekday,
-            'start_time' => $time,
-            'time' => $time,
-            'default_meet_time' => $time,
-            'end_time' => $endTime,
-            'default_meet_end_time' => $endTime,
+            'start_time' => $utcTime,
+            'time' => $utcTime,
+            'default_meet_time' => $utcTime,
+            'end_time' => $utcEndTime,
+            'default_meet_end_time' => $utcEndTime,
+            'start_time_utc' => $utcTime,
+            'time_utc' => $utcTime,
+            'default_meet_time_utc' => $utcTime,
+            'end_time_utc' => $utcEndTime,
+            'default_meet_end_time_utc' => $utcEndTime,
+            'start_time_local' => $time,
+            'time_local' => $time,
+            'default_meet_time_local' => $time,
+            'end_time_local' => $endTime,
+            'default_meet_end_time_local' => $endTime,
+            'timezone' => $tz,
         ];
     }
 
@@ -566,12 +628,18 @@ class Circle extends Model
         }
 
         $normalized = self::normalizeCadencePayload($repeat, is_array($this->calendar) ? $this->calendar : null);
-        $tz = config('app.timezone', 'Asia/Kolkata');
+        $tz = (string) (data_get($this->calendar, 'timezone') ?? data_get($this->calendar, 'settings.timezone') ?? config('app.timezone') ?: 'Asia/Kolkata');
+        if ($tz === 'UTC') {
+            $tz = 'Asia/Kolkata';
+        }
         $now = $now ? $now->copy() : Carbon::now($tz);
 
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
-        $time = $normalized['start_time'];
+        $localTime = $normalized['time_local'];
+        $localEndTime = $normalized['end_time_local'];
+        $utcStartTime = $normalized['start_time_utc'];
+        $utcEndTime = $normalized['end_time_utc'];
         $weekNum = $normalized['calendar_week'] ?? $normalized['nth_week'] ?? ($normalized['week_number'] + 1);
         $ordinalText = $normalized['ordinal_text'];
         $monthlyRule = $normalized['monthly_rule'];
@@ -581,29 +649,42 @@ class Circle extends Model
             while (strtolower($candidate->format('l')) !== $weekday) {
                 $candidate->addDay();
             }
-            [$h, $m] = explode(':', $time) + [0, 0];
+            [$h, $m] = explode(':', $localTime) + [0, 0];
             $candidate->setTime((int) $h, (int) $m, 0);
             if ($candidate->lt($now)) {
                 $candidate->addWeek();
             }
         } else {
             // Monthly
-            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time, $tz);
+            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $localTime, $tz);
             if ($candidate->lt($now)) {
                 $nextMonth = $now->copy()->startOfMonth()->addMonth();
-                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time, $tz);
+                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $localTime, $tz);
             }
         }
 
-        $formattedTime = Carbon::createFromFormat('H:i', substr($time, 0, 5))->format('h:i A');
+        $formattedTime = Carbon::createFromFormat('H:i', substr($localTime, 0, 5))->format('h:i A');
         $shortDay = $candidate->format('D');
         $datePart = $candidate->format('j M');
         $display = "{$ordinalText} {$shortDay}, {$datePart} • {$formattedTime}";
 
         return [
             'date' => $candidate->toDateString(),
-            'time' => $time,
-            'end_time' => $normalized['end_time'],
+            'time' => $utcStartTime,
+            'start_time' => $utcStartTime,
+            'default_meet_time' => $utcStartTime,
+            'end_time' => $utcEndTime,
+            'default_meet_end_time' => $utcEndTime,
+            'time_utc' => $utcStartTime,
+            'start_time_utc' => $utcStartTime,
+            'end_time_utc' => $utcEndTime,
+            'default_meet_time_utc' => $utcStartTime,
+            'default_meet_end_time_utc' => $utcEndTime,
+            'time_local' => $localTime,
+            'start_time_local' => $localTime,
+            'end_time_local' => $localEndTime,
+            'default_meet_time_local' => $localTime,
+            'default_meet_end_time_local' => $localEndTime,
             'day' => $shortDay,
             'day_name' => $candidate->format('l'),
             'ordinal' => $ordinalText,
@@ -614,7 +695,7 @@ class Circle extends Model
             'formatted_time' => $formattedTime,
             'display' => $display,
             'starts_at' => $candidate->toIso8601String(),
-            'starts_at_utc' => $candidate->copy()->utc()->toIso8601String(),
+            'starts_at_utc' => $candidate->copy()->utc()->toIso8601ZuluString(),
             'timezone' => $tz,
         ];
     }
