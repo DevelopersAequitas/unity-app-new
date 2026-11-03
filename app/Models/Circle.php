@@ -122,7 +122,44 @@ class Circle extends Model
         return $this->belongsTo(MembershipPlan::class, 'payment_plan_id', 'id');
     }
 
-    protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
+    protected $appends = [
+        'cover_image_url',
+        'circle_image_url',
+        'city_display',
+        'founder_name',
+        'ded_name',
+        'industry_director_name',
+    ];
+
+    public function getFounderNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('circleFounder') ? $this->circleFounder : ($this->relationLoaded('founder') ? $this->founder : null);
+        if (! $u) {
+            $fId = $this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id');
+            if ($fId) {
+                $u = User::find($fId);
+            }
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getDedNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('ded') ? $this->ded : null;
+        if (! $u && ! empty($this->ded_user_id)) {
+            $u = User::find($this->ded_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getIndustryDirectorNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('industryDirector') ? $this->industryDirector : null;
+        if (! $u && ! empty($this->industry_director_user_id)) {
+            $u = User::find($this->industry_director_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
 
     public function getCircleRanking(): array
     {
@@ -662,12 +699,13 @@ class Circle extends Model
 
     public function circleFounder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        $fk = ! empty($this->circle_founder_user_id) ? 'circle_founder_user_id' : 'founder_user_id';
+        return $this->belongsTo(User::class, $fk);
     }
 
     public function circleFounderUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        return $this->circleFounder();
     }
 
     public function circleDirector(): BelongsTo

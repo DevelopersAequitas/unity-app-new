@@ -29,11 +29,13 @@ final class UserCircleNomineeStatusResolver
      */
     public function resolveNominees(UserCircleRequest $request, ?Collection $nominees = null): Collection
     {
-        $nomineeModels = $nominees ?? $request->nominees()->get();
+        $nomineeModels = $nominees ?? $request->nominees()->with(['category', 'subcategory'])->get();
 
         if ($nomineeModels->isEmpty()) {
             return collect();
         }
+
+        $nomineeModels->loadMissing(['category', 'subcategory']);
 
         // 1. Gather all lookup candidates
         $explicitUserIds = $nomineeModels->pluck('nominee_user_id')->filter()->unique()->values()->all();
@@ -240,6 +242,12 @@ final class UserCircleNomineeStatusResolver
                     'id' => $nominee->category->id,
                     'name' => $nominee->category->name,
                     'slug' => $nominee->category->slug,
+                ] : null,
+                'subcategory_id' => $nominee->subcategory_id,
+                'subcategory' => $nominee->subcategory ? [
+                    'id' => $nominee->subcategory->id,
+                    'name' => $nominee->subcategory->name,
+                    'slug' => $nominee->subcategory->slug,
                 ] : null,
                 'interest_level' => $nominee->interest_level,
                 'is_complete' => (! empty($nominee->name) && ! empty($peerPhone) && ! empty($nominee->business_name) && ! empty($nominee->category_id)),
