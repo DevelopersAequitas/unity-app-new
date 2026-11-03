@@ -6,13 +6,12 @@ namespace App\Leader\Services;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
-use App\Models\Payment;
-use App\Models\User;
-use App\Models\Finance\FinanceWallet;
-use App\Models\Finance\FinanceLedgerTransaction;
 use App\Models\Finance\FinanceCommissionRule;
 use App\Models\Finance\FinanceLeaderTenure;
-use Illuminate\Database\Eloquent\Builder;
+use App\Models\Finance\FinanceLedgerTransaction;
+use App\Models\Finance\FinanceWallet;
+use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -39,7 +38,7 @@ class LeaderFinanceService
         $targetCircleIds = $leaderScope['target_circle_ids'];
         $scopeMemberIds = $leaderScope['scoped_member_user_ids'];
 
-        // 1. Business Deals in Scope & 5% Platform Revenue Cut
+        // 1. Business Deals in Scope (Peer-to-Peer B2B deals count only — never mixed into Platform Revenue)
         $dealsBase = fn () => DB::table('business_deals')
             ->when(Schema::hasColumn('business_deals', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
             ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
@@ -54,35 +53,39 @@ class LeaderFinanceService
             });
 
         $dealsClosedCount = Schema::hasTable('business_deals') ? (int) $dealsBase()->count() : 0;
-        $dealsAmountSum = Schema::hasTable('business_deals') ? (float) $dealsBase()->sum('deal_amount') : 0.0;
-        $dealsRevenueCut = $dealsAmountSum * 0.05;
 
-        // 2. Collections from Payments table
-        $paymentsQuery = Payment::query()->where(function ($q): void {
-            $q->whereIn(DB::raw('LOWER(status)'), ['paid', 'success', 'completed', 'active', 'captured']);
-        });
+        // 2. Collections from Payments table (if table exists)
+        $hasPaymentsTable = Schema::hasTable('payments');
+        $paymentsQuery = null;
+        $rawPaymentSum = 0.0;
 
-        if ($circleId && Str::isUuid($circleId)) {
-            $paymentsQuery->where(function ($q) use ($circleId): void {
-                $q->where('circle_id', $circleId)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        if ($hasPaymentsTable) {
+            $paymentsQuery = Payment::query()->where(function ($q): void {
+                $q->whereIn(DB::raw('LOWER(status)'), ['paid', 'success', 'completed', 'active', 'captured']);
             });
-        } elseif (! empty($targetCircleIds)) {
-            $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
-                $q->whereIn('circle_id', $targetCircleIds)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
-            });
-        } elseif (! $isGlobalScope) {
-            $paymentsQuery->whereRaw('1 = 0');
+
+            if ($circleId && Str::isUuid($circleId)) {
+                $paymentsQuery->where(function ($q) use ($circleId): void {
+                    $q->where('circle_id', $circleId)
+                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+                });
+            } elseif (! empty($targetCircleIds)) {
+                $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
+                    $q->whereIn('circle_id', $targetCircleIds)
+                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+                });
+            } elseif (! $isGlobalScope) {
+                $paymentsQuery->whereRaw('1 = 0');
+            }
+
+            $rawPaymentSum = (float) (clone $paymentsQuery)->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
         }
 
-        $rawPaymentSum = (float) (clone $paymentsQuery)->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
-
-        // 3. Real Budget Wallets & Ledger Credits from Finance System
+        // 3. Real Budget Wallets & Posted Subscription Ledger Credits from Finance System
         $circleWalletQuery = FinanceWallet::query()->where('wallet_type', 'circle_budget');
         if ($circleId && Str::isUuid($circleId)) {
             $circleWalletQuery->where('scope_id', $circleId);
-        } elseif (! empty($targetCircleIds)) {
+        } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
             $circleWalletQuery->whereIn('scope_id', $targetCircleIds);
         } elseif (! $isGlobalScope) {
             $circleWalletQuery->whereRaw('1 = 0');
@@ -92,16 +95,48 @@ class LeaderFinanceService
         $circleCreditedTotal = (float) (clone $circleWalletQuery)->sum('total_credited');
         $circleDebitedTotal = (float) (clone $circleWalletQuery)->sum('total_debited');
 
+        // Gross Subscription Volume recorded in finance_ledger_transactions (distinct per peer subscription payment)
+        $ledgerSubQuery = fn () => FinanceLedgerTransaction::query()
+            ->where('transaction_type', 'CREDIT')
+            ->where('status', 'posted')
+            ->whereNotNull('category_code')
+            ->where('category_code', '!=', '')
+            ->when($circleId && Str::isUuid($circleId), function ($q) use ($circleId): void {
+                $q->where(function ($sq) use ($circleId): void {
+                    $sq->where('scope_id', $circleId)
+                        ->orWhereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
+                });
+            })
+            ->when(! ($circleId && Str::isUuid($circleId)) && ! empty($targetCircleIds) && ! $isGlobalScope, function ($q) use ($targetCircleIds): void {
+                $q->where(function ($sq) use ($targetCircleIds): void {
+                    $sq->whereIn('scope_id', $targetCircleIds)
+                        ->orWhereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
+                });
+            })
+            ->when(! ($circleId && Str::isUuid($circleId)) && empty($targetCircleIds) && ! $isGlobalScope, function ($q): void {
+                $q->whereRaw('1 = 0');
+            });
+
+        $ledgerSubscriptionGrossSum = 0.0;
+        if (Schema::hasTable('finance_ledger_transactions')) {
+            $distinctSubGroups = $ledgerSubQuery()
+                ->selectRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT)) as sub_key, MAX(base_amount) as gross_base')
+                ->groupByRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT))')
+                ->get();
+            $ledgerSubscriptionGrossSum = (float) $distinctSubGroups->sum('gross_base');
+        }
+
+        // Total Platform Revenue = real membership subscription payments collected (never B2B business_deals)
+        $totalRevenueAmount = max($rawPaymentSum, $ledgerSubscriptionGrossSum, $circleCreditedTotal);
+
+        // Circle Revenue = total collections/credits allocated to Circle Budgets (or direct circle payments)
+        $circleRevenueAmount = $circleCreditedTotal > 0 ? $circleCreditedTotal : $rawPaymentSum;
+
         // Total Collections = payments collected + ledger credits
         $collectionsAmount = max($rawPaymentSum, $circleCreditedTotal);
-        // Circle Revenue = the real Circle Budget available balance
-        $circleRevenueAmount = $circleBudgetBalance > 0 ? $circleBudgetBalance : $collectionsAmount;
 
-        // Total Revenue = Deals Platform Cut (5%) + Real Collections (Membership Package fees)
-        $totalRevenueAmount = $dealsRevenueCut + $collectionsAmount;
-
-        // 4. Monthly Trend (last 6 months)
-        $dateColumn = Schema::hasColumn('payments', 'paid_at') ? 'paid_at' : 'created_at';
+        // 4. Monthly Trend (last 6 months — strictly from real subscription payments & ledger, 0% B2B deals)
+        $dateColumn = ($hasPaymentsTable && Schema::hasColumn('payments', 'paid_at')) ? 'paid_at' : 'created_at';
         $revenueTrend = [];
         $dealsTrend = [];
 
@@ -109,12 +144,27 @@ class LeaderFinanceService
             $monthStart = now()->startOfMonth()->subMonths($i);
             $monthEnd = (clone $monthStart)->endOfMonth();
 
-            $mDealsSum = (float) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->sum('deal_amount');
-            $mDealsCount = (int) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count();
-            $mDealsCut = $mDealsSum * 0.05;
+            $mDealsCount = Schema::hasTable('business_deals')
+                ? (int) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count()
+                : 0;
 
-            $mPayments = (float) (clone $paymentsQuery)->whereBetween($dateColumn, [$monthStart, $monthEnd])->sum('amount');
-            $mTotal = $mDealsCut + $mPayments;
+            $mPayments = ($hasPaymentsTable && $paymentsQuery !== null)
+                ? (float) (clone $paymentsQuery)
+                    ->whereBetween($dateColumn, [$monthStart, $monthEnd])
+                    ->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'))
+                : 0.0;
+
+            $mLedgerGross = 0.0;
+            if (Schema::hasTable('finance_ledger_transactions')) {
+                $mSubGroups = $ledgerSubQuery()
+                    ->whereBetween('created_at', [$monthStart, $monthEnd])
+                    ->selectRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT)) as sub_key, MAX(base_amount) as gross_base')
+                    ->groupByRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT))')
+                    ->get();
+                $mLedgerGross = (float) $mSubGroups->sum('gross_base');
+            }
+
+            $mTotal = max($mPayments, $mLedgerGross);
 
             $revenueTrend[] = [
                 'month' => $monthStart->format('M'),
@@ -167,6 +217,7 @@ class LeaderFinanceService
                     return number_format((float) $row->renewal_cut_percentage, 1).'%';
                 }
             }
+
             return number_format($fallback, 1).'%';
         };
 
@@ -200,7 +251,8 @@ class LeaderFinanceService
                         'ren' => 0.0,
                     ];
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         }
 
         $commissionStructure = [];
@@ -260,29 +312,35 @@ class LeaderFinanceService
             if ($amount >= 100000) {
                 return '₹'.number_format($amount / 100000, 1).'L';
             }
+
             return '₹'.number_format($amount, 0);
         };
 
-        $activeTenuresCount = 42;
+        $activeTenuresCount = 0;
         try {
-            if (class_exists(\App\Models\Finance\FinanceLeaderTenure::class)) {
-                $tCount = \App\Models\Finance\FinanceLeaderTenure::where('status', 'active')->count();
-                if ($tCount > 0) {
-                    $activeTenuresCount = $tCount;
+            if (Schema::hasTable('finance_leader_tenures')) {
+                $tenureQuery = FinanceLeaderTenure::query()->where('is_active', true);
+                if ($circleId && Str::isUuid($circleId)) {
+                    $tenureQuery->where('scope_id', $circleId);
+                } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
+                    $tenureQuery->whereIn('scope_id', $targetCircleIds);
                 }
+                $activeTenuresCount = (int) $tenureQuery->count();
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         $circleBudgetAmount = 0.0;
         try {
-            if (class_exists(\App\Models\Finance\FinanceWallet::class)) {
+            if (class_exists(FinanceWallet::class)) {
                 if ($circleId && Str::isUuid($circleId)) {
-                    $circleBudgetAmount = (float) (\App\Models\Finance\FinanceWallet::where('scope_id', $circleId)->value('current_balance') ?? 0.0);
+                    $circleBudgetAmount = (float) (FinanceWallet::where('scope_id', $circleId)->value('current_balance') ?? 0.0);
                 } else {
-                    $circleBudgetAmount = (float) (\App\Models\Finance\FinanceWallet::where('wallet_type', 'circle_budget')->sum('current_balance') ?? 0.0);
+                    $circleBudgetAmount = (float) (FinanceWallet::where('wallet_type', 'circle_budget')->sum('current_balance') ?? 0.0);
                 }
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         return [
             'total_revenue' => $formatCurrency($totalRevenueAmount),
@@ -317,6 +375,56 @@ class LeaderFinanceService
         $isGlobalScope = $leaderScope['is_global_scope'];
         $targetCircleIds = $leaderScope['target_circle_ids'];
 
+        // Fetch real ledger transactions from FinanceLedgerTransaction first
+        if (Schema::hasTable('finance_ledger_transactions')) {
+            $ledgerQuery = FinanceLedgerTransaction::query()
+                ->with([
+                    'wallet',
+                    'member:id,first_name,last_name,display_name',
+                    'introducer:id,first_name,last_name,display_name',
+                ])
+                ->latest();
+
+            if ($circleId && Str::isUuid($circleId)) {
+                $ledgerQuery->whereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
+            } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
+                $ledgerQuery->whereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
+            } elseif (! $isGlobalScope) {
+                $ledgerQuery->whereRaw('1 = 0');
+            }
+
+            if ($status && strtolower($status) !== 'all') {
+                $ledgerQuery->whereRaw('LOWER(status) = ?', [strtolower($status)]);
+            }
+
+            $ledgerTxns = $ledgerQuery->take(25)->get();
+
+            if ($ledgerTxns->isNotEmpty()) {
+                return $ledgerTxns->map(function (FinanceLedgerTransaction $tx): array {
+                    $peerName = $tx->member?->display_name
+                        ?: ($tx->introducer?->display_name
+                            ?: ($tx->wallet?->wallet_name ? trim(explode('—', (string) $tx->wallet->wallet_name)[0]) : 'Peer Member'));
+                    $circleName = $tx->wallet?->wallet_name ?? 'Circle Budget';
+                    $cat = $tx->category_code ? "Cat {$tx->category_code}: " : '';
+                    $channel = $tx->channel_code ?: ($tx->transaction_type === 'DEBIT' ? 'Budget Withdrawal' : 'Bonus / Commission Credit');
+
+                    return [
+                        'id' => (string) $tx->id,
+                        'peer_name' => $peerName,
+                        'circle_name' => $circleName,
+                        'amount' => '₹'.number_format((float) $tx->amount, 0),
+                        'type' => $cat.$channel,
+                        'status' => ucfirst((string) ($tx->status ?: 'posted')),
+                        'date' => $tx->created_at ? $tx->created_at->format('Y-m-d') : now()->format('Y-m-d'),
+                    ];
+                })->values()->all();
+            }
+        }
+
+        if (! Schema::hasTable('payments')) {
+            return [];
+        }
+
         $query = Payment::query()->with(['user.circleMembers.circle', 'circle'])->latest();
 
         if ($circleId && Str::isUuid($circleId)) {
@@ -324,7 +432,7 @@ class LeaderFinanceService
                 $q->where('circle_id', $circleId)
                     ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
-        } elseif (! empty($targetCircleIds)) {
+        } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
             $query->where(function ($q) use ($targetCircleIds): void {
                 $q->whereIn('circle_id', $targetCircleIds)
                     ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
@@ -337,55 +445,13 @@ class LeaderFinanceService
             $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
         }
 
-        // Fetch real ledger transactions from FinanceLedgerTransaction first
-        $ledgerQuery = FinanceLedgerTransaction::query()
-            ->with([
-                'wallet',
-                'member:id,first_name,last_name,display_name',
-                'introducer:id,first_name,last_name,display_name',
-            ])
-            ->latest();
-
-        if ($circleId && Str::isUuid($circleId)) {
-            $ledgerQuery->whereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
-        } elseif (! empty($targetCircleIds)) {
-            $ledgerQuery->whereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
-        } elseif (! $isGlobalScope) {
-            $ledgerQuery->whereRaw('1 = 0');
-        }
-
-        if ($status && strtolower($status) !== 'all') {
-            $ledgerQuery->whereRaw('LOWER(status) = ?', [strtolower($status)]);
-        }
-
-        $ledgerTxns = $ledgerQuery->take(25)->get();
-
-        if ($ledgerTxns->isNotEmpty()) {
-            return $ledgerTxns->map(function (FinanceLedgerTransaction $tx): array {
-                $peerName = $tx->member?->display_name ?? 'Peer Member';
-                $circleName = $tx->wallet?->wallet_name ?? 'Circle Budget';
-                $cat = $tx->category_code ? "Cat {$tx->category_code}: " : '';
-                $channel = $tx->channel_code ?: 'Commission Allocation';
-
-                return [
-                    'id' => (string) $tx->id,
-                    'peer_name' => $peerName,
-                    'circle_name' => $circleName,
-                    'amount' => '₹'.number_format((float) $tx->amount, 0),
-                    'type' => $cat . $channel,
-                    'status' => ucfirst((string) ($tx->status ?: 'posted')),
-                    'date' => $tx->created_at ? $tx->created_at->format('Y-m-d') : now()->format('Y-m-d'),
-                ];
-            })->values()->all();
-        }
-
         $payments = $query->take(15)->get();
 
         if ($payments->isEmpty()) {
             return [];
         }
 
-        return $payments->map(function (Payment $p, int $idx): array {
+        return $payments->map(function (Payment $p): array {
             $u = $p->user;
             $name = $u ? trim(($u->first_name ?? '').' '.($u->last_name ?? '')) : '';
             if ($name === '' || $name === ' ') {
@@ -404,10 +470,7 @@ class LeaderFinanceService
 
             $amountVal = (float) ($p->total_amount ?: ($p->amount ?: ($p->base_amount ?: 0)));
             if ($amountVal <= 0 && $p->circle) {
-                $amountVal = (float) ($p->circle->circle_price_amount ?: 120000);
-            }
-            if ($amountVal <= 0) {
-                $amountVal = 120000;
+                $amountVal = (float) ($p->circle->circle_price_amount ?: 18000);
             }
 
             return [
