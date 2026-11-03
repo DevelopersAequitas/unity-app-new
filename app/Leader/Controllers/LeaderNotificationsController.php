@@ -89,7 +89,7 @@ class LeaderNotificationsController extends Controller
                             ->orWhereNotIn('data->type', $excludedTypes);
                     });
 
-                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(50)->get();
+                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(500)->get();
 
                 foreach ($appNotifs as $an) {
                     $dataPayload = is_array($an->data) ? $an->data : [];
@@ -122,7 +122,7 @@ class LeaderNotificationsController extends Controller
                 $notifs = Notification::query()
                     ->where('user_id', $userId)
                     ->orderByDesc('created_at')
-                    ->take(50)
+                    ->take(500)
                     ->get();
 
                 foreach ($notifs as $n) {
@@ -516,24 +516,54 @@ class LeaderNotificationsController extends Controller
         // Apply category filter if requested
         if ($requestedCategory !== 'all' && ! empty($requestedCategory)) {
             $collection = $collection->filter(function ($item) use ($requestedCategory) {
-                $c = strtolower($item['category'] ?? '');
-                $t = strtolower($item['type'] ?? '');
+                $c = strtolower((string) ($item['category'] ?? ''));
+                $t = strtolower((string) ($item['type'] ?? ''));
                 return $c === $requestedCategory || str_contains($c, $requestedCategory) || str_contains($t, $requestedCategory);
             })->values();
         }
 
-        $items = $collection->values()->all();
-        $unreadCount = collect($items)->where('is_unread', true)->count();
+        $total = $collection->count();
+        $unreadCount = $collection->where('is_unread', true)->count();
+
+        // Pagination parameters
+        $page = max(1, (int) $request->query('page', 1));
+        $perPageRaw = $request->query('per_page');
+        $perPage = ($perPageRaw === 'all') ? max(1, $total) : max(1, min(100, (int) ($perPageRaw ?: 20)));
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = min($page, $lastPage);
+
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedItems = $collection->slice($offset, $perPage)->values()->all();
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to = min($offset + $perPage, $total);
+        $hasMore = $currentPage < $lastPage;
 
         return response()->json([
             'success' => true,
             'status' => true,
             'message' => 'Notifications retrieved successfully.',
             'unread_count' => $unreadCount,
-            'total_count' => count($items),
-            'data' => $items,
-            'notifications' => $items,
-            'items' => $items,
+            'total_count' => $total,
+            'meta' => [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $from,
+                'to' => $to,
+            ],
+            'pagination' => [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => $hasMore,
+            ],
+            'data' => $paginatedItems,
+            'notifications' => $paginatedItems,
+            'items' => $paginatedItems,
         ]);
     }
 
