@@ -106,6 +106,26 @@ class LeaderNotificationDispatcherService
                 }
             }
 
+            // 3. Dispatch real-time FCM push notification to user devices
+            try {
+                if (class_exists(\App\Jobs\SendFcmNotificationJob::class)) {
+                    \App\Jobs\SendFcmNotificationJob::dispatch(
+                        $userIdStr,
+                        $title,
+                        $message,
+                        array_merge($data, [
+                            'type' => $type,
+                            'category' => $category,
+                            'screen' => $screen,
+                            'title' => $title,
+                            'body' => $message,
+                        ])
+                    );
+                }
+            } catch (\Throwable $fe) {
+                Log::warning('FCM job dispatch failed: ' . $fe->getMessage());
+            }
+
             return $appNotification;
         } catch (\Throwable $e) {
             Log::warning('Failed to dispatch leader notification: ' . $e->getMessage(), [
