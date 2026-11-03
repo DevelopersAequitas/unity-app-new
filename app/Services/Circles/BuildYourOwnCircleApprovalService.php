@@ -69,15 +69,10 @@ final class BuildYourOwnCircleApprovalService
 
             $circleStatus = $overrides['status'] ?? 'active';
 
-            // Auto-resolve DED for city/district (e.g., Ahmedabad DED)
-            $dedUserId = $overrides['ded_user_id'] ?? $this->resolveDedForLocation($circleRequest->city, $cityId);
-
-            // Auto-resolve Industry Director for category
+            // DED and Industry Director are left unassigned unless explicitly provided in overrides
+            $dedUserId = $overrides['ded_user_id'] ?? null;
             $categoryId = $overrides['category_id'] ?? $circleRequest->category_id;
-            $industryDirectorUserId = $overrides['industry_director_user_id'] ?? $this->resolveIndustryDirector(
-                $categoryId ? (int) $categoryId : null,
-                $circleName
-            );
+            $industryDirectorUserId = $overrides['industry_director_user_id'] ?? null;
 
             $calendar = [
                 'settings' => array_filter([
