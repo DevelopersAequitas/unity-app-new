@@ -45,7 +45,7 @@ class PendingRequestAdminController extends Controller
             'account_deletion_requests' => $this->getCategoryCount($status, 'account_deletion_requests'),
             'account_deletion_emails' => $this->getCategoryCount($status, 'account_deletion_emails'),
             'introduction_requests' => $this->getCategoryCount($status, 'introduction_requests'),
-            'circle_peer_referrals' => $this->getCategoryCount($status, 'circle_peer_referrals', 'peer_referrals'),
+            'circle_peer_referrals' => $this->getCategoryCount($status, 'circle_peer_referrals', 'peer_referrals', 'peer_recommendations', 'referrals'),
             'event_joining_requests' => $this->getCategoryCount($status, 'event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
         ];
 
@@ -56,6 +56,9 @@ class PendingRequestAdminController extends Controller
         $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
         $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
         $breakdown['visitors'] = $breakdown['visitor_registrations'];
+        $breakdown['peer_referrals'] = $breakdown['circle_peer_referrals'];
+        $breakdown['peer_recommendations'] = $breakdown['circle_peer_referrals'];
+        $breakdown['referrals'] = $breakdown['circle_peer_referrals'];
 
             return [
                 'status' => $status,
@@ -96,6 +99,17 @@ class PendingRequestAdminController extends Controller
         $search = $request->input('search');
         $perPage = (int) $request->input('per_page', 20);
         $scope = $this->resolveLeaderScope($request);
+
+        if ($scope !== null && ! empty($scope['unauthorized'])) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'current_page' => 1,
+                'per_page' => $perPage,
+                'total' => 0,
+                'last_page' => 1,
+            ], 200);
+        }
 
         /** @var Collection $results */
         $results = collect();
@@ -658,6 +672,9 @@ class PendingRequestAdminController extends Controller
                 'account_deletion_requests',
                 'circle_peer_referrals',
                 'peer_referrals',
+                'peer_recommendations',
+                'referrals',
+                'referraldata',
                 'introduction_requests',
                 'join_requests',
             ];
@@ -803,6 +820,16 @@ class PendingRequestAdminController extends Controller
                 if (Schema::hasColumn($table, 'status')) {
                     $updatePayload['status'] = 'approved';
                 }
+                if ($table === 'referrals' && Schema::hasColumn('referrals', 'status_id') && Schema::hasTable('referral_status')) {
+                    $appStatusId = DB::table('referral_status')
+                        ->where('name', 'ilike', '%approve%')
+                        ->orWhere('name', 'ilike', '%active%')
+                        ->orWhere('name', 'ilike', '%complete%')
+                        ->value('id');
+                    if ($appStatusId) {
+                        $updatePayload['status_id'] = $appStatusId;
+                    }
+                }
             }
 
             if (Schema::hasColumn($table, 'approved_at')) {
@@ -920,6 +947,9 @@ class PendingRequestAdminController extends Controller
                 'account_deletion_requests',
                 'circle_peer_referrals',
                 'peer_referrals',
+                'peer_recommendations',
+                'referrals',
+                'referraldata',
                 'introduction_requests',
                 'join_requests',
             ];
@@ -1035,12 +1065,25 @@ class PendingRequestAdminController extends Controller
                 if (Schema::hasColumn($table, 'status')) {
                     $payload['status'] = 'rejected';
                 }
+                if ($table === 'referrals' && Schema::hasColumn('referrals', 'status_id') && Schema::hasTable('referral_status')) {
+                    $rejStatusId = DB::table('referral_status')
+                        ->where('name', 'ilike', '%reject%')
+                        ->orWhere('name', 'ilike', '%decline%')
+                        ->value('id');
+                    if ($rejStatusId) {
+                        $payload['status_id'] = $rejStatusId;
+                    }
+                }
             }
 
             if (Schema::hasColumn($table, 'rejection_reason')) {
                 $payload['rejection_reason'] = $reason;
             } elseif (Schema::hasColumn($table, 'admin_note')) {
                 $payload['admin_note'] = $reason;
+            } elseif (Schema::hasColumn($table, 'note')) {
+                $payload['note'] = $reason;
+            } elseif (Schema::hasColumn($table, 'remarks')) {
+                $payload['remarks'] = $reason;
             }
             if (Schema::hasColumn($table, 'rejected_at')) {
                 $payload['rejected_at'] = now();
@@ -1253,7 +1296,10 @@ class PendingRequestAdminController extends Controller
             'pending_impacts' => Schema::hasTable('impacts') ? 'impacts' : 'life_impacts',
             'ad_booking_requests' => 'ad_bookings',
             'account_deletion_requests' => 'account_deletion_requests',
-            'circle_peer_referrals' => Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : 'peer_referrals',
+            'circle_peer_referrals' => Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : (Schema::hasTable('peer_recommendations') ? 'peer_recommendations' : (Schema::hasTable('referrals') ? 'referrals' : 'peer_referrals'))),
+            'peer_referrals' => Schema::hasTable('peer_referrals') ? 'peer_referrals' : (Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_recommendations') ? 'peer_recommendations' : (Schema::hasTable('referrals') ? 'referrals' : 'peer_referrals'))),
+            'peer_recommendations' => Schema::hasTable('peer_recommendations') ? 'peer_recommendations' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : 'referrals'),
+            'referrals' => Schema::hasTable('referrals') ? 'referrals' : 'peer_referrals',
             'event_joining_requests' => $this->resolveEventTable(),
             'introduction_requests' => 'introduction_requests',
         ];
@@ -1329,6 +1375,27 @@ class PendingRequestAdminController extends Controller
             return null;
         }
 
+        $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
+
+        // Strictly authorized moderation roles: DED, CD, CF, ID, Super Admin, Country Director
+        $allowedRoles = [
+            'superAdmin', 'super_admin',
+            'countryDirector', 'country_director',
+            'districtExecDirector', 'ded',
+            'circleDirector', 'cd',
+            'circleFounder', 'cf',
+            'industryDirector', 'id',
+        ];
+
+        if (! in_array($role, $allowedRoles, true)) {
+            return [
+                'unauthorized' => true,
+                'role' => $role,
+                'circle_ids' => [],
+                'category_ids' => [],
+            ];
+        }
+
         $circleIds = app(LeaderPeersService::class)->resolveScopedCircleIds($user);
         if ($circleIds === null) {
             return null;
@@ -1350,8 +1417,6 @@ class PendingRequestAdminController extends Controller
                     ->all());
             }
         }
-
-        $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
 
         // Industry Directors receive requests for every main category assigned to them,
         // even when no circle exists under that category yet.
@@ -1503,7 +1568,18 @@ class PendingRequestAdminController extends Controller
     private function denyIfOutsideLeaderScope(Request $request, string $id): ?JsonResponse
     {
         $scope = $this->resolveLeaderScope($request);
-        if ($scope === null || ! Schema::hasTable('circle_join_requests') || ! Str::isUuid($id)) {
+        if ($scope === null) {
+            return null;
+        }
+
+        if (! empty($scope['unauthorized'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your active leadership role does not have authorization to moderate pending requests.',
+            ], 403);
+        }
+
+        if (! Schema::hasTable('circle_join_requests') || ! Str::isUuid($id)) {
             return null;
         }
 
@@ -2264,44 +2340,115 @@ class PendingRequestAdminController extends Controller
 
     private function fetchPeerReferrals(?string $search, string $status = 'pending'): Collection
     {
-        $table = Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : null);
-        if (! $table) {
-            return collect();
-        }
+        $results = collect();
 
-        $query = DB::table($table);
+        foreach (['circle_peer_referrals', 'peer_referrals'] as $table) {
+            if (Schema::hasTable($table)) {
+                $query = DB::table($table);
+                $this->applyStatusFilter($query, $table, $status);
+                if ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('referred_name', 'like', "%{$search}%")
+                            ->orWhere('referred_email', 'like', "%{$search}%");
+                    });
+                }
+                $items = $query->get()->map(function ($r) use ($status) {
+                    $refStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+                    if ($status === 'approved') {
+                        $refStatus = 'approved';
+                    } elseif ($status === 'rejected') {
+                        $refStatus = 'rejected';
+                    }
 
-        $this->applyStatusFilter($query, $table, $status);
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('referred_name', 'like', "%{$search}%")
-                    ->orWhere('referred_email', 'like', "%{$search}%");
-            });
-        }
-
-        return $query->get()->map(function ($r) use ($status) {
-            $refStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
-            if ($status === 'approved') {
-                $refStatus = 'approved';
-            } elseif ($status === 'rejected') {
-                $refStatus = 'rejected';
+                    return [
+                        'id' => (string) $r->id,
+                        'category' => 'circle_peer_referrals',
+                        'category_label' => 'Circle Peer Referral',
+                        'applicant_name' => $r->referred_name ?? 'Referred Candidate',
+                        'applicant_email' => $r->referred_email ?? '',
+                        'applicant_phone' => $r->referred_phone ?? '',
+                        'company_name' => $r->referred_company ?? ($r->referred_company_name ?? 'Candidate'),
+                        'target_entity' => 'Peer Recommendation',
+                        'details' => $this->formatDetailsText($r->notes ?? ($r->message ?? null), 'Circle referral clearance.'),
+                        'submitted_at' => $r->created_at ?? now()->toISOString(),
+                        'status' => $refStatus,
+                    ];
+                });
+                $results = $results->concat($items);
             }
+        }
 
-            return [
-                'id' => (string) $r->id,
-                'category' => 'circle_peer_referrals',
-                'category_label' => 'Circle Peer Referral',
-                'applicant_name' => $r->referred_name ?? 'Referred Candidate',
-                'applicant_email' => $r->referred_email ?? '',
-                'applicant_phone' => $r->referred_phone ?? '',
-                'company_name' => $r->referred_company ?? 'Candidate',
-                'target_entity' => 'Peer Recommendation',
-                'details' => $this->formatDetailsText($r->notes ?? null, 'Circle referral clearance.'),
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-                'status' => $refStatus,
-            ];
-        });
+        if (Schema::hasTable('peer_recommendations')) {
+            $query = DB::table('peer_recommendations');
+            $this->applyStatusFilter($query, 'peer_recommendations', $status);
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('peer_name', 'like', "%{$search}%")
+                        ->orWhere('peer_email', 'like', "%{$search}%")
+                        ->orWhere('peer_business', 'like', "%{$search}%");
+                });
+            }
+            $items = $query->get()->map(function ($r) use ($status) {
+                $refStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+                if ($status === 'approved') {
+                    $refStatus = 'approved';
+                } elseif ($status === 'rejected') {
+                    $refStatus = 'rejected';
+                }
+
+                return [
+                    'id' => (string) $r->id,
+                    'category' => 'circle_peer_referrals',
+                    'category_label' => 'Peer Recommendation',
+                    'applicant_name' => $r->peer_name ?? 'Referred Candidate',
+                    'applicant_email' => $r->peer_email ?? '',
+                    'applicant_phone' => $r->peer_mobile ?? '',
+                    'company_name' => $r->peer_business ?? 'Candidate',
+                    'target_entity' => 'Peer Recommendation',
+                    'details' => $this->formatDetailsText($r->note ?? ($r->why_valuable ?? null), 'Peer recommendation clearance.'),
+                    'submitted_at' => $r->created_at ?? now()->toISOString(),
+                    'status' => $refStatus,
+                ];
+            });
+            $results = $results->concat($items);
+        }
+
+        if (Schema::hasTable('referrals')) {
+            $query = DB::table('referrals');
+            $this->applyStatusFilter($query, 'referrals', $status);
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('referral_of', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('remarks', 'like', "%{$search}%");
+                });
+            }
+            $items = $query->get()->map(function ($r) use ($status) {
+                $refStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+                if ($status === 'approved') {
+                    $refStatus = 'approved';
+                } elseif ($status === 'rejected') {
+                    $refStatus = 'rejected';
+                }
+
+                return [
+                    'id' => (string) $r->id,
+                    'category' => 'circle_peer_referrals',
+                    'category_label' => 'Referral Clearance',
+                    'applicant_name' => $r->referral_of ?? 'Referred Candidate',
+                    'applicant_email' => $r->email ?? '',
+                    'applicant_phone' => $r->phone ?? '',
+                    'company_name' => 'Peer Referral',
+                    'target_entity' => 'Referral',
+                    'details' => $this->formatDetailsText($r->remarks ?? null, 'Peer referral clearance.'),
+                    'submitted_at' => $r->created_at ?? now()->toISOString(),
+                    'status' => $refStatus,
+                ];
+            });
+            $results = $results->concat($items);
+        }
+
+        return $results->unique('id')->values();
     }
 
     private function fetchIntroductionRequests(?string $search, string $status = 'pending'): Collection
