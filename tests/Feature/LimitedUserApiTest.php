@@ -273,7 +273,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
+    public function test_limited_users_endpoint_returns_paginated_members_with_default_12_per_page(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -288,11 +288,15 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(25, $response->json('data'));
+        $this->assertCount(12, $response->json('data'));
         $this->assertSame(25, $response->json('total_users'));
         $this->assertSame(25, $response->json('total_user'));
         $this->assertSame(25, $response->json('total'));
-        $response->assertJsonMissing(['meta', 'links', 'pagination']);
+        $this->assertSame(1, $response->json('meta.current_page'));
+        $this->assertSame(12, $response->json('meta.per_page'));
+        $this->assertSame(25, $response->json('meta.total'));
+        $this->assertSame(3, $response->json('meta.last_page'));
+        $response->assertJsonStructure(['meta', 'links', 'pagination']);
     }
 
     public function test_limited_users_endpoint_supports_paginate_false(): void

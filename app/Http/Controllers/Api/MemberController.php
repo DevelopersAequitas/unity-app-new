@@ -475,17 +475,13 @@ class MemberController extends BaseApiController
         $authUser = auth('sanctum')->user() ?: $request->user();
 
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = min(100, max(1, (int) $request->query('per_page', 15)));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 12)));
 
-        $shouldPaginate = $request->has('page')
-            || $request->has('per_page')
-            || ($request->has('paginate') && $request->boolean('paginate'));
+        $isPaginateFalse = $request->input('paginate') === 'false'
+            || $request->input('paginate') === '0'
+            || $request->input('per_page') === 'all';
 
-        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->input('per_page') === 'all') {
-            $shouldPaginate = false;
-        }
-
-        if (! $shouldPaginate && ! $request->has('page') && ! $request->has('per_page')) {
+        if ($isPaginateFalse) {
             if ($authUser instanceof User) {
                 $users = $memberMatchingService->rank($authUser, $query);
             } else {
@@ -525,6 +521,18 @@ class MemberController extends BaseApiController
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
+            ],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
             ],
             // kept for backward compatibility
             'total_users' => $paginator->total(),
