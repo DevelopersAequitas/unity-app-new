@@ -90,6 +90,9 @@ class MemberMatchingService
         // Precompute auth user attributes once to avoid recalculating in candidate loops
         $precomputedAuthData = $this->precomputeAuthData($authUser);
 
+        $bookmarks = (array) ($authUser->bookmarks ?? []);
+        $bookmarkSet = ! empty($bookmarks) ? array_flip($bookmarks) : [];
+
         $scoredCandidates = $candidates->map(function (User $candidate) use (
             $authUser,
             $authUserId,
@@ -98,10 +101,13 @@ class MemberMatchingService
             $directConnections,
             $followedUserIds,
             $maxLifeImpact,
-            $precomputedAuthData
+            $precomputedAuthData,
+            $bookmarkSet
         ): User {
             $candidateId = (string) $candidate->id;
             $candidateConnectionIds = $candidateConnectionMap[$candidateId] ?? [];
+
+            $candidate->setAttribute('is_bookmark', isset($bookmarkSet[$candidateId]));
 
             $isFollowing = in_array($candidateId, $followedUserIds, true);
             $candidate->setAttribute('is_following', $isFollowing);

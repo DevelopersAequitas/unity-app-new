@@ -337,25 +337,20 @@ class MemberController extends BaseApiController
             'business_type',
             'created_at',
             'updated_at',
+            'members_introduced_count',
+            'is_online',
         ];
 
-        if (Schema::hasColumn('users', 'profile_visibility')) {
-            $selectColumns[] = 'profile_visibility';
-        }
-
-        if (Schema::hasColumn('users', 'contact_visibility')) {
-            $selectColumns[] = 'contact_visibility';
-        }
-
-        if (Schema::hasColumn('users', 'is_verified')) {
-            $selectColumns[] = 'is_verified';
-        }
-
-        if (Schema::hasColumn('users', 'country')) {
-            $selectColumns[] = 'country';
+        static $userColumnsMap = null;
+        if ($userColumnsMap === null) {
+            $userColumnsMap = array_flip(Schema::getColumnListing('users'));
         }
 
         $optionalMatchingColumns = [
+            'profile_visibility',
+            'contact_visibility',
+            'is_verified',
+            'country',
             'main_business_category_id',
             'business_sub_category',
             'business_city',
@@ -373,12 +368,12 @@ class MemberController extends BaseApiController
         ];
 
         foreach ($optionalMatchingColumns as $col) {
-            if (Schema::hasColumn('users', $col)) {
+            if (isset($userColumnsMap[$col])) {
                 $selectColumns[] = $col;
             }
         }
 
-        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
+        $selectColumns = array_values(array_intersect($selectColumns, array_keys($userColumnsMap)));
 
         $query = User::query()
             ->select($selectColumns)
@@ -407,10 +402,7 @@ class MemberController extends BaseApiController
 
             $profileVisibilityService->applyVisibleTo($query, $authUser);
 
-            $excludedUserIds = array_values(array_unique(array_filter(array_merge(
-                $peerBlockService->blockedUserIdsFor((string) $authUser->id),
-                $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
-            ))));
+            $excludedUserIds = $peerBlockService->allBlockedUserIdsFor((string) $authUser->id);
 
             if (! empty($excludedUserIds)) {
                 $query->whereNotIn('users.id', $excludedUserIds);
@@ -590,7 +582,11 @@ class MemberController extends BaseApiController
                 ->all();
         }
 
-        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds): void {
+        $bookmarks = (array) ($authUser->bookmarks ?? []);
+        $bookmarkSet = ! empty($bookmarks) ? array_flip($bookmarks) : [];
+
+        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds, $bookmarkSet): void {
+            $user->setAttribute('is_bookmark', isset($bookmarkSet[(string) $user->id]));
             $user->setAttribute('is_following', in_array((string) $user->id, $followedUserIds, true));
 
             $rawVerified = $user->is_verified ?? null;

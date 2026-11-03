@@ -68,6 +68,18 @@ class PeerBlockService
         }
     }
 
+    public function allBlockedUserIdsFor(string $userId): array
+    {
+        return PeerBlock::query()
+            ->where('blocker_user_id', $userId)
+            ->orWhere('blocked_user_id', $userId)
+            ->get(['blocker_user_id', 'blocked_user_id'])
+            ->map(fn (PeerBlock $b): string => (string) ($b->blocker_user_id === $userId ? $b->blocked_user_id : $b->blocker_user_id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function blockedUserIdsFor(string $userId): array
     {
         return PeerBlock::query()
