@@ -474,12 +474,21 @@ class MemberController extends BaseApiController
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
-        $page = max(1, (int) $request->query('page', 1));
-        $perPage = min(100, max(1, (int) $request->query('per_page', 12)));
+        $page = max(1, (int) ($request->query('page') ?? $request->input('page', 1)));
+        $rawPerPage = $request->query('per_page')
+            ?? $request->query('par_page')
+            ?? $request->query('limit')
+            ?? $request->query('perPage')
+            ?? $request->query('pageSize')
+            ?? $request->input('per_page')
+            ?? $request->input('par_page')
+            ?? $request->input('limit');
+
+        $perPage = min(100, max(1, (int) ($rawPerPage ?: 12)));
 
         $isPaginateFalse = $request->input('paginate') === 'false'
             || $request->input('paginate') === '0'
-            || $request->input('per_page') === 'all';
+            || $rawPerPage === 'all';
 
         if ($isPaginateFalse) {
             if ($authUser instanceof User) {
@@ -508,6 +517,8 @@ class MemberController extends BaseApiController
                 "CASE WHEN (is_verified = true OR (membership_status IS NOT NULL AND LOWER(membership_status) NOT IN ('free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'))) THEN 0 ELSE 1 END"
             )->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
         }
+
+        $paginator->appends($request->query());
 
         $pageItems = collect($paginator->items());
 

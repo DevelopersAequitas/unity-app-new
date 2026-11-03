@@ -297,6 +297,18 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame(25, $response->json('meta.total'));
         $this->assertSame(3, $response->json('meta.last_page'));
         $response->assertJsonStructure(['meta', 'links', 'pagination']);
+
+        $customPerPageResponse = $this->getJson('/api/v1/members/limited?per_page=20');
+        $customPerPageResponse->assertOk();
+        $this->assertCount(20, $customPerPageResponse->json('data'));
+        $this->assertSame(20, $customPerPageResponse->json('meta.per_page'));
+        $this->assertSame(2, $customPerPageResponse->json('meta.last_page'));
+
+        $parPageAliasResponse = $this->getJson('/api/v1/members/limited?par_page=20');
+        $parPageAliasResponse->assertOk();
+        $this->assertCount(20, $parPageAliasResponse->json('data'));
+        $this->assertSame(20, $parPageAliasResponse->json('meta.per_page'));
+        $this->assertSame(2, $parPageAliasResponse->json('meta.last_page'));
     }
 
     public function test_limited_users_endpoint_supports_paginate_false(): void

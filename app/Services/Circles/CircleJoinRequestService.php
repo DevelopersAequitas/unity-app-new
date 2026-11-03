@@ -12,7 +12,6 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\JoinedCircleCategory;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Support\Facades\DB;
@@ -97,7 +96,7 @@ class CircleJoinRequestService
             return CircleJoinRequest::query()->create($payload);
         });
 
-        $this->notifyStakeholders($request, $user);
+        // Notification on circle join request submission is intentionally disabled.
 
         return $request;
     }
@@ -742,56 +741,8 @@ class CircleJoinRequestService
 
     private function notifyStakeholders(CircleJoinRequest $request, User $actor): void
     {
-        try {
-            $circle = $request->circle()->first();
+        // Intentionally disabled: do not send notifications to anyone when a circle join request is submitted.
 
-            if (! $circle) {
-                return;
-            }
-
-            $targets = User::query()
-                ->whereIn('id', array_filter([
-                    $circle->director_user_id,
-                    $circle->industry_director_user_id,
-                    $circle->ded_user_id,
-                ]))
-                ->get();
-
-            $globalAdminRoleId = Role::query()
-                ->where('key', 'global_admin')
-                ->value('id');
-
-            if ($globalAdminRoleId) {
-                $globalAdmins = User::query()
-                    ->whereHas('roles', fn ($q) => $q->where('roles.id', $globalAdminRoleId))
-                    ->get();
-
-                $targets = $targets->merge($globalAdmins);
-            }
-
-            $targets->unique('id')->each(function (User $recipient) use ($actor, $request): void {
-                try {
-                    $this->notifyUser(
-                        $recipient,
-                        $actor,
-                        'circle_join_request_submitted',
-                        'A new circle join request was submitted.',
-                        ['circle_join_request_id' => $request->id]
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning('Failed to notify stakeholder for circle join request', [
-                        'recipient_id' => (string) $recipient->id,
-                        'request_id' => (string) $request->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            });
-        } catch (\Throwable $exception) {
-            Log::warning('notifyStakeholders failed for circle join request', [
-                'request_id' => (string) $request->id,
-                'error' => $exception->getMessage(),
-            ]);
-        }
     }
 
     private function notifyUser(User $to, User $from, string $type, string $body, array $data = []): void
