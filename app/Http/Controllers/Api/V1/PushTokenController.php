@@ -22,11 +22,18 @@ class PushTokenController extends BaseApiController
             'platform' => ['required', 'string', 'in:android,ios,web'],
             'device_id' => ['nullable', 'string'],
             'app_version' => ['nullable', 'string', 'max:50'],
+            'app' => ['nullable', 'string', 'max:50'],
+            'app_type' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
             $user = $request->user();
             $token = (string) ($validated['fcm_token'] ?? $validated['token']);
+            $app = (string) ($validated['app'] ?? $validated['app_type'] ?? 'peers');
+            $deviceId = $validated['device_id'] ?? null;
+            if ($app === 'leader' && filled($deviceId) && !str_starts_with((string)$deviceId, 'leader_')) {
+                $deviceId = 'leader_' . $deviceId;
+            }
 
             if (Schema::hasTable('user_push_tokens')) {
                 UserPushToken::where('token', $token)
@@ -37,8 +44,8 @@ class PushTokenController extends BaseApiController
                 ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                 ->delete();
 
-            if (filled($validated['device_id'] ?? null)) {
-                UserPushToken::where('device_id', $validated['device_id'])
+            if (filled($deviceId)) {
+                UserPushToken::where('device_id', $deviceId)
                     ->where(UserPushToken::getUserIdColumn(), $user->id)
                     ->where('token', '!=', $token)
                     ->delete();
@@ -47,6 +54,10 @@ class PushTokenController extends BaseApiController
             $updates = [
                 'platform' => $validated['platform'],
             ];
+
+            if (Schema::hasColumn('user_push_tokens', 'app')) {
+                $updates['app'] = $app;
+            }
 
             if (Schema::hasColumn('user_push_tokens', 'last_seen_at')) {
                 $updates['last_seen_at'] = now();

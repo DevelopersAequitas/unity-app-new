@@ -1220,4 +1220,146 @@ class LeaderNotificationsController extends Controller
         ]);
     }
 
+
+    /**
+     * Store or update Leader App FCM push token.
+     * Prevents token collision with Peers Global member app.
+     */
+    public function storePushToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['nullable', 'required_without:fcm_token', 'string'],
+            'fcm_token' => ['nullable', 'required_without:token', 'string'],
+            'platform' => ['required', 'string', 'in:android,ios,web'],
+            'device_id' => ['nullable', 'string'],
+            'app_version' => ['nullable', 'string', 'max:50'],
+            'app' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        try {
+            $user = $request->user();
+            $token = (string) ($validated['fcm_token'] ?? $validated['token']);
+            $platform = strtolower((string) $validated['platform']);
+
+            // Prefix device_id with 'leader_' to prevent collisions with Peers Global member app
+            $rawDeviceId = $validated['device_id'] ?? ('device_' . substr(md5($user->id . $platform), 0, 12));
+            $leaderDeviceId = str_starts_with((string) $rawDeviceId, 'leader_') ? $rawDeviceId : 'leader_' . $rawDeviceId;
+
+            // Delete token if it belongs to a different user
+            if (Schema::hasTable('user_push_tokens')) {
+                \App\Models\UserPushToken::where('token', $token)
+                    ->where(\App\Models\UserPushToken::getUserIdColumn(), '!=', $user->id)
+                    ->delete();
+
+                // Clean up duplicates for this user for Leader App on this device
+                \App\Models\UserPushToken::where('device_id', $leaderDeviceId)
+                    ->where(\App\Models\UserPushToken::getUserIdColumn(), $user->id)
+                    ->where('token', '!=', $token)
+                    ->delete();
+            }
+
+            $updates = [
+                \App\Models\UserPushToken::getUserIdColumn() => $user->id,
+                'platform' => $platform,
+                'device_id' => $leaderDeviceId,
+                'app_version' => $validated['app_version'] ?? '1.0.0',
+            ];
+
+            if (Schema::hasColumn('user_push_tokens', 'app')) {
+                $updates['app'] = 'leader';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $updates['is_active'] = true;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
+                $updates['status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $updates['token_status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'last_seen_at')) {
+                $updates['last_seen_at'] = now();
+            }
+            if (Schema::hasColumn('user_push_tokens', 'last_used_at')) {
+                $updates['last_used_at'] = now();
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                $updates['failed_at'] = null;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                $updates['failure_reason'] = null;
+            }
+
+            $pushToken = \App\Models\UserPushToken::updateOrCreate(
+                ['token' => $token],
+                $updates
+            );
+
+            // Store in user leader-specific columns if present
+            if (Schema::hasColumn('users', 'leader_android_fcm_token') && $platform === 'android') {
+                $user->leader_android_fcm_token = $token;
+                $user->save();
+            } elseif (Schema::hasColumn('users', 'leader_ios_fcm_token') && in_array($platform, ['ios', 'apple'], true)) {
+                $user->leader_ios_fcm_token = $token;
+                $user->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Leader push token registered successfully.',
+                'data' => [
+                    'id' => $pushToken->id,
+                    'token' => $pushToken->token,
+                    'app' => 'leader',
+                    'platform' => $pushToken->platform,
+                    'device_id' => $pushToken->device_id,
+                    'app_version' => $pushToken->app_version,
+                ],
+            ]);
+        } catch (\Throwable $throwable) {
+            \Illuminate\Support\Facades\Log::error('LeaderNotificationsController storePushToken exception: ' . $throwable->getMessage(), [
+                'user_id' => $request->user()?->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Unable to register leader push token.',
+                'error' => $throwable->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete Leader App push token on logout.
+     */
+    public function destroyPushToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['nullable', 'required_without:fcm_token', 'string'],
+            'fcm_token' => ['nullable', 'required_without:token', 'string'],
+        ]);
+
+        try {
+            $token = (string) ($validated['fcm_token'] ?? $validated['token']);
+
+            $deleted = \App\Models\UserPushToken::where(\App\Models\UserPushToken::getUserIdColumn(), $request->user()->id)
+                ->where('token', $token)
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Leader push token deleted successfully.',
+                'deleted' => $deleted > 0,
+            ]);
+        } catch (\Throwable $throwable) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Unable to delete leader push token.',
+            ], 500);
+        }
+    }
 }
