@@ -29,6 +29,7 @@ class LeadershipVoterVerification extends Model
         'scope_id',
         'user_id',
         'contact_type',
+        'verification_type',
         'contact_hash',
         'contact_masked',
         'otp_hash',
@@ -52,6 +53,9 @@ class LeadershipVoterVerification extends Model
         static::creating(function (self $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+            if (empty($model->verification_type)) {
+                $model->verification_type = 'voting';
             }
         });
     }
