@@ -63,6 +63,106 @@ class UserCircleRequestController extends BaseApiController
     }
 
     /**
+     * Get Level 4 subcategories for a given Level 1 category.
+     * Optionally marks subcategories as locked if already assigned in an existing request or client state.
+     */
+    public function subcategories(Request $request, string $categoryId): JsonResponse
+    {
+        $category = CircleCategory::query()
+            ->where('level', 1)
+            ->where(function ($q) use ($categoryId): void {
+                if (ctype_digit($categoryId)) {
+                    $q->where('id', (int) $categoryId);
+                } else {
+                    $q->where('slug', $categoryId);
+                }
+            })
+            ->first();
+
+        if (! $category) {
+            return $this->error('Circle category not found.', 404);
+        }
+
+        $requestId = $request->query('request_id') ?? $request->query('circle_request_id');
+        $takenIdsInput = $request->query('taken_ids') ?? $request->query('taken_subcategory_ids');
+
+        $lockedMap = [];
+
+        // 1. If an existing request ID is provided, inspect taken subcategories in database
+        if (! empty($requestId)) {
+            $circleReq = UserCircleRequest::with('nominees')->find($requestId);
+            if ($circleReq) {
+                // Check founder subcategory
+                $founderSubId = $circleReq->founder_subcategory_id ?? ($circleReq->metadata['founder_subcategory_id'] ?? null);
+                if (! empty($founderSubId)) {
+                    $founderName = $circleReq->user
+                        ? (trim(($circleReq->user->first_name ?? '') . ' ' . ($circleReq->user->last_name ?? '')) ?: $circleReq->user->display_name ?: 'Founder')
+                        : 'Founder';
+                    $lockedMap[(int) $founderSubId] = [
+                        'locked_by' => "{$founderName} (Founder)",
+                        'is_founder' => true,
+                    ];
+                }
+
+                // Check nominees
+                foreach ($circleReq->nominees as $nom) {
+                    if (! empty($nom->subcategory_id)) {
+                        $lockedMap[(int) $nom->subcategory_id] = [
+                            'locked_by' => $nom->name ?: 'Peer',
+                            'is_founder' => false,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 2. If client passed temporary taken_ids (e.g. "101,102")
+        if (! empty($takenIdsInput)) {
+            $rawTaken = is_array($takenIdsInput) ? $takenIdsInput : explode(',', (string) $takenIdsInput);
+            foreach ($rawTaken as $tId) {
+                $intId = (int) trim((string) $tId);
+                if ($intId > 0 && ! isset($lockedMap[$intId])) {
+                    $lockedMap[$intId] = [
+                        'locked_by' => 'Selected in another row',
+                        'is_founder' => false,
+                    ];
+                }
+            }
+        }
+
+        $subcategories = \App\Models\CircleCategoryLevel4::query()
+            ->where('circle_category_id', $category->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'circle_category_id', 'level2_id', 'level3_id', 'name', 'slug', 'sort_order', 'is_active']);
+
+        $items = $subcategories->map(function ($sub) use ($lockedMap) {
+            $isLocked = isset($lockedMap[$sub->id]);
+            return [
+                'id'            => $sub->id,
+                'category_id'   => $sub->circle_category_id,
+                'level2_id'     => $sub->level2_id,
+                'level3_id'     => $sub->level3_id,
+                'name'          => $sub->name,
+                'slug'          => $sub->slug,
+                'sort_order'    => $sub->sort_order,
+                'is_locked'     => $isLocked,
+                'locked_by'     => $isLocked ? $lockedMap[$sub->id]['locked_by'] : null,
+                'is_selectable' => ! $isLocked,
+            ];
+        });
+
+        return $this->success([
+            'category_id'   => $category->id,
+            'category_name' => $category->name,
+            'total'         => $items->count(),
+            'locked_count'  => count($lockedMap),
+            'items'         => $items,
+        ], 'Subcategories fetched successfully.');
+    }
+
+    /**
      * Real-time peer check helper for Flutter contact selection.
      * Given a phone number, returns whether the contact is already an active Peer,
      * auto-fills business name & category, and checks if they are already in 3 circles.
@@ -84,6 +184,8 @@ class UserCircleRequestController extends BaseApiController
                 'business_name'          => null,
                 'category_id'            => null,
                 'category_name'          => null,
+                'subcategory_id'         => null,
+                'subcategory_name'       => null,
                 'active_circles_count'   => 0,
                 'is_max_circles_reached' => false,
                 'warning'                => null,
@@ -109,6 +211,8 @@ class UserCircleRequestController extends BaseApiController
                 'business_name'          => null,
                 'category_id'            => null,
                 'category_name'          => null,
+                'subcategory_id'         => null,
+                'subcategory_name'       => null,
                 'active_circles_count'   => 0,
                 'is_max_circles_reached' => false,
                 'warning'                => null,
@@ -127,12 +231,25 @@ class UserCircleRequestController extends BaseApiController
         $name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: $user->display_name ?: $user->name ?? 'Peer';
         $businessName = $user->company_name ?? $user->business_name ?? null;
 
-        // Category resolution
-        $categoryId = $user->category_id ?? $user->business_category_id ?? null;
+        // Category resolution (Level 1)
+        $categoryId = $user->main_business_category_id ?? $user->category_id ?? null;
         $categoryName = null;
         if ($categoryId) {
             $cat = CircleCategory::find($categoryId);
             $categoryName = $cat?->name;
+        }
+
+        // Subcategory resolution (Level 4)
+        $subcategoryId = $user->business_category_id ?? $user->level_4_category_id ?? null;
+        $subcategoryName = null;
+        if ($subcategoryId) {
+            $subcat = \App\Models\CircleCategoryLevel4::find($subcategoryId);
+            $subcategoryName = $subcat?->name;
+            if (! $categoryId && $subcat && $subcat->circle_category_id) {
+                $categoryId = $subcat->circle_category_id;
+                $cat = CircleCategory::find($categoryId);
+                $categoryName = $cat?->name;
+            }
         }
 
         return $this->success([
@@ -142,6 +259,8 @@ class UserCircleRequestController extends BaseApiController
             'business_name'          => $businessName,
             'category_id'            => $categoryId,
             'category_name'          => $categoryName,
+            'subcategory_id'         => $subcategoryId,
+            'subcategory_name'       => $subcategoryName,
             'active_circles_count'   => $activeCirclesCount,
             'is_max_circles_reached' => $isMaxCircles,
             'warning'                => $isMaxCircles ? "This peer is already a member of {$activeCirclesCount} circles." : null,
@@ -196,10 +315,15 @@ class UserCircleRequestController extends BaseApiController
         ];
 
         $circleRequest = DB::transaction(function () use ($user, $validated, $peers, $minimum, $metadata): UserCircleRequest {
+            $founderCategory = $validated['founder_category_id'] ?? null;
+            $founderSubcategory = $validated['founder_subcategory_id'] ?? null;
+
             $req = UserCircleRequest::create([
                 'user_id'                 => $user->id,
                 'circle_name'             => $validated['circle_name'],
                 'category_id'             => $validated['category_id'] ?? null,
+                'founder_category_id'     => $founderCategory ? (int) $founderCategory : null,
+                'founder_subcategory_id'  => $founderSubcategory ? (int) $founderSubcategory : null,
                 'description'             => $validated['why_circle'] ?? $validated['description'] ?? null,
                 'city'                    => $validated['city'] ?? null,
                 'country'                 => $validated['country'] ?? 'India',
@@ -211,15 +335,38 @@ class UserCircleRequestController extends BaseApiController
             ]);
 
             foreach ($peers as $peer) {
+                $peerId = $peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? null;
+                $peerName = $peer['name'] ?? null;
+                $peerPhone = $peer['phone'] ?? null;
+                $peerEmail = $peer['email'] ?? null;
+                $peerBusiness = $peer['business_name'] ?? null;
+                $peerCategory = $peer['category_id'] ?? null;
+                $peerSubcategory = $peer['subcategory_id'] ?? $peer['sub_category_id'] ?? null;
+                $source = $peer['source'] ?? (! empty($peerId) ? 'app' : 'manual');
+
+                if (! empty($peerId)) {
+                    $existingUser = User::find($peerId);
+                    if ($existingUser) {
+                        $peerName = $peerName ?: (trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? '')) ?: $existingUser->display_name ?: $existingUser->name);
+                        $peerPhone = $peerPhone ?: $existingUser->phone;
+                        $peerEmail = $peerEmail ?: $existingUser->email;
+                        $peerBusiness = $peerBusiness ?: ($existingUser->company_name ?? $existingUser->business_name ?? null);
+                        $peerCategory = $peerCategory ?: ($existingUser->main_business_category_id ?? $existingUser->category_id ?? null);
+                        $peerSubcategory = $peerSubcategory ?: ($existingUser->business_category_id ?? $existingUser->level_4_category_id ?? null);
+                    }
+                }
+
                 UserCircleRequestNominee::create([
                     'user_circle_request_id' => $req->id,
-                    'nominee_user_id'        => $peer['user_id'] ?? $peer['nominee_user_id'] ?? null,
-                    'name'                   => $peer['name'],
-                    'phone'                  => $peer['phone'] ?? null,
-                    'email'                  => $peer['email'] ?? null,
-                    'business_name'          => $peer['business_name'] ?? null,
-                    'category_id'            => $peer['category_id'] ?? null,
+                    'nominee_user_id'        => $peerId,
+                    'name'                   => $peerName,
+                    'phone'                  => $peerPhone,
+                    'email'                  => $peerEmail,
+                    'business_name'          => $peerBusiness,
+                    'category_id'            => $peerCategory ? (int) $peerCategory : null,
+                    'subcategory_id'         => $peerSubcategory ? (int) $peerSubcategory : null,
                     'interest_level'         => $peer['interest_level'] ?? 'medium',
+                    'source'                 => $source,
                 ]);
             }
 
@@ -238,8 +385,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $allCount - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $allCount >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $allCount),
         ], 'Circle request submitted successfully.', 201);
     }
 
@@ -297,15 +444,38 @@ class UserCircleRequestController extends BaseApiController
             UserCircleRequestNominee::where('user_circle_request_id', $circleRequest->id)->delete();
 
             foreach ($peers as $peer) {
+                $peerId = $peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? null;
+                $peerName = $peer['name'] ?? null;
+                $peerPhone = $peer['phone'] ?? null;
+                $peerEmail = $peer['email'] ?? null;
+                $peerBusiness = $peer['business_name'] ?? null;
+                $peerCategory = $peer['category_id'] ?? null;
+                $peerSubcategory = $peer['subcategory_id'] ?? $peer['sub_category_id'] ?? null;
+                $source = $peer['source'] ?? (! empty($peerId) ? 'app' : 'manual');
+
+                if (! empty($peerId)) {
+                    $existingUser = User::find($peerId);
+                    if ($existingUser) {
+                        $peerName = $peerName ?: (trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? '')) ?: $existingUser->display_name ?: $existingUser->name);
+                        $peerPhone = $peerPhone ?: $existingUser->phone;
+                        $peerEmail = $peerEmail ?: $existingUser->email;
+                        $peerBusiness = $peerBusiness ?: ($existingUser->company_name ?? $existingUser->business_name ?? null);
+                        $peerCategory = $peerCategory ?: ($existingUser->main_business_category_id ?? $existingUser->category_id ?? null);
+                        $peerSubcategory = $peerSubcategory ?: ($existingUser->business_category_id ?? $existingUser->level_4_category_id ?? null);
+                    }
+                }
+
                 UserCircleRequestNominee::create([
                     'user_circle_request_id' => $circleRequest->id,
-                    'nominee_user_id'        => $peer['user_id'] ?? $peer['nominee_user_id'] ?? null,
-                    'name'                   => $peer['name'],
-                    'phone'                  => $peer['phone'] ?? null,
-                    'email'                  => $peer['email'] ?? null,
-                    'business_name'          => $peer['business_name'] ?? null,
-                    'category_id'            => $peer['category_id'] ?? null,
+                    'nominee_user_id'        => $peerId,
+                    'name'                   => $peerName,
+                    'phone'                  => $peerPhone,
+                    'email'                  => $peerEmail,
+                    'business_name'          => $peerBusiness,
+                    'category_id'            => $peerCategory ? (int) $peerCategory : null,
+                    'subcategory_id'         => $peerSubcategory ? (int) $peerSubcategory : null,
                     'interest_level'         => $peer['interest_level'] ?? 'medium',
+                    'source'                 => $source,
                 ]);
             }
         });
@@ -322,8 +492,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $allCount - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $allCount >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $allCount),
         ], 'Recommended peers updated successfully.');
     }
 
@@ -361,6 +531,18 @@ class UserCircleRequestController extends BaseApiController
                 'slug'       => $r->category->slug,
                 'circle_key' => $r->category->circle_key,
             ] : null,
+            'founder_category_id'    => $r->founder_category_id ?? ($r->metadata['founder_category_id'] ?? null),
+            'founder_category'       => $r->founderCategory ? [
+                'id'   => $r->founderCategory->id,
+                'name' => $r->founderCategory->name,
+                'slug' => $r->founderCategory->slug,
+            ] : null,
+            'founder_subcategory_id' => $r->founder_subcategory_id ?? ($r->metadata['founder_subcategory_id'] ?? null),
+            'founder_subcategory'    => $r->founderSubcategory ? [
+                'id'   => $r->founderSubcategory->id,
+                'name' => $r->founderSubcategory->name,
+                'slug' => $r->founderSubcategory->slug,
+            ] : null,
             'description'          => $r->description,
             'city'                 => $r->city,
             'country'              => $r->country,
@@ -372,8 +554,8 @@ class UserCircleRequestController extends BaseApiController
             'complete_peers_count'           => $completeCount,
             'incomplete_peers_count'         => max(0, $count - $completeCount),
             'minimum_required'               => $minimum,
-            'has_minimum_recommended_peers' => $completeCount >= $minimum,
-            'remaining_recommended_peers'   => max(0, $minimum - $completeCount),
+            'has_minimum_recommended_peers' => $count >= $minimum,
+            'remaining_recommended_peers'   => max(0, $minimum - $count),
             'summary'                        => $summary,
             'recommended_peers_joined_unity_count'  => $summary['joined_unity_count'],
             'recommended_peers_joined_circle_count' => $summary['joined_circle_count'],

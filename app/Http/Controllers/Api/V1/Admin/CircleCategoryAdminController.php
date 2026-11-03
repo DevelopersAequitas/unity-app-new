@@ -38,10 +38,66 @@ class CircleCategoryAdminController extends BaseApiController
             ->orderBy('id')
             ->get();
 
-        $allCircles = Circle::query()
-            ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
-            ->whereNull('deleted_at')
-            ->get();
+        $user = $request->user();
+        $isGlobal = false;
+        if (! $user) {
+            $isGlobal = true;
+        } elseif ($user instanceof \App\Models\AdminUser) {
+            $isGlobal = \App\Support\AdminAccess::isSuperAdmin($user) || \App\Support\AdminAccess::isGlobalAdmin($user) || in_array($user->role, ['super_admin', 'superAdmin']);
+        } else {
+            $permissionService = app(\App\Leader\Services\LeaderPermissionService::class);
+            $roleInfo = $permissionService->resolveUserRole($user);
+            $role = $roleInfo['role'] ?? 'user';
+            $isGlobal = in_array($role, ['superAdmin', 'super_admin', 'global_admin', 'countryDirector'], true);
+        }
+
+        if (! $isGlobal && $user) {
+            $userId = (string) $user->id;
+            $allCircles = Circle::query()
+                ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->with('categories:id')
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($userId) {
+                    $q->where('director_user_id', $userId)
+                      ->orWhere('circle_director_user_id', $userId)
+                      ->orWhere('founder_user_id', $userId)
+                      ->orWhere('circle_founder_user_id', $userId)
+                      ->orWhere('chair_user_id', $userId)
+                      ->orWhere('industry_director_user_id', $userId)
+                      ->orWhereHas('members', fn ($m) => $m->where('user_id', $userId)->where('status', 'approved'));
+                })
+                ->get();
+
+            // CD, CF, and Chair can ONLY see industries that belong to their circle(s)
+            $items = $items->filter(function (CircleCategory $cat) use ($allCircles) {
+                $catId = (int) $cat->id;
+                $catName = strtolower(trim($cat->name));
+                $catKey = strtolower(trim($cat->circle_key ?? ''));
+                $catSlug = strtolower(trim($cat->slug ?? ''));
+
+                return $allCircles->contains(function ($c) use ($catId, $catName, $catKey, $catSlug) {
+                    if ($c->categories->contains('id', $catId)) {
+                        return true;
+                    }
+                    if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
+                        foreach ($c->industry_tags as $t) {
+                            $tagStr = strtolower(trim((string) $t));
+                            if ($tagStr === (string) $catId || $tagStr === $catName || $tagStr === $catKey || $tagStr === $catSlug) {
+                                return true;
+                            }
+                        }
+                    }
+                    $cName = strtolower($c->name);
+                    return str_contains($cName, $catName) || ($catSlug && str_contains($cName, $catSlug));
+                });
+            })->values();
+        } else {
+            $allCircles = Circle::query()
+                ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->with('categories:id')
+                ->whereNull('deleted_at')
+                ->get();
+        }
 
         $transformed = $items->map(function (CircleCategory $cat) use ($allCircles) {
             $catId = (int) $cat->id;
@@ -49,7 +105,7 @@ class CircleCategoryAdminController extends BaseApiController
             $catKey = strtolower(trim($cat->circle_key ?? ''));
 
             $matchedCircles = $allCircles->filter(function ($c) use ($catId, $catName, $catKey) {
-                if ((int) $c->template_id === $catId) {
+                if ($c->categories->contains('id', $catId)) {
                     return true;
                 }
                 if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
@@ -152,7 +208,7 @@ class CircleCategoryAdminController extends BaseApiController
             ->withCount(['members' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')])
             ->whereNull('deleted_at')
             ->where(function ($q) use ($catId, $catName, $catKey) {
-                $q->where('template_id', $catId);
+                $q->whereHas('categories', fn ($cq) => $cq->where('circle_categories.id', $catId));
                 if ($catName !== '') {
                     $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(industry_tags::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catName]);
                 }

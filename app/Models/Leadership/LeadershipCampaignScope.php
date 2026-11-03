@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models\Leadership;
 
+use App\Models\City;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,8 +26,14 @@ class LeadershipCampaignScope extends Model
     protected $fillable = [
         'id',
         'campaign_id',
-        'scope_type',
+        'city_id',
+        'name',
         'scope_name',
+        'scope_type',
+        'state',
+        'district',
+        'city',
+        'seats_available',
         'scope_reference_id',
         'parent_scope_id',
         'settings',
@@ -35,7 +42,41 @@ class LeadershipCampaignScope extends Model
 
     protected $casts = [
         'settings' => 'array',
+        'seats_available' => 'integer',
     ];
+
+    protected $appends = [
+        'name',
+        'city',
+        'district',
+        'state',
+        'seats_available',
+    ];
+
+    public function getNameAttribute(): string
+    {
+        return $this->attributes['name'] ?? $this->attributes['scope_name'] ?? 'General Scope';
+    }
+
+    public function getCityAttribute(): ?string
+    {
+        return $this->attributes['city'] ?? $this->attributes['district'] ?? null;
+    }
+
+    public function getDistrictAttribute(): ?string
+    {
+        return $this->attributes['district'] ?? $this->attributes['city'] ?? null;
+    }
+
+    public function getStateAttribute(): ?string
+    {
+        return $this->attributes['state'] ?? null;
+    }
+
+    public function getSeatsAvailableAttribute(): int
+    {
+        return (int) ($this->attributes['seats_available'] ?? 1);
+    }
 
     protected static function booted(): void
     {
@@ -43,12 +84,26 @@ class LeadershipCampaignScope extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+            if (empty($model->scope_name) && ! empty($model->name)) {
+                $model->scope_name = $model->name;
+            }
+            if (empty($model->name) && ! empty($model->scope_name)) {
+                $model->name = $model->scope_name;
+            }
+            if (empty($model->seats_available)) {
+                $model->seats_available = 1;
+            }
         });
     }
 
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(LeadershipCampaign::class, 'campaign_id');
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class, 'city_id');
     }
 
     public function parentScope(): BelongsTo

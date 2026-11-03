@@ -60,7 +60,10 @@ class AdminScopeService
 
         $direct = Circle::query()
             ->where(fn ($q) => $q->where('founder_user_id', $user->id)
+                ->orWhere('circle_founder_user_id', $user->id)
                 ->orWhere('director_user_id', $user->id)
+                ->orWhere('circle_director_user_id', $user->id)
+                ->orWhere('chair_user_id', $user->id)
                 ->orWhere('industry_director_user_id', $user->id)
                 ->orWhere('ded_user_id', $user->id))
             ->pluck('id');
@@ -80,17 +83,23 @@ class AdminScopeService
             return Industry::query()->pluck('id')->all();
         }
 
-        if (! Schema::hasColumn('circles', 'industry_id')) {
-            return [];
+        $visibleCircles = Circle::query()
+            ->whereIn('id', $this->visibleCircleIds($user))
+            ->get(['id', 'template_id', 'industry_tags']);
+
+        $industryIds = [];
+        foreach ($visibleCircles as $c) {
+            if (!empty($c->template_id)) {
+                $industryIds[] = (string) $c->template_id;
+            }
+            if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
+                foreach ($c->industry_tags as $t) {
+                    $industryIds[] = (string) $t;
+                }
+            }
         }
 
-        return Circle::query()
-            ->whereIn('id', $this->visibleCircleIds($user))
-            ->whereNotNull('industry_id')
-            ->pluck('industry_id')
-            ->unique()
-            ->values()
-            ->all();
+        return array_values(array_unique($industryIds));
     }
 
     public function visibleDistrictIds(User|AdminUser $user): array

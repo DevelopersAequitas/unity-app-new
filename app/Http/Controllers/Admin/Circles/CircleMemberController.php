@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminAccess;
 use Carbon\Carbon;
@@ -57,14 +58,91 @@ class CircleMemberController extends Controller
 
                 $showOnMemberList = $request->boolean('show_on_member_list', false);
 
+                $roleInput = (string) $data['role'];
+                $roleModel = null;
+                if (Str::isUuid($roleInput)) {
+                    $roleModel = Role::query()->find($roleInput);
+                } else {
+                    $normalizedKey = match (strtolower(trim($roleInput))) {
+                        'founder', 'circle founder' => 'circle_founder',
+                        'director', 'circle director' => 'circle_director',
+                        'id', 'industry director' => 'industry_director',
+                        default => strtolower(trim($roleInput)),
+                    };
+                    $roleModel = Role::query()->where('key', $normalizedKey)->orWhere('key', strtolower(trim($roleInput)))->first();
+                }
+
+                $roleSlug = $roleModel?->key ?? (Str::isUuid($roleInput) ? 'member' : strtolower(trim($roleInput)));
+                $roleId = $roleModel?->id ?? (Str::isUuid($roleInput) ? $roleInput : null);
+
                 $payload = [
                     'user_id' => $data['user_id'],
-                    'role' => $data['role'],
+                    'role' => $roleSlug,
                     'status' => 'approved',
                 ];
 
-                if (Str::isUuid($data['role'])) {
-                    $payload['role_id'] = $data['role'];
+                if ($roleId) {
+                    $payload['role_id'] = $roleId;
+                }
+
+                $memberRoleId = Role::idByKey('member');
+                $circleChanged = false;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+                if (in_array($roleSlug, ['circle_founder', 'founder'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $data['user_id'])
+                        ->whereIn('role', ['circle_founder', 'founder'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->circle_founder_user_id = $data['user_id'];
+                    $circle->founder_user_id = $data['user_id'];
+                    data_set($calendar, 'leadership.circle_founder_user_id', $data['user_id']);
+                    data_set($calendar, 'leadership.founder_user_id', $data['user_id']);
+                    $circleChanged = true;
+                } elseif (in_array($roleSlug, ['circle_director', 'director', 'cd'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $data['user_id'])
+                        ->whereIn('role', ['circle_director', 'director', 'cd'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->circle_director_user_id = $data['user_id'];
+                    $circle->director_user_id = $data['user_id'];
+                    data_set($calendar, 'leadership.circle_director_user_id', $data['user_id']);
+                    data_set($calendar, 'leadership.director_user_id', $data['user_id']);
+                    $circleChanged = true;
+                } elseif (in_array($roleSlug, ['industry_director', 'id'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $data['user_id'])
+                        ->whereIn('role', ['industry_director', 'id'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->industry_director_user_id = $data['user_id'];
+                    data_set($calendar, 'leadership.industry_director_user_id', $data['user_id']);
+                    $circleChanged = true;
+                } elseif ($roleSlug === 'ded') {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $data['user_id'])
+                        ->where('role', 'ded')
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->ded_user_id = $data['user_id'];
+                    data_set($calendar, 'leadership.ded_user_id', $data['user_id']);
+                    $circleChanged = true;
+                } elseif ($roleSlug === 'eed') {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $data['user_id'])
+                        ->where('role', 'eed')
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->eed_user_id = $data['user_id'];
+                    data_set($calendar, 'leadership.eed_user_id', $data['user_id']);
+                    $circleChanged = true;
+                }
+
+                if ($circleChanged) {
+                    $circle->calendar = $calendar;
+                    $circle->save();
                 }
 
                 if (Schema::hasColumn('circle_members', 'show_on_member_list')) {
@@ -179,16 +257,121 @@ class CircleMemberController extends Controller
         $redirectQuery = $this->peerFilterQuery($request);
 
         $validated = $request->validated();
-        $newRole = isset($validated['role']) ? (string) $validated['role'] : null;
+        $roleInput = isset($validated['role']) ? (string) $validated['role'] : null;
         $oldRole = (string) $circleMember->role;
 
-        DB::transaction(function () use ($circle, $circleMember, $newRole, $oldRole, $request): void {
-            if ($newRole !== null) {
-                if (Str::isUuid($newRole)) {
-                    $circleMember->role_id = $newRole;
-                    $circleMember->role = $newRole;
+        DB::transaction(function () use ($circle, $circleMember, $roleInput, $oldRole, $request): void {
+            $roleSlug = null;
+            if ($roleInput !== null) {
+                $roleModel = null;
+                if (Str::isUuid($roleInput)) {
+                    $roleModel = Role::query()->find($roleInput);
                 } else {
-                    $circleMember->role = $newRole;
+                    $normalizedKey = match (strtolower(trim($roleInput))) {
+                        'founder', 'circle founder' => 'circle_founder',
+                        'director', 'circle director' => 'circle_director',
+                        'id', 'industry director' => 'industry_director',
+                        default => strtolower(trim($roleInput)),
+                    };
+                    $roleModel = Role::query()->where('key', $normalizedKey)->orWhere('key', strtolower(trim($roleInput)))->first();
+                }
+
+                $roleSlug = $roleModel?->key ?? (Str::isUuid($roleInput) ? 'member' : strtolower(trim($roleInput)));
+                $roleId = $roleModel?->id ?? (Str::isUuid($roleInput) ? $roleInput : null);
+
+                $circleMember->role = $roleSlug;
+                $circleMember->role_id = $roleId;
+
+                $memberRoleId = Role::idByKey('member');
+                $circleChanged = false;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+                if (in_array($roleSlug, ['circle_founder', 'founder'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('id', '!=', $circleMember->id)
+                        ->whereIn('role', ['circle_founder', 'founder'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->circle_founder_user_id = $circleMember->user_id;
+                    $circle->founder_user_id = $circleMember->user_id;
+                    data_set($calendar, 'leadership.circle_founder_user_id', $circleMember->user_id);
+                    data_set($calendar, 'leadership.founder_user_id', $circleMember->user_id);
+                    $circleChanged = true;
+                } elseif ($circle->circle_founder_user_id === $circleMember->user_id) {
+                    $circle->circle_founder_user_id = null;
+                    $circle->founder_user_id = null;
+                    data_set($calendar, 'leadership.circle_founder_user_id', null);
+                    data_set($calendar, 'leadership.founder_user_id', null);
+                    $circleChanged = true;
+                }
+
+                if (in_array($roleSlug, ['circle_director', 'director', 'cd'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('id', '!=', $circleMember->id)
+                        ->whereIn('role', ['circle_director', 'director', 'cd'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->circle_director_user_id = $circleMember->user_id;
+                    $circle->director_user_id = $circleMember->user_id;
+                    data_set($calendar, 'leadership.circle_director_user_id', $circleMember->user_id);
+                    data_set($calendar, 'leadership.director_user_id', $circleMember->user_id);
+                    $circleChanged = true;
+                } elseif ($circle->circle_director_user_id === $circleMember->user_id) {
+                    $circle->circle_director_user_id = null;
+                    $circle->director_user_id = null;
+                    data_set($calendar, 'leadership.circle_director_user_id', null);
+                    data_set($calendar, 'leadership.director_user_id', null);
+                    $circleChanged = true;
+                }
+
+                if (in_array($roleSlug, ['industry_director', 'id'], true)) {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('id', '!=', $circleMember->id)
+                        ->whereIn('role', ['industry_director', 'id'])
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->industry_director_user_id = $circleMember->user_id;
+                    data_set($calendar, 'leadership.industry_director_user_id', $circleMember->user_id);
+                    $circleChanged = true;
+                } elseif ($circle->industry_director_user_id === $circleMember->user_id) {
+                    $circle->industry_director_user_id = null;
+                    data_set($calendar, 'leadership.industry_director_user_id', null);
+                    $circleChanged = true;
+                }
+
+                if ($roleSlug === 'ded') {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('id', '!=', $circleMember->id)
+                        ->where('role', 'ded')
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->ded_user_id = $circleMember->user_id;
+                    data_set($calendar, 'leadership.ded_user_id', $circleMember->user_id);
+                    $circleChanged = true;
+                } elseif ($circle->ded_user_id === $circleMember->user_id) {
+                    $circle->ded_user_id = null;
+                    data_set($calendar, 'leadership.ded_user_id', null);
+                    $circleChanged = true;
+                }
+
+                if ($roleSlug === 'eed') {
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('id', '!=', $circleMember->id)
+                        ->where('role', 'eed')
+                        ->update(['role' => 'member', 'role_id' => $memberRoleId]);
+
+                    $circle->eed_user_id = $circleMember->user_id;
+                    data_set($calendar, 'leadership.eed_user_id', $circleMember->user_id);
+                    $circleChanged = true;
+                } elseif ($circle->eed_user_id === $circleMember->user_id) {
+                    $circle->eed_user_id = null;
+                    data_set($calendar, 'leadership.eed_user_id', null);
+                    $circleChanged = true;
+                }
+
+                if ($circleChanged) {
+                    $circle->calendar = $calendar;
+                    $circle->save();
                 }
             }
 
@@ -198,11 +381,11 @@ class CircleMemberController extends Controller
 
             $circleMember->save();
 
-            if ($newRole !== null) {
+            if ($roleInput !== null) {
                 $user = $circleMember->user;
                 if ($user) {
                     $freshMember = $circleMember->fresh();
-                    $resolvedNewRole = (string) ($freshMember?->role ?? $newRole);
+                    $resolvedNewRole = (string) ($freshMember?->role ?? $roleSlug ?? $roleInput);
                     $this->syncCircleLeadershipColumns($circle, $user->id, $resolvedNewRole, $oldRole);
 
                     $adminUser = DB::table('admin_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->first();
@@ -324,21 +507,61 @@ class CircleMemberController extends Controller
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
-        // 1. Prevent founder removal
-        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot remove founder. Please transfer founder role first.',
-                ], 422);
+        // 1. Prevent founder removal on standard web form unless force is requested
+        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'], true)) {
+            if ($request->expectsJson() || $request->ajax() || $request->boolean('force')) {
+                $circle->circle_founder_user_id = null;
+                $circle->founder_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_founder_user_id', null);
+                data_set($calendar, 'leadership.founder_user_id', null);
+                data_set($calendar, 'leadership.circle_founder_name', null);
+                $circle->calendar = $calendar;
+                $circle->save();
+            } else {
+                return redirect()
+                    ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
+                    ->with('error', 'Cannot remove founder. Please transfer founder role first.');
             }
-
-            return redirect()
-                ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
-                ->with('error', 'Cannot remove founder. Please transfer founder role first.');
         }
 
         DB::transaction(function () use ($circle, $circleMember) {
+            $circleChanged = false;
+            $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+            if ($circle->circle_director_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_director', 'director', 'cd'], true)) {
+                $circle->circle_director_user_id = null;
+                $circle->director_user_id = null;
+                data_set($calendar, 'leadership.circle_director_user_id', null);
+                data_set($calendar, 'leadership.director_user_id', null);
+                data_set($calendar, 'leadership.circle_director_name', null);
+                $circleChanged = true;
+            }
+
+            if ($circle->industry_director_user_id === $circleMember->user_id || in_array($circleMember->role, ['industry_director', 'id'], true)) {
+                $circle->industry_director_user_id = null;
+                data_set($calendar, 'leadership.industry_director_user_id', null);
+                data_set($calendar, 'leadership.industry_director_name', null);
+                $circleChanged = true;
+            }
+
+            if ($circle->ded_user_id === $circleMember->user_id || $circleMember->role === 'ded') {
+                $circle->ded_user_id = null;
+                data_set($calendar, 'leadership.ded_user_id', null);
+                $circleChanged = true;
+            }
+
+            if ($circle->eed_user_id === $circleMember->user_id || $circleMember->role === 'eed') {
+                $circle->eed_user_id = null;
+                data_set($calendar, 'leadership.eed_user_id', null);
+                $circleChanged = true;
+            }
+
+            if ($circleChanged) {
+                $circle->calendar = $calendar;
+                $circle->save();
+            }
+
             // 2. Nullify user's active circle association in users table if it matches this circle
             DB::table('users')
                 ->where('id', $circleMember->user_id)
@@ -365,6 +588,8 @@ class CircleMemberController extends Controller
 
             // 4. Soft delete membership record
             $circleMember->delete();
+
+            Circle::syncLeadershipFromMembers($circle);
         });
 
         if ($request->expectsJson() || $request->ajax()) {

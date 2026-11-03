@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Leadership;
 
+use App\Models\Circle;
+use App\Models\CircleMember;
+use App\Models\City;
+use App\Models\Leadership\LeadershipCampaign;
+use App\Models\Leadership\LeadershipFinalDecision;
+use App\Models\Leadership\LeadershipNomination;
 use App\Services\Leadership\DecisionService;
+use App\Services\Leadership\JuryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,8 +19,55 @@ use Illuminate\Support\Facades\Auth;
 class FinalDecisionController extends LeadershipBaseController
 {
     public function __construct(
-        protected DecisionService $decisionService
+        protected DecisionService $decisionService,
+        protected JuryService $juryService
     ) {}
+
+    /**
+     * Get candidate's jury evaluation breakdown and scores.
+     */
+    public function evaluations(string $id): JsonResponse
+    {
+        try {
+            $nomination = LeadershipNomination::findOrFail($id);
+            $summary = $this->juryService->getAdminJurySummary($nomination->id);
+
+            return $this->success($summary, 'Candidate jury evaluations fetched successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 404);
+        }
+    }
+
+    /**
+     * List circles for winner assignment dropdown.
+     */
+    public function circles(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->query('search', ''));
+        $query = Circle::query()
+            ->select(['id', 'name', 'slug', 'city_id', 'type', 'status', 'meeting_mode'])
+            ->with(['city:id,name,state'])
+            ->whereNull('deleted_at');
+
+        if ($search !== '') {
+            $query->where('name', 'ILIKE', "%{$search}%");
+        }
+
+        $circles = $query->orderBy('name')->limit(200)->get()->map(function (Circle $c): array {
+            return [
+                'id' => (string) $c->id,
+                'name' => (string) $c->name,
+                'slug' => (string) $c->slug,
+                'city_id' => $c->city_id ? (string) $c->city_id : null,
+                'city' => $c->city?->name ?? '',
+                'type' => (string) ($c->type ?? 'public'),
+                'status' => (string) ($c->status ?? 'active'),
+                'meeting_mode' => (string) ($c->meeting_mode ?? 'hybrid'),
+            ];
+        });
+
+        return $this->success($circles, 'Circles fetched successfully.');
+    }
 
     /**
      * J1. Candidates eligible for final decision.
@@ -138,18 +192,96 @@ class FinalDecisionController extends LeadershipBaseController
             'remarks' => 'nullable|string',
             'decision_reason' => 'nullable|string',
             'is_winner' => 'nullable|boolean',
+            'circle_action' => 'nullable|string|in:none,existing,new',
+            'circle_id' => 'nullable|uuid',
+            'new_circle_name' => 'nullable|string|max:200',
+            'new_circle_description' => 'nullable|string',
+            'new_circle_purpose' => 'nullable|string',
+            'new_circle_city_id' => 'nullable|uuid',
+            'new_circle_type' => 'nullable|string|in:public,private',
+            'new_circle_meeting_mode' => 'nullable|string|in:online,offline,hybrid',
         ]);
 
         try {
-            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($validated['campaign_id']);
-            $nomination = \App\Models\Leadership\LeadershipNomination::findOrFail($validated['nomination_id']);
+            $campaign = LeadershipCampaign::findOrFail($validated['campaign_id']);
+            $nomination = LeadershipNomination::findOrFail($validated['nomination_id']);
 
             $decisionKey = strtolower(trim((string) $validated['decision']));
             $isWinner = $validated['is_winner'] ?? in_array($decisionKey, ['selected', 'winner'], true);
             $reason = $validated['remarks'] ?? ($validated['decision_reason'] ?? 'Recorded by leadership selection committee');
 
-            /** @var \App\Models\Leadership\LeadershipFinalDecision $decision */
-            $decision = \App\Models\Leadership\LeadershipFinalDecision::updateOrCreate(
+            $assignedCircle = null;
+            $circleAction = (string) ($validated['circle_action'] ?? 'none');
+
+            // Process Circle Assignment if winner or circle specified
+            if ($isWinner && $circleAction === 'existing' && ! empty($validated['circle_id'])) {
+                /** @var Circle|null $existingCircle */
+                $existingCircle = Circle::find($validated['circle_id']);
+                if ($existingCircle) {
+                    $roleName = strtolower((string) ($nomination->applied_role_name ?? $nomination->applied_role_title ?? ''));
+                    if (str_contains($roleName, 'vice')) {
+                        $existingCircle->vice_chair_user_id = $nomination->user_id;
+                    } elseif (str_contains($roleName, 'ded') || str_contains($roleName, 'district')) {
+                        $existingCircle->ded_user_id = $nomination->user_id;
+                    } else {
+                        $existingCircle->chair_user_id = $nomination->user_id;
+                    }
+
+                    if (empty($existingCircle->circle_founder_user_id) && ! empty($nomination->user_id)) {
+                        $existingCircle->circle_founder_user_id = $nomination->user_id;
+                    }
+                    $existingCircle->save();
+
+                    if (! empty($nomination->user_id)) {
+                        CircleMember::updateOrCreate(
+                            [
+                                'circle_id' => $existingCircle->id,
+                                'user_id' => $nomination->user_id,
+                            ],
+                            [
+                                'role' => str_contains($roleName, 'vice') ? 'vice_chair' : 'chair',
+                                'status' => 'active',
+                            ]
+                        );
+                    }
+                    $assignedCircle = $existingCircle;
+                }
+            } elseif ($isWinner && $circleAction === 'new' && ! empty($validated['new_circle_name'])) {
+                $cityName = null;
+                if (! empty($validated['new_circle_city_id'])) {
+                    $cityName = City::where('id', $validated['new_circle_city_id'])->value('name');
+                }
+
+                $newCircle = Circle::create([
+                    'name' => trim((string) $validated['new_circle_name']),
+                    'description' => $validated['new_circle_description'] ?? null,
+                    'purpose' => $validated['new_circle_purpose'] ?? $validated['new_circle_description'] ?? null,
+                    'city_id' => $validated['new_circle_city_id'] ?? null,
+                    'status' => 'active',
+                    'type' => $validated['new_circle_type'] ?? 'public',
+                    'country' => 'India',
+                    'meeting_mode' => $validated['new_circle_meeting_mode'] ?? 'hybrid',
+                    'circle_founder_user_id' => $nomination->user_id,
+                    'chair_user_id' => $nomination->user_id,
+                ]);
+
+                if (! empty($nomination->user_id)) {
+                    CircleMember::updateOrCreate(
+                        [
+                            'circle_id' => $newCircle->id,
+                            'user_id' => $nomination->user_id,
+                        ],
+                        [
+                            'role' => 'circle_founder',
+                            'status' => 'active',
+                        ]
+                    );
+                }
+                $assignedCircle = $newCircle;
+            }
+
+            /** @var LeadershipFinalDecision $decision */
+            $decision = LeadershipFinalDecision::updateOrCreate(
                 [
                     'campaign_id' => $campaign->id,
                     'nomination_id' => $nomination->id,
@@ -169,7 +301,7 @@ class FinalDecisionController extends LeadershipBaseController
             $newStatus = $isWinner ? 'winner' : ($decisionKey === 'rejected' || $decisionKey === 'not_selected' ? 'not_selected' : 'approved');
             $nomination->update(['status' => $newStatus]);
 
-            // Save rank & remarks in profile_snapshot
+            // Save rank, remarks, & assigned circle in profile_snapshot
             $snapshot = (array) ($nomination->profile_snapshot ?? []);
             if (isset($validated['rank'])) {
                 $snapshot['decision_rank'] = (int) $validated['rank'];
@@ -177,9 +309,22 @@ class FinalDecisionController extends LeadershipBaseController
             if (! empty($validated['remarks'])) {
                 $snapshot['decision_remarks'] = $validated['remarks'];
             }
+            if ($assignedCircle) {
+                $snapshot['assigned_circle_id'] = $assignedCircle->id;
+                $snapshot['assigned_circle_name'] = $assignedCircle->name;
+            }
             $nomination->update(['profile_snapshot' => $snapshot]);
 
-            return $this->success($decision, 'Final selection decision recorded successfully.');
+            $result = $decision->toArray();
+            if ($assignedCircle) {
+                $result['assigned_circle'] = [
+                    'id' => $assignedCircle->id,
+                    'name' => $assignedCircle->name,
+                    'slug' => $assignedCircle->slug,
+                ];
+            }
+
+            return $this->success($result, 'Final selection decision recorded successfully.');
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }

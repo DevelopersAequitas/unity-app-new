@@ -6,13 +6,12 @@ namespace App\Leader\Services;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
-use App\Models\Payment;
-use App\Models\User;
-use App\Models\Finance\FinanceWallet;
-use App\Models\Finance\FinanceLedgerTransaction;
 use App\Models\Finance\FinanceCommissionRule;
 use App\Models\Finance\FinanceLeaderTenure;
-use Illuminate\Database\Eloquent\Builder;
+use App\Models\Finance\FinanceLedgerTransaction;
+use App\Models\Finance\FinanceWallet;
+use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -39,7 +38,7 @@ class LeaderFinanceService
         $targetCircleIds = $leaderScope['target_circle_ids'];
         $scopeMemberIds = $leaderScope['scoped_member_user_ids'];
 
-        // 1. Business Deals in Scope & 5% Platform Revenue Cut
+        // 1. Business Deals in Scope (Peer-to-Peer B2B deals count only — never mixed into Platform Revenue)
         $dealsBase = fn () => DB::table('business_deals')
             ->when(Schema::hasColumn('business_deals', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
             ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
@@ -54,35 +53,39 @@ class LeaderFinanceService
             });
 
         $dealsClosedCount = Schema::hasTable('business_deals') ? (int) $dealsBase()->count() : 0;
-        $dealsAmountSum = Schema::hasTable('business_deals') ? (float) $dealsBase()->sum('deal_amount') : 0.0;
-        $dealsRevenueCut = $dealsAmountSum * 0.05;
 
-        // 2. Collections from Payments table
-        $paymentsQuery = Payment::query()->where(function ($q): void {
-            $q->whereIn(DB::raw('LOWER(status)'), ['paid', 'success', 'completed', 'active', 'captured']);
-        });
+        // 2. Collections from Payments table (if table exists)
+        $hasPaymentsTable = Schema::hasTable('payments');
+        $paymentsQuery = null;
+        $rawPaymentSum = 0.0;
 
-        if ($circleId && Str::isUuid($circleId)) {
-            $paymentsQuery->where(function ($q) use ($circleId): void {
-                $q->where('circle_id', $circleId)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        if ($hasPaymentsTable) {
+            $paymentsQuery = Payment::query()->where(function ($q): void {
+                $q->whereIn(DB::raw('LOWER(status)'), ['paid', 'success', 'completed', 'active', 'captured']);
             });
-        } elseif (! empty($targetCircleIds)) {
-            $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
-                $q->whereIn('circle_id', $targetCircleIds)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
-            });
-        } elseif (! $isGlobalScope) {
-            $paymentsQuery->whereRaw('1 = 0');
+
+            if ($circleId && Str::isUuid($circleId)) {
+                $paymentsQuery->where(function ($q) use ($circleId): void {
+                    $q->where('circle_id', $circleId)
+                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+                });
+            } elseif (! empty($targetCircleIds)) {
+                $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
+                    $q->whereIn('circle_id', $targetCircleIds)
+                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+                });
+            } elseif (! $isGlobalScope) {
+                $paymentsQuery->whereRaw('1 = 0');
+            }
+
+            $rawPaymentSum = (float) (clone $paymentsQuery)->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
         }
 
-        $rawPaymentSum = (float) (clone $paymentsQuery)->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
-
-        // 3. Real Budget Wallets & Ledger Credits from Finance System
+        // 3. Real Budget Wallets & Posted Subscription Ledger Credits from Finance System
         $circleWalletQuery = FinanceWallet::query()->where('wallet_type', 'circle_budget');
         if ($circleId && Str::isUuid($circleId)) {
             $circleWalletQuery->where('scope_id', $circleId);
-        } elseif (! empty($targetCircleIds)) {
+        } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
             $circleWalletQuery->whereIn('scope_id', $targetCircleIds);
         } elseif (! $isGlobalScope) {
             $circleWalletQuery->whereRaw('1 = 0');
@@ -92,16 +95,48 @@ class LeaderFinanceService
         $circleCreditedTotal = (float) (clone $circleWalletQuery)->sum('total_credited');
         $circleDebitedTotal = (float) (clone $circleWalletQuery)->sum('total_debited');
 
+        // Gross Subscription Volume recorded in finance_ledger_transactions (distinct per peer subscription payment)
+        $ledgerSubQuery = fn () => FinanceLedgerTransaction::query()
+            ->where('transaction_type', 'CREDIT')
+            ->where('status', 'posted')
+            ->whereNotNull('category_code')
+            ->where('category_code', '!=', '')
+            ->when($circleId && Str::isUuid($circleId), function ($q) use ($circleId): void {
+                $q->where(function ($sq) use ($circleId): void {
+                    $sq->where('scope_id', $circleId)
+                        ->orWhereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
+                });
+            })
+            ->when(! ($circleId && Str::isUuid($circleId)) && ! empty($targetCircleIds) && ! $isGlobalScope, function ($q) use ($targetCircleIds): void {
+                $q->where(function ($sq) use ($targetCircleIds): void {
+                    $sq->whereIn('scope_id', $targetCircleIds)
+                        ->orWhereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
+                });
+            })
+            ->when(! ($circleId && Str::isUuid($circleId)) && empty($targetCircleIds) && ! $isGlobalScope, function ($q): void {
+                $q->whereRaw('1 = 0');
+            });
+
+        $ledgerSubscriptionGrossSum = 0.0;
+        if (Schema::hasTable('finance_ledger_transactions')) {
+            $distinctSubGroups = $ledgerSubQuery()
+                ->selectRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT)) as sub_key, MAX(base_amount) as gross_base')
+                ->groupByRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT))')
+                ->get();
+            $ledgerSubscriptionGrossSum = (float) $distinctSubGroups->sum('gross_base');
+        }
+
+        // Total Platform Revenue = real membership subscription payments collected (never B2B business_deals)
+        $totalRevenueAmount = max($rawPaymentSum, $ledgerSubscriptionGrossSum, $circleCreditedTotal);
+
+        // Circle Revenue = total collections/credits allocated to Circle Budgets (or direct circle payments)
+        $circleRevenueAmount = $circleCreditedTotal > 0 ? $circleCreditedTotal : $rawPaymentSum;
+
         // Total Collections = payments collected + ledger credits
         $collectionsAmount = max($rawPaymentSum, $circleCreditedTotal);
-        // Circle Revenue = the real Circle Budget available balance
-        $circleRevenueAmount = $circleBudgetBalance > 0 ? $circleBudgetBalance : $collectionsAmount;
 
-        // Total Revenue = Deals Platform Cut (5%) + Real Collections (Membership Package fees)
-        $totalRevenueAmount = $dealsRevenueCut + $collectionsAmount;
-
-        // 4. Monthly Trend (last 6 months)
-        $dateColumn = Schema::hasColumn('payments', 'paid_at') ? 'paid_at' : 'created_at';
+        // 4. Monthly Trend (last 6 months — strictly from real subscription payments & ledger, 0% B2B deals)
+        $dateColumn = ($hasPaymentsTable && Schema::hasColumn('payments', 'paid_at')) ? 'paid_at' : 'created_at';
         $revenueTrend = [];
         $dealsTrend = [];
 
@@ -109,12 +144,27 @@ class LeaderFinanceService
             $monthStart = now()->startOfMonth()->subMonths($i);
             $monthEnd = (clone $monthStart)->endOfMonth();
 
-            $mDealsSum = (float) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->sum('deal_amount');
-            $mDealsCount = (int) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count();
-            $mDealsCut = $mDealsSum * 0.05;
+            $mDealsCount = Schema::hasTable('business_deals')
+                ? (int) $dealsBase()->whereBetween('deal_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->count()
+                : 0;
 
-            $mPayments = (float) (clone $paymentsQuery)->whereBetween($dateColumn, [$monthStart, $monthEnd])->sum('amount');
-            $mTotal = $mDealsCut + $mPayments;
+            $mPayments = ($hasPaymentsTable && $paymentsQuery !== null)
+                ? (float) (clone $paymentsQuery)
+                    ->whereBetween($dateColumn, [$monthStart, $monthEnd])
+                    ->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'))
+                : 0.0;
+
+            $mLedgerGross = 0.0;
+            if (Schema::hasTable('finance_ledger_transactions')) {
+                $mSubGroups = $ledgerSubQuery()
+                    ->whereBetween('created_at', [$monthStart, $monthEnd])
+                    ->selectRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT)) as sub_key, MAX(base_amount) as gross_base')
+                    ->groupByRaw('COALESCE(CAST(source_payment_id AS TEXT), CAST(member_user_id AS TEXT), CAST(id AS TEXT))')
+                    ->get();
+                $mLedgerGross = (float) $mSubGroups->sum('gross_base');
+            }
+
+            $mTotal = max($mPayments, $mLedgerGross);
 
             $revenueTrend[] = [
                 'month' => $monthStart->format('M'),
@@ -144,56 +194,77 @@ class LeaderFinanceService
             ->get();
         $rulesByRole = $rules->groupBy('role_code');
 
-        $formatRulePct = function (string $roleCode, string $catCode, float $fallback) use ($rulesByRole): string {
+        $dbRates = Schema::hasTable('leader_commission_rates')
+            ? DB::table('leader_commission_rates')->get()->keyBy('role_id')
+            : collect();
+
+        $formatRulePct = function (string $roleId, string $roleCode, string $catCode, float $fallback) use ($rulesByRole, $dbRates): string {
+            // 1. Check authoritative finance_commission_rules
             $r = $rulesByRole->get($roleCode)?->firstWhere('category_code', $catCode);
-            $pct = $r ? (float) $r->share_percentage : $fallback;
-            return number_format($pct, 1).'%';
+            if ($r && isset($r->share_percentage)) {
+                return number_format((float) $r->share_percentage, 1).'%';
+            }
+            // 2. Check leader_commission_rates (set by Super Admin from app/web)
+            $row = $dbRates->get($roleId);
+            if ($row) {
+                if ($catCode === 'B' && isset($row->direct_referral_cut_percentage)) {
+                    return number_format((float) $row->direct_referral_cut_percentage, 1).'%';
+                }
+                if ($catCode === 'D' && isset($row->app_join_cut_percentage)) {
+                    return number_format((float) $row->app_join_cut_percentage, 1).'%';
+                }
+                if ($catCode === 'A' && isset($row->renewal_cut_percentage)) {
+                    return number_format((float) $row->renewal_cut_percentage, 1).'%';
+                }
+            }
+
+            return number_format($fallback, 1).'%';
         };
 
-        $commissionStructure = [
-            [
-                'role' => 'Circle Founder (CF)',
-                'role_id' => 'circleFounder',
-                'direct_referral_cut' => $formatRulePct('CF', 'B', 10.0),
-                'app_join_cut' => $formatRulePct('CF', 'D', 5.0),
-                'renewal_cut' => $formatRulePct('CF', 'A', 10.0),
-            ],
-            [
-                'role' => 'Circle Director (CD)',
-                'role_id' => 'circleDirector',
-                'direct_referral_cut' => $formatRulePct('CD', 'B', 10.0),
-                'app_join_cut' => $formatRulePct('CD', 'D', 5.0),
-                'renewal_cut' => $formatRulePct('CD', 'A', 10.0),
-            ],
-            [
-                'role' => 'Circle Chair (CHAIR)',
-                'role_id' => 'circleChair',
-                'direct_referral_cut' => $formatRulePct('CHAIR', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('CHAIR', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('CHAIR', 'A', 5.0),
-            ],
-            [
-                'role' => 'District Exec Director (DED)',
-                'role_id' => 'districtExecDirector',
-                'direct_referral_cut' => $formatRulePct('DED', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('DED', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('DED', 'A', 5.0),
-            ],
-            [
-                'role' => 'Industry Director (ID)',
-                'role_id' => 'industryDirector',
-                'direct_referral_cut' => $formatRulePct('ID', 'B', 5.0),
-                'app_join_cut' => $formatRulePct('ID', 'D', 2.5),
-                'renewal_cut' => $formatRulePct('ID', 'A', 5.0),
-            ],
-            [
-                'role' => 'Super Admin',
-                'role_id' => 'superAdmin',
-                'direct_referral_cut' => '100%',
-                'app_join_cut' => '100%',
-                'renewal_cut' => '100%',
-            ],
+        // Standard leadership roles (Super Admin is excluded because Super Admin does not earn commissions)
+        $rolesList = [
+            'circleFounder' => ['name' => 'Circle Founder (CF)', 'code' => 'CF', 'ref' => 10.0, 'app' => 5.0, 'ren' => 10.0],
+            'circleDirector' => ['name' => 'Circle Director (CD)', 'code' => 'CD', 'ref' => 10.0, 'app' => 5.0, 'ren' => 10.0],
+            'circleChair' => ['name' => 'Circle Chair (CHAIR)', 'code' => 'CHAIR', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'districtExecDirector' => ['name' => 'District Exec Director (DED)', 'code' => 'DED', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'industryDirector' => ['name' => 'Industry Director (ID)', 'code' => 'ID', 'ref' => 5.0, 'app' => 2.5, 'ren' => 5.0],
+            'countryDirector' => ['name' => 'Country Director (CDIR)', 'code' => 'CDIR', 'ref' => 0.0, 'app' => 0.0, 'ren' => 0.0],
         ];
+
+        // Discover newly added roles in the future dynamically from roles table
+        if (Schema::hasTable('roles')) {
+            try {
+                $dbRoles = DB::table('roles')->get();
+                foreach ($dbRoles as $dr) {
+                    $rawKey = (string) ($dr->key ?? $dr->slug ?? $dr->name);
+                    $normKey = app(UserRoleResolverService::class)->normalizeRoleKey($rawKey);
+                    if ($normKey === 'superAdmin' || isset($rolesList[$normKey])) {
+                        continue;
+                    }
+                    $name = (string) ($dr->name ?? $dr->display_name ?? $normKey);
+                    $code = strtoupper(substr(str_replace(' ', '', $name), 0, 5));
+                    $rolesList[$normKey] = [
+                        'name' => $name,
+                        'code' => $code,
+                        'ref' => 0.0,
+                        'app' => 0.0,
+                        'ren' => 0.0,
+                    ];
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        $commissionStructure = [];
+        foreach ($rolesList as $roleKey => $rInfo) {
+            $commissionStructure[] = [
+                'role' => $rInfo['name'],
+                'role_id' => $roleKey,
+                'direct_referral_cut' => $formatRulePct($roleKey, $rInfo['code'], 'B', $rInfo['ref']),
+                'app_join_cut' => $formatRulePct($roleKey, $rInfo['code'], 'D', $rInfo['app']),
+                'renewal_cut' => $formatRulePct($roleKey, $rInfo['code'], 'A', $rInfo['ren']),
+            ];
+        }
 
         // Resolve logged-in leader's personal commission rate
         $userRole = 'circleFounder';
@@ -203,71 +274,36 @@ class LeaderFinanceService
             $userRole = $roleInfo['role'] ?? 'circleFounder';
         }
 
-        $dbRates = Schema::hasTable('leader_commission_rates')
-            ? DB::table('leader_commission_rates')->get()->keyBy('role_id')
-            : collect();
+        if ($userRole === 'superAdmin') {
+            // Super Admin has NO personal commissions and is not an earner
+            $commissionRates = [];
+            $commissionDueAmount = 0.0;
+            $totalDuesAmount = 0.0;
+        } else {
+            $matchedRoleInfo = $rolesList[$userRole] ?? ($rolesList['circleFounder'] ?? null);
+            $userRef = $matchedRoleInfo ? $formatRulePct($userRole, $matchedRoleInfo['code'], 'B', $matchedRoleInfo['ref']) : '0.0%';
+            $userApp = $matchedRoleInfo ? $formatRulePct($userRole, $matchedRoleInfo['code'], 'D', $matchedRoleInfo['app']) : '0.0%';
 
-        $getRate = function (string $roleId, float $defaultReferral, float $defaultAppJoin) use ($rulesByRole, $dbRates): array {
-            $roleCode = match (strtolower(str_replace(['_', ' '], '', $roleId))) {
-                'circlefounder', 'cf' => 'CF',
-                'circledirector', 'cd' => 'CD',
-                'circlechair', 'chair', 'chairbusinessgrowth', 'chairmembership', 'chaireventsprograms' => 'CHAIR',
-                'districtexecdirector', 'ded' => 'DED',
-                'industrydirector', 'id' => 'ID',
-                'superadmin' => 'SUPERADMIN',
-                'countrydirector' => 'CDIR',
-                default => strtoupper(substr($roleId, 0, 4)),
-            };
-
-            $rulesForRole = $rulesByRole->get($roleCode);
-            $refRule = $rulesForRole?->firstWhere('category_code', 'B');
-            $appRule = $rulesForRole?->firstWhere('category_code', 'D');
-
-            $row = $dbRates->get($roleId);
-
-            $ref = $refRule
-                ? (float) $refRule->share_percentage
-                : ($row ? (float) $row->direct_referral_cut_percentage : $defaultReferral);
-
-            $app = $appRule
-                ? (float) $appRule->share_percentage
-                : ($row ? (float) $row->app_join_cut_percentage : $defaultAppJoin);
-
-            return [
-                'referral' => number_format($ref, 1).'%',
-                'app_join' => number_format($app, 1).'%',
+            $commissionRates = [
+                [
+                    'label' => 'Direct Referral Cut',
+                    'rate' => $userRef,
+                    'description' => 'Earned on every closed peer referral',
+                    'status' => 'Active',
+                ],
+                [
+                    'label' => 'App Join Cut',
+                    'rate' => $userApp,
+                    'description' => 'Credited on new member onboarding',
+                    'status' => 'Active',
+                ],
             ];
-        };
 
-        $userRate = match ($userRole) {
-            'superAdmin' => $getRate('superAdmin', 12.0, 6.0),
-            'countryDirector' => $getRate('countryDirector', 11.0, 5.5),
-            'districtExecDirector' => $getRate('districtExecDirector', 10.0, 4.0),
-            'industryDirector' => $getRate('industryDirector', 10.0, 4.0),
-            'circleChair', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms' => $getRate('circleChair', 0.0, 0.0),
-            'circleDirector' => $getRate('circleDirector', 7.5, 3.0),
-            default => $getRate('circleFounder', 8.5, 3.5),
-        };
-
-        $commissionRates = [
-            [
-                'label' => 'Direct Referral Cut',
-                'rate' => $userRate['referral'],
-                'description' => 'Earned on every closed peer referral',
-                'status' => 'Active',
-            ],
-            [
-                'label' => 'App Join Cut',
-                'rate' => $userRate['app_join'],
-                'description' => 'Credited on new member onboarding',
-                'status' => 'Active',
-            ],
-        ];
-
-        // Commission due = collections in scope x referral rate
-        $referralRate = (float) rtrim($userRate['referral'], '%');
-        $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
-        $totalDuesAmount = $commissionDueAmount;
+            // Commission due = collections in scope x referral rate
+            $referralRate = (float) rtrim($userRef, '%');
+            $commissionDueAmount = round($collectionsAmount * $referralRate / 100, 2);
+            $totalDuesAmount = $commissionDueAmount;
+        }
 
         $formatCurrency = function (float $amount): string {
             if ($amount >= 10000000) {
@@ -276,8 +312,35 @@ class LeaderFinanceService
             if ($amount >= 100000) {
                 return '₹'.number_format($amount / 100000, 1).'L';
             }
+
             return '₹'.number_format($amount, 0);
         };
+
+        $activeTenuresCount = 0;
+        try {
+            if (Schema::hasTable('finance_leader_tenures')) {
+                $tenureQuery = FinanceLeaderTenure::query()->where('is_active', true);
+                if ($circleId && Str::isUuid($circleId)) {
+                    $tenureQuery->where('scope_id', $circleId);
+                } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
+                    $tenureQuery->whereIn('scope_id', $targetCircleIds);
+                }
+                $activeTenuresCount = (int) $tenureQuery->count();
+            }
+        } catch (\Throwable) {
+        }
+
+        $circleBudgetAmount = 0.0;
+        try {
+            if (class_exists(FinanceWallet::class)) {
+                if ($circleId && Str::isUuid($circleId)) {
+                    $circleBudgetAmount = (float) (FinanceWallet::where('scope_id', $circleId)->value('current_balance') ?? 0.0);
+                } else {
+                    $circleBudgetAmount = (float) (FinanceWallet::where('wallet_type', 'circle_budget')->sum('current_balance') ?? 0.0);
+                }
+            }
+        } catch (\Throwable) {
+        }
 
         return [
             'total_revenue' => $formatCurrency($totalRevenueAmount),
@@ -292,6 +355,8 @@ class LeaderFinanceService
             'business_deals' => $dealsTrend,
             'commission_rates' => $commissionRates,
             'commission_structure' => $commissionStructure,
+            'active_tenures' => $activeTenuresCount,
+            'circle_budget' => $formatCurrency($circleBudgetAmount),
         ];
     }
 
@@ -310,6 +375,56 @@ class LeaderFinanceService
         $isGlobalScope = $leaderScope['is_global_scope'];
         $targetCircleIds = $leaderScope['target_circle_ids'];
 
+        // Fetch real ledger transactions from FinanceLedgerTransaction first
+        if (Schema::hasTable('finance_ledger_transactions')) {
+            $ledgerQuery = FinanceLedgerTransaction::query()
+                ->with([
+                    'wallet',
+                    'member:id,first_name,last_name,display_name',
+                    'introducer:id,first_name,last_name,display_name',
+                ])
+                ->latest();
+
+            if ($circleId && Str::isUuid($circleId)) {
+                $ledgerQuery->whereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
+            } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
+                $ledgerQuery->whereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
+            } elseif (! $isGlobalScope) {
+                $ledgerQuery->whereRaw('1 = 0');
+            }
+
+            if ($status && strtolower($status) !== 'all') {
+                $ledgerQuery->whereRaw('LOWER(status) = ?', [strtolower($status)]);
+            }
+
+            $ledgerTxns = $ledgerQuery->take(25)->get();
+
+            if ($ledgerTxns->isNotEmpty()) {
+                return $ledgerTxns->map(function (FinanceLedgerTransaction $tx): array {
+                    $peerName = $tx->member?->display_name
+                        ?: ($tx->introducer?->display_name
+                            ?: ($tx->wallet?->wallet_name ? trim(explode('—', (string) $tx->wallet->wallet_name)[0]) : 'Peer Member'));
+                    $circleName = $tx->wallet?->wallet_name ?? 'Circle Budget';
+                    $cat = $tx->category_code ? "Cat {$tx->category_code}: " : '';
+                    $channel = $tx->channel_code ?: ($tx->transaction_type === 'DEBIT' ? 'Budget Withdrawal' : 'Bonus / Commission Credit');
+
+                    return [
+                        'id' => (string) $tx->id,
+                        'peer_name' => $peerName,
+                        'circle_name' => $circleName,
+                        'amount' => '₹'.number_format((float) $tx->amount, 0),
+                        'type' => $cat.$channel,
+                        'status' => ucfirst((string) ($tx->status ?: 'posted')),
+                        'date' => $tx->created_at ? $tx->created_at->format('Y-m-d') : now()->format('Y-m-d'),
+                    ];
+                })->values()->all();
+            }
+        }
+
+        if (! Schema::hasTable('payments')) {
+            return [];
+        }
+
         $query = Payment::query()->with(['user.circleMembers.circle', 'circle'])->latest();
 
         if ($circleId && Str::isUuid($circleId)) {
@@ -317,7 +432,7 @@ class LeaderFinanceService
                 $q->where('circle_id', $circleId)
                     ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
             });
-        } elseif (! empty($targetCircleIds)) {
+        } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
             $query->where(function ($q) use ($targetCircleIds): void {
                 $q->whereIn('circle_id', $targetCircleIds)
                     ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
@@ -330,55 +445,13 @@ class LeaderFinanceService
             $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
         }
 
-        // Fetch real ledger transactions from FinanceLedgerTransaction first
-        $ledgerQuery = FinanceLedgerTransaction::query()
-            ->with([
-                'wallet',
-                'member:id,first_name,last_name,display_name',
-                'introducer:id,first_name,last_name,display_name',
-            ])
-            ->latest();
-
-        if ($circleId && Str::isUuid($circleId)) {
-            $ledgerQuery->whereHas('wallet', fn ($w) => $w->where('scope_id', $circleId));
-        } elseif (! empty($targetCircleIds)) {
-            $ledgerQuery->whereHas('wallet', fn ($w) => $w->whereIn('scope_id', $targetCircleIds));
-        } elseif (! $isGlobalScope) {
-            $ledgerQuery->whereRaw('1 = 0');
-        }
-
-        if ($status && strtolower($status) !== 'all') {
-            $ledgerQuery->whereRaw('LOWER(status) = ?', [strtolower($status)]);
-        }
-
-        $ledgerTxns = $ledgerQuery->take(25)->get();
-
-        if ($ledgerTxns->isNotEmpty()) {
-            return $ledgerTxns->map(function (FinanceLedgerTransaction $tx): array {
-                $peerName = $tx->member?->display_name ?? 'Peer Member';
-                $circleName = $tx->wallet?->wallet_name ?? 'Circle Budget';
-                $cat = $tx->category_code ? "Cat {$tx->category_code}: " : '';
-                $channel = $tx->channel_code ?: 'Commission Allocation';
-
-                return [
-                    'id' => (string) $tx->id,
-                    'peer_name' => $peerName,
-                    'circle_name' => $circleName,
-                    'amount' => '₹'.number_format((float) $tx->amount, 0),
-                    'type' => $cat . $channel,
-                    'status' => ucfirst((string) ($tx->status ?: 'posted')),
-                    'date' => $tx->created_at ? $tx->created_at->format('Y-m-d') : now()->format('Y-m-d'),
-                ];
-            })->values()->all();
-        }
-
         $payments = $query->take(15)->get();
 
         if ($payments->isEmpty()) {
             return [];
         }
 
-        return $payments->map(function (Payment $p, int $idx): array {
+        return $payments->map(function (Payment $p): array {
             $u = $p->user;
             $name = $u ? trim(($u->first_name ?? '').' '.($u->last_name ?? '')) : '';
             if ($name === '' || $name === ' ') {
@@ -397,10 +470,7 @@ class LeaderFinanceService
 
             $amountVal = (float) ($p->total_amount ?: ($p->amount ?: ($p->base_amount ?: 0)));
             if ($amountVal <= 0 && $p->circle) {
-                $amountVal = (float) ($p->circle->circle_price_amount ?: 120000);
-            }
-            if ($amountVal <= 0) {
-                $amountVal = 120000;
+                $amountVal = (float) ($p->circle->circle_price_amount ?: 18000);
             }
 
             return [
@@ -464,21 +534,38 @@ class LeaderFinanceService
                 default => strtoupper(substr($roleId, 0, 4)),
             };
 
-            FinanceCommissionRule::query()
-                ->where('role_code', $roleCode)
-                ->where('category_code', 'B')
-                ->update(['share_percentage' => $referralCut]);
+            if (Schema::hasTable('finance_commission_rules')) {
+                FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'B'],
+                    [
+                        'rule_name' => "{$roleCode} Direct Referral Commission",
+                        'share_percentage' => $referralCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
 
-            FinanceCommissionRule::query()
-                ->where('role_code', $roleCode)
-                ->where('category_code', 'D')
-                ->update(['share_percentage' => $appJoinCut]);
+                FinanceCommissionRule::query()->updateOrCreate(
+                    ['role_code' => $roleCode, 'category_code' => 'D'],
+                    [
+                        'rule_name' => "{$roleCode} App Join Commission",
+                        'share_percentage' => $appJoinCut,
+                        'is_active' => true,
+                        'allocation_target' => 'leader_payout',
+                    ]
+                );
 
-            if ($renewalCut !== null) {
-                FinanceCommissionRule::query()
-                    ->where('role_code', $roleCode)
-                    ->where('category_code', 'A')
-                    ->update(['share_percentage' => $renewalCut]);
+                if ($renewalCut !== null) {
+                    FinanceCommissionRule::query()->updateOrCreate(
+                        ['role_code' => $roleCode, 'category_code' => 'A'],
+                        [
+                            'rule_name' => "{$roleCode} Annual Renewal Commission",
+                            'share_percentage' => $renewalCut,
+                            'is_active' => true,
+                            'allocation_target' => 'leader_payout',
+                        ]
+                    );
+                }
             }
 
             $updatedRates[] = [
@@ -488,7 +575,7 @@ class LeaderFinanceService
             ];
         }
 
-        $adminCode = $user ? ($user->peer_id ?: 'USR-SUPERADMIN-'.substr((string) $user->id, 0, 4)) : 'USR-SUPERADMIN-001';
+        $adminCode = $user ? (($user instanceof User ? $user->peer_id : null) ?: 'USR-SUPERADMIN-'.substr((string) $user->id, 0, 4)) : 'USR-SUPERADMIN-001';
 
         return [
             'updated_count' => count($updatedRates),

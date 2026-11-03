@@ -14,9 +14,12 @@ use App\Models\JoinedCircleCategory;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserCircleRequest;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Circles\BuildYourOwnCircleApprovalService;
+use App\Services\Circles\UserCircleNomineeStatusResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -267,6 +270,29 @@ class CircleManagementController extends BaseApiController
         data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id'] ?? null);
         $circle->calendar = $calendar;
 
+        // Auto-resolve DED if not explicitly set
+        if (empty($circle->ded_user_id)) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $dedId = $approvalService->resolveDedForLocation($circle->city, $circle->city_id);
+            if ($dedId) {
+                $circle->ded_user_id = $dedId;
+                data_set($calendar, 'leadership.ded_user_id', $dedId);
+                $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
+            }
+        }
+
+        // Auto-resolve Industry Director if not explicitly set
+        if (empty($circle->industry_director_user_id)) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $firstCatId = ! empty($validated['categories'][0]) ? (int) $validated['categories'][0] : null;
+            $idUserId = $approvalService->resolveIndustryDirector($firstCatId, $circle->name);
+            if ($idUserId) {
+                $circle->industry_director_user_id = $idUserId;
+                data_set($calendar, 'leadership.industry_director_user_id', $idUserId);
+                $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
+            }
+        }
+
         $circle->save();
 
         if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
@@ -274,19 +300,110 @@ class CircleManagementController extends BaseApiController
             $circle->categories()->sync($categoryIds);
         }
 
-        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+        $circle->load(['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
 
         return $this->success($circle, 'Circle created successfully.', 201);
     }
 
     public function show(string $id): JsonResponse
     {
-        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
+        $relations = ['members', 'cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
         if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
             $relations[] = 'categories';
         }
 
-        return $this->success(Circle::query()->with($relations)->findOrFail($id));
+        $circle = Circle::query()->with($relations)->findOrFail($id);
+
+        // Auto-heal leadership if circle was created from a user_circle_request but leadership is missing
+        $linkedRequest = UserCircleRequest::where('created_circle_id', $circle->id)->first();
+        if ($linkedRequest) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $updated = false;
+
+            if (empty($circle->circle_founder_user_id) && ! empty($linkedRequest->user_id)) {
+                $circle->circle_founder_user_id = $linkedRequest->user_id;
+                $circle->founder_user_id = $linkedRequest->user_id;
+                $approvalService->addFounderMember($circle->id, (string) $linkedRequest->user_id);
+                $updated = true;
+            }
+
+            if (empty($circle->ded_user_id)) {
+                $dedId = $approvalService->resolveDedForLocation($circle->cityRef?->name ?? $circle->city, $circle->city_id);
+                if ($dedId) {
+                    $circle->ded_user_id = $dedId;
+                    $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
+                    $updated = true;
+                }
+            }
+
+            if (empty($circle->industry_director_user_id)) {
+                $idUserId = $approvalService->resolveIndustryDirector($linkedRequest->category_id, $circle->name);
+                if ($idUserId) {
+                    $circle->industry_director_user_id = $idUserId;
+                    $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
+                    $updated = true;
+                }
+            }
+
+            if ($updated) {
+                $cal = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($cal, 'leadership.circle_founder_user_id', $circle->circle_founder_user_id);
+                data_set($cal, 'leadership.founder_user_id', $circle->circle_founder_user_id);
+                data_set($cal, 'leadership.ded_user_id', $circle->ded_user_id);
+                data_set($cal, 'leadership.industry_director_user_id', $circle->industry_director_user_id);
+                $circle->calendar = $cal;
+                $circle->save();
+                Circle::syncLeadershipFromMembers($circle->id);
+                $circle->load($relations);
+            }
+        }
+
+        $data = $circle->toArray();
+        if ($linkedRequest) {
+            $data['has_proposal'] = true;
+            $data['proposal_id'] = $linkedRequest->id;
+            $data['recommended_peers_count'] = $linkedRequest->nominees()->count();
+        }
+
+        return $this->success($data);
+    }
+
+    /**
+     * Get recommended peers submitted for this circle proposal.
+     */
+    public function recommendedPeers(string $id): JsonResponse
+    {
+        Circle::query()->findOrFail($id);
+        $request = UserCircleRequest::where('created_circle_id', $id)
+            ->with(['category', 'user'])
+            ->first();
+
+        if (! $request) {
+            return $this->success([
+                'has_proposal'      => false,
+                'recommended_peers' => [],
+                'count'             => 0,
+            ]);
+        }
+
+        $resolver = app(UserCircleNomineeStatusResolver::class);
+        $peers = $resolver->resolveNominees($request);
+        $summary = $resolver->getSummary($request, $peers);
+
+        return $this->success([
+            'has_proposal'      => true,
+            'request_id'        => $request->id,
+            'circle_name'       => $request->circle_name,
+            'founder'           => [
+                'id'    => $request->user?->id,
+                'name'  => $request->user?->display_name ?: trim(($request->user?->first_name ?? '').' '.($request->user?->last_name ?? '')),
+                'email' => $request->user?->email,
+                'phone' => $request->user?->phone,
+            ],
+            'recommended_peers' => $peers,
+            'count'             => $peers->count(),
+            'summary'           => $summary,
+        ]);
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -627,6 +744,35 @@ class CircleManagementController extends BaseApiController
             $subCategory = $joinedCat?->level4Category;
             $mainCategory = $joinedCat?->level1Category;
 
+            $roleSlug = strtolower(trim((string) ($membership->role ?? '')));
+            if ($membership->roleRef) {
+                $roleName = $membership->roleRef->name;
+            } elseif (in_array($roleSlug, ['circle_founder', 'founder'], true)) {
+                $roleName = 'Circle Founder';
+            } elseif (in_array($roleSlug, ['circle_director', 'director'], true)) {
+                $roleName = 'Circle Director';
+            } elseif (in_array($roleSlug, ['industry_director', 'id'], true)) {
+                $roleName = 'Industry Director';
+            } elseif ($roleSlug === 'ded') {
+                $roleName = 'DED';
+            } elseif ($roleSlug === 'eed') {
+                $roleName = 'EED';
+            } elseif ($roleSlug === 'chair') {
+                $roleName = 'Circle Chair';
+            } elseif ($roleSlug === 'vice_chair') {
+                $roleName = 'Vice Chair';
+            } elseif ($roleSlug === 'secretary') {
+                $roleName = 'Secretary';
+            } else {
+                $roleName = ucwords(str_replace('_', ' ', $roleSlug ?: 'member'));
+            }
+
+            $resolvedKey = in_array($roleSlug, ['founder', 'circle_founder'], true)
+                ? 'circle_founder'
+                : (in_array($roleSlug, ['director', 'circle_director'], true)
+                    ? 'circle_director'
+                    : (in_array($roleSlug, ['id', 'industry_director'], true) ? 'industry_director' : ($membership->roleRef?->key ?? $roleSlug)));
+
             return [
                 'id' => (string) $membership->id,
                 'circle_id' => (string) $membership->circle_id,
@@ -635,9 +781,9 @@ class CircleManagementController extends BaseApiController
                 'email' => (string) ($user?->email ?? ''),
                 'company_name' => $company,
                 'city' => $city,
-                'role' => (string) ($membership->role ?? 'member'),
-                'role_id' => $membership->role_id ? (string) $membership->role_id : null,
-                'role_name' => $membership->roleRef?->name ?? ucwords(str_replace('_', ' ', (string) $membership->role)),
+                'role' => $resolvedKey ?: 'member',
+                'role_id' => $membership->role_id ? (string) $membership->role_id : ($membership->roleRef?->id ? (string) $membership->roleRef->id : null),
+                'role_name' => $roleName,
                 'is_ded' => $isDed,
                 'is_id' => $isId,
                 'status' => (string) ($membership->status ?? 'approved'),
@@ -682,11 +828,33 @@ class CircleManagementController extends BaseApiController
             ->pluck('count', 'level4_category_id')
             ->toArray();
 
-        $roles = Role::query()->orderBy('name')->get(['id', 'name', 'key'])->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'name' => (string) $r->name,
-            'key' => (string) ($r->key ?? $r->id),
-        ]);
+        $priorityOrder = [
+            'member' => 1,
+            'circle_founder' => 2,
+            'circle_director' => 3,
+            'chair' => 4,
+            'vice_chair' => 5,
+            'secretary' => 6,
+            'committee_leader' => 7,
+            'chair_business_growth_committee' => 8,
+            'chair_membership_growth_committee' => 9,
+            'chair_events_impacts_committee' => 10,
+            'industry_director' => 11,
+            'ded' => 12,
+            'eed' => 13,
+        ];
+
+        $roles = Role::query()->get(['id', 'name', 'key'])
+            ->sortBy(function ($r) use ($priorityOrder) {
+                $k = strtolower(trim((string) ($r->key ?? '')));
+                return $priorityOrder[$k] ?? (100 + (abs(crc32($r->name)) % 1000));
+            })
+            ->values()
+            ->map(fn ($r) => [
+                'id' => (string) $r->id,
+                'name' => (string) $r->name,
+                'key' => (string) ($r->key ?? $r->id),
+            ]);
 
         return response()->json([
             'success' => true,
@@ -786,19 +954,33 @@ class CircleManagementController extends BaseApiController
         $expiresAt = ! empty($v['expires_at']) ? Carbon::parse($v['expires_at']) : null;
         $showOnMemberList = $request->boolean('show_on_member_list', false);
 
+        $roleInput = (string) $v['role'];
+        $roleModel = null;
+        if (Str::isUuid($roleInput)) {
+            $roleModel = Role::query()->find($roleInput);
+        } else {
+            $normalizedKey = match (strtolower(trim($roleInput))) {
+                'founder' => 'circle_founder',
+                'director' => 'circle_director',
+                'id' => 'industry_director',
+                default => strtolower(trim($roleInput)),
+            };
+            $roleModel = Role::query()->where('key', $normalizedKey)->orWhere('key', strtolower(trim($roleInput)))->first();
+        }
+
+        $roleSlug = $roleModel?->key ?? (Str::isUuid($roleInput) ? 'member' : strtolower(trim($roleInput)));
+        $roleId = $roleModel?->id ?? (Str::isUuid($roleInput) ? $roleInput : null);
+
         $payload = [
             'circle_id' => $id,
             'user_id' => $v['user_id'],
-            'role' => $v['role'],
+            'role' => $roleSlug,
+            'role_id' => $roleId,
             'status' => 'approved',
             'joined_at' => $joinedAt,
             'expires_at' => $expiresAt,
             'show_on_member_list' => $showOnMemberList,
         ];
-
-        if (Str::isUuid($v['role'])) {
-            $payload['role_id'] = $v['role'];
-        }
 
         $member = DB::transaction(function () use ($circle, $v, $payload, $joinedAt, $expiresAt) {
             $existingMember = CircleMember::withTrashed()
@@ -884,12 +1066,46 @@ class CircleManagementController extends BaseApiController
         ]);
 
         if (isset($v['role'])) {
-            $newRole = (string) $v['role'];
-            if (Str::isUuid($newRole)) {
-                $membership->role_id = $newRole;
-                $membership->role = $newRole;
+            $roleInput = (string) $v['role'];
+            $roleModel = null;
+            if (Str::isUuid($roleInput)) {
+                $roleModel = Role::query()->find($roleInput);
             } else {
-                $membership->role = $newRole;
+                $normalizedKey = match (strtolower(trim($roleInput))) {
+                    'founder' => 'circle_founder',
+                    'director' => 'circle_director',
+                    'id' => 'industry_director',
+                    default => strtolower(trim($roleInput)),
+                };
+                $roleModel = Role::query()->where('key', $normalizedKey)->orWhere('key', strtolower(trim($roleInput)))->first();
+            }
+
+            $roleSlug = $roleModel?->key ?? (Str::isUuid($roleInput) ? 'member' : strtolower(trim($roleInput)));
+            $roleId = $roleModel?->id ?? (Str::isUuid($roleInput) ? $roleInput : null);
+
+            $membership->role = $roleSlug;
+            $membership->role_id = $roleId;
+
+            if (in_array($roleSlug, ['circle_founder', 'founder'], true)) {
+                $circle->circle_founder_user_id = $membership->user_id;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_founder_user_id', $membership->user_id);
+                $circle->calendar = $calendar;
+                $circle->save();
+            } elseif ($circle->circle_founder_user_id === $membership->user_id) {
+                $circle->circle_founder_user_id = null;
+                $circle->save();
+            }
+
+            if (in_array($roleSlug, ['circle_director', 'director'], true)) {
+                $circle->circle_director_user_id = $membership->user_id;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_director_user_id', $membership->user_id);
+                $circle->calendar = $calendar;
+                $circle->save();
+            } elseif ($circle->circle_director_user_id === $membership->user_id) {
+                $circle->circle_director_user_id = null;
+                $circle->save();
             }
         }
 
@@ -976,14 +1192,51 @@ class CircleManagementController extends BaseApiController
             })
             ->firstOrFail();
 
-        if ($circle->circle_founder_user_id === $membership->user_id || in_array($membership->role, ['circle_founder', 'founder'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot remove founder. Please transfer founder role first.',
-            ], 422);
-        }
-
         DB::transaction(function () use ($circle, $membership) {
+            $circleChanged = false;
+
+            // If the member being removed holds founder or leadership roles on the circle, unassign them
+            if ($circle->circle_founder_user_id === $membership->user_id || in_array($membership->role, ['circle_founder', 'founder'], true)) {
+                $circle->circle_founder_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_founder_user_id', null);
+                data_set($calendar, 'leadership.circle_founder_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->circle_director_user_id === $membership->user_id || in_array($membership->role, ['circle_director', 'director'], true)) {
+                $circle->circle_director_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.circle_director_user_id', null);
+                data_set($calendar, 'leadership.circle_director_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->industry_director_user_id === $membership->user_id) {
+                $circle->industry_director_user_id = null;
+                $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($calendar, 'leadership.industry_director_user_id', null);
+                data_set($calendar, 'leadership.industry_director_name', null);
+                $circle->calendar = $calendar;
+                $circleChanged = true;
+            }
+
+            if ($circle->ded_user_id === $membership->user_id) {
+                $circle->ded_user_id = null;
+                $circleChanged = true;
+            }
+
+            if ($circle->eed_user_id === $membership->user_id) {
+                $circle->eed_user_id = null;
+                $circleChanged = true;
+            }
+
+            if ($circleChanged) {
+                $circle->save();
+            }
+
             DB::table('users')
                 ->where('id', $membership->user_id)
                 ->where('active_circle_id', $circle->id)

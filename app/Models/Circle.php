@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Finance\LeaderTenureService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -121,7 +122,44 @@ class Circle extends Model
         return $this->belongsTo(MembershipPlan::class, 'payment_plan_id', 'id');
     }
 
-    protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
+    protected $appends = [
+        'cover_image_url',
+        'circle_image_url',
+        'city_display',
+        'founder_name',
+        'ded_name',
+        'industry_director_name',
+    ];
+
+    public function getFounderNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('circleFounder') ? $this->circleFounder : ($this->relationLoaded('founder') ? $this->founder : null);
+        if (! $u) {
+            $fId = $this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id');
+            if ($fId) {
+                $u = User::find($fId);
+            }
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getDedNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('ded') ? $this->ded : null;
+        if (! $u && ! empty($this->ded_user_id)) {
+            $u = User::find($this->ded_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getIndustryDirectorNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('industryDirector') ? $this->industryDirector : null;
+        if (! $u && ! empty($this->industry_director_user_id)) {
+            $u = User::find($this->industry_director_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
 
     public function getCircleRanking(): array
     {
@@ -483,15 +521,21 @@ class Circle extends Model
             $frequency = 'weekly';
         }
 
+        $weekOffset = max(0, $weekNum - 1);
+
         return [
             'repeat_every' => (int) ($rawRepeat['repeat_every'] ?? 1),
             'interval' => (int) ($rawRepeat['interval'] ?? 1),
             'unit' => $frequency === 'weekly' ? 'week' : 'month',
             'frequency' => $frequency,
             'week_of_month' => "week_{$weekNum}",
-            'week_number' => $weekNum,
-            'week' => $weekNum,
-            'ordinal' => $weekNum,
+            'week_number' => $weekOffset,
+            'week' => $weekOffset,
+            'ordinal' => $weekOffset,
+            'week_offset' => $weekOffset,
+            'week_index' => $weekOffset,
+            'nth_week' => $weekNum,
+            'calendar_week' => $weekNum,
             'ordinal_text' => $ordinalText,
             'monthly_rule' => $monthlyRule,
             'weekday' => $weekday,
@@ -522,12 +566,13 @@ class Circle extends Model
         }
 
         $normalized = self::normalizeCadencePayload($repeat, is_array($this->calendar) ? $this->calendar : null);
-        $now = $now ? $now->copy() : Carbon::now(config('app.timezone', 'Asia/Kolkata'));
+        $tz = config('app.timezone', 'Asia/Kolkata');
+        $now = $now ? $now->copy() : Carbon::now($tz);
 
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
         $time = $normalized['start_time'];
-        $weekNum = $normalized['week_number'];
+        $weekNum = $normalized['calendar_week'] ?? $normalized['nth_week'] ?? ($normalized['week_number'] + 1);
         $ordinalText = $normalized['ordinal_text'];
         $monthlyRule = $normalized['monthly_rule'];
 
@@ -543,10 +588,10 @@ class Circle extends Model
             }
         } else {
             // Monthly
-            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time);
+            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time, $tz);
             if ($candidate->lt($now)) {
                 $nextMonth = $now->copy()->startOfMonth()->addMonth();
-                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time);
+                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time, $tz);
             }
         }
 
@@ -569,12 +614,15 @@ class Circle extends Model
             'formatted_time' => $formattedTime,
             'display' => $display,
             'starts_at' => $candidate->toIso8601String(),
+            'starts_at_utc' => $candidate->copy()->utc()->toIso8601String(),
+            'timezone' => $tz,
         ];
     }
 
-    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time): Carbon
+    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time, ?string $timezone = null): Carbon
     {
-        $dt = Carbon::create($year, $month, 1, 0, 0, 0);
+        $tz = $timezone ?: config('app.timezone', 'Asia/Kolkata');
+        $dt = Carbon::create($year, $month, 1, 0, 0, 0, $tz);
         [$hour, $minute] = explode(':', $time) + [0, 0];
 
         while (strtolower($dt->format('l')) !== strtolower($weekday)) {
@@ -651,12 +699,13 @@ class Circle extends Model
 
     public function circleFounder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        $fk = ! empty($this->circle_founder_user_id) ? 'circle_founder_user_id' : 'founder_user_id';
+        return $this->belongsTo(User::class, $fk);
     }
 
     public function circleFounderUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        return $this->circleFounder();
     }
 
     public function circleDirector(): BelongsTo
@@ -863,7 +912,11 @@ class Circle extends Model
 
     public static function syncLeadershipFromMembers(Circle|string $circle): void
     {
-        if (! Schema::hasTable('circles')) {
+        try {
+            if (! Schema::hasTable('circles')) {
+                return;
+            }
+        } catch (\Throwable) {
             return;
         }
 
@@ -875,8 +928,13 @@ class Circle extends Model
         $members = CircleMember::query()
             ->where('circle_id', $circleModel->id)
             ->whereNull('deleted_at')
-            ->whereIn(DB::raw('status::text'), ['approved', 'active'])
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active', 'pending', 'accepted']);
+            })
             ->with(['roleRef'])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('joined_at')
             ->get();
 
         $roleToColumns = [
@@ -917,6 +975,7 @@ class Circle extends Model
             $newValues[$col] = $existingVal;
         }
 
+        $assignedCols = [];
         foreach ($members as $member) {
             $userId = $member->user_id;
             if (! $userId) {
@@ -926,6 +985,17 @@ class Circle extends Model
             $roleKeys = [];
             if (! empty($member->role)) {
                 $roleKeys[] = strtolower(trim((string) $member->role));
+            }
+            if (! empty($member->role_id) && Schema::hasTable('roles')) {
+                $r = Role::find($member->role_id);
+                if ($r) {
+                    if (! empty($r->key)) {
+                        $roleKeys[] = strtolower(trim((string) $r->key));
+                    }
+                    if (! empty($r->name)) {
+                        $roleKeys[] = strtolower(trim((string) $r->name));
+                    }
+                }
             }
             if ($member->roleRef && ! empty($member->roleRef->key)) {
                 $roleKeys[] = strtolower(trim((string) $member->roleRef->key));
@@ -941,8 +1011,9 @@ class Circle extends Model
                 $targetCols = $roleToColumns[$rk] ?? $roleToColumns[$normalizedRk] ?? null;
                 if ($targetCols) {
                     foreach ($targetCols as $col) {
-                        if (array_key_exists($col, $newValues)) {
+                        if (array_key_exists($col, $newValues) && ! isset($assignedCols[$col])) {
                             $newValues[$col] = $userId;
+                            $assignedCols[$col] = true;
                         }
                     }
                 }

@@ -149,6 +149,17 @@ use Carbon\Carbon;
             ?: data_get($circle, 'founder.display_name')
             ?: data_get($circle, 'founder.name');
     }
+    if (empty($founderUser) || $founderName === 'Unassigned' || $founderName === '—') {
+        $founderMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+            return in_array($r, ['circle_founder', 'founder', 'circle founder', 'cf'], true);
+        });
+        if ($founderMember && $founderMember->user) {
+            $founderUser = $founderMember->user;
+            $founderName = $founderUser->display_name ?: $founderUser->name ?: trim(($founderUser->first_name ?? '').' '.($founderUser->last_name ?? ''));
+        }
+    }
     $founderName = trim((string) $founderName) !== '' ? trim((string) $founderName) : '—';
     $circleFounder = $founderName;
     $founderId = $founderUser->id ?? null;
@@ -565,7 +576,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Circle Director</span>
-                @php $usr = $formatUser($circle->circleDirector ?? $circle->director ?? null); @endphp
+                @php
+                    $directorUser = $circle->circleDirector ?? $circle->director ?? null;
+                    $directorName = $directorUser ? ($directorUser->display_name ?: $directorUser->name ?: trim(($directorUser->first_name ?? '').' '.($directorUser->last_name ?? ''))) : null;
+                    if (empty($directorUser) || $directorName === 'Unassigned' || $directorName === '' || $directorName === '—') {
+                        $directorMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['circle_director', 'director', 'circle director', 'cd'], true);
+                        });
+                        if ($directorMember && $directorMember->user) {
+                            $directorUser = $directorMember->user;
+                        }
+                    }
+                    $usr = $formatUser($directorUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -582,7 +607,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Industry Director</span>
-                @php $usr = $formatUser($circle->industryDirector ?? null); @endphp
+                @php
+                    $idUser = $circle->industryDirector ?? null;
+                    $idName = $idUser ? ($idUser->display_name ?: $idUser->name ?: trim(($idUser->first_name ?? '').' '.($idUser->last_name ?? ''))) : null;
+                    if (empty($idUser) || $idName === 'Unassigned' || $idName === '' || $idName === '—') {
+                        $idMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['industry_director', 'id', 'industry director'], true);
+                        });
+                        if ($idMember && $idMember->user) {
+                            $idUser = $idMember->user;
+                        }
+                    }
+                    $usr = $formatUser($idUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -599,7 +638,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">DED</span>
-                @php $usr = $formatUser($circle->ded ?? null); @endphp
+                @php
+                    $dedUser = $circle->ded ?? null;
+                    $dedName = $dedUser ? ($dedUser->display_name ?: $dedUser->name ?: trim(($dedUser->first_name ?? '').' '.($dedUser->last_name ?? ''))) : null;
+                    if (empty($dedUser) || $dedName === 'Unassigned' || $dedName === '' || $dedName === '—') {
+                        $dedMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['ded', 'district executive director'], true);
+                        });
+                        if ($dedMember && $dedMember->user) {
+                            $dedUser = $dedMember->user;
+                        }
+                    }
+                    $usr = $formatUser($dedUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -616,7 +669,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">EED</span>
-                @php $usr = $formatUser($circle->eed ?? null); @endphp
+                @php
+                    $eedUser = $circle->eed ?? null;
+                    $eedName = $eedUser ? ($eedUser->display_name ?: $eedUser->name ?: trim(($eedUser->first_name ?? '').' '.($eedUser->last_name ?? ''))) : null;
+                    if (empty($eedUser) || $eedName === 'Unassigned' || $eedName === '' || $eedName === '—') {
+                        $eedMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['eed'], true);
+                        });
+                        if ($eedMember && $eedMember->user) {
+                            $eedUser = $eedMember->user;
+                        }
+                    }
+                    $usr = $formatUser($eedUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">

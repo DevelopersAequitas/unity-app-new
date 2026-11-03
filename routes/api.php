@@ -86,6 +86,7 @@ use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
+use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Api\V1\Admin\FinanceLedgerController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
@@ -804,6 +805,7 @@ Route::prefix('v1')->group(function () {
 
         // Build Your Own Circle
         Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::get('/user-circle-requests/categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
         Route::post('/user-circle-requests/check-peer', [UserCircleRequestController::class, 'checkPeer']);
         Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
         Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
@@ -1033,6 +1035,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
             Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
+            Route::get('/circles/{id}/recommended-peers', [CircleManagementController::class, 'recommendedPeers'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
             Route::put('/circles/{id}/members/{memberId}', [CircleManagementController::class, 'updateMember'])->whereUuid('id');
             Route::patch('/circles/{id}/members/{memberId}/toggle-member-list', [CircleManagementController::class, 'toggleMemberList'])->whereUuid('id');
@@ -2262,7 +2265,7 @@ foreach (['v1/admin/finance', 'admin/finance', 'v1/finance'] as $financePrefix) 
 
         // Wallets & Bank-Style Passbook Statement
         Route::get('wallets', [FinanceLedgerController::class, 'listWallets']);
-        Route::get('wallets/{id}/passbook', [FinanceLedgerController::class, 'walletPassbook'])->whereUuid('id');
+        Route::get('wallets/{id}/passbook', [FinanceLedgerController::class, 'walletPassbook']);
 
         // Global Immutable Credit/Debit Ledger
         Route::get('ledger', [FinanceLedgerController::class, 'listLedger']);
@@ -2301,11 +2304,26 @@ foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucr
     Route::middleware('auth:sanctum,admin')->prefix($ucrAdminPrefix)->group(function (): void {
         Route::get('', [UserCircleRequestAdminController::class, 'index']);
         Route::get('stats', [UserCircleRequestAdminController::class, 'stats']);
+        Route::get('config', [UserCircleRequestAdminController::class, 'getConfig']);
+        Route::get('categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
+        Route::put('config', [UserCircleRequestAdminController::class, 'updateConfig']);
+        Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::get('{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');
         Route::post('{id}/approve', [UserCircleRequestAdminController::class, 'approve'])->whereUuid('id');
         Route::patch('{id}/status', [UserCircleRequestAdminController::class, 'updateStatus'])->whereUuid('id');
         Route::get('{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
         Route::get('{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
-        Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
+    });
+}
+
+// =========================================================================
+// COMMISSION MANAGEMENT & RATES MATRIX APIs (Web Admin & Mobile Dual Alias)
+// =========================================================================
+foreach (['v1/admin/commissions', 'admin/commissions', 'v1/commissions'] as $commPrefix) {
+    Route::middleware('auth:sanctum,admin')->prefix($commPrefix)->group(function (): void {
+        Route::get('', [CommissionManagementController::class, 'index']);
+        Route::put('', [CommissionManagementController::class, 'updateBulk']);
+        Route::post('', [CommissionManagementController::class, 'store']);
+        Route::delete('{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id');
     });
 }
