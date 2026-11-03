@@ -43,4 +43,64 @@ class CircleMeetingDetailsTest extends TestCase
         $this->assertSame('Grand Palace Hotel, Main Conference Room', data_get($resourceArray, 'meeting_venue'));
         $this->assertSame('Near Central Park', data_get($resourceArray, 'meeting_landmark'));
     }
+
+    public function test_circle_cadence_and_resource_convert_local_times_to_utc(): void
+    {
+        $rawRepeat = [
+            'repeat_every' => 1,
+            'frequency' => 'monthly',
+            'week_of_month' => 'week_2',
+            'weekday' => 'friday',
+            'start_time' => '18:30',
+            'end_time' => '21:00',
+        ];
+
+        $normalized = Circle::normalizeCadencePayload($rawRepeat);
+
+        $this->assertSame('13:00', $normalized['start_time']);
+        $this->assertSame('13:00', $normalized['time']);
+        $this->assertSame('13:00', $normalized['default_meet_time']);
+        $this->assertSame('15:30', $normalized['end_time']);
+        $this->assertSame('15:30', $normalized['default_meet_end_time']);
+
+        $this->assertSame('13:00', $normalized['start_time_utc']);
+        $this->assertSame('15:30', $normalized['end_time_utc']);
+        $this->assertSame('18:30', $normalized['start_time_local']);
+        $this->assertSame('21:00', $normalized['end_time_local']);
+
+        $circle = new Circle([
+            'name' => 'Ahmedabad Events Circle',
+            'slug' => 'ahmedabad-events-circle',
+            'status' => 'active',
+            'type' => 'public',
+            'calendar' => [
+                'timezone' => 'Asia/Kolkata',
+                'settings' => [
+                    'meeting_repeat' => $rawRepeat,
+                ],
+                'meeting_schedule' => [$rawRepeat],
+            ],
+            'meeting_repeat' => $rawRepeat,
+        ]);
+        $circle->id = 'circle-utc-test-1';
+        $circle->setRelation('members', collect());
+
+        $resourceArray = (new CircleResource($circle))->toArray(Request::create('/api/v1/circles'));
+
+        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.start_time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.default_meet_time'));
+        $this->assertSame('15:30', data_get($resourceArray, 'meeting_repeat.end_time'));
+        $this->assertSame('15:30', data_get($resourceArray, 'meeting_repeat.default_meet_end_time'));
+
+        $this->assertSame('13:00', data_get($resourceArray, 'calendar.start_time'));
+        $this->assertSame('15:30', data_get($resourceArray, 'calendar.end_time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'calendar.default_meet_time'));
+
+        $this->assertSame('13:00', data_get($resourceArray, 'upcoming_meeting.time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'upcoming_meeting.start_time'));
+        $this->assertSame('15:30', data_get($resourceArray, 'upcoming_meeting.end_time'));
+        $this->assertSame('18:30', data_get($resourceArray, 'upcoming_meeting.start_time_local'));
+        $this->assertSame('21:00', data_get($resourceArray, 'upcoming_meeting.end_time_local'));
+    }
 }

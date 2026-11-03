@@ -112,7 +112,22 @@ class PostController extends BaseApiController
             });
         }
 
-        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+        if ($request->boolean('all') || $request->query('all') === 'true' || $request->query('per_page') === 'all') {
+            $posts = $query->orderByDesc('created_at')->get();
+            $items = $posts->map(fn (Post $post): array => $this->formatPostItem($post))->values()->all();
+
+            return $this->success([
+                'items' => $items,
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => count($items),
+                    'total' => count($items),
+                ],
+            ]);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 15), 1000));
         $paginator = $query->orderByDesc('created_at')->paginate($perPage);
 
         $items = collect($paginator->items())

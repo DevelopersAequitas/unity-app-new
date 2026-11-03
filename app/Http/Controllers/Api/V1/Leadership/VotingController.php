@@ -50,13 +50,55 @@ class VotingController extends LeadershipBaseController
     {
         $raw = $request->all();
 
-        // Support direct website voting payload (without requiring pre-generated OTP token)
-        $hasToken = ! empty($raw['voting_token']) || ! empty($raw['votingToken']) || ! empty($raw['token']);
-        $hasDirectVoter = ! empty($raw['voter_name']) || ! empty($raw['voterName']) || ! empty($raw['name']) || ! empty($raw['full_name'])
-            || ! empty($raw['voter_email']) || ! empty($raw['voterEmail']) || ! empty($raw['email']);
+        // Check if an OTP token or verification ID is provided
+        $token = $raw['voting_token'] ?? $raw['votingToken'] ?? $raw['token'] ?? null;
+        $verifId = $raw['verification_id'] ?? $raw['verificationId'] ?? null;
 
-        if (! $hasToken || $hasDirectVoter) {
-            $vEmail = strtolower(trim((string) ($raw['voter_email'] ?? $raw['voterEmail'] ?? $raw['email'] ?? '')));
+        // Check if direct voter identity is provided (Endorsement card flow)
+        $vEmail = strtolower(trim((string) ($raw['voter_email'] ?? $raw['voterEmail'] ?? $raw['email'] ?? '')));
+        $hasDirectVoter = ! empty($vEmail) || ! empty($raw['voter_name']) || ! empty($raw['voterName']) || ! empty($raw['name']) || ! empty($raw['full_name']);
+
+        // Case 1: OTP-based voting via verification_id OR voting_token
+        if ((! empty($verifId) || ! empty($token)) && ! $hasDirectVoter) {
+            $campaignId = (string) ($raw['campaign_id'] ?? $raw['campaignId'] ?? '');
+            $rawCandId = (string) ($raw['nomination_id'] ?? $raw['candidate_id'] ?? $raw['nominee_id'] ?? '');
+            $scopeId = $raw['scope_id'] ?? $raw['scopeId'] ?? null;
+
+            if (empty($campaignId)) {
+                return $this->error('The campaign_id field is required.', 422);
+            }
+            if (empty($rawCandId)) {
+                return $this->error('The nomination_id field is required.', 422);
+            }
+
+            try {
+                // If verification_id was passed directly instead of cached token
+                if (empty($token) && ! empty($verifId)) {
+                    $receipt = $this->votingService->castVoteByVerificationId(
+                        $campaignId,
+                        $scopeId ? (string) $scopeId : null,
+                        $rawCandId,
+                        (string) $verifId
+                    );
+                    return $this->success($receipt, 'Your vote has been recorded.');
+                }
+
+                if (! empty($token)) {
+                    $receipt = $this->votingService->castVote(
+                        $campaignId,
+                        $scopeId ? (string) $scopeId : null,
+                        $rawCandId,
+                        (string) $token
+                    );
+                    return $this->success($receipt, 'Your vote has been recorded.');
+                }
+            } catch (\Throwable $e) {
+                return $this->error($e->getMessage(), 422);
+            }
+        }
+
+        // Case 2: Direct Website Endorsement Voting (Voter enters Name, Email, Phone, City, Reason)
+        if ($hasDirectVoter) {
             if (empty($vEmail) || ! filter_var($vEmail, FILTER_VALIDATE_EMAIL)) {
                 return $this->error('A valid voter email is required to record your vote.', 422);
             }
@@ -171,7 +213,7 @@ class VotingController extends LeadershipBaseController
                                     'candidate_email' => $candidateEmail,
                                     'application_number' => $appNumber,
                                     'nomination_reference' => $rawCandId,
-                                    'channel' => 'Website',
+                                    'channel' => 'Website Endorsement',
                                 ],
                             ]
                         );
@@ -189,25 +231,7 @@ class VotingController extends LeadershipBaseController
             }
         }
 
-        $validated = $request->validate([
-            'campaign_id' => 'required|uuid',
-            'scope_id' => 'nullable|uuid',
-            'nomination_id' => 'required|uuid',
-            'voting_token' => 'required|string',
-        ]);
-
-        try {
-            $receipt = $this->votingService->castVote(
-                $validated['campaign_id'],
-                $validated['scope_id'] ?? null,
-                $validated['nomination_id'],
-                $validated['voting_token']
-            );
-
-            return $this->success($receipt, 'Your vote has been recorded.');
-        } catch (\Throwable $e) {
-            return $this->error($e->getMessage(), 400);
-        }
+        return $this->error('Either voter verification credentials (voting_token or verification_id) or direct voter identity (voter_email) is required.', 422);
     }
 
     /**

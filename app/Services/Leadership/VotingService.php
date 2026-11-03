@@ -75,6 +75,31 @@ class VotingService
     }
 
     /**
+     * Resolve candidate flexibly by ID, user_id, application_number, or name.
+     */
+    protected function resolveCandidate(string $campaignId, string $nominationId): ?LeadershipNomination
+    {
+        $nomId = trim($nominationId);
+        $q = LeadershipNomination::query()
+            ->where('campaign_id', $campaignId)
+            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected', 'nominee', 'submitted']);
+
+        if (Str::isUuid($nomId)) {
+            $q->where(function ($sub) use ($nomId): void {
+                $sub->where('id', $nomId)->orWhere('user_id', $nomId);
+            });
+        } else {
+            $q->where(function ($sub) use ($nomId): void {
+                $sub->where('application_number', $nomId)
+                    ->orWhereRaw('LOWER(application_number) = ?', [strtolower($nomId)])
+                    ->orWhereRaw('LOWER(full_name) = ?', [strtolower($nomId)]);
+            });
+        }
+
+        return $q->first();
+    }
+
+    /**
      * Cast vote (G3) - High integrity & duplicate protected.
      *
      * @return array{vote_reference: string, cast_at: string, status: string}
@@ -102,10 +127,10 @@ class VotingService
             }
 
             // Check candidate eligibility
-            $candidate = LeadershipNomination::where('id', $nominationId)
-                ->where('campaign_id', $campaignId)
-                ->whereIn('status', ['shortlisted', 'approved'])
-                ->firstOrFail();
+            $candidate = $this->resolveCandidate($campaignId, $nominationId);
+            if (! $candidate) {
+                throw new RuntimeException('Candidate not found or not eligible for voting in this campaign.');
+            }
 
             // Lock verification record to prevent concurrent double-spend
             $verification = LeadershipVoterVerification::where('id', $tokenData['verification_id'])
@@ -126,7 +151,7 @@ class VotingService
                 throw new RuntimeException('A vote has already been cast using this contact.');
             }
 
-            $voteReference = (string) Str::uuid();
+            $voteReference = 'PG-VOTE-'.date('Y').'-'.strtoupper(Str::random(6));
 
             /** @var LeadershipVote $vote */
             $vote = LeadershipVote::create([
@@ -138,6 +163,13 @@ class VotingService
                 'verification_id' => $verification->id,
                 'vote_reference' => $voteReference,
                 'cast_at' => $now,
+                'metadata' => [
+                    'contact_masked' => $verification->contact_masked,
+                    'contact_type' => $verification->contact_type,
+                    'candidate_name' => $candidate->full_name,
+                    'application_number' => $candidate->application_number,
+                    'channel' => 'OTP Verified',
+                ],
             ]);
 
             // Consume verification
@@ -146,12 +178,119 @@ class VotingService
                 'consumed_at' => $now,
             ]);
 
+            // Mirror to web_votes for consistency across both tables
+            if (Schema::hasTable('web_votes')) {
+                try {
+                    WebVote::updateOrCreate(
+                        ['vote_reference' => $voteReference],
+                        [
+                            'campaign_id' => $campaignId,
+                            'nomination_id' => $candidate->id,
+                            'candidate_name' => $candidate->full_name,
+                            'candidate_email' => $candidate->email,
+                            'voter_name' => $verification->user?->name ?? 'OTP Verified Voter',
+                            'voter_email' => $verification->user?->email ?? ($verification->contact_type === 'email' ? $verification->contact_masked : 'verified@peersunity.com'),
+                            'voter_phone' => $verification->contact_type === 'mobile' ? $verification->contact_masked : null,
+                            'created_at' => $now,
+                        ]
+                    );
+                } catch (\Throwable) {}
+            }
+
             // Invalidate the cache token
             Cache::forget('voting_token:'.$votingToken);
 
             return [
                 'vote_reference' => $vote->vote_reference,
                 'cast_at' => $vote->cast_at?->toIso8601String() ?? $now->toIso8601String(),
+                'status' => 'recorded',
+            ];
+        });
+    }
+
+    /**
+     * Cast vote directly by verification_id.
+     *
+     * @return array{vote_reference: string, cast_at: string, status: string}
+     */
+    public function castVoteByVerificationId(string $campaignId, ?string $scopeId, string $nominationId, string $verificationId): array
+    {
+        return DB::transaction(function () use ($campaignId, $scopeId, $nominationId, $verificationId): array {
+            $campaign = LeadershipCampaign::where('id', $campaignId)->lockForUpdate()->firstOrFail();
+            if ($campaign->status !== 'active') {
+                throw new RuntimeException('Voting is closed for this campaign.');
+            }
+
+            $candidate = $this->resolveCandidate($campaignId, $nominationId);
+            if (! $candidate) {
+                throw new RuntimeException('Candidate not found or not eligible for voting in this campaign.');
+            }
+
+            $verification = LeadershipVoterVerification::where('id', $verificationId)
+                ->where('campaign_id', $campaignId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($verification->status === 'consumed') {
+                throw new RuntimeException('This verification code has already been used to cast a vote.');
+            }
+
+            $existingVote = LeadershipVote::where('campaign_id', $campaignId)
+                ->where('voter_contact_hash', $verification->contact_hash)
+                ->exists();
+
+            if ($existingVote) {
+                $verification->update(['status' => 'consumed', 'consumed_at' => Carbon::now()]);
+                throw new RuntimeException('A vote has already been cast using this contact.');
+            }
+
+            $ref = 'PG-VOTE-'.date('Y').'-'.strtoupper(Str::random(6));
+            $now = Carbon::now();
+
+            $vote = LeadershipVote::create([
+                'campaign_id' => $campaign->id,
+                'scope_id' => $scopeId ?? $candidate->scope_id,
+                'nomination_id' => $candidate->id,
+                'voter_user_id' => $verification->user_id,
+                'voter_contact_hash' => $verification->contact_hash,
+                'verification_id' => $verification->id,
+                'vote_reference' => $ref,
+                'cast_at' => $now,
+                'metadata' => [
+                    'contact_masked' => $verification->contact_masked,
+                    'contact_type' => $verification->contact_type,
+                    'candidate_name' => $candidate->full_name,
+                    'application_number' => $candidate->application_number,
+                    'channel' => 'OTP Verified',
+                ],
+            ]);
+
+            $verification->update([
+                'status' => 'consumed',
+                'consumed_at' => $now,
+            ]);
+
+            if (Schema::hasTable('web_votes')) {
+                try {
+                    WebVote::updateOrCreate(
+                        ['vote_reference' => $ref],
+                        [
+                            'campaign_id' => $campaignId,
+                            'nomination_id' => $candidate->id,
+                            'candidate_name' => $candidate->full_name,
+                            'candidate_email' => $candidate->email,
+                            'voter_name' => $verification->user?->name ?? 'OTP Verified Voter',
+                            'voter_email' => $verification->user?->email ?? ($verification->contact_type === 'email' ? $verification->contact_masked : 'verified@peersunity.com'),
+                            'voter_phone' => $verification->contact_type === 'mobile' ? $verification->contact_masked : null,
+                            'created_at' => $now,
+                        ]
+                    );
+                } catch (\Throwable) {}
+            }
+
+            return [
+                'vote_reference' => $vote->vote_reference,
+                'cast_at' => $now->toIso8601String(),
                 'status' => 'recorded',
             ];
         });

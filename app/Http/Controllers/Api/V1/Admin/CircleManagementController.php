@@ -236,6 +236,12 @@ class CircleManagementController extends BaseApiController
             data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
             data_set($calendar, 'start_time', $normalizedRepeat['start_time']);
             data_set($calendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($calendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
+            data_set($calendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
+            data_set($calendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
+            data_set($calendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
+            data_set($calendar, 'start_time_local', $normalizedRepeat['start_time_local']);
+            data_set($calendar, 'end_time_local', $normalizedRepeat['end_time_local']);
             data_set($calendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->filled('meeting_venue')) {
@@ -551,6 +557,12 @@ class CircleManagementController extends BaseApiController
             data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
             data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time']);
             data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($currentCalendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
+            data_set($currentCalendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
+            data_set($currentCalendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
+            data_set($currentCalendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
+            data_set($currentCalendar, 'start_time_local', $normalizedRepeat['start_time_local']);
+            data_set($currentCalendar, 'end_time_local', $normalizedRepeat['end_time_local']);
             data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->has('meeting_venue')) {
