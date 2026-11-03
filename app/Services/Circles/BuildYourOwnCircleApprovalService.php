@@ -97,6 +97,9 @@ final class BuildYourOwnCircleApprovalService
             // Remove keys that aren't fillable on the Circle model
             $circle = new Circle();
             foreach ($circleData as $key => $value) {
+                if ($key === 'template_id' && ! empty($value) && ! Str::isUuid((string) $value)) {
+                    continue;
+                }
                 if (Schema::hasColumn('circles', $key) || in_array($key, ['calendar'], true)) {
                     $circle->{$key} = $value;
                 }
@@ -107,13 +110,17 @@ final class BuildYourOwnCircleApprovalService
             // ── Attach Level 1 Category if provided ──────────────────────────────
             $categoryId = $overrides['category_id'] ?? $circleRequest->category_id;
             if ($categoryId) {
-                if (Schema::hasColumn('circles', 'template_id')) {
-                    $circle->template_id = (int) $categoryId;
-                    $circle->save();
+                $catId = (int) $categoryId;
+                if (method_exists($circle, 'categories')) {
+                    $circle->categories()->syncWithoutDetaching([$catId]);
                 }
 
-                if (method_exists($circle, 'categories')) {
-                    $circle->categories()->syncWithoutDetaching([(int) $categoryId]);
+                if (empty($circle->industry_tags) && Schema::hasTable('circle_categories')) {
+                    $catName = DB::table('circle_categories')->where('id', $catId)->value('name');
+                    if ($catName) {
+                        $circle->industry_tags = [$catName];
+                        $circle->save();
+                    }
                 }
             }
 
