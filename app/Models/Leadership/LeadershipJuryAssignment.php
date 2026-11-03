@@ -26,6 +26,7 @@ class LeadershipJuryAssignment extends Model
 
     protected $fillable = [
         'id',
+        'campaign_id',
         'nomination_id',
         'juror_user_id',
         'status',
@@ -124,6 +125,10 @@ class LeadershipJuryAssignment extends Model
         static::creating(function (self $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+            if (empty($model->campaign_id) && ! empty($model->nomination_id)) {
+                $model->campaign_id = $model->nomination?->campaign_id
+                    ?? \App\Models\Leadership\LeadershipNomination::where('id', $model->nomination_id)->value('campaign_id');
             }
         });
     }

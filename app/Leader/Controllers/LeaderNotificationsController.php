@@ -89,7 +89,7 @@ class LeaderNotificationsController extends Controller
                             ->orWhereNotIn('data->type', $excludedTypes);
                     });
 
-                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(50)->get();
+                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(500)->get();
 
                 foreach ($appNotifs as $an) {
                     $dataPayload = is_array($an->data) ? $an->data : [];
@@ -122,7 +122,7 @@ class LeaderNotificationsController extends Controller
                 $notifs = Notification::query()
                     ->where('user_id', $userId)
                     ->orderByDesc('created_at')
-                    ->take(50)
+                    ->take(500)
                     ->get();
 
                 foreach ($notifs as $n) {
@@ -516,24 +516,54 @@ class LeaderNotificationsController extends Controller
         // Apply category filter if requested
         if ($requestedCategory !== 'all' && ! empty($requestedCategory)) {
             $collection = $collection->filter(function ($item) use ($requestedCategory) {
-                $c = strtolower($item['category'] ?? '');
-                $t = strtolower($item['type'] ?? '');
+                $c = strtolower((string) ($item['category'] ?? ''));
+                $t = strtolower((string) ($item['type'] ?? ''));
                 return $c === $requestedCategory || str_contains($c, $requestedCategory) || str_contains($t, $requestedCategory);
             })->values();
         }
 
-        $items = $collection->values()->all();
-        $unreadCount = collect($items)->where('is_unread', true)->count();
+        $total = $collection->count();
+        $unreadCount = $collection->where('is_unread', true)->count();
+
+        // Pagination parameters
+        $page = max(1, (int) $request->query('page', 1));
+        $perPageRaw = $request->query('per_page');
+        $perPage = ($perPageRaw === 'all') ? max(1, $total) : max(1, min(100, (int) ($perPageRaw ?: 20)));
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = min($page, $lastPage);
+
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedItems = $collection->slice($offset, $perPage)->values()->all();
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to = min($offset + $perPage, $total);
+        $hasMore = $currentPage < $lastPage;
 
         return response()->json([
             'success' => true,
             'status' => true,
             'message' => 'Notifications retrieved successfully.',
             'unread_count' => $unreadCount,
-            'total_count' => count($items),
-            'data' => $items,
-            'notifications' => $items,
-            'items' => $items,
+            'total_count' => $total,
+            'meta' => [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $from,
+                'to' => $to,
+            ],
+            'pagination' => [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => $hasMore,
+            ],
+            'data' => $paginatedItems,
+            'notifications' => $paginatedItems,
+            'items' => $paginatedItems,
         ]);
     }
 
@@ -733,6 +763,9 @@ class LeaderNotificationsController extends Controller
             'success' => true,
             'status' => true,
             'unread_count' => $count,
+            'data' => [
+                'unread_count' => $count,
+            ],
         ]);
     }
 
@@ -923,8 +956,11 @@ class LeaderNotificationsController extends Controller
             $users = $q->take(100)->get();
 
             foreach ($users as $u) {
+                if (! $permissionService->isLeader($u)) {
+                    continue;
+                }
                 $roleInfo = $permissionService->resolveUserRole($u);
-                $canon = strtolower($roleInfo['canonical_role'] ?? 'leader');
+                $canon = strtolower((string) ($roleInfo['role'] ?? 'leader'));
                 $roleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canon);
 
                 if (! empty($roleFilter) && $roleFilter !== 'all' && $canon !== strtolower($roleFilter)) {
@@ -961,7 +997,7 @@ class LeaderNotificationsController extends Controller
     {
         $targetType = (string) $request->input('target_type', 'global'); // 'global' | 'role' | 'leader'
         $targetRole = (string) $request->input('target_role', '');
-        $leaderId = (string) $request->input('leader_id', '');
+        $leaderId = trim((string) ($request->input('leader_id') ?? $request->input('leader_email') ?? ''));
         $title = trim((string) $request->input('title', 'Leader Alert'));
         $message = trim((string) $request->input('message', ''));
         $category = (string) $request->input('category', 'system');
@@ -977,27 +1013,43 @@ class LeaderNotificationsController extends Controller
             ], 422);
         }
 
+        $permissionService = app(\App\Leader\Services\LeaderPermissionService::class);
         $dispatcher = app(\App\Leader\Services\LeaderNotificationDispatcherService::class);
         $dispatchedCount = 0;
         $targetUserIds = [];
 
-        if ($targetType === 'leader' && ! empty($leaderId)) {
-            $targetUserIds[] = $leaderId;
+        if (($targetType === 'leader' || $targetType === 'specific') && ! empty($leaderId)) {
+            if (str_contains($leaderId, '@')) {
+                $foundUser = User::query()->whereRaw('LOWER(email) = ?', [strtolower($leaderId)])->first();
+                if (! $foundUser && Schema::hasTable('admin_users')) {
+                    $foundUser = AdminUser::query()->whereRaw('LOWER(email) = ?', [strtolower($leaderId)])->first();
+                }
+                if ($foundUser) {
+                    $targetUserIds[] = (string) $foundUser->id;
+                }
+            } else {
+                $targetUserIds[] = $leaderId;
+            }
         } elseif ($targetType === 'role' && ! empty($targetRole)) {
             if (Schema::hasTable('users')) {
-                $cols = Schema::getColumnListing('users');
-                $roleQuery = User::query();
-                if (in_array('role', $cols, true)) {
-                    $roleQuery->where('role', $targetRole);
-                } elseif (in_array('role_id', $cols, true)) {
-                    $roleQuery->where('role_id', $targetRole);
+                $allUsers = User::query()->take(500)->get();
+                foreach ($allUsers as $u) {
+                    $roleInfo = $permissionService->resolveUserRole($u);
+                    $canon = strtolower((string) ($roleInfo['role'] ?? ''));
+                    if ($canon === strtolower($targetRole)) {
+                        $targetUserIds[] = (string) $u->id;
+                    }
                 }
-                $targetUserIds = $roleQuery->pluck('id')->map(fn ($id) => (string) $id)->all();
             }
         } else {
-            // Global: All leaders
+            // Global: All active leaders across all leadership roles
             if (Schema::hasTable('users')) {
-                $targetUserIds = User::query()->pluck('id')->map(fn ($id) => (string) $id)->take(200)->all();
+                $allUsers = User::query()->take(500)->get();
+                foreach ($allUsers as $u) {
+                    if ($permissionService->isLeader($u)) {
+                        $targetUserIds[] = (string) $u->id;
+                    }
+                }
             }
         }
 
@@ -1064,15 +1116,35 @@ class LeaderNotificationsController extends Controller
                 $q->where('category', $categoryFilter);
             }
 
-            $results = $q->orderByDesc('created_at')->take(100)->get();
+            $results = $q->orderByDesc('created_at')->take(200)->get();
 
-            // Cache user lookup
-            $userIds = $results->pluck('user_id')->unique()->all();
+            // Cache user lookup across both users and admin_users tables
+            $userIds = $results->pluck('user_id')->filter()->unique()->all();
             $usersMap = [];
             if (! empty($userIds) && Schema::hasTable('users')) {
-                $users = User::query()->whereIn('id', $userIds)->get(['id', 'name', 'email', 'role']);
+                $cols = Schema::getColumnListing('users');
+                $selectCols = ['id'];
+                if (in_array('name', $cols, true)) {
+                    $selectCols[] = 'name';
+                }
+                if (in_array('email', $cols, true)) {
+                    $selectCols[] = 'email';
+                }
+                if (in_array('phone', $cols, true)) {
+                    $selectCols[] = 'phone';
+                }
+                $users = User::query()->whereIn('id', $userIds)->get($selectCols);
                 foreach ($users as $u) {
                     $usersMap[(string) $u->id] = $u;
+                }
+            }
+
+            // Also check admin_users for any missing IDs
+            $missingIds = array_diff($userIds, array_keys($usersMap));
+            if (! empty($missingIds) && Schema::hasTable('admin_users')) {
+                $admins = AdminUser::query()->whereIn('id', $missingIds)->get();
+                foreach ($admins as $au) {
+                    $usersMap[(string) $au->id] = $au;
                 }
             }
 
@@ -1089,8 +1161,28 @@ class LeaderNotificationsController extends Controller
                 }
 
                 $userObj = $usersMap[(string) $item->user_id] ?? null;
-                $recipientName = $userObj ? (string) $userObj->name : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
-                $roleLabel = $userObj && ! empty($userObj->role) ? ucwords(str_replace('_', ' ', (string) $userObj->role)) : 'Circle Leader';
+                $recipientName = $userObj ? (string) ($userObj->name ?: $userObj->email) : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
+                $permissionService = app(LeaderPermissionService::class);
+                $roleLabel = 'Circle Leader';
+                $roleKey = 'leader';
+                $isAdminBroadcast = ($payload['sent_by_admin'] ?? false) || ($item->type === 'admin_broadcast');
+
+                if ($userObj) {
+                    $resolvedRole = $permissionService->resolveUserRole($userObj);
+                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
+                    $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
+
+                    // Strictly filter: For automated events, skip non-leader roles
+                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true))) {
+                        continue;
+                    }
+                } elseif (! $isAdminBroadcast) {
+                    continue;
+                }
+
+                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
+                    continue;
+                }
 
                 $triggerType = ($payload['sent_by_admin'] ?? false)
                     ? 'Super Admin Broadcast'
@@ -1121,6 +1213,107 @@ class LeaderNotificationsController extends Controller
         }
 
         // If logs table had 0 entries, provide mock historical security logs so Super Admin can immediately see the layout
+        // Fallback: If app_notifications yielded 0 logs, check universal notifications table
+        if (empty($logs) && Schema::hasTable('notifications')) {
+            $nq = Notification::query();
+
+            if (! empty($search)) {
+                $nq->where(function ($sub) use ($search): void {
+                    $sub->where('title', 'like', "%{$search}%")
+                        ->orWhere('message', 'like', "%{$search}%")
+                        ->orWhere('user_id', 'like', "%{$search}%");
+                });
+            }
+
+            $nResults = $nq->orderByDesc('created_at')->take(100)->get();
+            $nUserIds = $nResults->pluck('user_id')->unique()->all();
+            $nUsersMap = [];
+
+            if (! empty($nUserIds) && Schema::hasTable('users')) {
+                $cols = Schema::getColumnListing('users');
+                $selectCols = ['id'];
+                if (in_array('name', $cols, true)) {
+                    $selectCols[] = 'name';
+                }
+                if (in_array('email', $cols, true)) {
+                    $selectCols[] = 'email';
+                }
+                if (in_array('phone', $cols, true)) {
+                    $selectCols[] = 'phone';
+                }
+                $users = User::query()->whereIn('id', $nUserIds)->get($selectCols);
+                foreach ($users as $u) {
+                    $nUsersMap[(string) $u->id] = $u;
+                }
+            }
+
+            $permissionService = app(LeaderPermissionService::class);
+            foreach ($nResults as $nItem) {
+                $payload = is_array($nItem->payload) ? $nItem->payload : (is_array($nItem->data) ? $nItem->data : []);
+                $category = $payload['category'] ?? 'system';
+
+                if (! empty($categoryFilter) && $categoryFilter !== 'all' && $category !== $categoryFilter) {
+                    continue;
+                }
+
+                $created = $nItem->created_at ?: now();
+                try {
+                    $localTime = $created->copy()->setTimezone($timezone);
+                    $formattedTime = $localTime->format('d M Y, h:i A') . ' (' . $timezone . ')';
+                } catch (\Throwable) {
+                    $formattedTime = $created->format('d M Y, h:i A');
+                }
+
+                $userObj = $nUsersMap[(string) $nItem->user_id] ?? null;
+                $recipientName = $userObj ? (string) ($userObj->name ?? $userObj->email) : ('Leader ID: ' . substr((string) $nItem->user_id, 0, 8));
+
+                $roleLabel = 'Circle Leader';
+                $roleKey = 'leader';
+                if ($userObj) {
+                    $resolvedRole = $permissionService->resolveUserRole($userObj);
+                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
+                    $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
+
+                    // Strictly filter: Only show notifications destined for Leader roles
+                    if (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true)) {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+
+                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
+                    continue;
+                }
+
+                $triggerType = ($payload['sent_by_admin'] ?? false)
+                    ? 'Super Admin Broadcast'
+                    : (str_contains((string) $nItem->type, 'milestone') ? 'Milestone Automation' : 'Circle Event Escalation');
+
+                $logs[] = [
+                    'id' => (string) $nItem->id,
+                    'title' => (string) ($nItem->title ?: 'Leader Alert'),
+                    'message' => (string) $nItem->message,
+                    'category' => (string) $category,
+                    'type' => (string) ($payload['type'] ?? $nItem->type ?? 'general'),
+                    'screen' => (string) ($payload['screen'] ?? '/dashboard'),
+                    'recipient_id' => (string) $nItem->user_id,
+                    'recipient_name' => $recipientName,
+                    'recipient_role' => $roleLabel,
+                    'recipient_circle' => $payload['circle_name'] ?? ($userObj?->activeCircle?->name ?? 'Ahmedabad Pioneers'),
+                    'trigger_type' => $triggerType,
+                    'channel' => 'In-App Push',
+                    'priority' => (string) ($payload['priority'] ?? 'medium'),
+                    'status' => $nItem->is_read ? 'Read' : 'Delivered',
+                    'is_read' => (bool) $nItem->is_read,
+                    'timezone' => $timezone,
+                    'sent_at' => $created->toIso8601String(),
+                    'sent_at_formatted' => $formattedTime,
+                    'time_ago' => $created->diffForHumans(),
+                ];
+            }
+        }
+
         if (empty($logs)) {
             $sampleDate = now()->setTimezone($timezone);
             $logs = [
@@ -1220,4 +1413,155 @@ class LeaderNotificationsController extends Controller
         ]);
     }
 
+
+    /**
+     * Store or update Leader App FCM push token.
+     * Prevents token collision with Peers Global member app.
+     */
+    public function storePushToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['nullable', 'required_without:fcm_token', 'string'],
+            'fcm_token' => ['nullable', 'required_without:token', 'string'],
+            'platform' => ['required', 'string', 'in:android,ios,web'],
+            'device_id' => ['nullable', 'string'],
+            'app_version' => ['nullable', 'string', 'max:50'],
+            'app' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        try {
+            $user = $request->user();
+            $token = (string) ($validated['fcm_token'] ?? $validated['token']);
+            $platform = strtolower((string) $validated['platform']);
+
+            // Prefix device_id with 'leader_' to prevent collisions with Peers Global member app
+            $rawDeviceId = $validated['device_id'] ?? ('device_' . substr(md5($user->id . $platform), 0, 12));
+            $leaderDeviceId = str_starts_with((string) $rawDeviceId, 'leader_') ? $rawDeviceId : 'leader_' . $rawDeviceId;
+
+            // Delete token if it belongs to a different user
+            if (Schema::hasTable('user_push_tokens')) {
+                \App\Models\UserPushToken::where('token', $token)
+                    ->where(\App\Models\UserPushToken::getUserIdColumn(), '!=', $user->id)
+                    ->delete();
+
+                // Clean up duplicates for this user for Leader App on this device
+                \App\Models\UserPushToken::where('device_id', $leaderDeviceId)
+                    ->where(\App\Models\UserPushToken::getUserIdColumn(), $user->id)
+                    ->where('token', '!=', $token)
+                    ->delete();
+            }
+
+            $updates = [
+                \App\Models\UserPushToken::getUserIdColumn() => $user->id,
+                'platform' => $platform,
+                'device_id' => $leaderDeviceId,
+                'app_version' => $validated['app_version'] ?? '1.0.0',
+            ];
+
+            if (Schema::hasColumn('user_push_tokens', 'app')) {
+                $updates['app'] = 'leader';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $updates['is_active'] = true;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
+                $updates['status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $updates['token_status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'last_seen_at')) {
+                $updates['last_seen_at'] = now();
+            }
+            if (Schema::hasColumn('user_push_tokens', 'last_used_at')) {
+                $updates['last_used_at'] = now();
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                $updates['failed_at'] = null;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                $updates['failure_reason'] = null;
+            }
+
+            $pushToken = \App\Models\UserPushToken::updateOrCreate(
+                ['token' => $token],
+                $updates
+            );
+
+            // Store in user leader-specific columns if present
+            if (Schema::hasColumn('users', 'leader_android_fcm_token') && $platform === 'android') {
+                $user->leader_android_fcm_token = $token;
+                $user->save();
+            } elseif (Schema::hasColumn('users', 'leader_ios_fcm_token') && in_array($platform, ['ios', 'apple'], true)) {
+                $user->leader_ios_fcm_token = $token;
+                $user->save();
+            }
+
+            // Also ensure standard user android_fcm_token / ios_fcm_token is populated
+            if (Schema::hasColumn('users', 'android_fcm_token') && $platform === 'android') {
+                $user->android_fcm_token = $token;
+                $user->save();
+            } elseif (Schema::hasColumn('users', 'ios_fcm_token') && in_array($platform, ['ios', 'apple'], true)) {
+                $user->ios_fcm_token = $token;
+                $user->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Leader push token registered successfully.',
+                'data' => [
+                    'id' => $pushToken->id,
+                    'token' => $pushToken->token,
+                    'app' => 'leader',
+                    'platform' => $pushToken->platform,
+                    'device_id' => $pushToken->device_id,
+                    'app_version' => $pushToken->app_version,
+                ],
+            ]);
+        } catch (\Throwable $throwable) {
+            \Illuminate\Support\Facades\Log::error('LeaderNotificationsController storePushToken exception: ' . $throwable->getMessage(), [
+                'user_id' => $request->user()?->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Unable to register leader push token.',
+                'error' => $throwable->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete Leader App push token on logout.
+     */
+    public function destroyPushToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['nullable', 'required_without:fcm_token', 'string'],
+            'fcm_token' => ['nullable', 'required_without:token', 'string'],
+        ]);
+
+        try {
+            $token = (string) ($validated['fcm_token'] ?? $validated['token']);
+
+            $deleted = \App\Models\UserPushToken::where(\App\Models\UserPushToken::getUserIdColumn(), $request->user()->id)
+                ->where('token', $token)
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Leader push token deleted successfully.',
+                'deleted' => $deleted > 0,
+            ]);
+        } catch (\Throwable $throwable) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Unable to delete leader push token.',
+            ], 500);
+        }
+    }
 }

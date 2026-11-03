@@ -331,6 +331,18 @@ class UserCircleRequestAdminController extends BaseApiController
                 'slug'       => $r->category->slug,
                 'circle_key' => $r->category->circle_key,
             ] : null,
+            'founder_category_id'    => $r->founder_category_id ?? ($r->metadata['founder_category_id'] ?? null),
+            'founder_category'       => $r->founderCategory ? [
+                'id'   => $r->founderCategory->id,
+                'name' => $r->founderCategory->name,
+                'slug' => $r->founderCategory->slug,
+            ] : null,
+            'founder_subcategory_id' => $r->founder_subcategory_id ?? ($r->metadata['founder_subcategory_id'] ?? null),
+            'founder_subcategory'    => $r->founderSubcategory ? [
+                'id'   => $r->founderSubcategory->id,
+                'name' => $r->founderSubcategory->name,
+                'slug' => $r->founderSubcategory->slug,
+            ] : null,
             'description'          => $r->description,
             'city'                 => $r->city,
             'country'              => $r->country,

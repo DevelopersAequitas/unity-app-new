@@ -14,7 +14,18 @@ class AdminScopeService
 {
     public function roleKeys(User|AdminUser $user): array
     {
-        return $user->roles()->pluck('roles.key')->unique()->values()->all();
+        $keys = $user->roles()->pluck('roles.key')->unique()->values()->all();
+        if ($keys === [] && $user instanceof User && ! empty($user->email)) {
+            $admin = AdminUser::query()
+                ->where('id', $user->id)
+                ->orWhereRaw('LOWER(email) = LOWER(?)', [strtolower($user->email)])
+                ->first();
+            if ($admin) {
+                $adminKeys = $admin->roles()->pluck('roles.key')->unique()->values()->all();
+                return $adminKeys !== [] ? $adminKeys : ['global_admin'];
+            }
+        }
+        return $keys;
     }
 
     public function isGlobal(User|AdminUser|null $user = null): bool
@@ -25,6 +36,18 @@ class AdminScopeService
         $keys = $this->roleKeys($user);
         if ($user instanceof AdminUser && $keys === []) {
             return true;
+        }
+        if ($user instanceof User && ! empty($user->email)) {
+            $admin = AdminUser::query()
+                ->where('id', $user->id)
+                ->orWhereRaw('LOWER(email) = LOWER(?)', [strtolower($user->email)])
+                ->first();
+            if ($admin) {
+                $adminKeys = $admin->roles()->pluck('roles.key')->unique()->values()->all();
+                if ($adminKeys === [] || (bool) array_intersect(['global_admin', 'global_founder', 'super_admin'], $adminKeys)) {
+                    return true;
+                }
+            }
         }
         return (bool) array_intersect(['global_admin', 'global_founder', 'super_admin'], $keys);
     }

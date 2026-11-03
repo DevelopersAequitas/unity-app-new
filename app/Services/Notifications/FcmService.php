@@ -221,6 +221,30 @@ class FcmService
                     ]));
                 }
             }
+            if (Schema::hasColumn('users', 'leader_android_fcm_token') && filled($user->leader_android_fcm_token)) {
+                $hasLeaderAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_android_fcm_token);
+                if (! $hasLeaderAndroidToken) {
+                    $tokens->push(new UserPushToken([
+                        UserPushToken::getUserIdColumn() => $userId,
+                        'token' => $user->leader_android_fcm_token,
+                        'platform' => 'android',
+                        'app' => 'leader',
+                        'is_active' => true,
+                    ]));
+                }
+            }
+            if (Schema::hasColumn('users', 'leader_ios_fcm_token') && filled($user->leader_ios_fcm_token)) {
+                $hasLeaderIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_ios_fcm_token);
+                if (! $hasLeaderIosToken) {
+                    $tokens->push(new UserPushToken([
+                        UserPushToken::getUserIdColumn() => $userId,
+                        'token' => $user->leader_ios_fcm_token,
+                        'platform' => 'ios',
+                        'app' => 'leader',
+                        'is_active' => true,
+                    ]));
+                }
+            }
         }
 
         // Deduplicate tokens:

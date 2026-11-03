@@ -40,6 +40,8 @@ class UserCircleRequest extends Model
         'user_id',
         'circle_name',
         'category_id',
+        'founder_category_id',
+        'founder_subcategory_id',
         'description',
         'city',
         'country',
@@ -57,6 +59,8 @@ class UserCircleRequest extends Model
 
     protected $casts = [
         'category_id'            => 'integer',
+        'founder_category_id'    => 'integer',
+        'founder_subcategory_id' => 'integer',
         'reviewed_at'            => 'datetime',
         'circle_created_at'      => 'datetime',
         'minimum_peers_required' => 'integer',
@@ -90,6 +94,16 @@ class UserCircleRequest extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(CircleCategory::class, 'category_id');
+    }
+
+    public function founderCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'founder_category_id');
+    }
+
+    public function founderSubcategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'founder_subcategory_id');
     }
 
     public function nominees(): HasMany

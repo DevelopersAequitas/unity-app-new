@@ -805,6 +805,7 @@ Route::prefix('v1')->group(function () {
 
         // Build Your Own Circle
         Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::get('/user-circle-requests/categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
         Route::post('/user-circle-requests/check-peer', [UserCircleRequestController::class, 'checkPeer']);
         Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
         Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
@@ -1040,6 +1041,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
             Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
+            Route::get('/circles/{id}/recommended-peers', [CircleManagementController::class, 'recommendedPeers'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
             Route::put('/circles/{id}/members/{memberId}', [CircleManagementController::class, 'updateMember'])->whereUuid('id');
             Route::patch('/circles/{id}/members/{memberId}/toggle-member-list', [CircleManagementController::class, 'toggleMemberList'])->whereUuid('id');
@@ -2315,6 +2317,7 @@ foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucr
         Route::get('', [UserCircleRequestAdminController::class, 'index']);
         Route::get('stats', [UserCircleRequestAdminController::class, 'stats']);
         Route::get('config', [UserCircleRequestAdminController::class, 'getConfig']);
+        Route::get('categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
         Route::put('config', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::get('{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');

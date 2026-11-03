@@ -71,12 +71,19 @@ class UpdateUserCircleRequestNominees extends FormRequest
                             $peer['business_name'] = $existingUser->company_name ?? $existingUser->business_name ?? null;
                         }
                         if (empty($peer['category_id'])) {
-                            $peer['category_id'] = $existingUser->category_id ?? $existingUser->business_category_id ?? null;
+                            $peer['category_id'] = $existingUser->main_business_category_id ?? $existingUser->category_id ?? null;
+                        }
+                        if (empty($peer['subcategory_id']) && empty($peer['sub_category_id'])) {
+                            $peer['subcategory_id'] = $existingUser->business_category_id ?? $existingUser->level_4_category_id ?? null;
                         }
                         if (empty($peer['source'])) {
                             $peer['source'] = 'app';
                         }
                     }
+                }
+
+                if (! empty($peer['sub_category_id']) && empty($peer['subcategory_id'])) {
+                    $peer['subcategory_id'] = $peer['sub_category_id'];
                 }
 
                 if (empty($peer['source'])) {
@@ -104,6 +111,8 @@ class UpdateUserCircleRequestNominees extends FormRequest
             'recommended_peers.*.phone'            => ['nullable', 'string', 'max:30'],
             'recommended_peers.*.business_name'    => ['nullable', 'string', 'max:255'],
             'recommended_peers.*.category_id'      => ['nullable', 'integer'],
+            'recommended_peers.*.subcategory_id'   => ['nullable', 'integer'],
+            'recommended_peers.*.sub_category_id'  => ['nullable', 'integer'],
             'recommended_peers.*.interest_level'   => ['nullable', 'string', 'in:high,medium,low'],
             'recommended_peers.*.email'            => ['nullable', 'email', 'max:200'],
         ];
@@ -138,6 +147,27 @@ class UpdateUserCircleRequestNominees extends FormRequest
             $seenPhones = [];
             $seenEmails = [];
             $seenPeerIds = [];
+            $seenCategories = [];
+            $seenSubcategories = [];
+
+            $circleRequestId = $this->route('id');
+            $circleReq = $circleRequestId ? \App\Models\UserCircleRequest::find($circleRequestId) : null;
+            if ($circleReq) {
+                $founderCat = $circleReq->founder_category_id ?? ($circleReq->metadata['founder_category_id'] ?? null);
+                if (! empty($founderCat)) {
+                    $seenCategories[(int) $founderCat] = [
+                        'row' => 'Founder (Seat 1)',
+                        'name' => 'Founder',
+                    ];
+                }
+                $founderSub = $circleReq->founder_subcategory_id ?? ($circleReq->metadata['founder_subcategory_id'] ?? null);
+                if (! empty($founderSub)) {
+                    $seenSubcategories[(int) $founderSub] = [
+                        'row' => 'Founder (Seat 1)',
+                        'name' => 'Founder',
+                    ];
+                }
+            }
 
             foreach ($peers as $index => $peer) {
                 if (! is_array($peer)) {
@@ -149,6 +179,8 @@ class UpdateUserCircleRequestNominees extends FormRequest
                 $rawPhone = trim((string) ($peer['phone'] ?? ''));
                 $rawEmail = strtolower(trim((string) ($peer['email'] ?? '')));
                 $rawPeerId = (string) ($peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? '');
+                $rawCategory = $peer['category_id'] ?? null;
+                $rawSubcategory = $peer['subcategory_id'] ?? $peer['sub_category_id'] ?? null;
 
                 // Self peer check
                 if ($currentUserId && $rawPeerId !== '' && $rawPeerId === $currentUserId) {
@@ -228,6 +260,39 @@ class UpdateUserCircleRequestNominees extends FormRequest
                         "recommended_peers.{$index}.phone",
                         "Row #{$rowNum}: Please provide a phone number or email for {$rawName}."
                     );
+                }
+
+                // Subcategory and Category uniqueness per circle
+                if (! empty($rawSubcategory)) {
+                    $subId = (int) $rawSubcategory;
+                    if (isset($seenSubcategories[$subId])) {
+                        $existingHolder = $seenSubcategories[$subId]['name'];
+                        $existingRow = $seenSubcategories[$subId]['row'];
+                        $v->errors()->add(
+                            "recommended_peers.{$index}.subcategory_id",
+                            "Row #{$rowNum} ('{$rawName}'): Subcategory is already assigned to {$existingHolder} at {$existingRow}. Each subcategory can only be selected once per Circle."
+                        );
+                    } else {
+                        $seenSubcategories[$subId] = [
+                            'row' => "Row #{$rowNum}",
+                            'name' => $rawName ?: "Peer #{$rowNum}",
+                        ];
+                    }
+                } elseif (! empty($rawCategory)) {
+                    $catId = (int) $rawCategory;
+                    if (isset($seenCategories[$catId])) {
+                        $existingHolder = $seenCategories[$catId]['name'];
+                        $existingRow = $seenCategories[$catId]['row'];
+                        $v->errors()->add(
+                            "recommended_peers.{$index}.category_id",
+                            "Row #{$rowNum} ('{$rawName}'): Category is already assigned to {$existingHolder} at {$existingRow}. Only one member per specific category is permitted in this Circle. (Tip: select a specific subcategory to avoid duplicate conflict)."
+                        );
+                    } else {
+                        $seenCategories[$catId] = [
+                            'row' => "Row #{$rowNum}",
+                            'name' => $rawName ?: "Peer #{$rowNum}",
+                        ];
+                    }
                 }
             }
         });

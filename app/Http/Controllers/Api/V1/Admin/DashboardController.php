@@ -193,7 +193,17 @@ class DashboardController extends BaseApiController
         $query = Payment::query()->whereIn('status', $this->resolvePaidStatuses());
 
         if (! $this->scope->isGlobal($user)) {
-            $query->whereIn('circle_id', $this->scope->visibleCircleIds($user));
+            $visibleCircleIds = $this->scope->visibleCircleIds($user);
+            if (Schema::hasColumn('payments', 'circle_id')) {
+                $query->whereIn('circle_id', $visibleCircleIds);
+            } else {
+                $query->whereIn('user_id', function ($q) use ($visibleCircleIds): void {
+                    $q->select('user_id')->from('circle_members')
+                        ->whereIn('circle_id', $visibleCircleIds)
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at');
+                });
+            }
         }
 
         if (! $categoryColumn) {
@@ -258,8 +268,17 @@ class DashboardController extends BaseApiController
             $query->whereIn('user_id', User::query()->select('users.id')->tap(fn ($q) => $this->scope->applyUserScope($q, $user)));
         }
 
+        $impactScoreCol = '1';
+        if (Schema::hasTable('impacts')) {
+            if (Schema::hasColumn('impacts', 'impact_score')) {
+                $impactScoreCol = 'impact_score';
+            } elseif (Schema::hasColumn('impacts', 'impact_value')) {
+                $impactScoreCol = 'impact_value';
+            }
+        }
+
         $top = (clone $query)
-            ->selectRaw('user_id, SUM(COALESCE(impact_score,impact_value,1)) as total')
+            ->selectRaw("user_id, SUM(COALESCE({$impactScoreCol}, 1)) as total")
             ->groupBy('user_id')
             ->orderByDesc('total')
             ->limit(5)
@@ -267,8 +286,8 @@ class DashboardController extends BaseApiController
             ->get();
 
         return $this->success([
-            'total_lives_impacted' => (int) $query->sum(DB::raw('COALESCE(impact_score,impact_value,1)')),
-            'this_month_lives_impacted' => (int) (clone $query)->whereBetween('approved_at', [now()->startOfMonth(), now()->endOfMonth()])->sum(DB::raw('COALESCE(impact_score,impact_value,1)')),
+            'total_lives_impacted' => (int) $query->sum(DB::raw("COALESCE({$impactScoreCol}, 1)")),
+            'this_month_lives_impacted' => (int) (clone $query)->whereBetween('approved_at', [now()->startOfMonth(), now()->endOfMonth()])->sum(DB::raw("COALESCE({$impactScoreCol}, 1)")),
             'top_contributors' => $top,
         ]);
     }

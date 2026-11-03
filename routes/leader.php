@@ -164,6 +164,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
     Route::post('/leader/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
     Route::post('/leader/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+    Route::post('/leader/push-token', [LeaderNotificationsController::class, 'storePushToken']);
+    Route::delete('/leader/push-token', [LeaderNotificationsController::class, 'destroyPushToken']);
 
     // Tab 5: Role & Permission Management
     Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
