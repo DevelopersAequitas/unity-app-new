@@ -98,6 +98,9 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::put('/leader/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
     Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
     Route::post('/leader/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+    Route::get('/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+    Route::get('/leader/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+    Route::get('/leader/milestones', [LeaderFinanceController::class, 'milestones']);
 
     // Tab 4: Reports & Analytics
     Route::get('/reports', [LeaderReportsController::class, 'index']);
@@ -148,6 +151,12 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
 
     // Notifications (Leader App)
+    // Leader App Notification Management & Dispatcher (Super Admin Control & Logs)
+    Route::get('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'getRoleConfig']);
+    Route::post('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'updateRoleConfig']);
+    Route::get('/leader/admin/notifications/leaders', [LeaderNotificationsController::class, 'listEligibleLeaders']);
+    Route::post('/leader/admin/notifications/send', [LeaderNotificationsController::class, 'sendImmediateNotification']);
+    Route::get('/leader/admin/notifications/logs', [LeaderNotificationsController::class, 'getSecurityLogs']);
     Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
     Route::post('/leader/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
     Route::post('/leader/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
@@ -155,6 +164,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
     Route::post('/leader/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
     Route::post('/leader/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+    Route::post('/leader/push-token', [LeaderNotificationsController::class, 'storePushToken']);
+    Route::delete('/leader/push-token', [LeaderNotificationsController::class, 'destroyPushToken']);
 
     // Tab 5: Role & Permission Management
     Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
@@ -259,6 +270,7 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('finance/transactions', [LeaderFinanceController::class, 'transactions']);
         Route::put('finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
         Route::post('finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+        Route::get('finance/milestones', [LeaderFinanceController::class, 'milestones']);
 
         Route::get('reports', [LeaderReportsController::class, 'index']);
         Route::post('reports', [LeaderReportsController::class, 'store']);

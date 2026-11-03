@@ -81,17 +81,11 @@ final class UserCircleNomineeStatusResolver
             }
         });
 
-        $matchedUsers = $usersQuery->get([
-            'id',
-            'first_name',
-            'last_name',
-            'display_name',
-            'email',
-            'phone',
-            'profile_photo_id',
-            'created_at',
-            'status',
-        ]);
+        $userColumns = ['id', 'first_name', 'last_name', 'display_name', 'email', 'phone', 'created_at', 'status'];
+        if (Schema::hasColumn('users', 'profile_photo_url')) {
+            $userColumns[] = 'profile_photo_url';
+        }
+        $matchedUsers = $usersQuery->get($userColumns);
 
         // Build indexes for instant memory lookup
         $userById = [];
@@ -226,11 +220,20 @@ final class UserCircleNomineeStatusResolver
                 ? (trim(($matchedUser->first_name ?? '').' '.($matchedUser->last_name ?? '')) ?: $matchedUser->display_name ?: $nominee->name)
                 : $nominee->name;
 
+            $peerPhone = $nominee->phone ?: $matchedUser?->phone;
+            $peerEmail = $nominee->email ?: $matchedUser?->email;
+            $peerId = $matchedUser?->id ? (string) $matchedUser->id : ($nominee->nominee_user_id ? (string) $nominee->nominee_user_id : null);
+            $peerSource = $nominee->source ?? ($matchedUser ? 'app' : 'manual');
+
             return [
                 'id' => (string) $nominee->id,
-                'name' => $nominee->name,
-                'phone' => $nominee->phone,
-                'email' => $nominee->email,
+                'source' => $peerSource,
+                'peer_id' => $peerId,
+                'user_id' => $peerId,
+                'nominee_user_id' => $peerId,
+                'name' => $nominee->name ?: $userName,
+                'phone' => $peerPhone,
+                'email' => $peerEmail,
                 'business_name' => $nominee->business_name,
                 'category_id' => $nominee->category_id,
                 'category' => $nominee->category ? [
@@ -239,9 +242,7 @@ final class UserCircleNomineeStatusResolver
                     'slug' => $nominee->category->slug,
                 ] : null,
                 'interest_level' => $nominee->interest_level,
-                'is_complete' => (!empty($nominee->name) && !empty($nominee->phone) && !empty($nominee->business_name) && !empty($nominee->category_id)),
-                'user_id' => $matchedUser?->id ?? $nominee->nominee_user_id,
-                'nominee_user_id' => $matchedUser?->id ?? $nominee->nominee_user_id,
+                'is_complete' => (! empty($nominee->name) && ! empty($peerPhone) && ! empty($nominee->business_name) && ! empty($nominee->category_id)),
 
                 // ── 1. Unity Join Status ──
                 'has_joined_unity' => $hasJoinedUnity,

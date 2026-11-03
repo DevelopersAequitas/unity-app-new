@@ -50,11 +50,15 @@ class LimitedUserResource extends JsonResource
             }
         }
 
-        $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
         $isBookmark = false;
-        if ($authUser) {
-            $bookmarks = $authUser->bookmarks ?? [];
-            $isBookmark = in_array((string) $user->id, $bookmarks, true);
+        if ($user->getAttribute('is_bookmark') !== null) {
+            $isBookmark = (bool) $user->getAttribute('is_bookmark');
+        } else {
+            $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
+            if ($authUser) {
+                $bookmarks = (array) ($authUser->bookmarks ?? []);
+                $isBookmark = in_array((string) $user->id, $bookmarks, true);
+            }
         }
 
         $isFollowing = false;

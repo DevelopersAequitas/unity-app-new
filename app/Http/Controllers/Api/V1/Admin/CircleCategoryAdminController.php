@@ -55,6 +55,7 @@ class CircleCategoryAdminController extends BaseApiController
             $userId = (string) $user->id;
             $allCircles = Circle::query()
                 ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->with('categories:id')
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($userId) {
                     $q->where('director_user_id', $userId)
@@ -75,7 +76,7 @@ class CircleCategoryAdminController extends BaseApiController
                 $catSlug = strtolower(trim($cat->slug ?? ''));
 
                 return $allCircles->contains(function ($c) use ($catId, $catName, $catKey, $catSlug) {
-                    if ((int) $c->template_id === $catId) {
+                    if ($c->categories->contains('id', $catId)) {
                         return true;
                     }
                     if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
@@ -93,6 +94,7 @@ class CircleCategoryAdminController extends BaseApiController
         } else {
             $allCircles = Circle::query()
                 ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->with('categories:id')
                 ->whereNull('deleted_at')
                 ->get();
         }
@@ -103,7 +105,7 @@ class CircleCategoryAdminController extends BaseApiController
             $catKey = strtolower(trim($cat->circle_key ?? ''));
 
             $matchedCircles = $allCircles->filter(function ($c) use ($catId, $catName, $catKey) {
-                if ((int) $c->template_id === $catId) {
+                if ($c->categories->contains('id', $catId)) {
                     return true;
                 }
                 if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
@@ -206,7 +208,7 @@ class CircleCategoryAdminController extends BaseApiController
             ->withCount(['members' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')])
             ->whereNull('deleted_at')
             ->where(function ($q) use ($catId, $catName, $catKey) {
-                $q->where('template_id', $catId);
+                $q->whereHas('categories', fn ($cq) => $cq->where('circle_categories.id', $catId));
                 if ($catName !== '') {
                     $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(industry_tags::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catName]);
                 }

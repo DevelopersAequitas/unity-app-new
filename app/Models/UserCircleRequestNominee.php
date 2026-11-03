@@ -30,6 +30,7 @@ class UserCircleRequestNominee extends Model
         'business_name',
         'category_id',
         'interest_level',
+        'source',
     ];
 
     protected $casts = [

@@ -45,9 +45,6 @@ class LeaderPeersService
         $role = $roleInfo['role'];
         $userId = (string) $user->id;
 
-        // Resolve circles the user has directly joined or leads
-        $joinedCircleIds = $this->resolveUserJoinedCircleIds($user);
-
         if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
             // If a specific district is requested, scope to that district
             if ($districtId && Str::isUuid($districtId)) {
@@ -61,6 +58,9 @@ class LeaderPeersService
             // Returning null allows viewing ALL circles, ALL members, and platform-wide metrics.
             return null;
         }
+
+        // Resolve circles the user has directly joined or leads
+        $joinedCircleIds = $this->resolveUserJoinedCircleIds($user);
 
         if ($role === 'districtExecDirector') {
             $adminUser = AdminUser::query()->where('id', $userId)
@@ -146,6 +146,7 @@ class LeaderPeersService
 
             return $circleQuery->pluck('id')->map(fn ($id): string => (string) $id)->all();
         }
+
         // For circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, or any own-circle leader
         return $joinedCircleIds;
     }
@@ -156,7 +157,7 @@ class LeaderPeersService
      *
      * @return array<int, int>
      */
-    public function resolveIndustryDirectorCategoryIds(User $user): array
+    public function resolveIndustryDirectorCategoryIds(User|AdminUser $user): array
     {
         $userId = (string) $user->id;
         $adminUser = Schema::hasTable('admin_users')
@@ -195,12 +196,13 @@ class LeaderPeersService
 
         return array_values(array_unique($categoryIds));
     }
+
     /**
      * Resolve all circles a user is directly a member or leader of.
      *
      * @return array<string>
      */
-    public function resolveUserJoinedCircleIds(User $user): array
+    public function resolveUserJoinedCircleIds(User|AdminUser $user): array
     {
         $userId = (string) $user->id;
         $circleIds = [];
@@ -364,16 +366,16 @@ class LeaderPeersService
                                         ->orWhereIn(DB::raw('status::text'), ['approved', 'active', 'pending']);
                                 });
                         })
-                        ->orWhereIn('active_circle_id', $districtCircleIds)
-                        ->orWhereExists(function ($sq) use ($districtCircleIds): void {
-                            $sq->selectRaw(1)
-                                ->from('circles')
-                                ->whereIn('circles.id', $districtCircleIds)
-                                ->whereNull('circles.deleted_at')
-                                ->where(function ($lq): void {
-                                    $this->applyCircleLeadershipColumnsCondition($lq);
-                                });
-                        });
+                            ->orWhereIn('active_circle_id', $districtCircleIds)
+                            ->orWhereExists(function ($sq) use ($districtCircleIds): void {
+                                $sq->selectRaw(1)
+                                    ->from('circles')
+                                    ->whereIn('circles.id', $districtCircleIds)
+                                    ->whereNull('circles.deleted_at')
+                                    ->where(function ($lq): void {
+                                        $this->applyCircleLeadershipColumnsCondition($lq);
+                                    });
+                            });
                     });
                 }
             } elseif ($role === 'industryDirector') {
@@ -397,7 +399,8 @@ class LeaderPeersService
                                     });
                             });
                     });
-                }            } else {
+                }
+            } else {
                 // Own-circle roles (circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, viceChair, secretary, member)
                 if (! empty($scopedCircleIds)) {
                     $query->where(function (Builder $q) use ($scopedCircleIds): void {
