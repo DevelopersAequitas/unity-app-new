@@ -106,21 +106,26 @@ class LeaderNotificationDispatcherService
                 }
             }
 
-            // 3. Dispatch real-time FCM push notification to user devices
+            // 3. Dispatch real-time FCM push notification directly to user devices
             try {
-                if (class_exists(\App\Jobs\SendFcmNotificationJob::class)) {
-                    \App\Jobs\SendFcmNotificationJob::dispatch(
-                        $userIdStr,
-                        $title,
-                        $message,
-                        array_merge($data, [
-                            'type' => $type,
-                            'category' => $category,
-                            'screen' => $screen,
-                            'title' => $title,
-                            'body' => $message,
-                        ])
-                    );
+                $user = User::query()->find($userIdStr);
+                if ($user) {
+                    $fcmData = array_merge($data, [
+                        'type' => $type,
+                        'category' => $category,
+                        'screen' => $screen,
+                        'title' => $title,
+                        'body' => $message,
+                        'app' => 'leader',
+                        'app_name' => 'leader_app',
+                    ]);
+
+                    if (class_exists(\App\Services\Notifications\FcmService::class)) {
+                        $fcmService = app(\App\Services\Notifications\FcmService::class);
+                        $fcmService->sendToUser($user, $title, $message, $fcmData, $appNotification);
+                    } elseif (class_exists(\App\Jobs\SendFcmNotificationJob::class)) {
+                        \App\Jobs\SendFcmNotificationJob::dispatchSync($userIdStr, $title, $message, $fcmData);
+                    }
                 }
             } catch (\Throwable $fe) {
                 Log::warning('FCM job dispatch failed: ' . $fe->getMessage());
