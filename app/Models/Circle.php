@@ -1057,6 +1057,15 @@ class Circle extends Model
         }
 
         $assignedCols = [];
+        $rolesById = [];
+        try {
+            if (Schema::hasTable('roles')) {
+                $rolesById = Role::query()->get(['id', 'key', 'name'])->keyBy('id');
+            }
+        } catch (\Throwable) {
+            $rolesById = [];
+        }
+
         foreach ($members as $member) {
             $userId = $member->user_id;
             if (! $userId) {
@@ -1067,15 +1076,13 @@ class Circle extends Model
             if (! empty($member->role)) {
                 $roleKeys[] = strtolower(trim((string) $member->role));
             }
-            if (! empty($member->role_id) && Schema::hasTable('roles')) {
-                $r = Role::find($member->role_id);
-                if ($r) {
-                    if (! empty($r->key)) {
-                        $roleKeys[] = strtolower(trim((string) $r->key));
-                    }
-                    if (! empty($r->name)) {
-                        $roleKeys[] = strtolower(trim((string) $r->name));
-                    }
+            if (! empty($member->role_id) && isset($rolesById[$member->role_id])) {
+                $r = $rolesById[$member->role_id];
+                if (! empty($r->key)) {
+                    $roleKeys[] = strtolower(trim((string) $r->key));
+                }
+                if (! empty($r->name)) {
+                    $roleKeys[] = strtolower(trim((string) $r->name));
                 }
             }
             if ($member->roleRef && ! empty($member->roleRef->key)) {

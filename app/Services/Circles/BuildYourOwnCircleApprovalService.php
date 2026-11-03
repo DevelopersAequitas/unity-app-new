@@ -125,15 +125,17 @@ final class BuildYourOwnCircleApprovalService
             // ── Attach Level 1 Category if provided ──────────────────────────────
             if ($categoryId) {
                 $catId = (int) $categoryId;
-                if (method_exists($circle, 'categories')) {
-                    $circle->categories()->syncWithoutDetaching([$catId]);
-                }
+                if (Schema::hasTable('circle_categories') && DB::table('circle_categories')->where('id', $catId)->exists()) {
+                    if (method_exists($circle, 'categories')) {
+                        $circle->categories()->syncWithoutDetaching([$catId]);
+                    }
 
-                if (empty($circle->industry_tags) && Schema::hasTable('circle_categories')) {
-                    $catName = DB::table('circle_categories')->where('id', $catId)->value('name');
-                    if ($catName) {
-                        $circle->industry_tags = [$catName];
-                        $circle->save();
+                    if (empty($circle->industry_tags)) {
+                        $catName = DB::table('circle_categories')->where('id', $catId)->value('name');
+                        if ($catName) {
+                            $circle->industry_tags = [$catName];
+                            $circle->save();
+                        }
                     }
                 }
             }
@@ -201,13 +203,10 @@ final class BuildYourOwnCircleApprovalService
                 ->first();
 
             if ($dedRow) {
-                $uid = $dedRow->user_id ?? null;
-                if (! $uid && ! empty($dedRow->admin_user_id)) {
-                    $uid = DB::table('admin_users')->where('id', $dedRow->admin_user_id)->value('user_id')
-                        ?: $dedRow->admin_user_id;
-                }
-                if ($uid && DB::table('users')->where('id', $uid)->exists()) {
-                    return (string) $uid;
+                $rawId = $dedRow->user_id ?? $dedRow->admin_user_id ?? null;
+                $uid = $this->resolveUserIdFromAdminOrUser($rawId ? (string) $rawId : null);
+                if ($uid) {
+                    return $uid;
                 }
             }
         }
@@ -268,21 +267,23 @@ final class BuildYourOwnCircleApprovalService
                 ->where('is_active', true)
                 ->where(function ($q) use ($categoryId) {
                     if ($categoryId) {
-                        $q->where('industry_category_id', $categoryId)
-                            ->orWhere('main_business_category_id', $categoryId)
-                            ->orWhere('industry_id', (string) $categoryId);
+                        $q->where(function ($inner) use ($categoryId) {
+                            $inner->where('industry_category_id', $categoryId)
+                                ->orWhere('main_business_category_id', $categoryId);
+
+                            if (Str::isUuid((string) $categoryId)) {
+                                $inner->orWhere('industry_id', (string) $categoryId);
+                            }
+                        });
                     }
                 })
                 ->first();
 
             if ($assignment) {
-                $uid = $assignment->user_id ?? null;
-                if (! $uid && ! empty($assignment->admin_user_id)) {
-                    $uid = DB::table('admin_users')->where('id', $assignment->admin_user_id)->value('user_id')
-                        ?: $assignment->admin_user_id;
-                }
-                if ($uid && DB::table('users')->where('id', $uid)->exists()) {
-                    return (string) $uid;
+                $rawId = $assignment->user_id ?? $assignment->admin_user_id ?? null;
+                $uid = $this->resolveUserIdFromAdminOrUser($rawId ? (string) $rawId : null);
+                if ($uid) {
+                    return $uid;
                 }
             }
         }
@@ -291,10 +292,7 @@ final class BuildYourOwnCircleApprovalService
         if ($categoryId) {
             $catCircleId = Circle::query()
                 ->whereNotNull('industry_director_user_id')
-                ->where(function ($q) use ($categoryId) {
-                    $q->where('category_id', $categoryId)
-                        ->orWhereHas('categories', fn ($sub) => $sub->where('circle_categories.id', $categoryId));
-                })
+                ->whereHas('categories', fn ($sub) => $sub->where('circle_categories.id', $categoryId))
                 ->latest('created_at')
                 ->value('industry_director_user_id');
 
@@ -398,5 +396,37 @@ final class BuildYourOwnCircleApprovalService
             }
             $user->save();
         }
+    }
+
+    /**
+     * Resolve a valid User UUID from a user_id or admin_user_id.
+     * Searches users table directly, then matches via admin_users email to users.
+     */
+    private function resolveUserIdFromAdminOrUser(?string $id): ?string
+    {
+        if (empty($id)) {
+            return null;
+        }
+
+        // 1. If it's already a valid ID in the users table
+        if (DB::table('users')->where('id', $id)->exists()) {
+            return (string) $id;
+        }
+
+        // 2. If it's an admin_users ID, match by email to users table
+        if (Schema::hasTable('admin_users')) {
+            $adminEmail = DB::table('admin_users')->where('id', $id)->value('email');
+            if ($adminEmail) {
+                $matchedUserId = DB::table('users')
+                    ->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $adminEmail))])
+                    ->value('id');
+
+                if ($matchedUserId) {
+                    return (string) $matchedUserId;
+                }
+            }
+        }
+
+        return null;
     }
 }
