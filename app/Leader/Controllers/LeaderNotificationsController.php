@@ -977,6 +977,7 @@ class LeaderNotificationsController extends Controller
             ], 422);
         }
 
+        $permissionService = app(\App\Leader\Services\LeaderPermissionService::class);
         $dispatcher = app(\App\Leader\Services\LeaderNotificationDispatcherService::class);
         $dispatchedCount = 0;
         $targetUserIds = [];
@@ -985,19 +986,24 @@ class LeaderNotificationsController extends Controller
             $targetUserIds[] = $leaderId;
         } elseif ($targetType === 'role' && ! empty($targetRole)) {
             if (Schema::hasTable('users')) {
-                $cols = Schema::getColumnListing('users');
-                $roleQuery = User::query();
-                if (in_array('role', $cols, true)) {
-                    $roleQuery->where('role', $targetRole);
-                } elseif (in_array('role_id', $cols, true)) {
-                    $roleQuery->where('role_id', $targetRole);
+                $allUsers = User::query()->take(500)->get();
+                foreach ($allUsers as $u) {
+                    $roleInfo = $permissionService->resolveUserRole($u);
+                    $canon = strtolower($roleInfo['canonical_role'] ?? '');
+                    if ($canon === strtolower($targetRole)) {
+                        $targetUserIds[] = (string) $u->id;
+                    }
                 }
-                $targetUserIds = $roleQuery->pluck('id')->map(fn ($id) => (string) $id)->all();
             }
         } else {
-            // Global: All leaders
+            // Global: All active leaders across all leadership roles
             if (Schema::hasTable('users')) {
-                $targetUserIds = User::query()->pluck('id')->map(fn ($id) => (string) $id)->take(200)->all();
+                $allUsers = User::query()->take(500)->get();
+                foreach ($allUsers as $u) {
+                    if ($permissionService->isLeader($u)) {
+                        $targetUserIds[] = (string) $u->id;
+                    }
+                }
             }
         }
 
@@ -1110,6 +1116,11 @@ class LeaderNotificationsController extends Controller
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
                 }
 
+                // Strictly filter: Only show notifications destined for Leader roles
+                if (in_array($roleKey, ['peer_member', 'peer', 'member'], true)) {
+                    continue;
+                }
+
                 if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
                     continue;
                 }
@@ -1203,6 +1214,11 @@ class LeaderNotificationsController extends Controller
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
                     $roleKey = strtolower($resolvedRole['canonical_role'] ?? 'leader');
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
+                }
+
+                // Strictly filter: Only show notifications destined for Leader roles
+                if (in_array($roleKey, ['peer_member', 'peer', 'member'], true)) {
+                    continue;
                 }
 
                 if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
