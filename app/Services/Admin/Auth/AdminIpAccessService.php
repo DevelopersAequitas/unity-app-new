@@ -210,26 +210,20 @@ class AdminIpAccessService
 
     /**
      * Determine whether password login is allowed for the given HTTP request.
+     * IP-based restriction has been disabled so password login is available globally.
      */
     public function isPasswordLoginAllowedForRequest(Request $request, ?string $environment = null): bool
     {
-        $env = $this->resolveEnvironment($environment);
-
-        if (! $this->isEnforcementEnabled($env)) {
-            return false;
-        }
-
-        $clientIp = $this->resolveClientIp($request);
-
-        return $this->isIpAuthorized($clientIp, $env);
+        return true;
     }
 
     /**
      * Evaluate the public login policy for the requesting client.
-     * Never exposes the allowlist or sensitive configuration.
+     * Always permits both password and OTP login globally.
      *
      * @return array{
      *     ip_access_enabled: bool,
+     *     ip_authorized: bool,
      *     password_login_allowed: bool,
      *     otp_login_allowed: bool,
      *     available_methods: array<int, string>
@@ -237,18 +231,12 @@ class AdminIpAccessService
      */
     public function evaluateLoginPolicy(Request $request, ?string $environment = null): array
     {
-        $env = $this->resolveEnvironment($environment);
-        $enabled = $this->isEnforcementEnabled($env);
-        $clientIp = $this->resolveClientIp($request);
-        $ipAuthorized = $this->isIpAuthorized($clientIp, $env);
-        $passwordAllowed = $enabled && $ipAuthorized;
-
         return [
-            'ip_access_enabled' => $enabled,
-            'ip_authorized' => $ipAuthorized,
-            'password_login_allowed' => $passwordAllowed,
+            'ip_access_enabled' => false,
+            'ip_authorized' => true,
+            'password_login_allowed' => true,
             'otp_login_allowed' => true,
-            'available_methods' => $passwordAllowed ? ['password', 'otp'] : ['otp'],
+            'available_methods' => ['password', 'otp'],
         ];
     }
 
