@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services\Leadership;
 
 use App\Mail\Leadership\LeadershipNominationSubmittedMail;
+use App\Models\City;
 use App\Models\Leadership\LeadershipCampaign;
+use App\Models\Leadership\LeadershipCampaignScope;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationAnswer;
 use App\Models\Leadership\LeadershipNominationDocument;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -28,6 +31,63 @@ class NominationService
         protected FormBuilderService $formBuilderService,
         protected AuditService $auditService
     ) {}
+
+    /**
+     * Resolve and validate scope_id to prevent PostgreSQL foreign key constraint violations.
+     */
+    public function resolveScopeId(string $campaignId, mixed $rawScopeId): ?string
+    {
+        if (empty($rawScopeId) || ! is_string($rawScopeId) || ! Str::isUuid($rawScopeId)) {
+            return null;
+        }
+
+        if (! Schema::hasTable('web_leadership_campaign_scopes')) {
+            return null;
+        }
+
+        // 1. Direct match on web_leadership_campaign_scopes.id
+        $scope = LeadershipCampaignScope::where('id', $rawScopeId)
+            ->where('campaign_id', $campaignId)
+            ->first();
+
+        if ($scope) {
+            return (string) $scope->id;
+        }
+
+        // 2. Check if rawScopeId is a city_id already mapped to a scope in this campaign
+        $scopeByCity = LeadershipCampaignScope::where('city_id', $rawScopeId)
+            ->where('campaign_id', $campaignId)
+            ->first();
+
+        if ($scopeByCity) {
+            return (string) $scopeByCity->id;
+        }
+
+        // 3. Check if rawScopeId matches a valid City; if so, create the campaign scope
+        if (Schema::hasTable('cities')) {
+            $city = City::find($rawScopeId);
+            if ($city) {
+                $scopeName = ! empty($city->district) ? "{$city->district} District" : $city->name;
+                $newScope = LeadershipCampaignScope::create([
+                    'campaign_id' => $campaignId,
+                    'city_id' => (string) $city->id,
+                    'name' => $scopeName,
+                    'scope_name' => $scopeName,
+                    'scope_type' => 'district',
+                    'city' => $city->name,
+                    'district' => $city->district ?: $city->name,
+                    'state' => $city->state,
+                    'seats_available' => 1,
+                    'status' => 'active',
+                ]);
+
+                return (string) $newScope->id;
+            }
+        }
+
+        // 4. Any non-matching ID is discarded gracefully to avoid FK errors
+        return null;
+    }
 
     /**
      * Retrieve Unity profile for verified contact (C2).
@@ -109,11 +169,12 @@ class NominationService
         $profileData = $data['profile'] ?? [];
         $profileData['form_type'] = $data['form_type'] ?? 'main_form_1';
         $answers = $data['answers'] ?? [];
+        $resolvedScopeId = $this->resolveScopeId($campaign->id, $data['scope_id'] ?? null);
 
-        return DB::transaction(function () use ($existingDraft, $campaign, $user, $data, $contact, $tokenData, $profileData, $answers): array {
+        return DB::transaction(function () use ($existingDraft, $campaign, $user, $data, $contact, $tokenData, $profileData, $answers, $resolvedScopeId): array {
             if ($existingDraft) {
                 $existingDraft->update([
-                    'scope_id' => $data['scope_id'] ?? $existingDraft->scope_id,
+                    'scope_id' => $resolvedScopeId ?? $existingDraft->scope_id,
                     'full_name' => $profileData['full_name'] ?? $existingDraft->full_name,
                     'profile_snapshot' => array_merge((array) ($existingDraft->profile_snapshot ?? []), $profileData),
                     'edited_profile' => array_merge((array) ($existingDraft->edited_profile ?? []), $profileData),
@@ -146,7 +207,7 @@ class NominationService
 
                 $nomination = LeadershipNomination::create([
                     'campaign_id' => $campaign->id,
-                    'scope_id' => $data['scope_id'] ?? null,
+                    'scope_id' => $resolvedScopeId,
                     'user_id' => $user?->id,
                     'application_number' => $appNumber,
                     'full_name' => $profileData['full_name'] ?? ($origProfile['full_name'] ?? 'Candidate'),
@@ -214,11 +275,12 @@ class NominationService
 
         $profileData = $data['profile'] ?? [];
         $answers = $data['answers'] ?? [];
+        $resolvedScopeId = isset($data['scope_id']) ? $this->resolveScopeId($nomination->campaign_id, $data['scope_id']) : $nomination->scope_id;
 
-        return DB::transaction(function () use ($nomination, $profileData, $answers, $data): LeadershipNomination {
+        return DB::transaction(function () use ($nomination, $profileData, $answers, $data, $resolvedScopeId): LeadershipNomination {
             $updatedProfile = array_merge($nomination->edited_profile, $profileData);
             $nomination->update([
-                'scope_id' => $data['scope_id'] ?? $nomination->scope_id,
+                'scope_id' => $resolvedScopeId,
                 'full_name' => $profileData['full_name'] ?? $nomination->full_name,
                 'edited_profile' => $updatedProfile,
                 'profile_changes' => $this->computeProfileDiff($nomination->original_profile, $updatedProfile),
@@ -413,10 +475,7 @@ class NominationService
         $campaign = LeadershipCampaign::findOrFail($campaignId);
 
         $candidateId = $data['candidate_id'] ?? null;
-        $scopeId = $data['scope_id'] ?? null;
-        if ($scopeId && ! Str::isUuid($scopeId)) {
-            $scopeId = null;
-        }
+        $scopeId = $this->resolveScopeId($campaign->id, $data['scope_id'] ?? null);
 
         $profile = $data['profile'] ?? [];
         $fullName = $profile['full_name'] ?? $data['full_name'] ?? 'Candidate';
