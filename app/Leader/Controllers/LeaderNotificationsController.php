@@ -117,19 +117,10 @@ class LeaderNotificationsController extends Controller
                 }
             }
 
-            // 2. Fetch Notification items
+            // 2. Fetch Notification items (Postgres enum-safe: filter in PHP to prevent 22P02 enum mismatch)
             if (Schema::hasTable('notifications')) {
                 $notifs = Notification::query()
                     ->where('user_id', $userId)
-                    ->whereNotIn('type', $excludedTypes)
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('payload->notification_type')
-                            ->orWhereNotIn('payload->notification_type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('payload->type')
-                            ->orWhereNotIn('payload->type', $excludedTypes);
-                    })
                     ->orderByDesc('created_at')
                     ->take(50)
                     ->get();
@@ -694,22 +685,23 @@ class LeaderNotificationsController extends Controller
             ];
 
             if (Schema::hasTable('notifications')) {
-                $count += Notification::query()
+                $rawNotifs = Notification::query()
                     ->where('user_id', $userId)
-                    ->whereNotIn('type', $excludedTypes)
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('payload->notification_type')
-                            ->orWhereNotIn('payload->notification_type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('payload->type')
-                            ->orWhereNotIn('payload->type', $excludedTypes);
-                    })
                     ->where(function ($q) {
                         $q->where('is_read', false)->orWhereNull('is_read');
                     })
                     ->whereNull('read_at')
-                    ->count();
+                    ->take(100)
+                    ->get();
+
+                foreach ($rawNotifs as $rn) {
+                    $p = is_array($rn->payload) ? $rn->payload : [];
+                    $t = (string) ($rn->type ?: ($p['notification_type'] ?? ($p['type'] ?? 'general')));
+                    $c = (string) ($p['category'] ?? ($p['notification_type'] ?? $t));
+                    if (! in_array(strtolower($t), $excludedTypes, true) && ! in_array(strtolower($c), $excludedTypes, true)) {
+                        $count++;
+                    }
+                }
             }
 
             if (Schema::hasTable('app_notifications')) {
