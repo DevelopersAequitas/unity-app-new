@@ -763,6 +763,9 @@ class LeaderNotificationsController extends Controller
             'success' => true,
             'status' => true,
             'unread_count' => $count,
+            'data' => [
+                'unread_count' => $count,
+            ],
         ]);
     }
 
@@ -994,7 +997,7 @@ class LeaderNotificationsController extends Controller
     {
         $targetType = (string) $request->input('target_type', 'global'); // 'global' | 'role' | 'leader'
         $targetRole = (string) $request->input('target_role', '');
-        $leaderId = (string) $request->input('leader_id', '');
+        $leaderId = trim((string) ($request->input('leader_id') ?? $request->input('leader_email') ?? ''));
         $title = trim((string) $request->input('title', 'Leader Alert'));
         $message = trim((string) $request->input('message', ''));
         $category = (string) $request->input('category', 'system');
@@ -1016,7 +1019,17 @@ class LeaderNotificationsController extends Controller
         $targetUserIds = [];
 
         if (($targetType === 'leader' || $targetType === 'specific') && ! empty($leaderId)) {
-            $targetUserIds[] = $leaderId;
+            if (str_contains($leaderId, '@')) {
+                $foundUser = User::query()->whereRaw('LOWER(email) = ?', [strtolower($leaderId)])->first();
+                if (! $foundUser && Schema::hasTable('admin_users')) {
+                    $foundUser = AdminUser::query()->whereRaw('LOWER(email) = ?', [strtolower($leaderId)])->first();
+                }
+                if ($foundUser) {
+                    $targetUserIds[] = (string) $foundUser->id;
+                }
+            } else {
+                $targetUserIds[] = $leaderId;
+            }
         } elseif ($targetType === 'role' && ! empty($targetRole)) {
             if (Schema::hasTable('users')) {
                 $allUsers = User::query()->take(500)->get();
@@ -1103,10 +1116,10 @@ class LeaderNotificationsController extends Controller
                 $q->where('category', $categoryFilter);
             }
 
-            $results = $q->orderByDesc('created_at')->take(100)->get();
+            $results = $q->orderByDesc('created_at')->take(200)->get();
 
-            // Cache user lookup
-            $userIds = $results->pluck('user_id')->unique()->all();
+            // Cache user lookup across both users and admin_users tables
+            $userIds = $results->pluck('user_id')->filter()->unique()->all();
             $usersMap = [];
             if (! empty($userIds) && Schema::hasTable('users')) {
                 $cols = Schema::getColumnListing('users');
@@ -1123,6 +1136,15 @@ class LeaderNotificationsController extends Controller
                 $users = User::query()->whereIn('id', $userIds)->get($selectCols);
                 foreach ($users as $u) {
                     $usersMap[(string) $u->id] = $u;
+                }
+            }
+
+            // Also check admin_users for any missing IDs
+            $missingIds = array_diff($userIds, array_keys($usersMap));
+            if (! empty($missingIds) && Schema::hasTable('admin_users')) {
+                $admins = AdminUser::query()->whereIn('id', $missingIds)->get();
+                foreach ($admins as $au) {
+                    $usersMap[(string) $au->id] = $au;
                 }
             }
 
@@ -1143,16 +1165,18 @@ class LeaderNotificationsController extends Controller
                 $permissionService = app(LeaderPermissionService::class);
                 $roleLabel = 'Circle Leader';
                 $roleKey = 'leader';
+                $isAdminBroadcast = ($payload['sent_by_admin'] ?? false) || ($item->type === 'admin_broadcast');
+
                 if ($userObj) {
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
                     $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
 
-                    // Strictly filter: Only show notifications destined for Leader roles
-                    if (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true)) {
+                    // Strictly filter: For automated events, skip non-leader roles
+                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true))) {
                         continue;
                     }
-                } else {
+                } elseif (! $isAdminBroadcast) {
                     continue;
                 }
 
@@ -1470,6 +1494,15 @@ class LeaderNotificationsController extends Controller
                 $user->save();
             } elseif (Schema::hasColumn('users', 'leader_ios_fcm_token') && in_array($platform, ['ios', 'apple'], true)) {
                 $user->leader_ios_fcm_token = $token;
+                $user->save();
+            }
+
+            // Also ensure standard user android_fcm_token / ios_fcm_token is populated
+            if (Schema::hasColumn('users', 'android_fcm_token') && $platform === 'android') {
+                $user->android_fcm_token = $token;
+                $user->save();
+            } elseif (Schema::hasColumn('users', 'ios_fcm_token') && in_array($platform, ['ios', 'apple'], true)) {
+                $user->ios_fcm_token = $token;
                 $user->save();
             }
 
