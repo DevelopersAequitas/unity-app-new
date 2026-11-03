@@ -763,6 +763,9 @@ class LeaderNotificationsController extends Controller
             'success' => true,
             'status' => true,
             'unread_count' => $count,
+            'data' => [
+                'unread_count' => $count,
+            ],
         ]);
     }
 
