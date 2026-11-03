@@ -71,12 +71,19 @@ class SubmitUserCircleRequest extends FormRequest
                             $peer['business_name'] = $existingUser->company_name ?? $existingUser->business_name ?? null;
                         }
                         if (empty($peer['category_id'])) {
-                            $peer['category_id'] = $existingUser->category_id ?? $existingUser->business_category_id ?? null;
+                            $peer['category_id'] = $existingUser->main_business_category_id ?? $existingUser->category_id ?? null;
+                        }
+                        if (empty($peer['subcategory_id']) && empty($peer['sub_category_id'])) {
+                            $peer['subcategory_id'] = $existingUser->business_category_id ?? $existingUser->level_4_category_id ?? null;
                         }
                         if (empty($peer['source'])) {
                             $peer['source'] = 'app';
                         }
                     }
+                }
+
+                if (! empty($peer['sub_category_id']) && empty($peer['subcategory_id'])) {
+                    $peer['subcategory_id'] = $peer['sub_category_id'];
                 }
 
                 if (empty($peer['source'])) {
@@ -111,6 +118,7 @@ class SubmitUserCircleRequest extends FormRequest
             'founder_years_in_business'    => ['nullable', 'integer', 'min:0'],
             'founder_website_linkedin'     => ['nullable', 'string', 'max:500'],
             'founder_category_id'          => ['nullable', 'integer'],
+            'founder_subcategory_id'       => ['nullable', 'integer'],
             'founder_leadership_experience'=> ['nullable', 'string', 'max:2000'],
 
             // Step 3: Meeting Plan
@@ -135,6 +143,8 @@ class SubmitUserCircleRequest extends FormRequest
             'recommended_peers.*.phone'            => ['nullable', 'string', 'max:30'],
             'recommended_peers.*.business_name'    => ['nullable', 'string', 'max:255'],
             'recommended_peers.*.category_id'      => ['nullable', 'integer'],
+            'recommended_peers.*.subcategory_id'   => ['nullable', 'integer'],
+            'recommended_peers.*.sub_category_id'  => ['nullable', 'integer'],
             'recommended_peers.*.interest_level'   => ['nullable', 'string', 'in:high,medium,low'],
             'recommended_peers.*.email'            => ['nullable', 'email', 'max:200'],
 
@@ -174,11 +184,19 @@ class SubmitUserCircleRequest extends FormRequest
             $seenEmails = [];
             $seenPeerIds = [];
             $seenCategories = [];
+            $seenSubcategories = [];
 
-            // Also check founder category (seat 1)
+            // Also check founder category & subcategory (seat 1)
             $founderCategory = $this->input('founder_category_id');
             if (! empty($founderCategory)) {
                 $seenCategories[(int) $founderCategory] = [
+                    'row' => 'Founder (Seat 1)',
+                    'name' => 'Founder',
+                ];
+            }
+            $founderSubcategory = $this->input('founder_subcategory_id');
+            if (! empty($founderSubcategory)) {
+                $seenSubcategories[(int) $founderSubcategory] = [
                     'row' => 'Founder (Seat 1)',
                     'name' => 'Founder',
                 ];
@@ -195,6 +213,7 @@ class SubmitUserCircleRequest extends FormRequest
                 $rawEmail = strtolower(trim((string) ($peer['email'] ?? '')));
                 $rawPeerId = (string) ($peer['peer_id'] ?? $peer['user_id'] ?? $peer['nominee_user_id'] ?? '');
                 $rawCategory = $peer['category_id'] ?? null;
+                $rawSubcategory = $peer['subcategory_id'] ?? $peer['sub_category_id'] ?? null;
 
                 // Self peer check
                 if ($currentUserId && $rawPeerId !== '' && $rawPeerId === $currentUserId) {
@@ -277,15 +296,30 @@ class SubmitUserCircleRequest extends FormRequest
                     );
                 }
 
-                // 3. Category uniqueness per circle
-                if (! empty($rawCategory)) {
+                // 3. Subcategory and Category uniqueness per circle
+                if (! empty($rawSubcategory)) {
+                    $subId = (int) $rawSubcategory;
+                    if (isset($seenSubcategories[$subId])) {
+                        $existingHolder = $seenSubcategories[$subId]['name'];
+                        $existingRow = $seenSubcategories[$subId]['row'];
+                        $v->errors()->add(
+                            "recommended_peers.{$index}.subcategory_id",
+                            "Row #{$rowNum} ('{$rawName}'): Subcategory is already assigned to {$existingHolder} at {$existingRow}. Each subcategory can only be selected once per Circle."
+                        );
+                    } else {
+                        $seenSubcategories[$subId] = [
+                            'row' => "Row #{$rowNum}",
+                            'name' => $rawName ?: "Peer #{$rowNum}",
+                        ];
+                    }
+                } elseif (! empty($rawCategory)) {
                     $catId = (int) $rawCategory;
                     if (isset($seenCategories[$catId])) {
                         $existingHolder = $seenCategories[$catId]['name'];
                         $existingRow = $seenCategories[$catId]['row'];
                         $v->errors()->add(
                             "recommended_peers.{$index}.category_id",
-                            "Row #{$rowNum} ('{$rawName}'): Category is already assigned to {$existingHolder} at {$existingRow}. Only one member per specific category is permitted in this Circle."
+                            "Row #{$rowNum} ('{$rawName}'): Category is already assigned to {$existingHolder} at {$existingRow}. Only one member per specific category is permitted in this Circle. (Tip: select a specific subcategory to avoid duplicate conflict)."
                         );
                     } else {
                         $seenCategories[$catId] = [

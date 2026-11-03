@@ -286,17 +286,28 @@ class VotingService
                     $lQuery->where('scope_id', $scopeId);
                 }
                 $candUuids = array_values(array_filter([$cand->id, $cand->user_id], fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
-                $lQuery->where(function ($q) use ($candUuids, $cand): void {
+                $candAppNo = $cand->application_number ? trim((string) $cand->application_number) : null;
+                $candName = $cand->full_name ? strtolower(trim((string) $cand->full_name)) : null;
+                $candEmail = $cand->email ? strtolower(trim((string) $cand->email)) : null;
+
+                $lQuery->where(function ($q) use ($candUuids, $candAppNo, $candName, $candEmail, $cand): void {
                     if (! empty($candUuids)) {
                         $q->whereIn('nomination_id', $candUuids);
                     }
-                    if (! empty($cand->application_number)) {
-                        $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $cand->application_number]);
+                    if (! empty($candAppNo)) {
+                        $q->orWhereRaw("metadata->>'application_number' = ?", [$candAppNo])
+                            ->orWhereRaw("metadata->>'nomination_reference' = ?", [$candAppNo])
+                            ->orWhereRaw("LOWER(metadata->>'application_number') = ?", [strtolower($candAppNo)])
+                            ->orWhereRaw("LOWER(metadata->>'nomination_reference') = ?", [strtolower($candAppNo)]);
                     }
-                    if (! empty($cand->full_name)) {
-                        $name = strtolower(trim((string) $cand->full_name));
-                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name])
-                            ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$name.'%']);
+                    if (! empty($cand->id)) {
+                        $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $cand->id]);
+                    }
+                    if (! empty($candName)) {
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$candName]);
+                    }
+                    if (! empty($candEmail)) {
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_email') = ?", [$candEmail]);
                     }
                 });
                 $lVotes = $lQuery->get();
@@ -317,18 +328,23 @@ class VotingService
             if ($hasWebVotes) {
                 $wQuery = WebVote::query();
                 $candUuids = array_values(array_filter([$cand->id, $cand->user_id], fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
-                $wQuery->where(function ($q) use ($candUuids, $cand): void {
+                $candAppNo = $cand->application_number ? trim((string) $cand->application_number) : null;
+                $candName = $cand->full_name ? strtolower(trim((string) $cand->full_name)) : null;
+                $candEmail = $cand->email ? strtolower(trim((string) $cand->email)) : null;
+
+                $wQuery->where(function ($q) use ($candUuids, $candAppNo, $candName, $candEmail): void {
                     if (! empty($candUuids)) {
                         $q->whereIn('nomination_id', $candUuids);
                     }
-                    if (! empty($cand->full_name)) {
-                        $name = strtolower(trim((string) $cand->full_name));
-                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
-                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
+                    if (! empty($candAppNo)) {
+                        $q->orWhere('nomination_id', $candAppNo)
+                            ->orWhereRaw('LOWER(nomination_id) = ?', [strtolower($candAppNo)]);
                     }
-                    if (! empty($cand->email)) {
-                        $email = strtolower(trim((string) $cand->email));
-                        $q->orWhereRaw('LOWER(candidate_email) = ?', [$email]);
+                    if (! empty($candName)) {
+                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$candName]);
+                    }
+                    if (! empty($candEmail)) {
+                        $q->orWhereRaw('LOWER(candidate_email) = ?', [$candEmail]);
                     }
                 });
                 $wVotes = $wQuery->get();
@@ -436,10 +452,13 @@ class VotingService
         // 1. Fetch from web_votes if exists
         if (Schema::hasTable('web_votes')) {
             $wQuery = WebVote::query();
-            $wQuery->where(function ($q) use ($campaignId, $candUuids, $candNames): void {
+            $wQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candNames): void {
                 $q->where('campaign_id', $campaignId);
                 if (! empty($candUuids)) {
                     $q->orWhereIn('nomination_id', $candUuids);
+                }
+                if (! empty($candAppNos)) {
+                    $q->orWhereIn('nomination_id', $candAppNos);
                 }
                 foreach ($candNames as $name) {
                     if (! empty($name)) {
@@ -451,16 +470,23 @@ class VotingService
 
             if (! empty($targetIds)) {
                 $targetUuids = array_values(array_filter($targetIds, fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
-                $wQuery->where(function ($q) use ($targetUuids, $targetCand): void {
+                $wQuery->where(function ($q) use ($targetUuids, $targetCand, $targetIds): void {
                     if (! empty($targetUuids)) {
                         $q->whereIn('nomination_id', $targetUuids);
                     }
                     if ($targetCand) {
+                        if (! empty($targetCand->application_number)) {
+                            $q->orWhere('nomination_id', $targetCand->application_number);
+                        }
                         $name = strtolower(trim((string) $targetCand->full_name));
                         $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
                             ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
                         if (! empty($targetCand->email)) {
                             $q->orWhereRaw('LOWER(candidate_email) = ?', [strtolower(trim((string) $targetCand->email))]);
+                        }
+                    } else {
+                        foreach ($targetIds as $tid) {
+                            $q->orWhere('nomination_id', $tid);
                         }
                     }
                 });
@@ -470,8 +496,9 @@ class VotingService
                 $matched = $candidates->first(function ($c) use ($r) {
                     return $c->id === $r->nomination_id
                         || $c->user_id === $r->nomination_id
-                        || $c->application_number === $r->nomination_id
-                        || (! empty($r->candidate_name) && strtolower(trim((string) $c->full_name)) === strtolower(trim((string) $r->candidate_name)));
+                        || strtolower((string) $c->application_number) === strtolower((string) $r->nomination_id)
+                        || (! empty($r->candidate_name) && strtolower(trim((string) $c->full_name)) === strtolower(trim((string) $r->candidate_name)))
+                        || (! empty($r->candidate_email) && ! empty($c->email) && strtolower(trim((string) $c->email)) === strtolower(trim((string) $r->candidate_email)));
                 });
 
                 $ref = $r->vote_reference ?: ('WV-'.$r->id);
@@ -500,40 +527,74 @@ class VotingService
         // 2. Fetch from web_leadership_votes if exists
         if (Schema::hasTable('web_leadership_votes')) {
             $lQuery = LeadershipVote::with(['nomination', 'voterUser']);
-            $lQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos): void {
+            $lQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candIds, $candNames): void {
                 $q->where('campaign_id', $campaignId);
                 if (! empty($candUuids)) {
                     $q->orWhereIn('nomination_id', $candUuids);
                 }
                 foreach ($candAppNos as $appNo) {
                     if (! empty($appNo)) {
-                        $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $appNo]);
+                        $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $appNo])
+                            ->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $appNo])
+                            ->orWhereRaw("LOWER(metadata->>'application_number') = ?", [strtolower((string) $appNo)])
+                            ->orWhereRaw("LOWER(metadata->>'nomination_reference') = ?", [strtolower((string) $appNo)]);
+                    }
+                }
+                foreach ($candIds as $cid) {
+                    if (! empty($cid)) {
+                        $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $cid]);
+                    }
+                }
+                foreach ($candNames as $name) {
+                    if (! empty($name)) {
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name]);
                     }
                 }
             });
 
             if (! empty($targetIds)) {
                 $targetUuids = array_values(array_filter($targetIds, fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
-                $lQuery->where(function ($q) use ($targetUuids, $targetCand): void {
+                $lQuery->where(function ($q) use ($targetUuids, $targetCand, $targetIds): void {
                     if (! empty($targetUuids)) {
                         $q->whereIn('nomination_id', $targetUuids);
                     }
-                    if ($targetCand && ! empty($targetCand->application_number)) {
-                        $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $targetCand->application_number]);
+                    if ($targetCand) {
+                        if (! empty($targetCand->application_number)) {
+                            $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $targetCand->application_number])
+                                ->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $targetCand->application_number]);
+                        }
+                        if (! empty($targetCand->id)) {
+                            $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $targetCand->id]);
+                        }
+                        $name = strtolower(trim((string) $targetCand->full_name));
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name]);
+                    } else {
+                        foreach ($targetIds as $tid) {
+                            $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $tid])
+                                ->orWhereRaw("metadata->>'application_number' = ?", [(string) $tid]);
+                        }
                     }
                 });
             }
 
             foreach ($lQuery->get() as $lv) {
                 $ref = $lv->vote_reference ?: (string) $lv->id;
+                $meta = is_array($lv->metadata) ? $lv->metadata : [];
 
-                $matched = $lv->nomination ?: $candidates->first(function ($c) use ($lv) {
+                $matched = $lv->nomination ?: $candidates->first(function ($c) use ($lv, $meta) {
+                    $refNom = $meta['nomination_reference'] ?? null;
+                    $refApp = $meta['application_number'] ?? null;
+                    $refName = $meta['candidate_name'] ?? null;
+                    $refEmail = $meta['candidate_email'] ?? null;
+
                     return $c->id === $lv->nomination_id
                         || $c->user_id === $lv->nomination_id
-                        || $c->application_number === $lv->nomination_id;
+                        || strtolower((string) $c->application_number) === strtolower((string) $lv->nomination_id)
+                        || ($refApp && strtolower((string) $c->application_number) === strtolower((string) $refApp))
+                        || ($refNom && ($c->id === $refNom || strtolower((string) $c->application_number) === strtolower((string) $refNom)))
+                        || ($refName && strtolower(trim((string) $c->full_name)) === strtolower(trim((string) $refName)))
+                        || ($refEmail && ! empty($c->email) && strtolower(trim((string) $c->email)) === strtolower(trim((string) $refEmail)));
                 });
-
-                $meta = is_array($lv->metadata) ? $lv->metadata : [];
                 $vName = $lv->voterUser?->name ?? ($meta['voter_name'] ?? null) ?? 'Verified Member';
                 $vEmail = $lv->voterUser?->email ?? ($meta['voter_email'] ?? null) ?? '-';
                 $vPhone = $lv->voterUser?->mobile ?? ($meta['voter_phone'] ?? null) ?? '-';

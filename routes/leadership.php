@@ -44,6 +44,7 @@ Route::prefix('public')->group(function (): void {
     Route::get('campaigns/{id}/scopes', [PublicCampaignController::class, 'scopes'])->whereUuid('id');
     Route::get('campaigns/{id}/candidates', [PublicCampaignController::class, 'candidates'])->whereUuid('id');
     Route::get('campaigns/{id}/winners', [PublicCampaignController::class, 'winners'])->whereUuid('id');
+    Route::get('cities', [PublicCampaignController::class, 'cities']);
 
     // Module B: OTP & Verification
     Route::post('verification/nomination/request-otp', [VerificationController::class, 'requestNominationOtp']);
@@ -81,6 +82,10 @@ Route::prefix('public')->group(function (): void {
     Route::get('votes/{reference}', [VotingController::class, 'verifyReceipt']);
     Route::get('results', [VotingController::class, 'privateResults']);
 });
+
+// Direct alias outside prefix group (supports /api/v1/leadership/votes)
+Route::post('votes', [VotingController::class, 'castVote']);
+Route::post('public/votes', [VotingController::class, 'castVote']);
 
 // ==========================================
 // 2. JUROR ROUTES (Sanctum Authenticated)
@@ -199,6 +204,8 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
 
     // Module J: Final Decisions and Winners
     Route::post('decisions', [FinalDecisionController::class, 'submitDecision']);
+    Route::get('decisions/circles', [FinalDecisionController::class, 'circles']);
+    Route::get('decisions/nominations/{id}/evaluations', [FinalDecisionController::class, 'evaluations'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-candidates', [FinalDecisionController::class, 'candidates'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-summary', [FinalDecisionController::class, 'summary'])->whereUuid('id');
     Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'campaignDecisions'])->whereUuid('id');
