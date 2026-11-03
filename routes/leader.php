@@ -151,6 +151,12 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
 
     // Notifications (Leader App)
+    // Leader App Notification Management & Dispatcher (Super Admin Control & Logs)
+    Route::get('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'getRoleConfig']);
+    Route::post('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'updateRoleConfig']);
+    Route::get('/leader/admin/notifications/leaders', [LeaderNotificationsController::class, 'listEligibleLeaders']);
+    Route::post('/leader/admin/notifications/send', [LeaderNotificationsController::class, 'sendImmediateNotification']);
+    Route::get('/leader/admin/notifications/logs', [LeaderNotificationsController::class, 'getSecurityLogs']);
     Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
     Route::post('/leader/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
     Route::post('/leader/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
