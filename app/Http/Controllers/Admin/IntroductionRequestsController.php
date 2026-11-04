@@ -146,19 +146,21 @@ class IntroductionRequestsController extends Controller
                 // Explicitly award earned milestone badges in user_milestone_badges
                 app(MilestoneBadgeService::class)->calculateForUser($introducer);
 
-                // Trigger milestone WhatsApp notification workflow for exact milestone counts (1..500)
-                try {
-                    app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
-                        $introducer,
-                        $count,
-                        $creative?->image_url
-                    );
-                } catch (\Throwable $whatsappEx) {
-                    Log::error('Failed triggering milestone WhatsApp notification on request approval: '.$whatsappEx->getMessage(), [
-                        'introducer_id' => $introducer->id,
-                        'count' => $count,
-                        'exception' => $whatsappEx,
-                    ]);
+                // Automatic milestone WhatsApp award notifications are currently disabled per admin configuration.
+                if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                    try {
+                        app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
+                            $introducer,
+                            $count,
+                            $creative?->image_url
+                        );
+                    } catch (\Throwable $whatsappEx) {
+                        Log::error('Failed triggering milestone WhatsApp notification on request approval: '.$whatsappEx->getMessage(), [
+                            'introducer_id' => $introducer->id,
+                            'count' => $count,
+                            'exception' => $whatsappEx,
+                        ]);
+                    }
                 }
 
                 // Sync milestones for the introducer

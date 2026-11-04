@@ -9,6 +9,7 @@ use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
 use App\Services\Notifications\MilestoneWhatsappNotificationService;
 use App\Services\Notifications\WhatsappNotificationService;
+use App\Services\Referrals\ReferralService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -57,6 +58,15 @@ class SendMilestoneWhatsappJob implements ShouldQueue
      */
     public function handle(WhatsappNotificationService $whatsappService): void
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[SendMilestoneWhatsappJob] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $this->userId,
+                'introduced_count' => $this->introducedCount,
+            ]);
+
+            return;
+        }
+
         $jobId = $this->job?->getJobId() ?? 'sync';
         $templateKey = MilestoneWhatsappNotificationService::MILESTONE_TEMPLATES[$this->introducedCount] ?? null;
 
@@ -167,9 +177,9 @@ class SendMilestoneWhatsappJob implements ShouldQueue
         }
         $refCode = null;
         try {
-            $referralData = app(\App\Services\Referrals\ReferralService::class)->generateOrGetReferral($user);
+            $referralData = app(ReferralService::class)->generateOrGetReferral($user);
             $refCode = $referralData['referral_code'] ?? null;
-        } catch (\Throwable) {
+        } catch (Throwable) {
         }
         $referralLink = ! empty($refCode)
             ? "{$baseUrl}/register?ref={$refCode}"

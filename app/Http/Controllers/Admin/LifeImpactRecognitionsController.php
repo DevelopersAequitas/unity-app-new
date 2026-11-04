@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeService;
+use App\Services\Notifications\ImpactMilestoneWhatsappNotificationService;
+use App\Services\WhatsApp\AwardRecognitionWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -420,18 +422,19 @@ class LifeImpactRecognitionsController extends Controller
                 'peer_id' => $peer->id,
             ]);
 
-            // Dispatch Meta WhatsApp Cloud API Award Recognition with personalized creative
-            try {
-                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($peer, (int) $effectiveThreshold, $imageUrl);
-            } catch (\Throwable $waAwardEx) {
-                Log::error('[LifeImpactRecognitionsController] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
-            }
+            // Automatic WhatsApp Award Recognition is currently disabled when posting to timeline.
+            if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                try {
+                    app(AwardRecognitionWhatsappService::class)->handleImpactAward($peer, (int) $effectiveThreshold, $imageUrl);
+                } catch (\Throwable $waAwardEx) {
+                    Log::error('[LifeImpactRecognitionsController] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
+                }
 
-            // Also trigger milestone notification workflow if configured
-            try {
-                app(\App\Services\Notifications\ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification($peer, (int) $effectiveThreshold, $imageUrl);
-            } catch (\Throwable $waEx) {
-                Log::error('[LifeImpactRecognitionsController] Failed triggering Impact WhatsApp milestone: '.$waEx->getMessage());
+                try {
+                    app(ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification($peer, (int) $effectiveThreshold, $imageUrl);
+                } catch (\Throwable $waEx) {
+                    Log::error('[LifeImpactRecognitionsController] Failed triggering Impact WhatsApp milestone: '.$waEx->getMessage());
+                }
             }
 
             return response()->json([

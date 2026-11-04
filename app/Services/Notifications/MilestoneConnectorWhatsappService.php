@@ -27,6 +27,14 @@ class MilestoneConnectorWhatsappService
      */
     public function handleFirstIntroduction(User $user, ?string $imageUrl = null): void
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[MilestoneConnectorWhatsappService] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $user->id,
+            ]);
+
+            return;
+        }
+
         try {
             $user->refresh();
 

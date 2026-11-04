@@ -51,6 +51,7 @@ return [
 
     'whatsapp' => [
         'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', env('FLEXIMSG_WEBHOOK_VERIFY_TOKEN', 'unity_app_whatsapp_verify_token')),
+        'auto_milestone_awards_enabled' => (bool) env('WHATSAPP_AUTO_MILESTONE_AWARDS_ENABLED', false),
     ],
 
     'fleximsg' => [
