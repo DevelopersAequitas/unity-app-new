@@ -14,7 +14,8 @@ class AdminStockAdjustmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'quantity_change' => 'required|integer|not_in:0',
+            'quantity_change' => 'sometimes|integer|not_in:0',
+            'quantity' => 'sometimes|integer|not_in:0',
             'reason' => 'required|string|max:100',
             'note' => 'nullable|string|max:500',
         ];
