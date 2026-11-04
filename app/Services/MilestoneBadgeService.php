@@ -252,45 +252,46 @@ class MilestoneBadgeService
                     );
                 }
 
-                // Automatically trigger WhatsApp notifications for newly earned Growth Track milestones
-                if ($badge->type === MilestoneBadge::TYPE_MEMBER_INTRODUCTION || in_array(strtolower((string) $badge->title), ['connector', 'catalyst'], true)) {
-                    $badgeTitle = strtolower((string) $badge->title);
-                    $requiredCount = (int) $badge->required_count;
+                // Automatic WhatsApp notifications for milestone / award recognitions are currently disabled per admin configuration.
+                if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                    if ($badge->type === MilestoneBadge::TYPE_MEMBER_INTRODUCTION || in_array(strtolower((string) $badge->title), ['connector', 'catalyst'], true)) {
+                        $badgeTitle = strtolower((string) $badge->title);
+                        $requiredCount = (int) $badge->required_count;
 
-                    if ($requiredCount === 1 || $badgeTitle === 'connector') {
-                        try {
-                            app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction($user);
-                        } catch (\Throwable $waEx) {
-                            Log::error('[MilestoneBadgeService] Failed triggering Connector WhatsApp: '.$waEx->getMessage(), [
-                                'user_id' => $user->id,
-                                'badge_id' => $badge->id,
-                            ]);
-                        }
-                    } elseif ($requiredCount === 3 || $badgeTitle === 'catalyst') {
-                        try {
-                            app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone($user);
-                        } catch (\Throwable $waEx) {
-                            Log::error('[MilestoneBadgeService] Failed triggering Catalyst WhatsApp: '.$waEx->getMessage(), [
-                                'user_id' => $user->id,
-                                'badge_id' => $badge->id,
-                            ]);
+                        if ($requiredCount === 1 || $badgeTitle === 'connector') {
+                            try {
+                                app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction($user);
+                            } catch (\Throwable $waEx) {
+                                Log::error('[MilestoneBadgeService] Failed triggering Connector WhatsApp: '.$waEx->getMessage(), [
+                                    'user_id' => $user->id,
+                                    'badge_id' => $badge->id,
+                                ]);
+                            }
+                        } elseif ($requiredCount === 3 || $badgeTitle === 'catalyst') {
+                            try {
+                                app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone($user);
+                            } catch (\Throwable $waEx) {
+                                Log::error('[MilestoneBadgeService] Failed triggering Catalyst WhatsApp: '.$waEx->getMessage(), [
+                                    'user_id' => $user->id,
+                                    'badge_id' => $badge->id,
+                                ]);
+                            }
                         }
                     }
-                }
 
-                // Automatically trigger WhatsApp notifications for newly earned Life Impact milestones
-                if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
-                    try {
-                        app(ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
-                            $user,
-                            (int) $badge->required_count,
-                            $creativeImageUrl ?? null
-                        );
-                    } catch (\Throwable $waEx) {
-                        Log::error('[MilestoneBadgeService] Failed triggering Life Impact WhatsApp: '.$waEx->getMessage(), [
-                            'user_id' => $user->id,
-                            'badge_id' => $badge->id,
-                        ]);
+                    if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
+                        try {
+                            app(ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
+                                $user,
+                                (int) $badge->required_count,
+                                $creativeImageUrl ?? null
+                            );
+                        } catch (\Throwable $waEx) {
+                            Log::error('[MilestoneBadgeService] Failed triggering Life Impact WhatsApp: '.$waEx->getMessage(), [
+                                'user_id' => $user->id,
+                                'badge_id' => $badge->id,
+                            ]);
+                        }
                     }
                 }
             } catch (\Throwable $e) {

@@ -59,6 +59,11 @@ class UserMilestoneBadge extends Model
         });
 
         static::saved(function (self $model): void {
+            // Automatic WhatsApp milestone award notifications are currently disabled per admin configuration.
+            if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                return;
+            }
+
             if ($model->status !== self::STATUS_EARNED) {
                 return;
             }

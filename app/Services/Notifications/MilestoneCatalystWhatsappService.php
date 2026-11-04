@@ -31,6 +31,14 @@ class MilestoneCatalystWhatsappService
      */
     public function handleCatalystMilestone(User $user, ?string $imageUrl = null): void
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[MilestoneCatalystWhatsappService] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $user->id,
+            ]);
+
+            return;
+        }
+
         try {
             $user->refresh();
 

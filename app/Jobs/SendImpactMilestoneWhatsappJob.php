@@ -57,6 +57,15 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
      */
     public function handle(WhatsappNotificationService $whatsappService): void
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[SendImpactMilestoneWhatsappJob] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $this->userId,
+                'threshold' => $this->threshold,
+            ]);
+
+            return;
+        }
+
         $jobId = $this->job?->getJobId() ?? 'sync';
         $templateKey = ImpactMilestoneWhatsappNotificationService::IMPACT_MILESTONE_TEMPLATES[$this->threshold] ?? null;
 
