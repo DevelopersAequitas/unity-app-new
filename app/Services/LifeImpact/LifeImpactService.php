@@ -5,6 +5,7 @@ namespace App\Services\LifeImpact;
 use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
+use App\Models\MemberAwardSend;
 use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeService;
 use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\ImpactMilestoneWhatsappNotificationService;
+use App\Services\WhatsApp\AwardRecognitionWhatsappService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -459,25 +461,27 @@ class LifeImpactService
                                 'peer_id' => $user->id,
                             ]);
 
-                            // Native Meta WhatsApp Cloud API Award Recognition
-                            try {
-                                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $creativeImageUrl);
-                            } catch (\Throwable $waAwardEx) {
-                                Log::error('[LifeImpactService] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
+                            // Automatic WhatsApp Award Recognition is currently disabled per admin configuration.
+                            if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                                try {
+                                    app(AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $creativeImageUrl);
+                                } catch (\Throwable $waAwardEx) {
+                                    Log::error('[LifeImpactService] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
+                                }
                             }
 
                             Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
-                        } else {
-                            // If the timeline post already exists, ensure the WhatsApp award was also sent
+                        } elseif ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                            // If the timeline post already exists, ensure the WhatsApp award was also sent (only when auto-send is enabled)
                             if (Schema::hasTable('member_award_sends')) {
-                                $alreadySent = \App\Models\MemberAwardSend::where('user_id', $user->id)
+                                $alreadySent = MemberAwardSend::where('user_id', $user->id)
                                     ->where('award_track', 'LIFE_IMPACT')
                                     ->where('milestone_count', (int) $threshold)
                                     ->whereIn('status', ['sent', 'delivered', 'read'])
                                     ->exists();
                                 if (! $alreadySent) {
                                     try {
-                                        app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $existingPost->image);
+                                        app(AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $existingPost->image);
                                     } catch (\Throwable $waAwardEx) {
                                         Log::error('[LifeImpactService] Failed triggering Meta WhatsApp impact award for existing post: '.$waAwardEx->getMessage());
                                     }
@@ -488,15 +492,17 @@ class LifeImpactService
                 }
             }
 
-            // Automatically trigger Track 2 — Impact Recognition WhatsApp workflow for newly crossed thresholds
-            try {
-                app(ImpactMilestoneWhatsappNotificationService::class)->processMilestonesForUser($user, $newTotal, $oldTotal);
-            } catch (\Throwable $waEx) {
-                Log::error('[LifeImpactService] Failed processing Impact WhatsApp milestones: '.$waEx->getMessage(), [
-                    'user_id' => $userId,
-                    'old_total' => $oldTotal,
-                    'new_total' => $newTotal,
-                ]);
+            // Automatic Track 2 — Impact Recognition WhatsApp workflow is currently disabled per admin configuration.
+            if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                try {
+                    app(ImpactMilestoneWhatsappNotificationService::class)->processMilestonesForUser($user, $newTotal, $oldTotal);
+                } catch (\Throwable $waEx) {
+                    Log::error('[LifeImpactService] Failed processing Impact WhatsApp milestones: '.$waEx->getMessage(), [
+                        'user_id' => $userId,
+                        'old_total' => $oldTotal,
+                        'new_total' => $newTotal,
+                    ]);
+                }
             }
         } catch (\Throwable $e) {
             Log::error('[LifeImpactService] Failed checking and publishing life impact timeline posts: '.$e->getMessage(), [

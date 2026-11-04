@@ -149,6 +149,17 @@ use Carbon\Carbon;
             ?: data_get($circle, 'founder.display_name')
             ?: data_get($circle, 'founder.name');
     }
+    if (empty($founderUser) || $founderName === 'Unassigned' || $founderName === '—') {
+        $founderMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+            return in_array($r, ['circle_founder', 'founder', 'circle founder', 'cf'], true);
+        });
+        if ($founderMember && $founderMember->user) {
+            $founderUser = $founderMember->user;
+            $founderName = $founderUser->display_name ?: $founderUser->name ?: trim(($founderUser->first_name ?? '').' '.($founderUser->last_name ?? ''));
+        }
+    }
     $founderName = trim((string) $founderName) !== '' ? trim((string) $founderName) : '—';
     $circleFounder = $founderName;
     $founderId = $founderUser->id ?? null;
@@ -565,7 +576,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Circle Director</span>
-                @php $usr = $formatUser($circle->circleDirector ?? $circle->director ?? null); @endphp
+                @php
+                    $directorUser = $circle->circleDirector ?? $circle->director ?? null;
+                    $directorName = $directorUser ? ($directorUser->display_name ?: $directorUser->name ?: trim(($directorUser->first_name ?? '').' '.($directorUser->last_name ?? ''))) : null;
+                    if (empty($directorUser) || $directorName === 'Unassigned' || $directorName === '' || $directorName === '—') {
+                        $directorMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['circle_director', 'director', 'circle director', 'cd'], true);
+                        });
+                        if ($directorMember && $directorMember->user) {
+                            $directorUser = $directorMember->user;
+                        }
+                    }
+                    $usr = $formatUser($directorUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -582,7 +607,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Industry Director</span>
-                @php $usr = $formatUser($circle->industryDirector ?? null); @endphp
+                @php
+                    $idUser = $circle->industryDirector ?? null;
+                    $idName = $idUser ? ($idUser->display_name ?: $idUser->name ?: trim(($idUser->first_name ?? '').' '.($idUser->last_name ?? ''))) : null;
+                    if (empty($idUser) || $idName === 'Unassigned' || $idName === '' || $idName === '—') {
+                        $idMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['industry_director', 'id', 'industry director'], true);
+                        });
+                        if ($idMember && $idMember->user) {
+                            $idUser = $idMember->user;
+                        }
+                    }
+                    $usr = $formatUser($idUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -599,7 +638,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">DED</span>
-                @php $usr = $formatUser($circle->ded ?? null); @endphp
+                @php
+                    $dedUser = $circle->ded ?? null;
+                    $dedName = $dedUser ? ($dedUser->display_name ?: $dedUser->name ?: trim(($dedUser->first_name ?? '').' '.($dedUser->last_name ?? ''))) : null;
+                    if (empty($dedUser) || $dedName === 'Unassigned' || $dedName === '' || $dedName === '—') {
+                        $dedMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['ded', 'district executive director'], true);
+                        });
+                        if ($dedMember && $dedMember->user) {
+                            $dedUser = $dedMember->user;
+                        }
+                    }
+                    $usr = $formatUser($dedUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -616,7 +669,21 @@ use Carbon\Carbon;
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">EED</span>
-                @php $usr = $formatUser($circle->eed ?? null); @endphp
+                @php
+                    $eedUser = $circle->eed ?? null;
+                    $eedName = $eedUser ? ($eedUser->display_name ?: $eedUser->name ?: trim(($eedUser->first_name ?? '').' '.($eedUser->last_name ?? ''))) : null;
+                    if (empty($eedUser) || $eedName === 'Unassigned' || $eedName === '' || $eedName === '—') {
+                        $eedMember = ($peerMembers ?? $circle->members ?? collect())->first(function ($m) {
+                            $r = strtolower(trim((string) ($m->role ?? $m->roleRef?->key ?? $m->roleRef?->name ?? '')));
+
+                            return in_array($r, ['eed'], true);
+                        });
+                        if ($eedMember && $eedMember->user) {
+                            $eedUser = $eedMember->user;
+                        }
+                    }
+                    $usr = $formatUser($eedUser);
+                @endphp
                 @if(is_array($usr) && !empty($usr['name']))
                     @if(!empty($usr['id']))
                         <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -701,30 +768,9 @@ use Carbon\Carbon;
     </div>
 
     @php
-        // Query ALL members for this circle (not just current paginated page)
         $hasSubCategories = isset($circleSubCategories) && $circleSubCategories->isNotEmpty();
-        $categoryPeerCounts = [];
-        $categoryPeerNames  = [];
-
-        if ($hasSubCategories && \Illuminate\Support\Facades\Schema::hasTable('joined_circle_categories')) {
-            $allJoined = \Illuminate\Support\Facades\DB::table('joined_circle_categories as jcc')
-                ->join('users', 'users.id', '=', 'jcc.user_id')
-                ->where('jcc.circle_id', $circle->id)
-                ->whereNotNull('jcc.level4_category_id')
-                ->select([
-                    'jcc.level4_category_id',
-                    \Illuminate\Support\Facades\DB::raw(
-                        "TRIM(COALESCE(NULLIF(users.display_name,''), CONCAT_WS(' ', NULLIF(users.first_name,''), NULLIF(users.last_name,'')), users.email)) as peer_name"
-                    ),
-                ])
-                ->get();
-
-            foreach ($allJoined as $row) {
-                $lid = $row->level4_category_id;
-                $categoryPeerCounts[$lid] = ($categoryPeerCounts[$lid] ?? 0) + 1;
-                $categoryPeerNames[$lid][] = $row->peer_name ?: '—';
-            }
-        }
+        $categoryPeerCounts = $categoryPeerCounts ?? [];
+        $categoryPeerNames  = $categoryPeerNames ?? [];
     @endphp
 
     @if($hasSubCategories)
@@ -815,9 +861,8 @@ use Carbon\Carbon;
 
 
     <?php
-        $circleApiData = (new \App\Http\Resources\CircleResource($circle))->toArray(request());
-        $leadershipTeamData = data_get($circleApiData, 'circle_leaders') ?: data_get($circleApiData, 'leadership_team', []);
-        $regionalLeadersData = array_filter(data_get($circleApiData, 'regional_leaders', []) ?: []);
+        $leadershipTeamData = $leadershipTeamData ?? [];
+        $regionalLeadersData = $regionalLeadersData ?? [];
 
         $chairItem = data_get($leadershipTeamData, 'chair');
         $bgChairItem = data_get($leadershipTeamData, 'business_growth_committee_chair');
@@ -1325,7 +1370,7 @@ use Carbon\Carbon;
 
                                         {{-- Add Category Button --}}
                                         <button type="button"
-                                            onclick="event.stopPropagation(); openCategoryModal('{{ $membership->id }}', '{{ $membership->joinedCircleCategory?->level4_category_id ?? '' }}')"
+                                            onclick="event.stopPropagation(); openCategoryModal('{{ route('admin.circles.members.update-category', [$circle, $membership]) }}', '{{ $membership->joinedCircleCategory?->level4_category_id ?? '' }}', '{{ addslashes($memberName) }}')"
                                             class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition cursor-pointer">
                                             <i class="bi bi-tag me-1"></i>{{ $membership->joinedCircleCategory?->level4Category ? 'Change Category' : 'Add Category' }}
                                         </button>
@@ -1347,68 +1392,7 @@ use Carbon\Carbon;
                                         </form>
                                     </div>
 
-                                    {{-- Category Modal (per-row) --}}
-                                    <div id="cat-modal-{{ $membership->id }}"
-                                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
-                                         onclick="if(event.target===this) closeCategoryModal('{{ $membership->id }}')">
-                                        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-                                        <div class="relative bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm p-5 z-10" onclick="event.stopPropagation()">
-                                            <div class="flex items-center justify-between mb-4">
-                                                <h3 class="font-semibold text-slate-900 text-sm">Assign Category</h3>
-                                                <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
-                                                    class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 text-xs cursor-pointer bg-transparent border-0">✕</button>
-                                            </div>
 
-                                            <form method="POST"
-                                                  action="{{ route('admin.circles.members.update-category', [$circle, $membership]) }}"
-                                                  onclick="event.stopPropagation()">
-                                                @csrf
-                                                @method('PATCH')
-                                                <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
-                                                <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
-                                                <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
-                                                <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
-                                                <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
-                                                <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
-
-                                                <div class="mb-4">
-                                                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category
-                                                        <span class="ml-1 text-teal-600 font-normal">(Open slots only)</span>
-                                                    </label>
-                                                    @php
-                                                        $thisMemberCatId = (int)($membership->joinedCircleCategory?->level4_category_id ?? 0);
-                                                    @endphp
-                                                    <select name="level4_category_id" id="cat-select-{{ $membership->id }}"
-                                                            class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" required>
-                                                        <option value="">— Select sub category —</option>
-                                                        @foreach ($circleSubCategories as $subCat)
-                                                            @php
-                                                                $isTakenByOther = ($categoryPeerCounts[$subCat->id] ?? 0) > 0
-                                                                    && $thisMemberCatId !== (int)$subCat->id;
-                                                            @endphp
-                                                            @if(!$isTakenByOther)
-                                                                <option value="{{ $subCat->id }}"
-                                                                    @selected($thisMemberCatId === (int)$subCat->id)>
-                                                                    {{ $subCat->name }}
-                                                                </option>
-                                                            @endif
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-
-                                                <div class="flex gap-2 justify-end">
-                                                    <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
-                                                        class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer bg-white">
-                                                        Cancel
-                                                    </button>
-                                                    <button type="submit"
-                                                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer border-0">
-                                                        <i class="bi bi-check-lg me-1"></i>Save Category
-                                                    </button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -1426,6 +1410,63 @@ use Carbon\Carbon;
                 </div>
             @endif
         </div>
+    </div>
+</div>
+
+<!-- ============ SINGLE REUSABLE CATEGORY MODAL ============ -->
+<div id="global-cat-modal"
+     class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+     onclick="if(event.target===this) closeCategoryModal()">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm p-5 z-10" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="font-semibold text-slate-900 text-sm">Assign Category</h3>
+                <p id="cat-modal-peer-name" class="text-xs text-slate-500 mt-0.5 truncate max-w-[240px]"></p>
+            </div>
+            <button type="button" onclick="closeCategoryModal()"
+                class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 text-xs cursor-pointer bg-transparent border-0">✕</button>
+        </div>
+
+        <form id="global-cat-form" method="POST" action="" onclick="event.stopPropagation()">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+            <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+            <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
+            <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+
+            <div class="mb-4">
+                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category
+                    <span class="ml-1 text-teal-600 font-normal">(Open slots or current)</span>
+                </label>
+                <select name="level4_category_id" id="global-cat-select"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" required>
+                    <option value="">— Select sub category —</option>
+                    @foreach ($circleSubCategories as $subCat)
+                        @php
+                            $peerCount = $categoryPeerCounts[$subCat->id] ?? 0;
+                        @endphp
+                        <option value="{{ $subCat->id }}" data-peer-count="{{ $peerCount }}">
+                            {{ $subCat->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="flex gap-2 justify-end">
+                <button type="button" onclick="closeCategoryModal()"
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer bg-white">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer border-0">
+                    <i class="bi bi-check-lg me-1"></i>Save Category
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1558,25 +1599,58 @@ use Carbon\Carbon;
         document.getElementById('drawer-scrim').classList.add('hidden');
     }
 
-    function openCategoryModal(membershipId, currentCategoryId) {
-        document.getElementById('cat-modal-' + membershipId).classList.remove('hidden');
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function openCategoryModal(updateUrl, currentCatId, peerName) {
+        const modal = document.getElementById('global-cat-modal');
+        const form = document.getElementById('global-cat-form');
+        const select = document.getElementById('global-cat-select');
+        const peerNameEl = document.getElementById('cat-modal-peer-name');
+        if (!modal || !form || !select) return;
+
+        form.action = updateUrl;
+        select.value = currentCatId || '';
+        if (peerNameEl) {
+            peerNameEl.textContent = peerName ? 'Peer: ' + peerName : '';
+        }
+
+        const currentIdStr = String(currentCatId || '');
+        for (let i = 0; i < select.options.length; i++) {
+            const opt = select.options[i];
+            if (!opt.value) continue;
+            const count = parseInt(opt.getAttribute('data-peer-count') || '0', 10);
+            if (count > 0 && opt.value !== currentIdStr) {
+                opt.hidden = true;
+                opt.disabled = true;
+            } else {
+                opt.hidden = false;
+                opt.disabled = false;
+            }
+        }
+
+        modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
-    function closeCategoryModal(membershipId) {
-        document.getElementById('cat-modal-' + membershipId).classList.add('hidden');
+    function closeCategoryModal() {
+        const modal = document.getElementById('global-cat-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
         document.body.style.overflow = '';
     }
 
     // Close category modal on Escape key
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
-            document.querySelectorAll('[id^="cat-modal-"]').forEach(function (el) {
-                if (!el.classList.contains('hidden')) {
-                    el.classList.add('hidden');
-                    document.body.style.overflow = '';
-                }
-            });
+            closeCategoryModal();
         }
     });
 
@@ -1637,24 +1711,33 @@ use Carbon\Carbon;
 
         const level1Select = jQuery('#circle_level1_category_id');
         const level4Select = jQuery('#circle_level4_category_id');
-        if (level1Select.is('select') && level4Select.length) {
+        if (level1Select.length && level4Select.length) {
+            const allSubCatOptions = [];
+            level4Select.find('option').each(function () {
+                allSubCatOptions.push({
+                    val: this.value,
+                    text: this.text,
+                    mainId: String(jQuery(this).data('main-id') || '')
+                });
+            });
+
             function filterSubCategories() {
                 const selectedMainId = String(level1Select.val() || '');
-                level4Select.find('option').each(function () {
-                    const opt = jQuery(this);
-                    const optMainId = String(opt.data('main-id') || '');
-                    if (!opt.val() || !selectedMainId || optMainId === selectedMainId) {
-                        opt.show().prop('disabled', false);
-                    } else {
-                        opt.hide().prop('disabled', true);
+                const currentVal = level4Select.val();
+                let newHtml = '';
+                for (let i = 0; i < allSubCatOptions.length; i++) {
+                    const item = allSubCatOptions[i];
+                    if (!item.val || !selectedMainId || item.mainId === selectedMainId) {
+                        newHtml += '<option value="' + item.val + '" data-main-id="' + item.mainId + '"' + (item.val === currentVal ? ' selected' : '') + '>' + escapeHtml(item.text) + '</option>';
                     }
-                });
-                if (level4Select.find('option:selected').is(':disabled')) {
-                    level4Select.val('');
                 }
+                level4Select.html(newHtml);
             }
+
             level1Select.on('change', filterSubCategories);
-            filterSubCategories();
+            if (level1Select.is('select')) {
+                filterSubCategories();
+            }
         }
 
         const joinedDateInput = jQuery('#circle_joined_at');
@@ -1710,16 +1793,6 @@ use Carbon\Carbon;
                     }
                 });
             });
-
-            function escapeHtml(str) {
-                if (!str) return '';
-                return str
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
-            }
         }
 
         // ── Peer Search (client-side, no reload) ─────────────────────────────

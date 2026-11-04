@@ -54,7 +54,8 @@ class CircleCategoryAdminController extends BaseApiController
         if (! $isGlobal && $user) {
             $userId = (string) $user->id;
             $allCircles = Circle::query()
-                ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->select(['id', 'name', 'template_id', 'status', 'city_id', 'industry_tags'])
+                ->with(['categories:id', 'cityRef:id,name'])
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($userId) {
                     $q->where('director_user_id', $userId)
@@ -75,7 +76,7 @@ class CircleCategoryAdminController extends BaseApiController
                 $catSlug = strtolower(trim($cat->slug ?? ''));
 
                 return $allCircles->contains(function ($c) use ($catId, $catName, $catKey, $catSlug) {
-                    if ((int) $c->template_id === $catId) {
+                    if ($c->categories->contains('id', $catId)) {
                         return true;
                     }
                     if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
@@ -92,7 +93,8 @@ class CircleCategoryAdminController extends BaseApiController
             })->values();
         } else {
             $allCircles = Circle::query()
-                ->select(['id', 'name', 'template_id', 'status', 'city', 'industry_tags'])
+                ->select(['id', 'name', 'template_id', 'status', 'city_id', 'industry_tags'])
+                ->with(['categories:id', 'cityRef:id,name'])
                 ->whereNull('deleted_at')
                 ->get();
         }
@@ -100,16 +102,28 @@ class CircleCategoryAdminController extends BaseApiController
         $transformed = $items->map(function (CircleCategory $cat) use ($allCircles) {
             $catId = (int) $cat->id;
             $catName = strtolower(trim($cat->name));
+            $catNameClean = strtolower(trim(preg_replace('/\s*circles?$/i', '', $cat->name)));
             $catKey = strtolower(trim($cat->circle_key ?? ''));
+            $catSlug = strtolower(trim($cat->slug ?? ''));
 
-            $matchedCircles = $allCircles->filter(function ($c) use ($catId, $catName, $catKey) {
-                if ((int) $c->template_id === $catId) {
+            $matchedCircles = $allCircles->filter(function ($c) use ($catId, $catName, $catNameClean, $catKey, $catSlug) {
+                if ($c->categories->contains('id', $catId)) {
+                    return true;
+                }
+                if ($c->template_id && (int) $c->template_id === $catId) {
                     return true;
                 }
                 if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
                     foreach ($c->industry_tags as $t) {
                         $tagStr = strtolower(trim((string) $t));
-                        if ($tagStr === (string) $catId || $tagStr === $catName || $tagStr === $catKey) {
+                        if (
+                            $tagStr === (string) $catId ||
+                            $tagStr === $catName ||
+                            $tagStr === $catNameClean ||
+                            $tagStr === $catKey ||
+                            $tagStr === $catSlug ||
+                            ($catNameClean !== '' && (str_contains($catNameClean, $tagStr) || str_contains($tagStr, $catNameClean)))
+                        ) {
                             return true;
                         }
                     }
@@ -198,20 +212,29 @@ class CircleCategoryAdminController extends BaseApiController
 
         $catId = (int) $cat->id;
         $catName = strtolower(trim($cat->name));
+        $catNameClean = strtolower(trim(preg_replace('/\s*circles?$/i', '', $cat->name)));
         $catKey = strtolower(trim($cat->circle_key ?? ''));
+        $catSlug = strtolower(trim($cat->slug ?? ''));
 
         // Get circles belonging to this category
         $circles = Circle::query()
-            ->with(['founderUser:id,first_name,last_name,display_name,email'])
+            ->with(['founderUser:id,first_name,last_name,display_name,email', 'cityRef:id,name'])
             ->withCount(['members' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')])
             ->whereNull('deleted_at')
-            ->where(function ($q) use ($catId, $catName, $catKey) {
-                $q->where('template_id', $catId);
+            ->where(function ($q) use ($catId, $catName, $catNameClean, $catKey, $catSlug) {
+                $q->whereHas('categories', fn ($cq) => $cq->where('circle_categories.id', $catId))
+                  ->orWhere('template_id', (string) $catId);
                 if ($catName !== '') {
-                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(industry_tags::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catName]);
+                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(industry_tags, '[]'::jsonb)::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catName]);
+                }
+                if ($catNameClean !== '') {
+                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(industry_tags, '[]'::jsonb)::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catNameClean]);
                 }
                 if ($catKey !== '') {
-                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(industry_tags::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catKey]);
+                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(industry_tags, '[]'::jsonb)::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catKey]);
+                }
+                if ($catSlug !== '') {
+                    $q->orWhereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(industry_tags, '[]'::jsonb)::jsonb) AS tag WHERE LOWER(tag) = ?)", [$catSlug]);
                 }
             })
             ->orderBy('name')
@@ -234,7 +257,7 @@ class CircleCategoryAdminController extends BaseApiController
                 'name' => $c->name,
                 'slug' => $c->slug,
                 'description' => $c->description ?? '',
-                'city' => $c->city ?? 'Global',
+                'city' => $c->cityRef?->name ?? 'Global',
                 'status' => $c->status ?? 'active',
                 'meeting_mode' => $c->meeting_mode ?? 'online',
                 'meeting_frequency' => $c->meeting_frequency ?? 'monthly',

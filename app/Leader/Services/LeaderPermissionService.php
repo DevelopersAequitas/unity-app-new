@@ -91,6 +91,12 @@ class LeaderPermissionService
                 'description' => 'Allows executing coin reward payouts to leaders and founders.',
             ],
             [
+                'id' => 'track_milestones',
+                'name' => 'Track Leadership Milestones',
+                'category' => 'Finance Control',
+                'description' => 'Allows tracking personal performance milestones, speed goals, and cash bonuses in the Leader App.',
+            ],
+            [
                 'id' => 'manage_roles',
                 'name' => 'Manage Roles & Matrix',
                 'category' => 'Administration',
@@ -157,6 +163,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'view_peers',
                 'manage_peers',
                 'request_actions',
@@ -166,6 +173,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'view_peers',
                 'manage_peers',
                 'request_actions',
@@ -184,6 +192,7 @@ class LeaderPermissionService
                 'access_dashboard',
                 'access_teams',
                 'access_finance',
+                'track_milestones',
                 'regional_data',
                 'view_peers',
                 'manage_peers',
@@ -239,6 +248,22 @@ class LeaderPermissionService
     /**
      * Check if a given User is an authorized Leader (Delegated).
      */
+    /**
+     * Check if a given User or AdminUser possesses a specific capability.
+     */
+    public function hasCapability(User|AdminUser $user, string $capabilityId): bool
+    {
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
+        $roleInfo = $this->resolveUserRole($user);
+        $roleKey = $roleInfo['role'] ?? 'circleFounder';
+        $caps = $this->getEnabledCapabilitiesForRole($roleKey);
+
+        return in_array($capabilityId, $caps, true);
+    }
+
     public function isLeader(User|AdminUser $user): bool
     {
         if ($user instanceof AdminUser) {
@@ -314,7 +339,22 @@ class LeaderPermissionService
                     ? Role::query()->where('id', $roleKey)->first()
                     : Role::query()->where('key', $roleKey)->first();
 
+                if (! $role) {
+                    $normKey = strtolower(str_replace(['_', '-', ' '], '', (string) $roleKey));
+                    $role = Role::query()->get()->first(function ($r) use ($normKey) {
+                        return strtolower(str_replace(['_', '-', ' '], '', (string) $r->key)) === $normKey
+                            || strtolower(str_replace(['_', '-', ' '], '', (string) $r->name)) === $normKey;
+                    });
+                }
+
                 if ($role) {
+                    $hasRbacConfig = (Schema::hasTable('role_module_access') && DB::table('role_module_access')->where('role_id', (string) $role->id)->exists())
+                        || (Schema::hasTable('role_page_permissions') && DB::table('role_page_permissions')->where('role_id', (string) $role->id)->exists());
+
+                    if ($hasRbacConfig) {
+                        return $this->resolveCapabilitiesFromDynamicRbac($role);
+                    }
+
                     $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
                     if (! empty($dynamicCaps)) {
                         return $dynamicCaps;
@@ -431,32 +471,33 @@ class LeaderPermissionService
     public function resolvePermissionMatrix(string $role): array
     {
         $enabledCapabilities = $this->getEnabledCapabilitiesForRole($role);
+        $isSuper = in_array($role, ['superAdmin', 'super_admin', 'global_admin'], true);
 
         $hasCap = fn (string $cap): bool => in_array($cap, $enabledCapabilities, true);
 
         return [
             'enabled_capabilities' => array_values($enabledCapabilities),
-            'can_access_dashboard' => $hasCap('access_dashboard'),
-            'can_view_overall_revenue' => $hasCap('access_finance'),
-            'can_review_pending_peers' => $hasCap('access_teams') || in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector', 'districtExecDirector'], true),
-            'can_access_peers_tab' => $hasCap('view_peers'),
-            'can_add_edit_peer' => $hasCap('manage_peers') || in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
-            'can_send_wishes' => $hasCap('request_actions') || true,
-            'can_view_peer_profile' => $hasCap('view_peers'),
-            'can_view_peer_contact_info' => $hasCap('view_peers'),
-            'can_access_teams_tab' => $hasCap('access_teams'),
-            'can_manage_circles' => $hasCap('access_teams'),
-            'can_assign_circle_chair' => $hasCap('access_teams') && in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
-            'can_access_finance_tab' => $hasCap('access_finance'),
-            'can_modify_finance_settings' => $hasCap('manage_finance') || in_array($role, ['districtExecDirector', 'countryDirector', 'superAdmin'], true),
-            'can_issue_coins' => $hasCap('coin_payouts') || in_array($role, ['countryDirector', 'superAdmin'], true),
-            'can_access_reports_tab' => $hasCap('view_reports'),
-            'can_submit_reports' => $hasCap('view_reports') && in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector'], true),
-            'can_export_peer_data' => $hasCap('view_peers') && in_array($role, ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
-            'can_export_financial_data' => $hasCap('access_finance') && in_array($role, ['districtExecDirector', 'countryDirector', 'superAdmin'], true),
-            'can_export_global_data' => $hasCap('regional_data') && in_array($role, ['superAdmin'], true),
-            'can_access_role_management' => $hasCap('manage_roles') || in_array($role, ['superAdmin'], true),
-            'can_view_regional_scope' => $hasCap('regional_data') || in_array($role, ['industryDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
+            'can_access_dashboard' => true,
+            'can_view_overall_revenue' => $isSuper || $hasCap('access_finance'),
+            'can_review_pending_peers' => $isSuper || $hasCap('access_teams') || in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'industryDirector', 'countryDirector'], true),
+            'can_access_peers_tab' => $isSuper || $hasCap('view_peers'),
+            'can_add_edit_peer' => $isSuper || $hasCap('manage_peers') || in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'countryDirector'], true),
+            'can_send_wishes' => true,
+            'can_view_peer_profile' => $isSuper || $hasCap('view_peers'),
+            'can_view_peer_contact_info' => $isSuper || $hasCap('view_peers'),
+            'can_access_teams_tab' => $isSuper || $hasCap('access_teams'),
+            'can_manage_circles' => $isSuper || $hasCap('access_teams'),
+            'can_assign_circle_chair' => $isSuper || ($hasCap('access_teams') && in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'countryDirector'], true)),
+            'can_access_finance_tab' => $isSuper || $hasCap('access_finance'),
+            'can_modify_finance_settings' => $isSuper || $hasCap('manage_finance') || in_array($role, ['districtExecDirector', 'countryDirector'], true),
+            'can_issue_coins' => $isSuper || $hasCap('coin_payouts') || in_array($role, ['countryDirector'], true),
+            'can_access_reports_tab' => $isSuper || $hasCap('view_reports'),
+            'can_submit_reports' => $isSuper || ($hasCap('view_reports') && in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector'], true)),
+            'can_export_peer_data' => $isSuper || ($hasCap('view_peers') && in_array($role, ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector'], true)),
+            'can_export_financial_data' => $isSuper || ($hasCap('access_finance') && in_array($role, ['districtExecDirector', 'countryDirector'], true)),
+            'can_export_global_data' => $isSuper || $hasCap('regional_data'),
+            'can_access_role_management' => $isSuper || $hasCap('manage_roles'),
+            'can_view_regional_scope' => $isSuper || $hasCap('regional_data') || in_array($role, ['industryDirector', 'districtExecDirector', 'countryDirector'], true),
         ];
     }
 

@@ -92,6 +92,15 @@ class ImpactMilestoneWhatsappNotificationService
      */
     public function processMilestonesForUser(User $user, int $newCount, int $oldCount = 0): array
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[ImpactMilestoneWhatsappNotificationService] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $user->id,
+                'new_count' => $newCount,
+            ]);
+
+            return [];
+        }
+
         $crossedThresholds = $this->getCrossedThresholds($newCount, $oldCount);
         $processed = [];
 
@@ -147,6 +156,15 @@ class ImpactMilestoneWhatsappNotificationService
      */
     public function handleMilestoneNotification(User $user, int $threshold, ?string $imageUrl = null): bool
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[ImpactMilestoneWhatsappNotificationService] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $user->id,
+                'threshold' => $threshold,
+            ]);
+
+            return false;
+        }
+
         try {
             // 1. Only trigger for configured threshold counts
             if (! $this->isConfiguredThreshold($threshold)) {

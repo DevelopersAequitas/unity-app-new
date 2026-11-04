@@ -10,6 +10,7 @@ use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\IndustryDirector\IndustryScopeService;
+use App\Services\WhatsApp\AwardRecognitionWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -490,11 +491,13 @@ class MemberIntroducersController extends Controller
                 'peer_id' => $introducer->id,
             ]);
 
-            // Dispatch Meta WhatsApp Cloud API Award Recognition with personalized creative
-            try {
-                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleGrowthAward($introducer, (int) $count, $imageUrl);
-            } catch (\Throwable $waAwardEx) {
-                Log::error('[MemberIntroducersController] Failed triggering Meta WhatsApp growth award: '.$waAwardEx->getMessage());
+            // Automatic WhatsApp Award Recognition is currently disabled when posting to timeline.
+            if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                try {
+                    app(AwardRecognitionWhatsappService::class)->handleGrowthAward($introducer, (int) $count, $imageUrl);
+                } catch (\Throwable $waAwardEx) {
+                    Log::error('[MemberIntroducersController] Failed triggering Meta WhatsApp growth award: '.$waAwardEx->getMessage());
+                }
             }
 
             return response()->json([

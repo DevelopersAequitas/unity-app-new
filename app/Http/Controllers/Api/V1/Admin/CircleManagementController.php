@@ -14,9 +14,12 @@ use App\Models\JoinedCircleCategory;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserCircleRequest;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Circles\BuildYourOwnCircleApprovalService;
+use App\Services\Circles\UserCircleNomineeStatusResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -215,25 +218,32 @@ class CircleManagementController extends BaseApiController
         }
 
         $calendar = isset($validated['calendar']) && is_array($validated['calendar']) ? $validated['calendar'] : [];
-        $rawRepeat = $circle->meeting_repeat
+        $rawRepeat = data_get($validated, 'meeting_repeat')
             ?? data_get($validated, 'calendar.settings.meeting_repeat')
-            ?? data_get($validated, 'calendar.meeting_schedule.0');
+            ?? data_get($validated, 'calendar.meeting_schedule.0')
+            ?? $circle->meeting_repeat;
         if (is_array($rawRepeat) && !empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $calendar);
             $circle->meeting_repeat = $normalizedRepeat;
             data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
             data_set($calendar, 'meeting_schedule', [$normalizedRepeat]);
             data_set($calendar, 'meetings', [$normalizedRepeat]);
-            data_set($calendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
-            data_set($calendar, 'week_of_month', $normalizedRepeat['week_of_month']);
-            data_set($calendar, 'week_number', $normalizedRepeat['week_number']);
-            data_set($calendar, 'ordinal', $normalizedRepeat['ordinal']);
-            data_set($calendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
-            data_set($calendar, 'day_of_week', $normalizedRepeat['day_of_week']);
-            data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
-            data_set($calendar, 'start_time', $normalizedRepeat['start_time']);
-            data_set($calendar, 'end_time', $normalizedRepeat['end_time']);
-            data_set($calendar, 'frequency', $normalizedRepeat['frequency']);
+            data_set($calendar, 'monthly_rule', $normalizedRepeat['monthly_rule'] ?? null);
+            data_set($calendar, 'week_of_month', $normalizedRepeat['week_of_month'] ?? null);
+            data_set($calendar, 'week_number', $normalizedRepeat['week_number'] ?? null);
+            data_set($calendar, 'ordinal', $normalizedRepeat['ordinal'] ?? null);
+            data_set($calendar, 'default_meet_day', $normalizedRepeat['default_meet_day'] ?? null);
+            data_set($calendar, 'day_of_week', $normalizedRepeat['day_of_week'] ?? null);
+            data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time'] ?? null);
+            data_set($calendar, 'start_time', $normalizedRepeat['start_time'] ?? null);
+            data_set($calendar, 'end_time', $normalizedRepeat['end_time'] ?? null);
+            data_set($calendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc'] ?? null);
+            data_set($calendar, 'start_time_utc', $normalizedRepeat['start_time_utc'] ?? null);
+            data_set($calendar, 'end_time_utc', $normalizedRepeat['end_time_utc'] ?? null);
+            data_set($calendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local'] ?? null);
+            data_set($calendar, 'start_time_local', $normalizedRepeat['start_time_local'] ?? null);
+            data_set($calendar, 'end_time_local', $normalizedRepeat['end_time_local'] ?? null);
+            data_set($calendar, 'frequency', $normalizedRepeat['frequency'] ?? null);
         }
         if ($request->filled('meeting_venue')) {
             data_set($calendar, 'settings.meeting_venue', $request->input('meeting_venue'));
@@ -266,7 +276,6 @@ class CircleManagementController extends BaseApiController
         data_set($calendar, 'leadership.membership_growth_committee_chair_user_id', $validated['vice_chair_user_id'] ?? null);
         data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id'] ?? null);
         $circle->calendar = $calendar;
-
         $circle->save();
 
         if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
@@ -274,19 +283,90 @@ class CircleManagementController extends BaseApiController
             $circle->categories()->sync($categoryIds);
         }
 
-        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+        $circle->load(['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
 
         return $this->success($circle, 'Circle created successfully.', 201);
     }
 
     public function show(string $id): JsonResponse
     {
-        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
+        $relations = ['members', 'cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
         if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
             $relations[] = 'categories';
         }
 
-        return $this->success(Circle::query()->with($relations)->findOrFail($id));
+        $circle = Circle::query()->with($relations)->findOrFail($id);
+
+        // Auto-heal leadership if circle was created from a user_circle_request but leadership is missing
+        $linkedRequest = UserCircleRequest::where('created_circle_id', $circle->id)->first();
+        if ($linkedRequest) {
+            $approvalService = app(BuildYourOwnCircleApprovalService::class);
+            $updated = false;
+
+            if (empty($circle->circle_founder_user_id) && ! empty($linkedRequest->user_id)) {
+                $circle->circle_founder_user_id = $linkedRequest->user_id;
+                $circle->founder_user_id = $linkedRequest->user_id;
+                $approvalService->addFounderMember($circle->id, (string) $linkedRequest->user_id);
+                $updated = true;
+            }
+
+            if ($updated) {
+                $cal = is_array($circle->calendar) ? $circle->calendar : [];
+                data_set($cal, 'leadership.circle_founder_user_id', $circle->circle_founder_user_id);
+                data_set($cal, 'leadership.founder_user_id', $circle->circle_founder_user_id);
+                $circle->calendar = $cal;
+                $circle->save();
+                Circle::syncLeadershipFromMembers($circle->id);
+                $circle->load($relations);
+            }
+        }
+
+        $data = $circle->toArray();
+        if ($linkedRequest) {
+            $data['has_proposal'] = true;
+            $data['proposal_id'] = $linkedRequest->id;
+            $data['recommended_peers_count'] = $linkedRequest->nominees()->count();
+        }
+
+        return $this->success($data);
+    }
+
+    /**
+     * Get recommended peers submitted for this circle proposal.
+     */
+    public function recommendedPeers(string $id): JsonResponse
+    {
+        Circle::query()->findOrFail($id);
+        $request = UserCircleRequest::where('created_circle_id', $id)
+            ->with(['category', 'user'])
+            ->first();
+
+        if (! $request) {
+            return $this->success([
+                'has_proposal'      => false,
+                'recommended_peers' => [],
+                'count'             => 0,
+            ]);
+        }
+
+        $resolver = app(UserCircleNomineeStatusResolver::class);
+        $peers = $resolver->resolveNominees($request);
+        $summary = $resolver->getSummary($request, $peers);
+
+        return $this->success([
+            'has_proposal'      => true,
+            'request_id'        => $request->id,
+            'circle_name'       => $request->circle_name,
+            'founder'           => [
+                'id'    => $request->user?->id,
+                'name'  => $request->user?->display_name ?: trim(($request->user?->first_name ?? '').' '.($request->user?->last_name ?? '')),
+                'email' => $request->user?->email,
+                'phone' => $request->user?->phone,
+            ],
+            'recommended_peers' => $peers,
+            'count'             => $peers->count(),
+            'summary'           => $summary,
+        ]);
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -415,9 +495,10 @@ class CircleManagementController extends BaseApiController
         if (isset($validated['calendar']) && is_array($validated['calendar'])) {
             $currentCalendar = array_replace_recursive($currentCalendar, $validated['calendar']);
         }
-        $rawRepeat = $circle->meeting_repeat
+        $rawRepeat = data_get($validated, 'meeting_repeat')
             ?? data_get($validated, 'calendar.settings.meeting_repeat')
             ?? data_get($validated, 'calendar.meeting_schedule.0')
+            ?? $circle->meeting_repeat
             ?? data_get($currentCalendar, 'settings.meeting_repeat');
         if (is_array($rawRepeat) && !empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $currentCalendar);
@@ -425,16 +506,22 @@ class CircleManagementController extends BaseApiController
             data_set($currentCalendar, 'settings.meeting_repeat', $normalizedRepeat);
             data_set($currentCalendar, 'meeting_schedule', [$normalizedRepeat]);
             data_set($currentCalendar, 'meetings', [$normalizedRepeat]);
-            data_set($currentCalendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
-            data_set($currentCalendar, 'week_of_month', $normalizedRepeat['week_of_month']);
-            data_set($currentCalendar, 'week_number', $normalizedRepeat['week_number']);
-            data_set($currentCalendar, 'ordinal', $normalizedRepeat['ordinal']);
-            data_set($currentCalendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
-            data_set($currentCalendar, 'day_of_week', $normalizedRepeat['day_of_week']);
-            data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
-            data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time']);
-            data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time']);
-            data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency']);
+            data_set($currentCalendar, 'monthly_rule', $normalizedRepeat['monthly_rule'] ?? null);
+            data_set($currentCalendar, 'week_of_month', $normalizedRepeat['week_of_month'] ?? null);
+            data_set($currentCalendar, 'week_number', $normalizedRepeat['week_number'] ?? null);
+            data_set($currentCalendar, 'ordinal', $normalizedRepeat['ordinal'] ?? null);
+            data_set($currentCalendar, 'default_meet_day', $normalizedRepeat['default_meet_day'] ?? null);
+            data_set($currentCalendar, 'day_of_week', $normalizedRepeat['day_of_week'] ?? null);
+            data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time'] ?? null);
+            data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time'] ?? null);
+            data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time'] ?? null);
+            data_set($currentCalendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc'] ?? null);
+            data_set($currentCalendar, 'start_time_utc', $normalizedRepeat['start_time_utc'] ?? null);
+            data_set($currentCalendar, 'end_time_utc', $normalizedRepeat['end_time_utc'] ?? null);
+            data_set($currentCalendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local'] ?? null);
+            data_set($currentCalendar, 'start_time_local', $normalizedRepeat['start_time_local'] ?? null);
+            data_set($currentCalendar, 'end_time_local', $normalizedRepeat['end_time_local'] ?? null);
+            data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency'] ?? null);
         }
         if ($request->has('meeting_venue')) {
             data_set($currentCalendar, 'settings.meeting_venue', $request->input('meeting_venue'));

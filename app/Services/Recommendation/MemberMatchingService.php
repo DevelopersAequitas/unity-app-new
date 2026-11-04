@@ -53,21 +53,18 @@ class MemberMatchingService
             return collect();
         }
 
-        // Bulk load connections for all candidates to optimize graph calculations
+        // Bulk load connections for all candidates that intersect with auth user's connections
         $candidateIds = $candidates->pluck('id')->map(fn ($id) => (string) $id)->all();
-        $candidateConnectionMap = $this->bulkGetAcceptedConnectionsMap($candidateIds);
+        $candidateConnectionMap = $this->bulkGetAcceptedConnectionsMap($candidateIds, $authConnectionIds);
 
         // Bulk load direct connections between auth user and candidates
         $directConnections = collect();
-        if (Schema::hasTable('connections') && ! empty($candidateIds)) {
-            $sent = Connection::query()
-                ->where('requester_id', $authUserId)
-                ->whereIn('addressee_id', $candidateIds);
-
+        if (Schema::hasTable('connections')) {
             $directConnections = Connection::query()
-                ->where('addressee_id', $authUserId)
-                ->whereIn('requester_id', $candidateIds)
-                ->union($sent)
+                ->where(function ($q) use ($authUserId): void {
+                    $q->where('requester_id', $authUserId)
+                        ->orWhere('addressee_id', $authUserId);
+                })
                 ->get()
                 ->keyBy(function (Connection $connection) use ($authUserId): string {
                     return (string) ((string) $connection->requester_id === $authUserId
@@ -78,10 +75,9 @@ class MemberMatchingService
 
         // Bulk load followed users
         $followedUserIds = [];
-        if (Schema::hasTable('user_follows') && ! empty($candidateIds)) {
+        if (Schema::hasTable('user_follows')) {
             $followedUserIds = UserFollow::query()
                 ->where('follower_id', $authUserId)
-                ->whereIn('following_id', $candidateIds)
                 ->whereIn('status', ['accepted', 'pending'])
                 ->pluck('following_id')
                 ->map(fn ($id): string => (string) $id)
@@ -91,9 +87,27 @@ class MemberMatchingService
         // Find max life impacted count for normalization
         $maxLifeImpact = max(1, (int) $candidates->max('life_impacted_count'));
 
-        $scoredCandidates = $candidates->map(function (User $candidate) use ($authUser, $authUserId, $authConnectionIds, $candidateConnectionMap, $directConnections, $followedUserIds, $maxLifeImpact): User {
+        // Precompute auth user attributes once to avoid recalculating in candidate loops
+        $precomputedAuthData = $this->precomputeAuthData($authUser);
+
+        $bookmarks = (array) ($authUser->bookmarks ?? []);
+        $bookmarkSet = ! empty($bookmarks) ? array_flip($bookmarks) : [];
+
+        $scoredCandidates = $candidates->map(function (User $candidate) use (
+            $authUser,
+            $authUserId,
+            $authConnectionIds,
+            $candidateConnectionMap,
+            $directConnections,
+            $followedUserIds,
+            $maxLifeImpact,
+            $precomputedAuthData,
+            $bookmarkSet
+        ): User {
             $candidateId = (string) $candidate->id;
             $candidateConnectionIds = $candidateConnectionMap[$candidateId] ?? [];
+
+            $candidate->setAttribute('is_bookmark', isset($bookmarkSet[$candidateId]));
 
             $isFollowing = in_array($candidateId, $followedUserIds, true);
             $candidate->setAttribute('is_following', $isFollowing);
@@ -124,7 +138,13 @@ class MemberMatchingService
             $tier = $this->determineTier($isPro, $isConnected, $isRequested, $connectionStatus);
             $candidate->setAttribute('priority_tier', $tier);
 
-            $scoreDetails = $this->calculateMatchScore($authUser, $candidate, $authConnectionIds, $candidateConnectionIds);
+            $scoreDetails = $this->calculateMatchScore(
+                $authUser,
+                $candidate,
+                $authConnectionIds,
+                $candidateConnectionIds,
+                $precomputedAuthData
+            );
             $matchPercentage = $scoreDetails['match_percentage'];
 
             // Life Impact Normalization (0 - 100 scale)
@@ -253,17 +273,54 @@ class MemberMatchingService
     }
 
     /**
+     * Precompute scalar/list attributes for the auth user to avoid redundant calls in candidate scoring loops.
+     *
+     * @return array<string, mixed>
+     */
+    public function precomputeAuthData(User $authUser): array
+    {
+        $authCity = $this->resolveCityName($authUser);
+
+        return [
+            'cat' => $this->extractScalarAttribute($authUser, 'business_category_id'),
+            'main_cat' => $this->extractScalarAttribute($authUser, 'main_business_category_id'),
+            'target_cats' => $this->normalizeList($this->extractRawAttribute($authUser, 'target_business_categories')),
+            'sub_cat' => trim((string) ($this->extractScalarAttribute($authUser, 'business_sub_category') ?? '')),
+            'industries' => $this->normalizeList($this->extractRawAttribute($authUser, 'industries_of_interest')),
+            'tags' => $this->normalizeList($this->extractRawAttribute($authUser, 'industry_tags')),
+            'skills' => $this->normalizeList($this->extractRawAttribute($authUser, 'skills')),
+            'business_type' => trim((string) ($this->extractScalarAttribute($authUser, 'business_type') ?? '')),
+            'city_id' => $this->resolveCityId($authUser),
+            'city_name' => $authCity,
+            'clean_city' => $authCity ? $this->cleanCityName($authCity) : '',
+            'biz_city' => trim((string) ($this->extractScalarAttribute($authUser, 'business_city') ?? '')),
+            'res_city' => trim((string) ($this->extractScalarAttribute($authUser, 'city_of_residence') ?? '')),
+            'regions' => $this->normalizeList($this->extractRawAttribute($authUser, 'target_regions')),
+            'can_help' => $this->normalizeList($this->extractRawAttribute($authUser, 'i_can_help_with')),
+            'looking_for' => $this->normalizeList($this->extractRawAttribute($authUser, 'i_am_looking_for')),
+            'superpower' => trim((string) ($this->extractScalarAttribute($authUser, 'superpower') ?? '')),
+            'interests' => array_values(array_unique(array_merge(
+                $this->normalizeList($this->extractRawAttribute($authUser, 'interests')),
+                $this->normalizeList($this->extractRawAttribute($authUser, 'hobbies_interests'))
+            ))),
+            'goals' => $this->normalizeList($this->extractRawAttribute($authUser, 'collaboration_goals')),
+        ];
+    }
+
+    /**
      * Calculate multi-factor match score between auth user and candidate member.
      *
      * @param  array<int, string>  $authConnectionIds
      * @param  array<int, string>  $candidateConnectionIds
+     * @param  array<string, mixed>|null  $precomputedAuthData
      * @return array{match_percentage: int, breakdown: array<string, int>}
      */
     public function calculateMatchScore(
         User $authUser,
         User $candidate,
         array $authConnectionIds = [],
-        array $candidateConnectionIds = []
+        array $candidateConnectionIds = [],
+        ?array $precomputedAuthData = null
     ): array {
         if ((string) $authUser->id === (string) $candidate->id) {
             return [
@@ -279,14 +336,16 @@ class MemberMatchingService
             ];
         }
 
+        $authData = $precomputedAuthData ?? $this->precomputeAuthData($authUser);
+
         // 1. Business Category Match (Max 25%)
-        $categoryScore = $this->calculateCategoryScore($authUser, $candidate);
+        $categoryScore = $this->calculateCategoryScore($authUser, $candidate, $authData);
 
         // 2. Industry & Skills Match (Max 20%)
-        $industrySkillsScore = $this->calculateIndustrySkillsScore($authUser, $candidate);
+        $industrySkillsScore = $this->calculateIndustrySkillsScore($authUser, $candidate, $authData);
 
         // 3. Location / City Match (Max 20%)
-        $locationScore = $this->calculateLocationScore($authUser, $candidate);
+        $locationScore = $this->calculateLocationScore($authUser, $candidate, $authData);
 
         // 4. 2nd-Degree Mutual Connections (Max 15%)
         $mutualConnectionsScore = $this->calculateMutualConnectionsScore(
@@ -297,10 +356,10 @@ class MemberMatchingService
         );
 
         // 5. Synergy (Give & Take Match) (Max 10%)
-        $synergyScore = $this->calculateSynergyScore($authUser, $candidate);
+        $synergyScore = $this->calculateSynergyScore($authUser, $candidate, $authData);
 
         // 6. Interests & Collaboration Goals (Max 10%)
-        $interestsScore = $this->calculateInterestsScore($authUser, $candidate);
+        $interestsScore = $this->calculateInterestsScore($authUser, $candidate, $authData);
 
         $totalScore = $categoryScore + $industrySkillsScore + $locationScore + $mutualConnectionsScore + $synergyScore + $interestsScore;
         $matchPercentage = (int) round(min(100, max(0, $totalScore)));
@@ -320,15 +379,17 @@ class MemberMatchingService
 
     /**
      * 1. Business Category & Sub-Category Match (Max 25%)
+     *
+     * @param  array<string, mixed>|null  $authData
      */
-    protected function calculateCategoryScore(User $authUser, User $candidate): int
+    protected function calculateCategoryScore(User $authUser, User $candidate, ?array $authData = null): int
     {
         $score = 0;
 
-        $authCat = $this->extractScalarAttribute($authUser, 'business_category_id');
+        $authCat = $authData !== null ? ($authData['cat'] ?? null) : $this->extractScalarAttribute($authUser, 'business_category_id');
         $candidateCat = $this->extractScalarAttribute($candidate, 'business_category_id');
 
-        $authMainCat = $this->extractScalarAttribute($authUser, 'main_business_category_id');
+        $authMainCat = $authData !== null ? ($authData['main_cat'] ?? null) : $this->extractScalarAttribute($authUser, 'main_business_category_id');
         $candidateMainCat = $this->extractScalarAttribute($candidate, 'main_business_category_id');
 
         // Direct category match
@@ -339,7 +400,7 @@ class MemberMatchingService
         }
 
         // Target Business Categories match
-        $authTargetCats = $this->normalizeList($this->extractRawAttribute($authUser, 'target_business_categories'));
+        $authTargetCats = $authData !== null ? ($authData['target_cats'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'target_business_categories'));
         $candidateTargetCats = $this->normalizeList($this->extractRawAttribute($candidate, 'target_business_categories'));
 
         if (! empty($authTargetCats) && $candidateCat && in_array((string) $candidateCat, $authTargetCats, true)) {
@@ -350,7 +411,7 @@ class MemberMatchingService
         }
 
         // Sub-category / Level4 Category match
-        $authSub = trim((string) ($this->extractScalarAttribute($authUser, 'business_sub_category') ?? ''));
+        $authSub = $authData !== null ? ($authData['sub_cat'] ?? '') : trim((string) ($this->extractScalarAttribute($authUser, 'business_sub_category') ?? ''));
         $candSub = trim((string) ($this->extractScalarAttribute($candidate, 'business_sub_category') ?? ''));
         if ($authSub !== '' && $candSub !== '' && strcasecmp($authSub, $candSub) === 0) {
             $score += 5;
@@ -361,13 +422,15 @@ class MemberMatchingService
 
     /**
      * 2. Industry & Skills Match (Max 20%)
+     *
+     * @param  array<string, mixed>|null  $authData
      */
-    protected function calculateIndustrySkillsScore(User $authUser, User $candidate): int
+    protected function calculateIndustrySkillsScore(User $authUser, User $candidate, ?array $authData = null): int
     {
         $score = 0;
 
         // Industries of interest overlap
-        $authIndustries = $this->normalizeList($this->extractRawAttribute($authUser, 'industries_of_interest'));
+        $authIndustries = $authData !== null ? ($authData['industries'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'industries_of_interest'));
         $candidateIndustries = $this->normalizeList($this->extractRawAttribute($candidate, 'industries_of_interest'));
         $commonIndustries = array_intersect($authIndustries, $candidateIndustries);
         if (! empty($commonIndustries)) {
@@ -375,7 +438,7 @@ class MemberMatchingService
         }
 
         // Industry tags overlap
-        $authTags = $this->normalizeList($this->extractRawAttribute($authUser, 'industry_tags'));
+        $authTags = $authData !== null ? ($authData['tags'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'industry_tags'));
         $candidateTags = $this->normalizeList($this->extractRawAttribute($candidate, 'industry_tags'));
         $commonTags = array_intersect($authTags, $candidateTags);
         if (! empty($commonTags)) {
@@ -383,7 +446,7 @@ class MemberMatchingService
         }
 
         // Skills overlap
-        $authSkills = $this->normalizeList($this->extractRawAttribute($authUser, 'skills'));
+        $authSkills = $authData !== null ? ($authData['skills'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'skills'));
         $candidateSkills = $this->normalizeList($this->extractRawAttribute($candidate, 'skills'));
         $commonSkills = array_intersect($authSkills, $candidateSkills);
         if (! empty($commonSkills)) {
@@ -391,7 +454,7 @@ class MemberMatchingService
         }
 
         // Business Type match
-        $authType = trim((string) ($this->extractScalarAttribute($authUser, 'business_type') ?? ''));
+        $authType = $authData !== null ? ($authData['business_type'] ?? '') : trim((string) ($this->extractScalarAttribute($authUser, 'business_type') ?? ''));
         $candType = trim((string) ($this->extractScalarAttribute($candidate, 'business_type') ?? ''));
         if ($authType !== '' && $candType !== '' && strcasecmp($authType, $candType) === 0) {
             $score += 4;
@@ -402,15 +465,17 @@ class MemberMatchingService
 
     /**
      * 3. Location / City Match (Max 20%)
+     *
+     * @param  array<string, mixed>|null  $authData
      */
-    protected function calculateLocationScore(User $authUser, User $candidate): int
+    protected function calculateLocationScore(User $authUser, User $candidate, ?array $authData = null): int
     {
         $score = 0;
 
-        $authCityId = $this->resolveCityId($authUser);
+        $authCityId = $authData !== null ? ($authData['city_id'] ?? null) : $this->resolveCityId($authUser);
         $candidateCityId = $this->resolveCityId($candidate);
 
-        $authCity = $this->resolveCityName($authUser);
+        $authCity = $authData !== null ? ($authData['city_name'] ?? null) : $this->resolveCityName($authUser);
         $candCity = $this->resolveCityName($candidate);
 
         // Direct City Match
@@ -419,7 +484,7 @@ class MemberMatchingService
         }
 
         if ($authCity && $candCity) {
-            $cleanAuth = $this->cleanCityName($authCity);
+            $cleanAuth = $authData !== null ? ($authData['clean_city'] ?? '') : $this->cleanCityName($authCity);
             $cleanCand = $this->cleanCityName($candCity);
 
             if ($cleanAuth !== '' && $cleanCand !== '') {
@@ -433,9 +498,9 @@ class MemberMatchingService
         }
 
         // Business City / Residence City Match
-        $authBizCity = trim((string) ($this->extractScalarAttribute($authUser, 'business_city') ?? ''));
+        $authBizCity = $authData !== null ? ($authData['biz_city'] ?? '') : trim((string) ($this->extractScalarAttribute($authUser, 'business_city') ?? ''));
         $candBizCity = trim((string) ($this->extractScalarAttribute($candidate, 'business_city') ?? ''));
-        $authResCity = trim((string) ($this->extractScalarAttribute($authUser, 'city_of_residence') ?? ''));
+        $authResCity = $authData !== null ? ($authData['res_city'] ?? '') : trim((string) ($this->extractScalarAttribute($authUser, 'city_of_residence') ?? ''));
         $candResCity = trim((string) ($this->extractScalarAttribute($candidate, 'city_of_residence') ?? ''));
 
         if ($authBizCity !== '' && ($authBizCity === $candBizCity || ($candCity && strcasecmp($authBizCity, $candCity) === 0))) {
@@ -445,7 +510,7 @@ class MemberMatchingService
         }
 
         // Target regions overlap
-        $authRegions = $this->normalizeList($this->extractRawAttribute($authUser, 'target_regions'));
+        $authRegions = $authData !== null ? ($authData['regions'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'target_regions'));
         $candidateRegions = $this->normalizeList($this->extractRawAttribute($candidate, 'target_regions'));
         $commonRegions = array_intersect($authRegions, $candidateRegions);
         if (! empty($commonRegions)) {
@@ -492,17 +557,19 @@ class MemberMatchingService
 
     /**
      * 5. Synergy (Give & Take Match) (Max 10%)
+     *
+     * @param  array<string, mixed>|null  $authData
      */
-    protected function calculateSynergyScore(User $authUser, User $candidate): int
+    protected function calculateSynergyScore(User $authUser, User $candidate, ?array $authData = null): int
     {
         $score = 0;
 
-        $authCanHelp = $this->normalizeList($this->extractRawAttribute($authUser, 'i_can_help_with'));
-        $authLookingFor = $this->normalizeList($this->extractRawAttribute($authUser, 'i_am_looking_for'));
+        $authCanHelp = $authData !== null ? ($authData['can_help'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'i_can_help_with'));
+        $authLookingFor = $authData !== null ? ($authData['looking_for'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'i_am_looking_for'));
         $candCanHelp = $this->normalizeList($this->extractRawAttribute($candidate, 'i_can_help_with'));
         $candLookingFor = $this->normalizeList($this->extractRawAttribute($candidate, 'i_am_looking_for'));
 
-        $authSuperpower = trim((string) ($this->extractScalarAttribute($authUser, 'superpower') ?? ''));
+        $authSuperpower = $authData !== null ? ($authData['superpower'] ?? '') : trim((string) ($this->extractScalarAttribute($authUser, 'superpower') ?? ''));
         $candSuperpower = trim((string) ($this->extractScalarAttribute($candidate, 'superpower') ?? ''));
 
         // What Auth can help with matches what Candidate is looking for
@@ -536,12 +603,14 @@ class MemberMatchingService
 
     /**
      * 6. Interests & Collaboration Goals (Max 10%)
+     *
+     * @param  array<string, mixed>|null  $authData
      */
-    protected function calculateInterestsScore(User $authUser, User $candidate): int
+    protected function calculateInterestsScore(User $authUser, User $candidate, ?array $authData = null): int
     {
         $score = 0;
 
-        $authInterests = array_merge(
+        $authInterests = $authData !== null ? ($authData['interests'] ?? []) : array_merge(
             $this->normalizeList($this->extractRawAttribute($authUser, 'interests')),
             $this->normalizeList($this->extractRawAttribute($authUser, 'hobbies_interests'))
         );
@@ -555,7 +624,7 @@ class MemberMatchingService
             $score += min(5, count($commonInterests) * 2.5);
         }
 
-        $authGoals = $this->normalizeList($this->extractRawAttribute($authUser, 'collaboration_goals'));
+        $authGoals = $authData !== null ? ($authData['goals'] ?? []) : $this->normalizeList($this->extractRawAttribute($authUser, 'collaboration_goals'));
         $candGoals = $this->normalizeList($this->extractRawAttribute($candidate, 'collaboration_goals'));
 
         $commonGoals = array_intersect($authGoals, $candGoals);
@@ -661,31 +730,32 @@ class MemberMatchingService
     }
 
     /**
-     * Bulk fetch accepted connections map for a list of candidate user IDs.
+     * Bulk fetch accepted connections map for candidate user IDs that touch auth user's connections.
      *
      * @param  array<int, string>  $userIds
+     * @param  array<int, string>  $authConnectionIds
      * @return array<string, array<int, string>>
      */
-    protected function bulkGetAcceptedConnectionsMap(array $userIds): array
+    protected function bulkGetAcceptedConnectionsMap(array $userIds, array $authConnectionIds = []): array
     {
-        if (empty($userIds) || ! Schema::hasTable('connections')) {
+        if (empty($userIds) || empty($authConnectionIds) || ! Schema::hasTable('connections')) {
             return [];
         }
-
-        $sentQuery = DB::table('connections')
-            ->where(function ($q): void {
-                $q->where('is_approved', true)->orWhere('is_approved', 1);
-            })
-            ->whereIn('requester_id', $userIds)
-            ->select(['requester_id', 'addressee_id']);
 
         $records = DB::table('connections')
             ->where(function ($q): void {
                 $q->where('is_approved', true)->orWhere('is_approved', 1);
             })
-            ->whereIn('addressee_id', $userIds)
+            ->where(function ($q) use ($authConnectionIds, $userIds): void {
+                $q->where(function ($sq) use ($authConnectionIds, $userIds): void {
+                    $sq->whereIn('requester_id', $authConnectionIds)
+                        ->whereIn('addressee_id', $userIds);
+                })->orWhere(function ($sq) use ($authConnectionIds, $userIds): void {
+                    $sq->whereIn('addressee_id', $authConnectionIds)
+                        ->whereIn('requester_id', $userIds);
+                });
+            })
             ->select(['requester_id', 'addressee_id'])
-            ->union($sentQuery)
             ->get();
 
         $map = [];
@@ -693,15 +763,17 @@ class MemberMatchingService
             $map[$id] = [];
         }
 
+        $authSet = array_flip($authConnectionIds);
+
         foreach ($records as $record) {
             $req = (string) $record->requester_id;
             $addr = (string) $record->addressee_id;
 
-            if (isset($map[$req])) {
-                $map[$req][] = $addr;
-            }
-            if (isset($map[$addr])) {
+            if (isset($authSet[$req]) && isset($map[$addr])) {
                 $map[$addr][] = $req;
+            }
+            if (isset($authSet[$addr]) && isset($map[$req])) {
+                $map[$req][] = $addr;
             }
         }
 

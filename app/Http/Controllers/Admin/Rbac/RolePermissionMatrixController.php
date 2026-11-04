@@ -22,6 +22,104 @@ class RolePermissionMatrixController extends Controller
         private readonly PermissionService $permissionService,
     ) {}
 
+    /**
+     * Resolve a role by UUID, key, name, role_code, or canonical alias.
+     */
+    protected function resolveRoleByIdentifier(?string $roleIdentifier, $roles): ?Role
+    {
+        if (empty($roleIdentifier)) {
+            $preferred = $roles->first(function ($r) {
+                $norm = strtolower(str_replace(['_', '-', ' '], '', (string) ($r->key ?: $r->name ?: $r->role_code)));
+                return in_array($norm, ['circledirector', 'cd', 'circlefounder', 'cf', 'analyticsteam', 'analytics_team'], true);
+            });
+            return $preferred ?: $roles->first();
+        }
+
+        $cleaned = strtolower(trim($roleIdentifier));
+        $normalized = strtolower(str_replace(['_', '-', ' '], '', $cleaned));
+
+        // 1. Direct match (UUID, exact key, name, role_code)
+        $match = $roles->first(function ($r) use ($roleIdentifier, $cleaned) {
+            return (string) $r->id === $roleIdentifier
+                || strtolower((string) $r->key) === $cleaned
+                || strtolower((string) $r->name) === $cleaned
+                || strtolower((string) ($r->role_code ?? '')) === $cleaned;
+        });
+
+        if ($match) {
+            return $match;
+        }
+
+        // 2. Normalized alphanumeric match (handles camelCase vs snake_case e.g. circleDirector vs circle_director)
+        $match = $roles->first(function ($r) use ($normalized) {
+            $rKey = strtolower(str_replace(['_', '-', ' '], '', (string) $r->key));
+            $rName = strtolower(str_replace(['_', '-', ' '], '', (string) $r->name));
+            $rCode = strtolower(str_replace(['_', '-', ' '], '', (string) ($r->role_code ?? '')));
+
+            return $rKey === $normalized || $rName === $normalized || $rCode === $normalized;
+        });
+
+        if ($match) {
+            return $match;
+        }
+
+        // 3. Known canonical aliases
+        $aliasMap = [
+            'cd' => 'circledirector',
+            'circle_director' => 'circledirector',
+            'cf' => 'circlefounder',
+            'circle_founder' => 'circlefounder',
+            'ded' => 'districtexecdirector',
+            'eed' => 'countrydirector',
+            'id' => 'industrydirector',
+            'chair' => 'circlechair',
+            'ambassador' => 'ambassader',
+            'ambassader' => 'ambassader',
+        ];
+        $targetAlias = $aliasMap[$normalized] ?? null;
+        if ($targetAlias) {
+            $match = $roles->first(function ($r) use ($targetAlias) {
+                $rKey = strtolower(str_replace(['_', '-', ' '], '', (string) $r->key));
+                $rName = strtolower(str_replace(['_', '-', ' '], '', (string) $r->name));
+                $rCode = strtolower(str_replace(['_', '-', ' '], '', (string) ($r->role_code ?? '')));
+
+                return $rKey === $targetAlias || $rName === $targetAlias || $rCode === $targetAlias;
+            });
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return $roles->first();
+    }
+
+    /**
+     * Resolve all matching sibling role IDs for shared canonical roles (e.g. CD & Circle Director).
+     *
+     * @return array<string>
+     */
+    protected function getMatchingRoleIds(Role $selectedRole, $roles): array
+    {
+        $matching = [(string) $selectedRole->id];
+        $normSelected = strtolower(str_replace(['_', '-', ' '], '', (string) ($selectedRole->key ?: $selectedRole->name ?: $selectedRole->role_code)));
+
+        foreach ($roles as $r) {
+            $rNorm = strtolower(str_replace(['_', '-', ' '], '', (string) ($r->key ?: $r->name ?: $r->role_code)));
+            if ($rNorm === $normSelected
+                || (in_array($normSelected, ['circledirector', 'cd', 'circlefounder', 'cf'], true)
+                    && in_array($rNorm, ['circledirector', 'cd', 'circlefounder', 'cf'], true))
+                || ($normSelected === 'ded' && in_array($rNorm, ['ded', 'districtexecdirector'], true))
+                || ($normSelected === 'districtexecdirector' && in_array($rNorm, ['ded', 'districtexecdirector'], true))
+                || ($normSelected === 'ambassader' && in_array($rNorm, ['ambassader', 'ambassador'], true))
+                || ($normSelected === 'ambassador' && in_array($rNorm, ['ambassader', 'ambassador'], true))
+            ) {
+                $matching[] = (string) $r->id;
+            }
+        }
+
+        return array_values(array_unique($matching));
+    }
+
     public function index(Request $request): View|JsonResponse
     {
         $roles = Role::query()
@@ -32,45 +130,44 @@ class RolePermissionMatrixController extends Controller
             ->orderBy('name')
             ->get();
 
-        $selectedRoleId = $request->get('role_id', $roles->first()?->id);
-        $selectedRole = $roles->firstWhere('id', $selectedRoleId);
+        $selectedRoleId = $request->get('role_id');
+        $selectedRole = $this->resolveRoleByIdentifier($selectedRoleId, $roles);
 
         $modulesQuery = AdminModule::query()
             ->active()
             ->orderBy('sort_order')
             ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')]);
 
-        if ($selectedRole) {
-            $hasAccessRules = RoleModuleAccess::query()
-                ->where('role_id', $selectedRole->id)
-                ->exists();
-
-            if ($hasAccessRules) {
-                $visibleModuleIds = RoleModuleAccess::query()
-                    ->where('role_id', $selectedRole->id)
-                    ->where('is_visible', true)
-                    ->pluck('module_id')
-                    ->all();
-
-                $modulesQuery->whereIn('id', $visibleModuleIds);
-            }
-        }
+        // Super Admin manages permissions for ALL modules and pages.
+        // Any newly created page or module is automatically loaded here.
 
         $modules = $modulesQuery->get();
 
         $permissions = Permission::query()->orderBy('sort_order')->get();
 
-        // Get current page assignments for selected role
+        // Get current page assignments for selected role (including canonical sibling roles)
         $currentPermissions = [];
         if ($selectedRole) {
+            $matchingRoleIds = $this->getMatchingRoleIds($selectedRole, $roles);
+
             $assignedPageIds = RolePagePermission::query()
-                ->where('role_id', $selectedRole->id)
+                ->whereIn('role_id', $matchingRoleIds)
                 ->pluck('page_id')
                 ->unique()
                 ->all();
 
             foreach ($assignedPageIds as $pageId) {
                 $currentPermissions[$pageId] = true;
+            }
+
+            // Always ensure Dashboard pages are granted by default for all administrative roles
+            $dashboardModule = $modules->first(fn ($m) => strtolower((string) ($m->slug ?: $m->name)) === 'dashboard');
+            if ($dashboardModule && $dashboardModule->pages) {
+                foreach ($dashboardModule->pages as $dashPage) {
+                    if (!isset($currentPermissions[$dashPage->id])) {
+                        $currentPermissions[$dashPage->id] = true;
+                    }
+                }
             }
         }
 
@@ -81,7 +178,7 @@ class RolePermissionMatrixController extends Controller
                 'selectedRole' => $selectedRole,
                 'modules' => $modules,
                 'permissions' => $permissions,
-                'currentPermissions' => $currentPermissions,
+                'currentPermissions' => empty($currentPermissions) ? (object) [] : $currentPermissions,
             ]);
         }
 
@@ -96,16 +193,23 @@ class RolePermissionMatrixController extends Controller
 
     public function update(Request $request): RedirectResponse|JsonResponse
     {
-        $validated = $request->validate([
-            'role_id' => 'required|uuid|exists:roles,id',
-            'pages' => 'nullable|array',
-            'permissions' => 'nullable|array',
-        ]);
+        $roles = Role::query()->get();
+        $roleIdInput = (string) $request->input('role_id');
+        $targetRole = $this->resolveRoleByIdentifier($roleIdInput, $roles);
 
-        $roleId = $validated['role_id'];
+        if (!$targetRole) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Role not found.'], 404);
+            }
+            return back()->withErrors(['role_id' => 'Role not found.']);
+        }
 
-        // Delete all existing permissions for this role
-        RolePagePermission::query()->where('role_id', $roleId)->delete();
+        $matchingRoleIds = $this->getMatchingRoleIds($targetRole, $roles);
+
+        // Delete all existing permissions for this role and its aliases
+        foreach ($matchingRoleIds as $rId) {
+            RolePagePermission::query()->where('role_id', $rId)->delete();
+        }
 
         $viewPermission = Permission::query()->where('key', 'view')->first();
 
@@ -115,11 +219,13 @@ class RolePermissionMatrixController extends Controller
             foreach ($pages as $pageId => $enabled) {
                 if ((bool) $enabled) {
                     if ($viewPermission) {
-                        RolePagePermission::query()->create([
-                            'role_id' => $roleId,
-                            'page_id' => $pageId,
-                            'permission_id' => $viewPermission->id,
-                        ]);
+                        foreach ($matchingRoleIds as $rId) {
+                            RolePagePermission::query()->create([
+                                'role_id' => $rId,
+                                'page_id' => $pageId,
+                                'permission_id' => $viewPermission->id,
+                            ]);
+                        }
                     }
                 }
             }
@@ -131,29 +237,52 @@ class RolePermissionMatrixController extends Controller
                 if (is_array($permIds)) {
                     foreach ($permIds as $permId => $enabled) {
                         if ((bool) $enabled) {
-                            RolePagePermission::query()->create([
-                                'role_id' => $roleId,
-                                'page_id' => $pageId,
-                                'permission_id' => $permId,
-                            ]);
+                            foreach ($matchingRoleIds as $rId) {
+                                RolePagePermission::query()->create([
+                                    'role_id' => $rId,
+                                    'page_id' => $pageId,
+                                    'permission_id' => $permId,
+                                ]);
+                            }
                         }
                     }
                 }
             }
         }
 
+        // Synchronize RoleModuleAccess visibility with granted pages
+        $enabledPageIds = RolePagePermission::query()
+            ->whereIn('role_id', $matchingRoleIds)
+            ->pluck('page_id')
+            ->unique()
+            ->all();
+
+        $activeModules = AdminModule::with('pages')->get();
+        foreach ($activeModules as $mod) {
+            $modPageIds = $mod->pages->pluck('id')->all();
+            $hasAnyPage = !empty(array_intersect($enabledPageIds, $modPageIds));
+            foreach ($matchingRoleIds as $rId) {
+                RoleModuleAccess::query()->updateOrCreate(
+                    ['role_id' => $rId, 'module_id' => $mod->id],
+                    ['is_visible' => $hasAnyPage]
+                );
+            }
+        }
+
         // Invalidate caches
-        $this->permissionService->invalidateCacheForRole($roleId);
+        foreach ($matchingRoleIds as $rId) {
+            $this->permissionService->invalidateCacheForRole($rId);
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Permission matrix updated successfully.',
-                'role_id' => $roleId,
+                'role_id' => (string) $targetRole->id,
             ]);
         }
 
-        return redirect()->route('admin.rbac.permission-matrix.index', ['role_id' => $roleId])
+        return redirect()->route('admin.rbac.permission-matrix.index', ['role_id' => (string) $targetRole->id])
             ->with('success', 'Permission matrix updated successfully.');
     }
 }

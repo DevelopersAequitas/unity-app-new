@@ -28,14 +28,17 @@ class CoinsService
             return null;
         }
 
-        return DB::transaction(function () use ($user, $activityType, $reference, $createdBy, $sourceType, $sourceId, $amount) {
+        return DB::transaction(function () use ($user, $activityType, $activityId, $reference, $createdBy, $sourceType, $sourceId, $amount) {
             $user = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
-            if ($sourceType !== null && $sourceId !== null && $this->hasSourceColumns()) {
+            $resolvedSourceType = $sourceType ?? $activityType;
+            $resolvedSourceId = $sourceId ?? $activityId;
+
+            if ($resolvedSourceType !== null && $resolvedSourceId !== null && $this->hasSourceColumns()) {
                 $existingLedger = CoinsLedger::query()
                     ->where('user_id', $user->id)
-                    ->where('source_type', $sourceType)
-                    ->where('source_id', (string) $sourceId)
+                    ->where('source_type', $resolvedSourceType)
+                    ->where('source_id', (string) $resolvedSourceId)
                     ->first();
 
                 if ($existingLedger) {
@@ -59,9 +62,18 @@ class CoinsService
                 'created_at' => now(),
             ];
 
-            if ($sourceType !== null && $sourceId !== null && $this->hasSourceColumns()) {
-                $ledgerData['source_type'] = $sourceType;
-                $ledgerData['source_id'] = (string) $sourceId;
+            if ($resolvedSourceType !== null && $resolvedSourceId !== null && $this->hasSourceColumns()) {
+                $ledgerData['source_type'] = $resolvedSourceType;
+                $ledgerData['source_id'] = (string) $resolvedSourceId;
+            }
+
+            if ($resolvedSourceId !== null && Str::isUuid((string) $resolvedSourceId)) {
+                if (Schema::hasColumn('coins_ledger', 'reference_type') && ! isset($ledgerData['reference_type'])) {
+                    $ledgerData['reference_type'] = strtoupper((string) $resolvedSourceType);
+                }
+                if (Schema::hasColumn('coins_ledger', 'reference_id') && ! isset($ledgerData['reference_id'])) {
+                    $ledgerData['reference_id'] = (string) $resolvedSourceId;
+                }
             }
 
             return CoinsLedger::create($ledgerData);

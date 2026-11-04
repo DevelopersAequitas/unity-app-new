@@ -288,9 +288,7 @@ class LeaderAuthService
                 'member_since' => $memberSince,
                 'capabilities_count' => count($permissions['enabled_capabilities'] ?? []),
             ],
-            'permissions' => [
-                'enabled_capabilities' => $permissions['enabled_capabilities'] ?? [],
-            ],
+            'permissions' => $permissions,
         ];
     }
 

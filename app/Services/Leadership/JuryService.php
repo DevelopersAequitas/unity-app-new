@@ -112,6 +112,7 @@ class JuryService
 
                 $assignment = LeadershipJuryAssignment::firstOrCreate(
                     [
+                        'campaign_id' => $nomination->campaign_id,
                         'nomination_id' => $nomination->id,
                         'juror_user_id' => $user->id,
                     ],

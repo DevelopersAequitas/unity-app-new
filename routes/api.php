@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
 use App\Http\Controllers\Admin\CampaignPamphletController;
+use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\EmailTemplateController;
@@ -42,7 +43,6 @@ use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
-use App\Http\Controllers\Api\UserCircleRequestController;
 use App\Http\Controllers\Api\CircleLeadershipController;
 use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\EventController;
@@ -65,6 +65,7 @@ use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingAdminController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingApiController;
 use App\Http\Controllers\Api\TestimonialController;
+use App\Http\Controllers\Api\UserCircleRequestController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\AdBookingController;
@@ -86,7 +87,6 @@ use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
-use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Api\V1\Admin\FinanceLedgerController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
@@ -805,6 +805,7 @@ Route::prefix('v1')->group(function () {
 
         // Build Your Own Circle
         Route::get('/user-circle-requests/config', [UserCircleRequestController::class, 'config']);
+        Route::get('/user-circle-requests/categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
         Route::post('/user-circle-requests/check-peer', [UserCircleRequestController::class, 'checkPeer']);
         Route::get('/user-circle-requests/my', [UserCircleRequestController::class, 'myRequests']);
         Route::get('/user-circle-requests/{id}', [UserCircleRequestController::class, 'show'])->whereUuid('id');
@@ -985,7 +986,13 @@ Route::prefix('v1')->group(function () {
             Route::patch('/users/{id}/remove-role', [UserManagementController::class, 'removeRole'])->whereUuid('id');
             Route::get('/users/{id}/activity-summary', [UserManagementController::class, 'activitySummary'])->whereUuid('id');
             Route::get('/users/{id}/payment-history', [UserManagementController::class, 'paymentHistory'])->whereUuid('id');
+            Route::get('/users/{id}/coins', [UserManagementController::class, 'coinsHistory'])->whereUuid('id');
+            Route::get('/users/{id}/coins-history', [UserManagementController::class, 'coinsHistory'])->whereUuid('id');
+            Route::get('/users/{id}/impacts', [UserManagementController::class, 'impactHistory'])->whereUuid('id');
             Route::get('/users/{id}/impact-history', [UserManagementController::class, 'impactHistory'])->whereUuid('id');
+            Route::get('/peers/{id}/coins', [UserManagementController::class, 'coinsHistory'])->whereUuid('id');
+            Route::get('/peers/{id}/impacts', [UserManagementController::class, 'impactHistory'])->whereUuid('id');
+            Route::get('/peers/{id}/impact-history', [UserManagementController::class, 'impactHistory'])->whereUuid('id');
             Route::get('/users/{id}/circle-memberships', [UserManagementController::class, 'circleMemberships'])->whereUuid('id');
 
             Route::get('/leadership/roles', [LeadershipController::class, 'roles']);
@@ -1034,6 +1041,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
             Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
+            Route::get('/circles/{id}/recommended-peers', [CircleManagementController::class, 'recommendedPeers'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
             Route::put('/circles/{id}/members/{memberId}', [CircleManagementController::class, 'updateMember'])->whereUuid('id');
             Route::patch('/circles/{id}/members/{memberId}/toggle-member-list', [CircleManagementController::class, 'toggleMemberList'])->whereUuid('id');
@@ -1103,6 +1111,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/events/{id}', [EventAdminController::class, 'destroy'])->whereUuid('id');
             Route::get('/events/{id}/registrations', [AdminOpsController::class, 'eventRegistrations'])->whereUuid('id');
             Route::get('/events/{id}/attendees', [AdminOpsController::class, 'eventAttendees'])->whereUuid('id');
+            Route::match(['patch', 'post'], '/events/{id}/attendees/{attendeeId}/checkin', [AdminOpsController::class, 'eventAttendeeCheckin'])->whereUuid('id');
             Route::post('/events/{id}/speakers', [AdminOpsController::class, 'eventSpeakerStore'])->whereUuid('id');
             Route::put('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerUpdate'])->whereUuid('id');
             Route::delete('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerDelete'])->whereUuid('id');
@@ -1155,8 +1164,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
             Route::get('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
             Route::get('/posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+            Route::get('/posts/{id}/preview-restore', [App\Http\Controllers\Api\Admin\PostController::class, 'previewRestore'])->whereUuid('id');
+            Route::get('/posts/{id}/restore-preview', [App\Http\Controllers\Api\Admin\PostController::class, 'previewRestore'])->whereUuid('id');
             Route::post('/posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
-            Route::post('/posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/posts/{id}/activate', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
             Route::delete('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
             Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -1968,8 +1980,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
     Route::get('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
     Route::get('posts/{id}/preview-deactivation', [App\Http\Controllers\Api\Admin\PostController::class, 'previewDeactivation'])->whereUuid('id');
+    Route::get('posts/{id}/preview-restore', [App\Http\Controllers\Api\Admin\PostController::class, 'previewRestore'])->whereUuid('id');
+    Route::get('posts/{id}/restore-preview', [App\Http\Controllers\Api\Admin\PostController::class, 'previewRestore'])->whereUuid('id');
     Route::post('posts/{id}/deactivate', [App\Http\Controllers\Api\Admin\PostController::class, 'deactivate'])->whereUuid('id');
-    Route::post('posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
+    Route::match(['post', 'patch'], 'posts/{id}/restore', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
+    Route::match(['post', 'patch'], 'posts/{id}/activate', [App\Http\Controllers\Api\Admin\PostController::class, 'restore'])->whereUuid('id');
     Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
     Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
     Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
@@ -2303,6 +2318,7 @@ foreach (['admin/user-circle-requests', 'v1/admin/user-circle-requests'] as $ucr
         Route::get('', [UserCircleRequestAdminController::class, 'index']);
         Route::get('stats', [UserCircleRequestAdminController::class, 'stats']);
         Route::get('config', [UserCircleRequestAdminController::class, 'getConfig']);
+        Route::get('categories/{categoryId}/subcategories', [UserCircleRequestController::class, 'subcategories']);
         Route::put('config', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::put('config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
         Route::get('{id}', [UserCircleRequestAdminController::class, 'show'])->whereUuid('id');

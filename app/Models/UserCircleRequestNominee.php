@@ -29,11 +29,14 @@ class UserCircleRequestNominee extends Model
         'email',
         'business_name',
         'category_id',
+        'subcategory_id',
         'interest_level',
+        'source',
     ];
 
     protected $casts = [
         'category_id' => 'integer',
+        'subcategory_id' => 'integer',
     ];
 
     protected static function booted(): void
@@ -58,5 +61,10 @@ class UserCircleRequestNominee extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(CircleCategory::class, 'category_id');
+    }
+
+    public function subcategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'subcategory_id');
     }
 }

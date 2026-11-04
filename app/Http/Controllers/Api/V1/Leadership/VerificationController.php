@@ -71,6 +71,7 @@ class VerificationController extends LeadershipBaseController
             'scope_id' => 'nullable|uuid',
             'contact_type' => 'required|in:email,mobile',
             'contact' => 'required|string',
+            'verification_type' => 'nullable|string',
         ]);
 
         try {
@@ -79,7 +80,8 @@ class VerificationController extends LeadershipBaseController
                 $validated['scope_id'] ?? null,
                 $validated['contact_type'],
                 $validated['contact'],
-                $request->ip()
+                $request->ip(),
+                $validated['verification_type'] ?? 'voting'
             );
 
             return $this->success($res, 'Verification code sent.');

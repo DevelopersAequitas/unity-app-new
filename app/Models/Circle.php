@@ -122,7 +122,44 @@ class Circle extends Model
         return $this->belongsTo(MembershipPlan::class, 'payment_plan_id', 'id');
     }
 
-    protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
+    protected $appends = [
+        'cover_image_url',
+        'circle_image_url',
+        'city_display',
+        'founder_name',
+        'ded_name',
+        'industry_director_name',
+    ];
+
+    public function getFounderNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('circleFounder') ? $this->circleFounder : ($this->relationLoaded('founder') ? $this->founder : null);
+        if (! $u) {
+            $fId = $this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id');
+            if ($fId) {
+                $u = User::find($fId);
+            }
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getDedNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('ded') ? $this->ded : null;
+        if (! $u && ! empty($this->ded_user_id)) {
+            $u = User::find($this->ded_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
+
+    public function getIndustryDirectorNameAttribute(): ?string
+    {
+        $u = $this->relationLoaded('industryDirector') ? $this->industryDirector : null;
+        if (! $u && ! empty($this->industry_director_user_id)) {
+            $u = User::find($this->industry_director_user_id);
+        }
+        return $u?->display_name ?: $u?->name;
+    }
 
     public function getCircleRanking(): array
     {
@@ -445,6 +482,48 @@ class Circle extends Model
         return is_array($value) ? $value : [];
     }
 
+    public static function convertTimeToUtc(string $time, string $timezone = 'Asia/Kolkata'): string
+    {
+        $time = trim($time);
+        if ($time === '') {
+            return $time;
+        }
+
+        if (str_ends_with(strtolower($time), 'z')) {
+            $clean = rtrim(rtrim($time, 'zZ'), ' ');
+
+            return substr($clean, 0, 5);
+        }
+
+        try {
+            if (str_contains($time, 'T')) {
+                return Carbon::parse($time)->utc()->format('H:i');
+            }
+
+            if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i', $time, $matches)) {
+                $hour = (int) $matches[1];
+                $minute = (int) $matches[2];
+                $meridiem = strtolower($matches[3] ?? '');
+
+                if ($meridiem === 'pm' && $hour < 12) {
+                    $hour += 12;
+                } elseif ($meridiem === 'am' && $hour === 12) {
+                    $hour = 0;
+                }
+
+                $dt = Carbon::today($timezone)->setTime($hour, $minute, 0);
+
+                return $dt->utc()->format('H:i');
+            }
+
+            $parsed = Carbon::parse($time, $timezone);
+
+            return $parsed->utc()->format('H:i');
+        } catch (\Throwable) {
+            return substr($time, 0, 5);
+        }
+    }
+
     public static function normalizeCadencePayload(array $rawRepeat, ?array $calendar = null): array
     {
         $rawWeek = (string) ($rawRepeat['week_of_month'] ?? $rawRepeat['monthly_rule'] ?? $rawRepeat['week_number'] ?? data_get($calendar, 'monthly_rule') ?? 'week_1');
@@ -456,6 +535,15 @@ class Circle extends Model
             'last', 'fifth', '5', '5th' => 5,
             default => 1,
         };
+
+        $weekOfMonth = (string) ($rawRepeat['week_of_month'] ?? match ($weekNum) {
+            1 => 'week_1',
+            2 => 'week_2',
+            3 => 'week_3',
+            4 => 'week_4',
+            5 => 'week_4_provisional',
+            default => 'week_1',
+        });
 
         $ordinalText = match ($weekNum) {
             1 => '1st',
@@ -474,8 +562,17 @@ class Circle extends Model
         };
 
         $weekday = strtolower(trim((string) ($rawRepeat['weekday'] ?? $rawRepeat['day_of_week'] ?? $rawRepeat['default_meet_day'] ?? data_get($calendar, 'default_meet_day') ?? 'wednesday')));
-        $time = trim((string) ($rawRepeat['start_time'] ?? $rawRepeat['time'] ?? $rawRepeat['default_meet_time'] ?? data_get($calendar, 'default_meet_time') ?? '18:30'));
-        $endTime = trim((string) ($rawRepeat['end_time'] ?? $rawRepeat['default_meet_end_time'] ?? data_get($calendar, 'end_time') ?? '21:00'));
+        $time = trim((string) ($rawRepeat['start_time_local'] ?? $rawRepeat['time_local'] ?? $rawRepeat['default_meet_time_local'] ?? $rawRepeat['start_time'] ?? $rawRepeat['time'] ?? $rawRepeat['default_meet_time'] ?? data_get($calendar, 'default_meet_time_local') ?? data_get($calendar, 'default_meet_time') ?? '18:30'));
+        $endTime = trim((string) ($rawRepeat['end_time_local'] ?? $rawRepeat['default_meet_end_time_local'] ?? $rawRepeat['end_time'] ?? $rawRepeat['default_meet_end_time'] ?? data_get($calendar, 'end_time_local') ?? data_get($calendar, 'end_time') ?? '21:00'));
+
+        $tz = (string) (data_get($calendar, 'timezone') ?? data_get($calendar, 'settings.timezone') ?? config('app.timezone') ?: 'Asia/Kolkata');
+        if ($tz === 'UTC') {
+            $tz = 'Asia/Kolkata';
+        }
+
+        $utcTime = self::convertTimeToUtc($time, $tz);
+        $utcEndTime = self::convertTimeToUtc($endTime, $tz);
+
         $frequency = strtolower(trim((string) ($rawRepeat['frequency'] ?? $rawRepeat['unit'] ?? data_get($calendar, 'frequency') ?? 'monthly')));
         if ($frequency === 'month') {
             $frequency = 'monthly';
@@ -484,31 +581,30 @@ class Circle extends Model
             $frequency = 'weekly';
         }
 
-        $weekOffset = max(0, $weekNum - 1);
-
         return [
-            'repeat_every' => (int) ($rawRepeat['repeat_every'] ?? 1),
-            'interval' => (int) ($rawRepeat['interval'] ?? 1),
-            'unit' => $frequency === 'weekly' ? 'week' : 'month',
             'frequency' => $frequency,
-            'week_of_month' => "week_{$weekNum}",
-            'week_number' => $weekOffset,
-            'week' => $weekOffset,
-            'ordinal' => $weekOffset,
-            'week_offset' => $weekOffset,
-            'week_index' => $weekOffset,
-            'nth_week' => $weekNum,
-            'calendar_week' => $weekNum,
+            'interval' => (int) ($rawRepeat['interval'] ?? $rawRepeat['repeat_every'] ?? 1),
+            'week_of_month' => $weekOfMonth,
+            'week_number' => $weekNum,
+            'ordinal' => $weekNum,
             'ordinal_text' => $ordinalText,
             'monthly_rule' => $monthlyRule,
             'weekday' => $weekday,
             'day_of_week' => $weekday,
             'default_meet_day' => $weekday,
-            'start_time' => $time,
-            'time' => $time,
-            'default_meet_time' => $time,
-            'end_time' => $endTime,
-            'default_meet_end_time' => $endTime,
+            'start_time' => $utcTime,
+            'end_time' => $utcEndTime,
+            'time' => $utcTime,
+            'default_meet_time' => $utcTime,
+            'start_time_utc' => $utcTime,
+            'end_time_utc' => $utcEndTime,
+            'default_meet_time_utc' => $utcTime,
+            'start_time_local' => $time,
+            'end_time_local' => $endTime,
+            'time_local' => $time,
+            'default_meet_time_local' => $time,
+            'default_meet_end_time_local' => $endTime,
+            'timezone' => $tz,
         ];
     }
 
@@ -529,12 +625,19 @@ class Circle extends Model
         }
 
         $normalized = self::normalizeCadencePayload($repeat, is_array($this->calendar) ? $this->calendar : null);
-        $now = $now ? $now->copy() : Carbon::now(config('app.timezone', 'Asia/Kolkata'));
+        $tz = (string) (data_get($this->calendar, 'timezone') ?? data_get($this->calendar, 'settings.timezone') ?? config('app.timezone') ?: 'Asia/Kolkata');
+        if ($tz === 'UTC') {
+            $tz = 'Asia/Kolkata';
+        }
+        $now = $now ? $now->copy() : Carbon::now($tz);
 
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
-        $time = $normalized['start_time'];
-        $weekNum = $normalized['calendar_week'] ?? $normalized['nth_week'] ?? ($normalized['week_number'] + 1);
+        $localTime = $normalized['start_time_local'];
+        $localEndTime = $normalized['end_time_local'];
+        $utcStartTime = $normalized['start_time_utc'];
+        $utcEndTime = $normalized['end_time_utc'];
+        $weekNum = $normalized['week_number'];
         $ordinalText = $normalized['ordinal_text'];
         $monthlyRule = $normalized['monthly_rule'];
 
@@ -543,45 +646,47 @@ class Circle extends Model
             while (strtolower($candidate->format('l')) !== $weekday) {
                 $candidate->addDay();
             }
-            [$h, $m] = explode(':', $time) + [0, 0];
+            [$h, $m] = explode(':', $localTime) + [0, 0];
             $candidate->setTime((int) $h, (int) $m, 0);
             if ($candidate->lt($now)) {
                 $candidate->addWeek();
             }
         } else {
             // Monthly
-            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $time);
+            $candidate = self::findNthWeekdayOfMonth($now->year, $now->month, $weekNum, $weekday, $localTime, $tz);
             if ($candidate->lt($now)) {
                 $nextMonth = $now->copy()->startOfMonth()->addMonth();
-                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $time);
+                $candidate = self::findNthWeekdayOfMonth($nextMonth->year, $nextMonth->month, $weekNum, $weekday, $localTime, $tz);
             }
         }
 
-        $formattedTime = Carbon::createFromFormat('H:i', substr($time, 0, 5))->format('h:i A');
+        $formattedTime = Carbon::createFromFormat('H:i', substr($localTime, 0, 5))->format('h:i A');
         $shortDay = $candidate->format('D');
         $datePart = $candidate->format('j M');
         $display = "{$ordinalText} {$shortDay}, {$datePart} • {$formattedTime}";
 
         return [
             'date' => $candidate->toDateString(),
-            'time' => $time,
-            'end_time' => $normalized['end_time'],
-            'day' => $shortDay,
             'day_name' => $candidate->format('l'),
-            'ordinal' => $ordinalText,
             'week_number' => $weekNum,
-            'week_of_month' => "week_{$weekNum}",
-            'monthly_rule' => $monthlyRule,
+            'ordinal' => $ordinalText,
             'formatted_date' => $candidate->format('j M Y'),
             'formatted_time' => $formattedTime,
             'display' => $display,
             'starts_at' => $candidate->toIso8601String(),
+            'starts_at_utc' => $candidate->copy()->utc()->toIso8601ZuluString(),
+            'start_time_local' => $localTime,
+            'end_time_local' => $localEndTime,
+            'start_time_utc' => $utcStartTime,
+            'end_time_utc' => $utcEndTime,
+            'timezone' => $tz,
         ];
     }
 
-    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time): Carbon
+    private static function findNthWeekdayOfMonth(int $year, int $month, int $nth, string $weekday, string $time, ?string $timezone = null): Carbon
     {
-        $dt = Carbon::create($year, $month, 1, 0, 0, 0);
+        $tz = $timezone ?: config('app.timezone', 'Asia/Kolkata');
+        $dt = Carbon::create($year, $month, 1, 0, 0, 0, $tz);
         [$hour, $minute] = explode(':', $time) + [0, 0];
 
         while (strtolower($dt->format('l')) !== strtolower($weekday)) {
@@ -658,12 +763,13 @@ class Circle extends Model
 
     public function circleFounder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        $fk = ! empty($this->circle_founder_user_id) ? 'circle_founder_user_id' : 'founder_user_id';
+        return $this->belongsTo(User::class, $fk);
     }
 
     public function circleFounderUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'circle_founder_user_id');
+        return $this->circleFounder();
     }
 
     public function circleDirector(): BelongsTo
@@ -870,7 +976,11 @@ class Circle extends Model
 
     public static function syncLeadershipFromMembers(Circle|string $circle): void
     {
-        if (! Schema::hasTable('circles')) {
+        try {
+            if (! Schema::hasTable('circles')) {
+                return;
+            }
+        } catch (\Throwable) {
             return;
         }
 
@@ -882,8 +992,13 @@ class Circle extends Model
         $members = CircleMember::query()
             ->where('circle_id', $circleModel->id)
             ->whereNull('deleted_at')
-            ->whereIn(DB::raw('status::text'), ['approved', 'active'])
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active', 'pending', 'accepted']);
+            })
             ->with(['roleRef'])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('joined_at')
             ->get();
 
         $roleToColumns = [
@@ -924,6 +1039,16 @@ class Circle extends Model
             $newValues[$col] = $existingVal;
         }
 
+        $assignedCols = [];
+        $rolesById = [];
+        try {
+            if (Schema::hasTable('roles')) {
+                $rolesById = Role::query()->get(['id', 'key', 'name'])->keyBy('id');
+            }
+        } catch (\Throwable) {
+            $rolesById = [];
+        }
+
         foreach ($members as $member) {
             $userId = $member->user_id;
             if (! $userId) {
@@ -933,6 +1058,15 @@ class Circle extends Model
             $roleKeys = [];
             if (! empty($member->role)) {
                 $roleKeys[] = strtolower(trim((string) $member->role));
+            }
+            if (! empty($member->role_id) && isset($rolesById[$member->role_id])) {
+                $r = $rolesById[$member->role_id];
+                if (! empty($r->key)) {
+                    $roleKeys[] = strtolower(trim((string) $r->key));
+                }
+                if (! empty($r->name)) {
+                    $roleKeys[] = strtolower(trim((string) $r->name));
+                }
             }
             if ($member->roleRef && ! empty($member->roleRef->key)) {
                 $roleKeys[] = strtolower(trim((string) $member->roleRef->key));
@@ -948,8 +1082,9 @@ class Circle extends Model
                 $targetCols = $roleToColumns[$rk] ?? $roleToColumns[$normalizedRk] ?? null;
                 if ($targetCols) {
                     foreach ($targetCols as $col) {
-                        if (array_key_exists($col, $newValues)) {
+                        if (array_key_exists($col, $newValues) && ! isset($assignedCols[$col])) {
                             $newValues[$col] = $userId;
+                            $assignedCols[$col] = true;
                         }
                     }
                 }

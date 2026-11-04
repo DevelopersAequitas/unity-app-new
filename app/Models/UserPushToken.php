@@ -26,6 +26,7 @@ class UserPushToken extends Model
         'platform',
         'device_id',
         'app_version',
+        'app',
         'last_seen_at',
         'last_used_at',
         'is_active',
@@ -135,6 +136,36 @@ class UserPushToken extends Model
                 $platform = strtolower((string) $pushToken->platform);
                 $token = $pushToken->token;
                 $isActive = (bool) ($pushToken->is_active ?? true);
+                $isLeaderApp = ($pushToken->app === 'leader') || str_starts_with((string) ($pushToken->device_id ?? ''), 'leader_');
+
+                if ($isLeaderApp) {
+                    $hasLeaderAndroid = Schema::hasColumn('users', 'leader_android_fcm_token');
+                    $hasLeaderIos = Schema::hasColumn('users', 'leader_ios_fcm_token');
+
+                    if ($isActive) {
+                        if ($platform === 'android' && $hasLeaderAndroid) {
+                            if ($user->leader_android_fcm_token !== $token) {
+                                $user->leader_android_fcm_token = $token;
+                                $user->save();
+                            }
+                        } elseif (in_array($platform, ['ios', 'apple', 'iphone']) && $hasLeaderIos) {
+                            if ($user->leader_ios_fcm_token !== $token) {
+                                $user->leader_ios_fcm_token = $token;
+                                $user->save();
+                            }
+                        }
+                    } else {
+                        if ($hasLeaderAndroid && $user->leader_android_fcm_token === $token) {
+                            $user->leader_android_fcm_token = null;
+                            $user->save();
+                        }
+                        if ($hasLeaderIos && $user->leader_ios_fcm_token === $token) {
+                            $user->leader_ios_fcm_token = null;
+                            $user->save();
+                        }
+                    }
+                    return; // Do not touch regular member app tokens
+                }
 
                 $hasAndroid = Schema::hasColumn('users', 'android_fcm_token');
                 $hasIos = Schema::hasColumn('users', 'ios_fcm_token');
@@ -168,6 +199,23 @@ class UserPushToken extends Model
             $user = $pushToken->user;
             if ($user) {
                 $token = $pushToken->token;
+                $isLeaderApp = ($pushToken->app === 'leader') || str_starts_with((string) ($pushToken->device_id ?? ''), 'leader_');
+
+                if ($isLeaderApp) {
+                    $hasLeaderAndroid = Schema::hasColumn('users', 'leader_android_fcm_token');
+                    $hasLeaderIos = Schema::hasColumn('users', 'leader_ios_fcm_token');
+
+                    if ($hasLeaderAndroid && $user->leader_android_fcm_token === $token) {
+                        $user->leader_android_fcm_token = null;
+                        $user->save();
+                    }
+                    if ($hasLeaderIos && $user->leader_ios_fcm_token === $token) {
+                        $user->leader_ios_fcm_token = null;
+                        $user->save();
+                    }
+                    return;
+                }
+
                 $hasAndroid = Schema::hasColumn('users', 'android_fcm_token');
                 $hasIos = Schema::hasColumn('users', 'ios_fcm_token');
 

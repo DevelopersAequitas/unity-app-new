@@ -135,7 +135,7 @@ class VerificationService
      *
      * @return array{verification_id: string, expires_in_seconds: int, resend_after_seconds: int}
      */
-    public function requestVotingOtp(string $campaignId, ?string $scopeId, string $contactType, string $contact, ?string $ip = null): array
+    public function requestVotingOtp(string $campaignId, ?string $scopeId, string $contactType, string $contact, ?string $ip = null, ?string $verificationType = 'voting'): array
     {
         $campaign = LeadershipCampaign::findOrFail($campaignId);
         if ($campaign->status !== 'active') {
@@ -185,6 +185,7 @@ class VerificationService
             'scope_id' => $scopeId,
             'user_id' => $user?->id,
             'contact_type' => $contactType,
+            'verification_type' => $verificationType ?: 'voting',
             'contact_hash' => $contactHash,
             'contact_masked' => $masked,
             'otp_hash' => Hash::make($otp),

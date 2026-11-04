@@ -258,34 +258,63 @@ class User extends Authenticatable
 
     public function getLifeImpactedCountAttribute($value): int
     {
-        if ($value !== null && (int) $value > 0) {
+        if ($value !== null) {
             return (int) $value;
         }
 
-        if (! $this->exists || ! isset($this->id)) {
-            return (int) ($value ?? 0);
+        if (array_key_exists('life_impacted_count', $this->attributes) && $this->attributes['life_impacted_count'] !== null) {
+            return (int) $this->attributes['life_impacted_count'];
         }
 
-        if (Schema::hasTable('life_impact_histories')) {
-            $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
-            $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
-            $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
-            $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+        if (! $this->exists || ! isset($this->id)) {
+            return 0;
+        }
 
-            $valueExpr = ($hasImpactValue && $hasLifeImpacted)
+        static $schemaChecked = false;
+        static $hasHistoryTable = false;
+        static $hasHistoryStatus = false;
+        static $hasHistoryCounted = false;
+        static $hasHistoryImpactValue = false;
+        static $hasHistoryLifeImpacted = false;
+        static $hasImpactsTable = false;
+        static $hasImpactsStatus = false;
+        static $hasImpactsLife = false;
+        static $hasImpactsValue = false;
+        static $hasImpactsDeleted = false;
+
+        if (! $schemaChecked) {
+            $hasHistoryTable = Schema::hasTable('life_impact_histories');
+            if ($hasHistoryTable) {
+                $hasHistoryStatus = Schema::hasColumn('life_impact_histories', 'status');
+                $hasHistoryCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+                $hasHistoryImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+                $hasHistoryLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+            }
+            $hasImpactsTable = Schema::hasTable('impacts');
+            if ($hasImpactsTable) {
+                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+                $hasImpactsValue = Schema::hasColumn('impacts', 'impact_value');
+                $hasImpactsDeleted = Schema::hasColumn('impacts', 'deleted_at');
+            }
+            $schemaChecked = true;
+        }
+
+        if ($hasHistoryTable) {
+            $valueExpr = ($hasHistoryImpactValue && $hasHistoryLifeImpacted)
                 ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
-                : ($hasImpactValue ? 'COALESCE(NULLIF(impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impacted, 0), 0)' : '0'));
+                : ($hasHistoryImpactValue ? 'COALESCE(NULLIF(impact_value, 0), 0)' : ($hasHistoryLifeImpacted ? 'COALESCE(NULLIF(life_impacted, 0), 0)' : '0'));
 
             $query = DB::table('life_impact_histories')
                 ->where('user_id', (string) $this->id);
 
-            if ($hasCounted) {
+            if ($hasHistoryCounted) {
                 $query->where(function ($q): void {
                     $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
                 });
             }
 
-            if ($hasStatus) {
+            if ($hasHistoryStatus) {
                 $query->where(function ($q): void {
                     $q->whereNull('status')->orWhere('status', 'approved');
                 });
@@ -299,10 +328,7 @@ class User extends Authenticatable
             }
         }
 
-        if (Schema::hasTable('impacts')) {
-            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
-            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
-            $hasImpactsValue = Schema::hasColumn('impacts', 'impact_value');
+        if ($hasImpactsTable) {
             $impactsLifeExpr = ($hasImpactsLife && $hasImpactsValue)
                 ? 'COALESCE(NULLIF(life_impacted, 0), NULLIF(impact_value, 0), 1)'
                 : ($hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : ($hasImpactsValue ? 'COALESCE(NULLIF(impact_value, 0), 1)' : '1'));
@@ -310,7 +336,7 @@ class User extends Authenticatable
             $query = DB::table('impacts')
                 ->where('user_id', (string) $this->id);
 
-            if (Schema::hasColumn('impacts', 'deleted_at')) {
+            if ($hasImpactsDeleted) {
                 $query->whereNull('deleted_at');
             }
 
@@ -328,7 +354,9 @@ class User extends Authenticatable
             }
         }
 
-        return (int) ($value ?? 0);
+        $this->attributes['life_impacted_count'] = 0;
+
+        return 0;
     }
 
     public function getConnectionCountAttribute($value): int

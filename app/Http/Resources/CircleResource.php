@@ -82,32 +82,38 @@ class CircleResource extends JsonResource
             : [];
 
         $calendar = $this->calendar;
-        if (is_array($calendar)) {
-            unset($calendar['leadership']);
-        }
-
         $rawRepeat = $this->meeting_repeat
             ?? data_get($calendar, 'settings.meeting_repeat')
             ?? data_get($calendar, 'meeting_schedule.0');
         $normalizedRepeat = null;
         if (is_array($rawRepeat) && ! empty($rawRepeat)) {
             $normalizedRepeat = \App\Models\Circle::normalizeCadencePayload($rawRepeat, is_array($calendar) ? $calendar : null);
-            if (is_array($calendar)) {
-                $calendar['monthly_rule'] = $normalizedRepeat['monthly_rule'];
-                $calendar['week_of_month'] = $normalizedRepeat['week_of_month'];
-                $calendar['week_number'] = $normalizedRepeat['week_number'];
-                $calendar['ordinal'] = $normalizedRepeat['ordinal'];
-                $calendar['default_meet_day'] = $normalizedRepeat['default_meet_day'];
-                $calendar['day_of_week'] = $normalizedRepeat['day_of_week'];
-                $calendar['weekday'] = $normalizedRepeat['weekday'];
-                $calendar['default_meet_time'] = $normalizedRepeat['default_meet_time'];
-                $calendar['start_time'] = $normalizedRepeat['start_time'];
-                $calendar['end_time'] = $normalizedRepeat['end_time'];
-                $calendar['frequency'] = $normalizedRepeat['frequency'];
-                $calendar['meeting_schedule'] = [$normalizedRepeat];
-                $calendar['meetings'] = [$normalizedRepeat];
-                data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
-            }
+        }
+
+        if (is_array($calendar)) {
+            unset(
+                $calendar['leadership'],
+                $calendar['settings'],
+                $calendar['monthly_rule'],
+                $calendar['week_of_month'],
+                $calendar['week_number'],
+                $calendar['ordinal'],
+                $calendar['default_meet_day'],
+                $calendar['day_of_week'],
+                $calendar['weekday'],
+                $calendar['default_meet_time'],
+                $calendar['start_time'],
+                $calendar['end_time'],
+                $calendar['default_meet_time_utc'],
+                $calendar['start_time_utc'],
+                $calendar['end_time_utc'],
+                $calendar['default_meet_time_local'],
+                $calendar['start_time_local'],
+                $calendar['end_time_local'],
+                $calendar['frequency'],
+                $calendar['meeting_schedule'],
+                $calendar['meetings']
+            );
         }
 
         $upcomingMeeting = method_exists($this->resource, 'calculateUpcomingMeeting')

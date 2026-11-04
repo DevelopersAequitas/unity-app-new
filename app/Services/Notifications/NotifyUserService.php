@@ -15,6 +15,10 @@ class NotifyUserService
 {
     public function notifyUser(User $to, User $from, string $type, array $data = [], ?Model $notifiable = null): ?Notification
     {
+        if ($type === 'circle_join_request_submitted') {
+            return null;
+        }
+
         if ((string) $to->id === (string) $from->id) {
             return null;
         }

@@ -11,10 +11,10 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
-use App\Services\LifeImpact\LifeImpactService;
-use App\Services\Notifications\NotificationService;
+use App\Services\MilestoneBadgeService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -58,16 +58,6 @@ class PostDeactivationService
 
     /**
      * Deactivate a post, reverse awarded coins & life impact score, and notify user.
-     *
-     * @param  Post  $post
-     * @param  string  $remarks
-     * @param  string|null  $adminId
-     * @param  bool  $reverseCoins
-     * @param  bool  $reverseImpact
-     * @param  bool  $notifyUser
-     * @param  int|null  $customCoinsAmount
-     * @param  int|null  $customImpactAmount
-     * @return array
      */
     public function deactivatePost(
         Post $post,
@@ -161,22 +151,22 @@ class PostDeactivationService
 
             $parts = [];
             if ($reversedCoins > 0) {
-                $parts[] = number_format($reversedCoins) . ' coins';
+                $parts[] = number_format($reversedCoins).' coins';
             }
             if ($reversedImpact > 0) {
-                $parts[] = number_format($reversedImpact) . ' life impact points';
+                $parts[] = number_format($reversedImpact).' life impact points';
             }
 
             $targetName = $targetUser?->display_name ?: $targetUser?->name ?: 'Member';
             $msg = 'Post deactivated successfully.';
             if (! empty($parts)) {
-                $msg .= ' Reversed ' . implode(' and ', $parts) . ' for ' . $targetName . '.';
+                $msg .= ' Reversed '.implode(' and ', $parts).' for '.$targetName.'.';
             } else {
                 $msg .= ' No coin or life impact balance deducted.';
             }
 
             if ($notifyUser) {
-                $msg .= ' ' . $targetName . ' notified.';
+                $msg .= ' '.$targetName.' notified.';
             }
 
             return [
@@ -216,9 +206,125 @@ class PostDeactivationService
     }
 
     /**
+     * Resolve the activity type of a post from source_type, post_type, or tags.
+     */
+    protected function resolvePostActivityType(Post $post): ?string
+    {
+        $knownTypes = [
+            'business_deal',
+            'testimonial',
+            'referral',
+            'referral_signup',
+            'visitor_registration',
+            'register_visitor',
+            'p2p_meeting',
+            'requirement',
+            'recommend_peer',
+            'introduction_video',
+            'ask_fulfillment',
+        ];
+
+        $candidates = array_filter([
+            $post->source_type ?? null,
+            $post->post_type ?? null,
+        ]);
+
+        if (is_array($post->tags)) {
+            foreach ($post->tags as $tag) {
+                if (is_string($tag)) {
+                    $candidates[] = $tag;
+                }
+            }
+        }
+
+        foreach ($candidates as $cand) {
+            $normalized = strtolower(trim((string) $cand));
+            if (in_array($normalized, $knownTypes, true)) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Calculate net reversed coins for a post (total deducted on deactivation minus total credited on restoration).
+     */
+    public function getNetReversedCoinsForPost(Post $post, string $userId): int
+    {
+        if (! Schema::hasTable('coins_ledger')) {
+            return 0;
+        }
+
+        $pId = (string) $post->id;
+
+        $totalReversed = (int) abs((int) DB::table('coins_ledger')
+            ->where('user_id', $userId)
+            ->where('amount', '<', 0)
+            ->where(function ($q) use ($pId) {
+                if (Schema::hasColumn('coins_ledger', 'reference_type') && Schema::hasColumn('coins_ledger', 'reference_id')) {
+                    $q->where(function ($sub) use ($pId) {
+                        $sub->where('reference_type', 'POST_DEACTIVATION')
+                            ->where('reference_id', $pId);
+                    });
+                }
+                $q->orWhere('reference', 'LIKE', '%Post deactivation reversal: '.$pId.'%');
+            })
+            ->sum('amount'));
+
+        $totalRestored = (int) DB::table('coins_ledger')
+            ->where('user_id', $userId)
+            ->where('amount', '>', 0)
+            ->where(function ($q) use ($pId) {
+                if (Schema::hasColumn('coins_ledger', 'reference_type') && Schema::hasColumn('coins_ledger', 'reference_id')) {
+                    $q->where(function ($sub) use ($pId) {
+                        $sub->where('reference_type', 'POST_RESTORATION')
+                            ->where('reference_id', $pId);
+                    });
+                }
+                $q->orWhere('reference', 'LIKE', '%Post restoration credit: '.$pId.'%');
+            })
+            ->sum('amount');
+
+        return max(0, $totalReversed - $totalRestored);
+    }
+
+    /**
+     * Calculate net reversed life impact points for a post (total deducted on deactivation minus total credited on restoration).
+     */
+    public function getNetReversedImpactForPost(Post $post, string $userId): int
+    {
+        if (! Schema::hasTable('life_impact_histories')) {
+            return 0;
+        }
+
+        $pId = (string) $post->id;
+        if (! Str::isUuid($pId)) {
+            return 0;
+        }
+
+        $tableName = $this->getLifeImpactTable();
+
+        $totalReversed = (int) abs((int) DB::table($tableName)
+            ->where('user_id', $userId)
+            ->where('impact_value', '<', 0)
+            ->where('activity_id', $pId)
+            ->sum('impact_value'));
+
+        $totalRestored = (int) DB::table($tableName)
+            ->where('user_id', $userId)
+            ->where('impact_value', '>', 0)
+            ->where('activity_id', $pId)
+            ->where('activity_type', 'post_restoration_credit')
+            ->sum('impact_value');
+
+        return max(0, $totalReversed - $totalRestored);
+    }
+
+    /**
      * Locate coins awarded specifically for this post or its source activity.
      */
-    public function findAwardedCoins(Post $post): array
+    public function findAwardedCoins(Post $post, bool $ignoreDeactivationCheck = false): array
     {
         $targetUser = $this->resolveTargetUser($post);
         $userId = (string) ($targetUser?->id ?? $post->user_id);
@@ -232,27 +338,22 @@ class PostDeactivationService
             return ['amount' => 0, 'tx_ids' => []];
         }
 
-        // If coins for this post were already reversed, return 0 to prevent double deduction
-        $alreadyReversedCoins = DB::table('coins_ledger')
-            ->where('user_id', $userId)
-            ->where('amount', '<', 0)
-            ->where(function ($q) use ($post) {
-                if (Schema::hasColumn('coins_ledger', 'reference_type') && Schema::hasColumn('coins_ledger', 'reference_id')) {
-                    $q->where('reference_type', 'POST_DEACTIVATION')
-                        ->where('reference_id', (string) $post->id);
-                }
-                $q->orWhere('reference', 'LIKE', '%Post deactivation reversal: ' . $post->id . '%');
-            })
-            ->exists();
-
-        if ($alreadyReversedCoins) {
+        // If coins for this post are currently in a net-reversed state, return 0 to prevent double deduction
+        if (! $ignoreDeactivationCheck && $this->getNetReversedCoinsForPost($post, $userId) > 0) {
             return ['amount' => 0, 'tx_ids' => []];
         }
 
-        // Check coins directly linked to post
+        // Check coins directly linked to post (excluding restoration credits)
         $postLedgers = DB::table('coins_ledger')
             ->where('user_id', $userId)
             ->where('amount', '>', 0)
+            ->where(function ($q) {
+                if (Schema::hasColumn('coins_ledger', 'reference_type')) {
+                    $q->whereNull('reference_type')
+                        ->orWhere('reference_type', '!=', 'POST_RESTORATION');
+                }
+            })
+            ->where('reference', 'NOT LIKE', '%Post restoration credit:%')
             ->where(function ($q) use ($post) {
                 $pId = (string) $post->id;
                 if (Schema::hasColumn('coins_ledger', 'reference_type') && Schema::hasColumn('coins_ledger', 'reference_id')) {
@@ -290,6 +391,7 @@ class PostDeactivationService
             $sourceLedgers = DB::table('coins_ledger')
                 ->where('user_id', $userId)
                 ->where('amount', '>', 0)
+                ->where('reference', 'NOT LIKE', '%Post restoration credit:%')
                 ->where(function ($q) use ($sourceId) {
                     $sId = (string) $sourceId;
                     if (Str::isUuid($sId)) {
@@ -322,6 +424,40 @@ class PostDeactivationService
             }
         }
 
+        // Fallback for activity posts (e.g. business_deal, testimonial, referral, p2p_meeting, requirement)
+        // where coins_ledger was created with reference = "Activity: <type>" without source_id populated
+        if ($totalCoins === 0) {
+            $activityType = $this->resolvePostActivityType($post);
+            if ($activityType !== null) {
+                if ($post->created_at) {
+                    $windowStart = $post->created_at->copy()->subMinutes(10);
+                    $windowEnd = $post->created_at->copy()->addMinutes(10);
+                    $timeMatched = DB::table('coins_ledger')
+                        ->where('user_id', $userId)
+                        ->where('amount', '>', 0)
+                        ->whereBetween('created_at', [$windowStart, $windowEnd])
+                        ->where(function ($q) use ($activityType) {
+                            $q->where('reference', 'ILIKE', '%'.$activityType.'%')
+                                ->orWhere('reference', 'ILIKE', '%'.str_replace('_', ' ', $activityType).'%');
+                        })
+                        ->orderByDesc('created_at')
+                        ->first();
+
+                    if ($timeMatched) {
+                        $txIds[] = $timeMatched->transaction_id;
+                        $totalCoins = (int) $timeMatched->amount;
+                    }
+                }
+
+                if ($totalCoins === 0) {
+                    $configuredReward = (int) (config('coins.activity_rewards.'.$activityType) ?? 0);
+                    if ($configuredReward > 0) {
+                        $totalCoins = $configuredReward;
+                    }
+                }
+            }
+        }
+
         return [
             'amount' => $totalCoins,
             'tx_ids' => $txIds,
@@ -331,7 +467,7 @@ class PostDeactivationService
     /**
      * Locate life impact points awarded specifically for this post or its source activity.
      */
-    public function findAwardedImpactPoints(Post $post): array
+    public function findAwardedImpactPoints(Post $post, bool $ignoreDeactivationCheck = false): array
     {
         $targetUser = $this->resolveTargetUser($post);
         $userId = (string) ($targetUser?->id ?? $post->user_id);
@@ -349,21 +485,14 @@ class PostDeactivationService
         $pId = (string) $post->id;
         $sId = (string) ($sourceId ?? '');
 
-        if (Str::isUuid($pId)) {
-            $alreadyReversedImpact = DB::table($tableName)
-                ->where('user_id', $userId)
-                ->where('impact_value', '<', 0)
-                ->where('activity_id', $pId)
-                ->exists();
-
-            if ($alreadyReversedImpact) {
-                return ['points' => 0, 'history_ids' => []];
-            }
+        if (! $ignoreDeactivationCheck && $this->getNetReversedImpactForPost($post, $userId) > 0) {
+            return ['points' => 0, 'history_ids' => []];
         }
 
         $query = DB::table($tableName)
             ->where('user_id', $userId)
             ->where('impact_value', '>', 0)
+            ->where('activity_type', '!=', 'post_restoration_credit')
             ->where(function ($q) use ($pId, $sId, $sourceType) {
                 $hasCond = false;
                 if (Str::isUuid($pId)) {
@@ -414,9 +543,68 @@ class PostDeactivationService
             }
         }
 
+        // Fallback for standard activity posts (business_deal, testimonial, referral, p2p_meeting, requirement)
+        if ($totalImpact === 0) {
+            $activityType = $this->resolvePostActivityType($post);
+            if ($activityType !== null && in_array($activityType, ['business_deal', 'testimonial', 'referral', 'p2p_meeting', 'requirement', 'visitor_registration', 'register_visitor', 'ask_fulfillment'], true)) {
+                $totalImpact = (int) config("impact.activity_rewards.{$activityType}", 5);
+            }
+        }
+
         return [
             'points' => $totalImpact,
             'history_ids' => $historyIds,
+        ];
+    }
+
+    /**
+     * Find how many coins should be restored when reactivating a deactivated post.
+     * Prioritizes actual net reversed coins from deactivation, falling back to the post's awarded coins.
+     */
+    public function findCoinsToRestore(Post $post): array
+    {
+        $targetUser = $this->resolveTargetUser($post);
+        $userId = (string) ($targetUser?->id ?? $post->user_id);
+
+        $netReversed = $this->getNetReversedCoinsForPost($post, $userId);
+        if ($netReversed > 0) {
+            return [
+                'amount' => $netReversed,
+                'source' => 'deactivation_reversal',
+            ];
+        }
+
+        // Fallback: if post was deactivated without a POST_DEACTIVATION ledger row, check original awarded coins
+        $awarded = $this->findAwardedCoins($post, true);
+
+        return [
+            'amount' => (int) ($awarded['amount'] ?? 0),
+            'source' => 'awarded_activity',
+        ];
+    }
+
+    /**
+     * Find how many life impact points should be restored when reactivating a deactivated post.
+     * Prioritizes actual net reversed impact points from deactivation, falling back to the post's awarded impact.
+     */
+    public function findImpactToRestore(Post $post): array
+    {
+        $targetUser = $this->resolveTargetUser($post);
+        $userId = (string) ($targetUser?->id ?? $post->user_id);
+
+        $netReversed = $this->getNetReversedImpactForPost($post, $userId);
+        if ($netReversed > 0) {
+            return [
+                'points' => $netReversed,
+                'source' => 'deactivation_reversal',
+            ];
+        }
+
+        $awarded = $this->findAwardedImpactPoints($post, true);
+
+        return [
+            'points' => (int) ($awarded['points'] ?? 0),
+            'source' => 'awarded_activity',
         ];
     }
 
@@ -459,7 +647,7 @@ class PostDeactivationService
         $user->coins_balance = $newBalance;
         $user->save();
 
-        $ledgerRemark = 'Post deactivation reversal: ' . $remarks;
+        $ledgerRemark = 'Post deactivation reversal: '.$remarks;
         if ($actualDeducted < $coinsToReverse) {
             $ledgerRemark .= " (Note: User available balance was {$currentBalance}; deducted {$actualDeducted} of {$coinsToReverse} awarded coins).";
         }
@@ -485,7 +673,7 @@ class PostDeactivationService
             'amount' => -$coinsToReverse,
             'balance_after' => $newBalance,
             'activity_id' => $activityIdForLedger,
-            'reference' => 'Post deactivation reversal: ' . $post->id,
+            'reference' => 'Post deactivation reversal: '.$post->id,
             'created_by' => $creatorUuid,
             'created_at' => now(),
         ];
@@ -562,7 +750,7 @@ class PostDeactivationService
                     'activity_id' => (string) $post->id,
                     'impact_value' => -$impactToReverse,
                     'title' => 'Post Deactivated - Life Impact Reversed',
-                    'description' => 'Life impact reversed due to post deactivation. Reason: ' . $remarks,
+                    'description' => 'Life impact reversed due to post deactivation. Reason: '.$remarks,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -607,8 +795,8 @@ class PostDeactivationService
             }
 
             try {
-                if (class_exists(\App\Services\MilestoneBadgeService::class)) {
-                    app(\App\Services\MilestoneBadgeService::class)->calculateForUserId($userId);
+                if (class_exists(MilestoneBadgeService::class)) {
+                    app(MilestoneBadgeService::class)->calculateForUserId($userId);
                 }
             } catch (\Throwable $e) {
                 // non-critical milestone sync error
@@ -616,7 +804,8 @@ class PostDeactivationService
 
             return $impactToReverse;
         } catch (\Throwable $e) {
-            Log::error('[PostDeactivationService] Failed reversing life impact: ' . $e->getMessage());
+            Log::error('[PostDeactivationService] Failed reversing life impact: '.$e->getMessage());
+
             return 0;
         }
     }
@@ -675,11 +864,11 @@ class PostDeactivationService
             // If it's a localhost, 127.0.0.1, or private IP, swap with public base URL
             if (preg_match('~^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.0\.2\.2)(:\d+)?(/.*)?$~i', $url, $matches)) {
                 $path = $matches[3] ?? '';
-                $url = rtrim($publicBase, '/') . '/' . ltrim($path, '/');
+                $url = rtrim($publicBase, '/').'/'.ltrim($path, '/');
             }
         } else {
             // Relative path
-            $url = rtrim($publicBase, '/') . '/' . ltrim($url, '/');
+            $url = rtrim($publicBase, '/').'/'.ltrim($url, '/');
         }
 
         // Encode spaces in URL path so FCM HTTP v1 / Android doesn't drop the image
@@ -712,14 +901,14 @@ class PostDeactivationService
             }
             if (str_starts_with($cleanPath, 'storage/')) {
                 $storageRel = substr($cleanPath, 8);
-                if (file_exists(storage_path('app/public/' . $storageRel))) {
+                if (file_exists(storage_path('app/public/'.$storageRel))) {
                     return true;
                 }
             }
         }
 
         try {
-            $resp = \Illuminate\Support\Facades\Http::timeout(2)->withoutVerifying()->head($url);
+            $resp = Http::timeout(2)->withoutVerifying()->head($url);
 
             return $resp->status() === 200;
         } catch (\Throwable $e) {
@@ -749,7 +938,7 @@ class PostDeactivationService
         }
 
         try {
-            $hash = md5($url . '_whatsapp_card_radius12_v1');
+            $hash = md5($url.'_whatsapp_card_radius12_v1');
             $cacheDir = storage_path('app/public/notification_banners');
             $cacheFile = "{$cacheDir}/{$hash}.png";
             $cachePublicUrl = $this->normalizePublicUrl("storage/notification_banners/{$hash}.png");
@@ -766,7 +955,7 @@ class PostDeactivationService
                 if (file_exists(public_path($cleanPath))) {
                     $sourceContent = file_get_contents(public_path($cleanPath));
                 } elseif (str_starts_with($cleanPath, 'storage/')) {
-                    $storagePath = storage_path('app/public/' . substr($cleanPath, 8));
+                    $storagePath = storage_path('app/public/'.substr($cleanPath, 8));
                     if (file_exists($storagePath)) {
                         $sourceContent = file_get_contents($storagePath);
                     }
@@ -774,7 +963,7 @@ class PostDeactivationService
             }
 
             if (! $sourceContent) {
-                $resp = \Illuminate\Support\Facades\Http::timeout(3)->withoutVerifying()->get($url);
+                $resp = Http::timeout(3)->withoutVerifying()->get($url);
                 if ($resp->successful()) {
                     $sourceContent = $resp->body();
                 }
@@ -858,7 +1047,8 @@ class PostDeactivationService
 
             return $cachePublicUrl;
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[PostDeactivationService] Failed formatting banner: ' . $e->getMessage());
+            Log::warning('[PostDeactivationService] Failed formatting banner: '.$e->getMessage());
+
             return $url;
         }
     }
@@ -1004,7 +1194,7 @@ class PostDeactivationService
                     if (class_exists(File::class)) {
                         $fileModel = File::find($fileId);
                         if ($fileModel && ! empty($fileModel->s3_key)) {
-                            $candidate = $this->normalizePublicUrl('storage/' . ltrim($fileModel->s3_key, '/'));
+                            $candidate = $this->normalizePublicUrl('storage/'.ltrim($fileModel->s3_key, '/'));
                             if ($candidate && $this->isReachablePublicUrl($candidate)) {
                                 return $this->formatForNotificationBanner($candidate);
                             }
@@ -1054,7 +1244,7 @@ class PostDeactivationService
         if (method_exists($impact, 'files') && $impact->relationLoaded('files')) {
             $first = $impact->files->first();
             if ($first && ! empty($first->s3_key)) {
-                return $this->normalizePublicUrl('storage/' . ltrim($first->s3_key, '/'));
+                return $this->normalizePublicUrl('storage/'.ltrim($first->s3_key, '/'));
             }
         }
 
@@ -1087,15 +1277,15 @@ class PostDeactivationService
 
             $decreaseParts = [];
             if ($reversedCoins > 0) {
-                $decreaseParts[] = '-' . number_format($reversedCoins) . ' Peers Coins';
+                $decreaseParts[] = '-'.number_format($reversedCoins).' Peers Coins';
             }
             if ($reversedImpact > 0) {
-                $decreaseParts[] = '-' . number_format($reversedImpact) . ' Life Impact';
+                $decreaseParts[] = '-'.number_format($reversedImpact).' Life Impact';
             }
 
             if (! empty($decreaseParts)) {
                 $title = 'Your Post Was Deactivated & Rewards Reversed';
-                $body = "Your post was deactivated by admin. Reason: \"{$remarks}\". Deductions applied: " . implode(' and ', $decreaseParts) . ' from your account.';
+                $body = "Your post was deactivated by admin. Reason: \"{$remarks}\". Deductions applied: ".implode(' and ', $decreaseParts).' from your account.';
             } else {
                 $title = 'Your Post Has Been Deactivated';
                 $body = "Your post was deactivated by admin. Reason: \"{$remarks}\".";
@@ -1171,7 +1361,7 @@ class PostDeactivationService
                     $appData['data'] = $dataPayload;
                 }
                 if (Schema::hasColumn('app_notifications', 'dedupe_key')) {
-                    $appData['dedupe_key'] = 'post_deactivation_' . $post->id . '_' . time();
+                    $appData['dedupe_key'] = 'post_deactivation_'.$post->id.'_'.time();
                 }
 
                 $createdAppNotif = AppNotification::create($appData);
@@ -1272,10 +1462,10 @@ class PostDeactivationService
                     );
                 }
             } catch (\Throwable $e) {
-                Log::warning('[PostDeactivationService] Failed dispatching push notification for post deactivation: ' . $e->getMessage());
+                Log::warning('[PostDeactivationService] Failed dispatching push notification for post deactivation: '.$e->getMessage());
             }
         } catch (\Throwable $e) {
-            Log::warning('[PostDeactivationService] Failed sending deactivation notification: ' . $e->getMessage());
+            Log::warning('[PostDeactivationService] Failed sending deactivation notification: '.$e->getMessage());
         }
     }
 
@@ -1310,8 +1500,8 @@ class PostDeactivationService
             // 1. Deactivate timeline publication
             $impact->timeline_posted_at = null;
             if (Schema::hasColumn('impacts', 'additional_remarks')) {
-                $prevRemarks = $impact->additional_remarks ? $impact->additional_remarks . ' | ' : '';
-                $impact->additional_remarks = Str::limit($prevRemarks . 'Deactivated: ' . $remarks, 1000);
+                $prevRemarks = $impact->additional_remarks ? $impact->additional_remarks.' | ' : '';
+                $impact->additional_remarks = Str::limit($prevRemarks.'Deactivated: '.$remarks, 1000);
             }
             $impact->save();
 
@@ -1336,7 +1526,7 @@ class PostDeactivationService
                             'activity_id' => (string) $impact->id,
                             'impact_value' => -$impactPoints,
                             'title' => 'Impact Post Deactivated - Score Reversed',
-                            'description' => 'Life impact reversed due to impact deactivation. Reason: ' . $remarks,
+                            'description' => 'Life impact reversed due to impact deactivation. Reason: '.$remarks,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ];
@@ -1366,7 +1556,7 @@ class PostDeactivationService
 
             $msg = 'Impact post deactivated successfully.';
             if ($reversedImpact > 0) {
-                $msg .= ' Reversed ' . $reversedImpact . ' life impact points.';
+                $msg .= ' Reversed '.$reversedImpact.' life impact points.';
             } else {
                 $msg .= ' Remarks recorded.';
             }
@@ -1535,10 +1725,10 @@ class PostDeactivationService
                     );
                 }
             } catch (\Throwable $e) {
-                Log::warning('[PostDeactivationService] Failed dispatching push notification for impact deactivation: ' . $e->getMessage());
+                Log::warning('[PostDeactivationService] Failed dispatching push notification for impact deactivation: '.$e->getMessage());
             }
         } catch (\Throwable $e) {
-            Log::warning('[PostDeactivationService] Failed sending impact deactivation notification: ' . $e->getMessage());
+            Log::warning('[PostDeactivationService] Failed sending impact deactivation notification: '.$e->getMessage());
         }
     }
 
@@ -1550,12 +1740,16 @@ class PostDeactivationService
         $user = $this->resolveTargetUser($post);
         $coinsData = $this->findAwardedCoins($post);
         $impactData = $this->findAwardedImpactPoints($post);
+        $restoreCoinsData = $this->findCoinsToRestore($post);
+        $restoreImpactData = $this->findImpactToRestore($post);
 
         $currentCoins = (int) ($user?->coins_balance ?? 0);
         $currentImpact = (int) ($user?->life_impacted_count ?? 0);
 
         $coinsToReverse = (int) ($coinsData['amount'] ?? 0);
         $impactToReverse = (int) ($impactData['points'] ?? 0);
+        $coinsToRestore = (int) ($restoreCoinsData['amount'] ?? 0);
+        $impactToRestore = (int) ($restoreImpactData['points'] ?? 0);
 
         $imageUrl = $this->resolvePostImageUrl($post);
 
@@ -1572,7 +1766,631 @@ class PostDeactivationService
             'impact_to_reverse' => $impactToReverse,
             'coins_after' => max(0, $currentCoins - $coinsToReverse),
             'impact_after' => max(0, $currentImpact - $impactToReverse),
+            'coins_to_restore' => $coinsToRestore,
+            'impact_to_restore' => $impactToRestore,
+            'coins_after_restore' => $currentCoins + $coinsToRestore,
+            'impact_after_restore' => $currentImpact + $impactToRestore,
+            'deactivation_remarks' => $post->deactivation_remarks ?? null,
+            'deactivated_at' => $post->deactivated_at ? (string) $post->deactivated_at : ($post->deleted_at ? (string) $post->deleted_at : null),
         ];
+    }
+
+    /**
+     * Get preview data for post restoration / reactivation (coins & impact points to credit back, current balance, etc.).
+     */
+    public function getRestorePreview(Post $post): array
+    {
+        $user = $this->resolveTargetUser($post);
+        $restoreCoinsData = $this->findCoinsToRestore($post);
+        $restoreImpactData = $this->findImpactToRestore($post);
+
+        $currentCoins = (int) ($user?->coins_balance ?? 0);
+        $currentImpact = (int) ($user?->life_impacted_count ?? 0);
+
+        $coinsToRestore = (int) ($restoreCoinsData['amount'] ?? 0);
+        $impactToRestore = (int) ($restoreImpactData['points'] ?? 0);
+
+        $imageUrl = $this->resolvePostImageUrl($post);
+
+        return [
+            'item_id' => (string) $post->id,
+            'item_type' => 'post',
+            'user_id' => (string) ($user?->id ?? $post->user_id),
+            'user_name' => $user?->display_name ?: $user?->name ?: 'Member',
+            'user_company' => $user?->company_name ?? $user?->company ?? $user?->business_name ?? '—',
+            'image_url' => $imageUrl,
+            'current_coins' => $currentCoins,
+            'current_impact' => $currentImpact,
+            'coins_to_restore' => $coinsToRestore,
+            'impact_to_restore' => $impactToRestore,
+            'coins_after' => $currentCoins + $coinsToRestore,
+            'impact_after' => $currentImpact + $impactToRestore,
+            'coins_after_restore' => $currentCoins + $coinsToRestore,
+            'impact_after_restore' => $currentImpact + $impactToRestore,
+            'deactivation_remarks' => $post->deactivation_remarks ?? null,
+            'deactivated_at' => $post->deactivated_at ? (string) $post->deactivated_at : ($post->deleted_at ? (string) $post->deleted_at : null),
+        ];
+    }
+
+    /**
+     * Restore a deactivated post, re-credit reversed coins & life impact score (+), record positive ledger/history entries, and notify the member.
+     */
+    public function restorePost(
+        Post $post,
+        string $remarks = 'Post restored after review',
+        ?string $adminId = null,
+        bool $restoreCoins = true,
+        bool $restoreImpact = true,
+        bool $notifyUser = true,
+        ?int $customCoinsAmount = null,
+        ?int $customImpactAmount = null
+    ): array {
+        $remarks = trim($remarks);
+        if ($remarks === '') {
+            $remarks = 'Post restored after review';
+        }
+
+        $targetUser = $this->resolveTargetUser($post);
+        $userId = (string) ($targetUser?->id ?? $post->user_id);
+
+        $isCurrentlyActive = ! $this->isPostAlreadyDeactivated($post)
+            && strtolower((string) ($post->status ?? 'active')) === 'active'
+            && (bool) ($post->active ?? true) === true;
+
+        $netReversedCoins = $this->getNetReversedCoinsForPost($post, $userId);
+        $netReversedImpact = $this->getNetReversedImpactForPost($post, $userId);
+
+        if ($isCurrentlyActive && $netReversedCoins === 0 && $netReversedImpact === 0 && $customCoinsAmount === null && $customImpactAmount === null) {
+            return [
+                'success' => false,
+                'already_restored' => true,
+                'message' => 'This post is already active and has no reversed rewards pending restoration.',
+                'coins_restored' => 0,
+                'impact_restored' => 0,
+                'post_id' => $post->id,
+            ];
+        }
+
+        $result = DB::transaction(function () use ($post, $targetUser, $userId, $remarks, $adminId, $restoreCoins, $restoreImpact, $notifyUser, $customCoinsAmount, $customImpactAmount) {
+            // 1. Determine coins to restore
+            if ($customCoinsAmount !== null) {
+                $coinsToRestore = max(0, $customCoinsAmount);
+            } else {
+                $coinsRestoreData = $this->findCoinsToRestore($post);
+                $coinsToRestore = (int) ($coinsRestoreData['amount'] ?? 0);
+            }
+
+            // 2. Determine life impact points to restore
+            if ($customImpactAmount !== null) {
+                $impactToRestore = max(0, $customImpactAmount);
+            } else {
+                $impactRestoreData = $this->findImpactToRestore($post);
+                $impactToRestore = (int) ($impactRestoreData['points'] ?? 0);
+            }
+
+            // 3. Credit Coins (+) and write positive coins_ledger entry
+            $restoredCoins = 0;
+            $newCoinsBalance = (int) ($targetUser?->coins_balance ?? 0);
+            if ($restoreCoins && $coinsToRestore > 0) {
+                $coinRes = $this->restoreCoins(
+                    $userId,
+                    $coinsToRestore,
+                    $post,
+                    $remarks,
+                    $adminId
+                );
+                $restoredCoins = $coinRes['restored'];
+                $newCoinsBalance = $coinRes['balance_after'];
+            }
+
+            // 4. Credit Life Impact (+) and write positive life_impact_histories entry
+            $restoredImpact = 0;
+            $newImpactScore = (int) ($targetUser?->life_impacted_count ?? 0);
+            if ($restoreImpact && $impactToRestore > 0) {
+                $impactRes = $this->restoreImpactPoints(
+                    $userId,
+                    $impactToRestore,
+                    $post,
+                    $remarks,
+                    $adminId
+                );
+                $restoredImpact = $impactRes['restored'];
+                $newImpactScore = $impactRes['impact_after'];
+            }
+
+            // 5. Restore post status and visibility in timeline
+            $this->updatePostRestoredStatus($post, $remarks, $adminId);
+
+            Log::info('[PostDeactivationService] Post restored successfully', [
+                'post_id' => $post->id,
+                'user_id' => $userId,
+                'coins_restored' => $restoredCoins,
+                'impact_restored' => $restoredImpact,
+                'admin_id' => $adminId,
+                'remarks' => $remarks,
+                'restore_coins' => $restoreCoins,
+                'restore_impact' => $restoreImpact,
+                'notify_user' => $notifyUser,
+            ]);
+
+            $parts = [];
+            if ($restoredCoins > 0) {
+                $parts[] = '+'.number_format($restoredCoins).' coins';
+            }
+            if ($restoredImpact > 0) {
+                $parts[] = '+'.number_format($restoredImpact).' life impact points';
+            }
+
+            $targetName = $targetUser?->display_name ?: $targetUser?->name ?: 'Member';
+            $msg = 'Post restored and activated on timeline.';
+            if (! empty($parts)) {
+                $msg .= ' Credited '.implode(' and ', $parts).' back to '.$targetName.'.';
+            }
+
+            if ($notifyUser) {
+                $msg .= ' '.$targetName.' notified.';
+            }
+
+            return [
+                'success' => true,
+                'already_restored' => false,
+                'id' => (string) $post->id,
+                'post_id' => (string) $post->id,
+                'status' => 'active',
+                'active' => true,
+                'is_deleted' => false,
+                'coins_restored' => $restoredCoins,
+                'impact_restored' => $restoredImpact,
+                'coins_balance_after' => $newCoinsBalance,
+                'life_impact_after' => $newImpactScore,
+                'remarks' => $remarks,
+                'user_notified' => $notifyUser,
+                'message' => $msg,
+            ];
+        });
+
+        // 6. Send in-app & push notification to the target member (after transaction commits)
+        if ($notifyUser && ! empty($result['success'])) {
+            $this->sendRestorationNotification(
+                $post,
+                $remarks,
+                (int) ($result['coins_restored'] ?? 0),
+                (int) ($result['impact_restored'] ?? 0)
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Credit restored coins to user balance and insert a positive (+) coins_ledger entry with the admin's note.
+     */
+    protected function restoreCoins(
+        string $userId,
+        int $coinsToRestore,
+        Post $post,
+        string $remarks,
+        ?string $adminId
+    ): array {
+        $user = User::query()->where('id', $userId)->lockForUpdate()->first();
+        if (! $user) {
+            return ['restored' => 0, 'balance_after' => 0];
+        }
+
+        $currentBalance = (int) ($user->coins_balance ?? 0);
+        $newBalance = $currentBalance + $coinsToRestore;
+
+        $user->coins_balance = $newBalance;
+        $user->save();
+
+        $ledgerRemark = 'Post restored: '.$remarks;
+
+        $activityIdForLedger = null;
+        if (filled($post->source_id) && Schema::hasTable('activities')) {
+            $existsInActivities = DB::table('activities')->where('id', (string) $post->source_id)->exists();
+            if ($existsInActivities) {
+                $activityIdForLedger = (string) $post->source_id;
+            }
+        }
+
+        $creatorUuid = null;
+        if ($adminId && Str::isUuid((string) $adminId) && DB::table('users')->where('id', (string) $adminId)->exists()) {
+            $creatorUuid = (string) $adminId;
+        } elseif (Str::isUuid((string) $userId) && DB::table('users')->where('id', (string) $userId)->exists()) {
+            $creatorUuid = (string) $userId;
+        }
+
+        $coinInsert = [
+            'transaction_id' => (string) Str::uuid(),
+            'user_id' => $userId,
+            'amount' => $coinsToRestore,
+            'balance_after' => $newBalance,
+            'activity_id' => $activityIdForLedger,
+            'reference' => 'Post restoration credit: '.$post->id,
+            'created_by' => $creatorUuid,
+            'created_at' => now(),
+        ];
+
+        if (Schema::hasColumn('coins_ledger', 'remark')) {
+            $coinInsert['remark'] = $ledgerRemark;
+        }
+        if (Schema::hasColumn('coins_ledger', 'entry_type')) {
+            $coinInsert['entry_type'] = 'RESTORATION_CREDIT';
+        }
+        if (Schema::hasColumn('coins_ledger', 'bucket')) {
+            $coinInsert['bucket'] = 'EARNED';
+        }
+        if (Schema::hasColumn('coins_ledger', 'reference_type')) {
+            $coinInsert['reference_type'] = 'POST_RESTORATION';
+        }
+        if (Schema::hasColumn('coins_ledger', 'reference_id')) {
+            $coinInsert['reference_id'] = (string) $post->id;
+        }
+        if (Schema::hasColumn('coins_ledger', 'metadata')) {
+            $coinInsert['metadata'] = json_encode([
+                'post_id' => (string) $post->id,
+                'source_type' => $post->source_type,
+                'source_id' => $post->source_id,
+                'admin_remarks' => $remarks,
+                'admin_id' => $adminId,
+                'restored_coins' => $coinsToRestore,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        DB::table('coins_ledger')->insert($coinInsert);
+
+        return [
+            'restored' => $coinsToRestore,
+            'balance_after' => $newBalance,
+        ];
+    }
+
+    /**
+     * Credit restored life impact points to user score and insert a positive (+) life_impact_histories entry with the admin's note.
+     */
+    protected function restoreImpactPoints(
+        string $userId,
+        int $impactToRestore,
+        Post $post,
+        string $remarks,
+        ?string $adminId
+    ): array {
+        try {
+            $user = User::query()->where('id', $userId)->lockForUpdate()->first();
+            if (! $user) {
+                return ['restored' => 0, 'impact_after' => 0];
+            }
+
+            $currentScore = (int) ($user->life_impacted_count ?? 0);
+            $newScore = $currentScore + $impactToRestore;
+            $user->life_impacted_count = $newScore;
+            $user->save();
+
+            $tableName = $this->getLifeImpactTable();
+            if (Schema::hasTable('life_impact_histories')) {
+                $triggeredBy = null;
+                if ($adminId && Str::isUuid((string) $adminId) && DB::table('users')->where('id', (string) $adminId)->exists()) {
+                    $triggeredBy = (string) $adminId;
+                } elseif (Str::isUuid((string) $userId) && DB::table('users')->where('id', (string) $userId)->exists()) {
+                    $triggeredBy = (string) $userId;
+                }
+
+                $insertData = [
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $userId,
+                    'triggered_by_user_id' => $triggeredBy,
+                    'activity_type' => 'post_restoration_credit',
+                    'activity_id' => (string) $post->id,
+                    'impact_value' => $impactToRestore,
+                    'title' => 'Post Restored - Life Impact Credited',
+                    'description' => 'Life impact restored after post reactivation. Note: '.$remarks,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if (Schema::hasColumn('life_impact_histories', 'impact_after')) {
+                    $insertData['impact_after'] = $newScore;
+                }
+                if (Schema::hasColumn('life_impact_histories', 'life_impacted')) {
+                    $insertData['life_impacted'] = $impactToRestore;
+                }
+                if (Schema::hasColumn('life_impact_histories', 'action_key')) {
+                    $insertData['action_key'] = 'post_restoration_credit';
+                }
+                if (Schema::hasColumn('life_impact_histories', 'action_label')) {
+                    $insertData['action_label'] = 'Post Restored - Life Impact Credited';
+                }
+                if (Schema::hasColumn('life_impact_histories', 'impact_category')) {
+                    $insertData['impact_category'] = 'moderation';
+                }
+                if (Schema::hasColumn('life_impact_histories', 'status')) {
+                    $insertData['status'] = 'approved';
+                }
+                if (Schema::hasColumn('life_impact_histories', 'remarks')) {
+                    $insertData['remarks'] = $remarks;
+                }
+                if (Schema::hasColumn('life_impact_histories', 'counted_in_total')) {
+                    $insertData['counted_in_total'] = true;
+                }
+                if (Schema::hasColumn('life_impact_histories', 'meta')) {
+                    $insertData['meta'] = json_encode([
+                        'post_id' => (string) $post->id,
+                        'source_type' => $post->source_type,
+                        'source_id' => $post->source_id,
+                        'admin_remarks' => $remarks,
+                        'admin_id' => $adminId,
+                        'restored_points' => $impactToRestore,
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                }
+
+                DB::table($tableName)->insert($insertData);
+            }
+
+            try {
+                if (class_exists(MilestoneBadgeService::class)) {
+                    app(MilestoneBadgeService::class)->calculateForUserId($userId);
+                }
+            } catch (\Throwable $e) {
+                // non-critical milestone sync error
+            }
+
+            return [
+                'restored' => $impactToRestore,
+                'impact_after' => $newScore,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[PostDeactivationService] Failed restoring life impact: '.$e->getMessage());
+
+            return ['restored' => 0, 'impact_after' => 0];
+        }
+    }
+
+    /**
+     * Update post status and audit fields when restored to active timeline.
+     */
+    protected function updatePostRestoredStatus(Post $post, string $remarks, ?string $adminId): void
+    {
+        if (method_exists($post, 'trashed') && $post->trashed()) {
+            $post->restore();
+        }
+
+        if (Schema::hasColumn('posts', 'is_active')) {
+            $post->setAttribute('is_active', true);
+        }
+        if (array_key_exists('is_deleted', $post->getAttributes()) || Schema::hasColumn('posts', 'is_deleted')) {
+            $post->is_deleted = false;
+        }
+        if (array_key_exists('deleted_at', $post->getAttributes()) || Schema::hasColumn('posts', 'deleted_at')) {
+            $post->deleted_at = null;
+        }
+        $post->active = true;
+        $post->status = 'active';
+
+        if (Schema::hasColumn('posts', 'moderation_status')) {
+            $post->moderation_status = 'approved';
+        }
+        if (Schema::hasColumn('posts', 'deactivation_remarks')) {
+            $post->deactivation_remarks = null;
+        }
+        if (Schema::hasColumn('posts', 'deactivated_by')) {
+            $post->deactivated_by = null;
+        }
+        if (Schema::hasColumn('posts', 'deactivated_at')) {
+            $post->deactivated_at = null;
+        }
+
+        $post->save();
+    }
+
+    /**
+     * Send in-app and push notification to the target peer when their post is restored & rewards are re-credited.
+     */
+    protected function sendRestorationNotification(
+        Post $post,
+        string $remarks,
+        int $restoredCoins,
+        int $restoredImpact
+    ): void {
+        try {
+            $user = $this->resolveTargetUser($post);
+            if (! $user) {
+                return;
+            }
+
+            $increaseParts = [];
+            if ($restoredCoins > 0) {
+                $increaseParts[] = '+'.number_format($restoredCoins).' Peers Coins';
+            }
+            if ($restoredImpact > 0) {
+                $increaseParts[] = '+'.number_format($restoredImpact).' Life Impact';
+            }
+
+            if (! empty($increaseParts)) {
+                $title = 'Your Post Was Restored & Rewards Credited';
+                $body = "Your post has been restored and is active on the timeline again. Note: \"{$remarks}\". Credited back: ".implode(' and ', $increaseParts).' to your account.';
+            } else {
+                $title = 'Your Post Has Been Restored';
+                $body = "Your post has been restored and is active on the timeline again. Note: \"{$remarks}\".";
+            }
+
+            $postImageUrl = $this->resolvePostImageUrl($post);
+            $postSnippet = Str::limit(trim((string) ($post->content_text ?: $post->title ?: '')), 140);
+
+            // 1. AppNotification (Peers mobile app notification engine)
+            $createdAppNotif = null;
+            if (class_exists(AppNotification::class) && Schema::hasTable('app_notifications')) {
+                $appData = [
+                    'user_id' => $user->id,
+                    'type' => 'post_restored',
+                ];
+                if (Schema::hasColumn('app_notifications', 'channel')) {
+                    $appData['channel'] = 'push';
+                }
+                if (Schema::hasColumn('app_notifications', 'priority')) {
+                    $appData['priority'] = 'high';
+                }
+                if (Schema::hasColumn('app_notifications', 'status')) {
+                    $appData['status'] = 'sent';
+                }
+                if (Schema::hasColumn('app_notifications', 'title')) {
+                    $appData['title'] = $title;
+                }
+                if (Schema::hasColumn('app_notifications', 'body')) {
+                    $appData['body'] = $body;
+                }
+                if (Schema::hasColumn('app_notifications', 'category')) {
+                    $appData['category'] = 'moderation';
+                }
+                if (Schema::hasColumn('app_notifications', 'reference_type')) {
+                    $appData['reference_type'] = 'post';
+                }
+                if (Schema::hasColumn('app_notifications', 'reference_id')) {
+                    $appData['reference_id'] = (string) $post->id;
+                }
+                if (Schema::hasColumn('app_notifications', 'screen')) {
+                    $appData['screen'] = '/notifications';
+                }
+                if ($postImageUrl && Schema::hasColumn('app_notifications', 'image_url')) {
+                    $appData['image_url'] = $postImageUrl;
+                }
+
+                $dataPayload = [
+                    'post_id' => (string) $post->id,
+                    'remarks' => $remarks,
+                    'notes' => $remarks,
+                    'coins_restored' => $restoredCoins,
+                    'impact_restored' => $restoredImpact,
+                    'increase_summary' => implode(' and ', $increaseParts),
+                    'notification_type' => 'post_restored',
+                    'type' => 'post_restored',
+                    'title' => $title,
+                    'body' => $body,
+                    'screen' => '/notifications',
+                    'tap_destination' => '/notifications',
+                ];
+                if ($postImageUrl) {
+                    $dataPayload['image_url'] = $postImageUrl;
+                    $dataPayload['post_image'] = $postImageUrl;
+                    $dataPayload['media_url'] = $postImageUrl;
+                }
+                if (! empty($postSnippet)) {
+                    $dataPayload['post_content'] = $postSnippet;
+                }
+                if (! empty($post->title)) {
+                    $dataPayload['post_title'] = $post->title;
+                }
+
+                if (Schema::hasColumn('app_notifications', 'data')) {
+                    $appData['data'] = $dataPayload;
+                }
+                if (Schema::hasColumn('app_notifications', 'dedupe_key')) {
+                    $appData['dedupe_key'] = 'post_restoration_'.$post->id.'_'.time();
+                }
+
+                $createdAppNotif = AppNotification::create($appData);
+            }
+
+            // 2. Legacy Notification model (used by /api/notifications)
+            if (class_exists(Notification::class) && Schema::hasTable('notifications')) {
+                $notifData = [
+                    'user_id' => $user->id,
+                    'type' => 'activity_update',
+                ];
+
+                if (Schema::hasColumn('notifications', 'title')) {
+                    $notifData['title'] = $title;
+                }
+                if (Schema::hasColumn('notifications', 'message')) {
+                    $notifData['message'] = $body;
+                }
+                if (Schema::hasColumn('notifications', 'body')) {
+                    $notifData['body'] = $body;
+                }
+                if (Schema::hasColumn('notifications', 'source_type')) {
+                    $notifData['source_type'] = 'post';
+                }
+                if (Schema::hasColumn('notifications', 'source_id')) {
+                    $notifData['source_id'] = (string) $post->id;
+                }
+                if ($postImageUrl && Schema::hasColumn('notifications', 'image_url')) {
+                    $notifData['image_url'] = $postImageUrl;
+                }
+
+                $legacyPayload = [
+                    'post_id' => (string) $post->id,
+                    'remarks' => $remarks,
+                    'notes' => $remarks,
+                    'coins_restored' => $restoredCoins,
+                    'impact_restored' => $restoredImpact,
+                    'increase_summary' => implode(' and ', $increaseParts),
+                    'notification_type' => 'post_restored',
+                    'type' => 'post_restored',
+                    'title' => $title,
+                    'message' => $body,
+                    'body' => $body,
+                    'screen' => '/notifications',
+                ];
+                if ($postImageUrl) {
+                    $legacyPayload['image_url'] = $postImageUrl;
+                    $legacyPayload['post_image'] = $postImageUrl;
+                    $legacyPayload['media_url'] = $postImageUrl;
+                }
+                if (! empty($postSnippet)) {
+                    $legacyPayload['post_content'] = $postSnippet;
+                }
+
+                if (Schema::hasColumn('notifications', 'payload')) {
+                    $notifData['payload'] = $legacyPayload;
+                }
+                if (Schema::hasColumn('notifications', 'data')) {
+                    $notifData['data'] = $legacyPayload;
+                }
+                if (Schema::hasColumn('notifications', 'is_read')) {
+                    $notifData['is_read'] = false;
+                }
+                if (Schema::hasColumn('notifications', 'created_at')) {
+                    $notifData['created_at'] = now();
+                }
+
+                Notification::create($notifData);
+            }
+
+            // 3. Dispatch real-time Push Notification to peer device
+            try {
+                if (class_exists(SendPushNotificationJob::class)) {
+                    $pushPayload = [
+                        'post_id' => (string) $post->id,
+                        'type' => 'post_restored',
+                        'notification_type' => 'post_restored',
+                        'screen' => '/notifications',
+                        'coins_restored' => (string) $restoredCoins,
+                        'impact_restored' => (string) $restoredImpact,
+                    ];
+                    if ($postImageUrl) {
+                        $pushPayload['image_url'] = $postImageUrl;
+                        $pushPayload['post_image'] = $postImageUrl;
+                        $pushPayload['media_url'] = $postImageUrl;
+                    }
+                    if (! empty($postSnippet)) {
+                        $pushPayload['post_content'] = $postSnippet;
+                    }
+                    if ($createdAppNotif && $createdAppNotif->id) {
+                        $pushPayload['notification_id'] = (string) $createdAppNotif->id;
+                    }
+
+                    SendPushNotificationJob::dispatch(
+                        $user,
+                        $title,
+                        $body,
+                        $pushPayload
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[PostDeactivationService] Failed dispatching push notification for post restoration: '.$e->getMessage());
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[PostDeactivationService] Failed sending restoration notification: '.$e->getMessage());
+        }
     }
 
     /**

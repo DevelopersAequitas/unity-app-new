@@ -11,6 +11,7 @@ use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Notifications\MilestoneWhatsappNotificationService;
+use App\Services\WhatsApp\AwardRecognitionWhatsappService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -267,27 +268,29 @@ class IntroducedPeerService
             // Explicitly calculate and award milestone badges in user_milestone_badges
             app(MilestoneBadgeService::class)->calculateForUser($user);
 
-            // Trigger milestone WhatsApp notification workflow for exact milestone counts
-            try {
-                $this->milestoneWhatsappService->handleMilestoneNotification(
-                    $user,
-                    $count,
-                    $creative?->image_url
-                );
+            // Automatic milestone WhatsApp award notifications are currently disabled per admin configuration.
+            if ((bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+                try {
+                    $this->milestoneWhatsappService->handleMilestoneNotification(
+                        $user,
+                        $count,
+                        $creative?->image_url
+                    );
 
-                // Native Meta WhatsApp Cloud API Award Recognition
-                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleGrowthAward(
-                    $user,
-                    $count,
-                    $creative?->image_url
-                );
-            } catch (Throwable $milestoneEx) {
-                Log::error('[IntroducedPeerService] Failed triggering milestone WhatsApp notification: '.$milestoneEx->getMessage(), [
-                    'user_id' => $user->id,
-                    'introduced_id' => $introducedUser->id,
-                    'count' => $count,
-                    'exception' => $milestoneEx,
-                ]);
+                    // Native Meta WhatsApp Cloud API Award Recognition
+                    app(AwardRecognitionWhatsappService::class)->handleGrowthAward(
+                        $user,
+                        $count,
+                        $creative?->image_url
+                    );
+                } catch (Throwable $milestoneEx) {
+                    Log::error('[IntroducedPeerService] Failed triggering milestone WhatsApp notification: '.$milestoneEx->getMessage(), [
+                        'user_id' => $user->id,
+                        'introduced_id' => $introducedUser->id,
+                        'count' => $count,
+                        'exception' => $milestoneEx,
+                    ]);
+                }
             }
         }
 

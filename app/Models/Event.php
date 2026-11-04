@@ -31,6 +31,7 @@ class Event extends Model
         'agenda',
         'speakers',
         'banner_url',
+        'status',
         'visibility',
         'is_paid',
         'metadata',
