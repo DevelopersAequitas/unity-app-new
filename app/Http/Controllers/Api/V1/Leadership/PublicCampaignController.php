@@ -110,20 +110,24 @@ class PublicCampaignController extends LeadershipBaseController
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
         $user = User::query()
+            ->withTrashed()
             ->with('city')
             ->where(function ($q) use ($email, $phone, $last10): void {
                 $hasCondition = false;
 
                 if (! empty($email)) {
-                    $q->whereRaw('LOWER(email) = ?', [$email]);
+                    $q->whereRaw('TRIM(LOWER(email)) = ?', [$email]);
                     $hasCondition = true;
                 }
 
                 if (! empty($phone)) {
                     $phoneClosure = function ($sub) use ($phone, $last10): void {
-                        $sub->where('phone', $phone);
+                        $sub->where('phone', $phone)
+                            ->orWhereRaw('TRIM(phone) = ?', [$phone]);
+
                         if (! empty($last10)) {
-                            $sub->orWhere('phone', 'like', '%'.$last10);
+                            $sub->orWhere('phone', 'like', '%'.$last10)
+                                ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?", ['%'.$last10]);
                         }
                     };
 
@@ -134,6 +138,7 @@ class PublicCampaignController extends LeadershipBaseController
                     }
                 }
             })
+            ->orderByRaw('deleted_at IS NULL DESC')
             ->first();
 
         if (! $user) {
