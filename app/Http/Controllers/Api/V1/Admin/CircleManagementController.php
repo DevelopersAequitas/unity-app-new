@@ -236,6 +236,12 @@ class CircleManagementController extends BaseApiController
             data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
             data_set($calendar, 'start_time', $normalizedRepeat['start_time']);
             data_set($calendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($calendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
+            data_set($calendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
+            data_set($calendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
+            data_set($calendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
+            data_set($calendar, 'start_time_local', $normalizedRepeat['start_time_local']);
+            data_set($calendar, 'end_time_local', $normalizedRepeat['end_time_local']);
             data_set($calendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->filled('meeting_venue')) {
@@ -269,30 +275,6 @@ class CircleManagementController extends BaseApiController
         data_set($calendar, 'leadership.membership_growth_committee_chair_user_id', $validated['vice_chair_user_id'] ?? null);
         data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id'] ?? null);
         $circle->calendar = $calendar;
-
-        // Auto-resolve DED if not explicitly set
-        if (empty($circle->ded_user_id)) {
-            $approvalService = app(BuildYourOwnCircleApprovalService::class);
-            $dedId = $approvalService->resolveDedForLocation($circle->city, $circle->city_id);
-            if ($dedId) {
-                $circle->ded_user_id = $dedId;
-                data_set($calendar, 'leadership.ded_user_id', $dedId);
-                $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
-            }
-        }
-
-        // Auto-resolve Industry Director if not explicitly set
-        if (empty($circle->industry_director_user_id)) {
-            $approvalService = app(BuildYourOwnCircleApprovalService::class);
-            $firstCatId = ! empty($validated['categories'][0]) ? (int) $validated['categories'][0] : null;
-            $idUserId = $approvalService->resolveIndustryDirector($firstCatId, $circle->name);
-            if ($idUserId) {
-                $circle->industry_director_user_id = $idUserId;
-                data_set($calendar, 'leadership.industry_director_user_id', $idUserId);
-                $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
-            }
-        }
-
         $circle->save();
 
         if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
@@ -327,30 +309,10 @@ class CircleManagementController extends BaseApiController
                 $updated = true;
             }
 
-            if (empty($circle->ded_user_id)) {
-                $dedId = $approvalService->resolveDedForLocation($circle->cityRef?->name ?? $circle->city, $circle->city_id);
-                if ($dedId) {
-                    $circle->ded_user_id = $dedId;
-                    $approvalService->addLeaderMember($circle->id, $dedId, 'ded');
-                    $updated = true;
-                }
-            }
-
-            if (empty($circle->industry_director_user_id)) {
-                $idUserId = $approvalService->resolveIndustryDirector($linkedRequest->category_id, $circle->name);
-                if ($idUserId) {
-                    $circle->industry_director_user_id = $idUserId;
-                    $approvalService->addLeaderMember($circle->id, $idUserId, 'industry_director');
-                    $updated = true;
-                }
-            }
-
             if ($updated) {
                 $cal = is_array($circle->calendar) ? $circle->calendar : [];
                 data_set($cal, 'leadership.circle_founder_user_id', $circle->circle_founder_user_id);
                 data_set($cal, 'leadership.founder_user_id', $circle->circle_founder_user_id);
-                data_set($cal, 'leadership.ded_user_id', $circle->ded_user_id);
-                data_set($cal, 'leadership.industry_director_user_id', $circle->industry_director_user_id);
                 $circle->calendar = $cal;
                 $circle->save();
                 Circle::syncLeadershipFromMembers($circle->id);
@@ -551,6 +513,12 @@ class CircleManagementController extends BaseApiController
             data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
             data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time']);
             data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time']);
+            data_set($currentCalendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
+            data_set($currentCalendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
+            data_set($currentCalendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
+            data_set($currentCalendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
+            data_set($currentCalendar, 'start_time_local', $normalizedRepeat['start_time_local']);
+            data_set($currentCalendar, 'end_time_local', $normalizedRepeat['end_time_local']);
             data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency']);
         }
         if ($request->has('meeting_venue')) {

@@ -249,19 +249,33 @@ class SpeedNetworkingAdminController extends Controller
                 if ($u) {
                     $uid = (string) $u->id;
                     $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                    $reg = EventRegistration::where('event_id', $baseEvent->id)->where('user_id', $uid)->first();
+                    $isPaid = $reg ? ($reg->status === 'registered' || $reg->payment_status === 'paid') : ((float) ($baseEvent->ticket_price ?? 0) <= 0);
+                    $status = $isPaid ? ($p->status ?? 'in_call') : 'pending_payment';
                     $participantsMap[$uid] = [
                         'id' => (string) $p->id,
                         'event_id' => $baseEvent->id,
                         'user_id' => $uid,
-                        'status' => $p->status ?? 'in_call',
+                        'status' => $status,
+                        'payment_status' => $isPaid ? 'paid' : 'pending',
+                        'amount' => (float) ($reg?->amount ?? $reg?->payment_amount ?? ($baseEvent->ticket_price ?? 0)),
+                        'can_join' => $isPaid,
                         'user' => [
                             'id' => $uid,
                             'name' => $name,
+                            'email' => (string) ($u->email ?? ''),
+                            'phone' => (string) ($u->phone ?? ''),
                             'company' => (string) ($u->company_name ?? 'Peers Member'),
                             'industry' => (string) ($u->business_sub_category ?? $u->industry ?? ''),
+                            'city' => (string) ($u->city ?? 'Global'),
                             'avatar_url' => $u->profile_photo_url ?? null,
                         ],
+                        'email' => (string) ($u->email ?? ''),
+                        'phone' => (string) ($u->phone ?? ''),
+                        'company' => (string) ($u->company_name ?? 'Peers Member'),
+                        'city' => (string) ($u->city ?? 'Global'),
                         'joined_at' => $p->joined_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                        'registered_at' => $p->joined_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
                     ];
                 }
             }
@@ -275,19 +289,39 @@ class SpeedNetworkingAdminController extends Controller
             if ($u && ! isset($participantsMap[(string) $u->id])) {
                 $uid = (string) $u->id;
                 $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                $isPaid = ($reg->status === 'registered' || $reg->payment_status === 'paid' || (float) ($baseEvent->ticket_price ?? 0) <= 0);
+                $status = $isPaid ? ($reg->checkin_status === 'checked_in' ? 'checked_in' : 'registered') : 'pending_payment';
                 $participantsMap[$uid] = [
                     'id' => (string) $reg->id,
+                    'registration_id' => (string) $reg->id,
                     'event_id' => $baseEvent->id,
                     'user_id' => $uid,
-                    'status' => 'in_call',
+                    'user_name' => $name,
+                    'name' => $name,
+                    'status' => $status,
+                    'registration_status' => $reg->status ?? ($isPaid ? 'registered' : 'pending_payment'),
+                    'payment_status' => $isPaid ? 'paid' : 'pending',
+                    'amount' => (float) ($reg->amount ?? $reg->payment_amount ?? ($baseEvent->ticket_price ?? 0)),
+                    'ticket_price' => (float) ($baseEvent->ticket_price ?? 0),
+                    'can_join' => $isPaid,
+                    'checkin_status' => $reg->checkin_status ?? 'pending',
+                    'checked_in' => $reg->checkin_status === 'checked_in',
                     'user' => [
                         'id' => $uid,
                         'name' => $name,
+                        'email' => (string) ($u->email ?? $reg->visitor_email ?? ''),
+                        'phone' => (string) ($u->phone ?? $reg->visitor_phone ?? ''),
                         'company' => (string) ($u->company_name ?? 'Peers Member'),
                         'industry' => (string) ($u->business_sub_category ?? $u->industry ?? ''),
+                        'city' => (string) ($u->city ?? $reg->visitor_city ?? 'Global'),
                         'avatar_url' => $u->profile_photo_url ?? null,
                     ],
-                    'joined_at' => $reg->created_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                    'email' => (string) ($u->email ?? $reg->visitor_email ?? ''),
+                    'phone' => (string) ($u->phone ?? $reg->visitor_phone ?? ''),
+                    'company' => (string) ($u->company_name ?? 'Peers Member'),
+                    'city' => (string) ($u->city ?? $reg->visitor_city ?? 'Global'),
+                    'joined_at' => ($reg->registered_at ?? $reg->created_at)?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                    'registered_at' => ($reg->registered_at ?? $reg->created_at)?->toIso8601String() ?? Carbon::now()->toIso8601String(),
                 ];
             }
         }
@@ -485,6 +519,13 @@ class SpeedNetworkingAdminController extends Controller
         }
 
         $registrations = EventRegistration::where('event_id', $baseEvent->id)
+            ->where(function ($q) use ($baseEvent) {
+                if (($baseEvent->ticket_price ?? 0) > 0) {
+                    $q->where('status', 'registered')->orWhere('payment_status', 'paid');
+                } else {
+                    $q->where('status', '!=', 'cancelled');
+                }
+            })
             ->with('user')
             ->get();
         foreach ($registrations as $reg) {

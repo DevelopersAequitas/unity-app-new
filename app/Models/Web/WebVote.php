@@ -38,6 +38,7 @@ class WebVote extends Model
         'voter_designation',
         'voter_city',
         'support_reason',
+        'status',
         'created_at',
     ];
 

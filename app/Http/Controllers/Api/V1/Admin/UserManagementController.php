@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\AdminPeerIndexRequest;
 use App\Http\Requests\Admin\AdminPeerUpgradeRequest;
+use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\CircleMember;
 use App\Models\Impact;
+use App\Models\LifeImpactHistory;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
@@ -18,8 +20,12 @@ use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class UserManagementController extends BaseApiController
 {
@@ -96,24 +102,24 @@ class UserManagementController extends BaseApiController
         }
 
         $validated['is_sponsored_member'] = (bool) ($validated['is_sponsored_member'] ?? false);
-        if (!$validated['is_sponsored_member']) {
+        if (! $validated['is_sponsored_member']) {
             $validated['introduced_by'] = null;
         }
 
         $validated['registration_source'] = 'Admin Panel';
-        $validated['password_hash'] = \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32));
+        $validated['password_hash'] = Hash::make(Str::random(32));
         $validated['status'] = 'active';
         $validated['is_active'] = true;
         if (empty($validated['display_name'])) {
-            $validated['display_name'] = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+            $validated['display_name'] = trim(($validated['first_name'] ?? '').' '.($validated['last_name'] ?? ''));
         }
 
         $circleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         unset($validated['active_circle_id'], $validated['circle_id']);
 
-        $user = \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $circleId) {
-            $cols = \Illuminate\Support\Facades\Schema::getColumnListing('users');
-            $user = User::create(\Illuminate\Support\Arr::only($validated, $cols));
+        $user = DB::transaction(function () use ($validated, $circleId) {
+            $cols = Schema::getColumnListing('users');
+            $user = User::create(Arr::only($validated, $cols));
 
             if ($circleId) {
                 CircleMember::create([
@@ -124,6 +130,7 @@ class UserManagementController extends BaseApiController
                     'expires_at' => $validated['circle_expires_at'] ?? null,
                 ]);
             }
+
             return $user;
         });
 
@@ -346,9 +353,93 @@ class UserManagementController extends BaseApiController
         return $this->success(Payment::query()->where('user_id', $id)->latest('created_at')->paginate(20));
     }
 
-    public function impactHistory(string $id): JsonResponse
+    public function coinsHistory(Request $request, string $id): JsonResponse
     {
-        return $this->success(Impact::query()->where('user_id', $id)->latest('created_at')->paginate(20));
+        $user = User::query()->find($id);
+        $perPage = max(1, min((int) $request->query('per_page', 50), 200));
+
+        if (! Schema::hasTable('coins_ledger')) {
+            return $this->success([
+                'user_id' => $id,
+                'coins_balance' => (int) ($user?->coins_balance ?? 0),
+                'items' => [],
+            ]);
+        }
+
+        $paginator = DB::table('coins_ledger')
+            ->where('user_id', $id)
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function ($row): array {
+            $amount = (int) ($row->amount ?? 0);
+            $remark = trim((string) ($row->remark ?? $row->reference ?? ''));
+
+            return [
+                'id' => (string) ($row->transaction_id ?? $row->id ?? ''),
+                'transaction_id' => (string) ($row->transaction_id ?? ''),
+                'user_id' => (string) $row->user_id,
+                'amount' => $amount,
+                'coins_delta' => $amount,
+                'balance_after' => isset($row->balance_after) ? (int) $row->balance_after : null,
+                'change_type' => $amount > 0 ? 'increased' : ($amount < 0 ? 'decreased' : 'unchanged'),
+                'entry_type' => $row->entry_type ?? ($amount >= 0 ? 'CREDIT' : 'DEBIT'),
+                'reference_type' => $row->reference_type ?? null,
+                'reference_id' => $row->reference_id ?? $row->activity_id ?? null,
+                'reference' => $row->reference ?? null,
+                'remark' => $remark,
+                'remarks' => $remark,
+                'reason_label' => $remark !== '' ? $remark : ($row->reference ?? 'Coins Update'),
+                'created_at' => $row->created_at,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'user_id' => $id,
+            'coins_balance' => (int) ($user?->coins_balance ?? 0),
+            'items' => $items,
+            'data' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
+    }
+
+    public function impactHistory(Request $request, string $id): JsonResponse
+    {
+        $user = User::query()->find($id);
+        $perPage = max(1, min((int) $request->query('per_page', 50), 200));
+
+        if (Schema::hasTable('life_impact_histories')) {
+            $paginator = LifeImpactHistory::query()
+                ->where('user_id', $id)
+                ->with([
+                    'user:id,first_name,last_name,display_name,email,life_impacted_count',
+                    'triggeredByUser:id,first_name,last_name,display_name,email,life_impacted_count',
+                ])
+                ->orderByDesc('created_at')
+                ->paginate($perPage);
+
+            $items = LifeImpactHistoryResource::collection($paginator->getCollection())->resolve();
+
+            return $this->success([
+                'user_id' => $id,
+                'total_life_impacted' => (int) ($user?->life_impacted_count ?? 0),
+                'items' => $items,
+                'data' => $items,
+                'pagination' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ]);
+        }
+
+        return $this->success(Impact::query()->where('user_id', $id)->latest('created_at')->paginate($perPage));
     }
 
     public function circleMemberships(string $id): JsonResponse

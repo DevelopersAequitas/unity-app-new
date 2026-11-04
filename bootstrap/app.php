@@ -54,6 +54,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: $trustedProxies);
         $middleware->redirectGuestsTo(fn (Request $request) => route('admin.login'));
         $middleware->validateCsrfTokens(except: [
+            'admin/web/jury/*',
+            'web/jury/*',
             'admin/pending-requests/certifications/*',
             'whatsapp/webhook',
             'v1/whatsapp/webhook',

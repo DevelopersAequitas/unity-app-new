@@ -36,9 +36,13 @@ class ScopeService
             }
         }
 
-        // Fallback: If no explicit scopes assigned, populate from active cities
-        if (Schema::hasTable('cities')) {
+        // Targeted fallback: If no explicit scopes saved yet in table, check campaign settings for participating cities
+        $campaign = LeadershipCampaign::find($campaignId);
+        $campaignCityIds = $campaign?->settings['city_ids'] ?? ($campaign?->settings['participating_cities'] ?? []);
+
+        if (! empty($campaignCityIds) && is_array($campaignCityIds) && Schema::hasTable('cities')) {
             $cities = City::query()
+                ->whereIn('id', $campaignCityIds)
                 ->select(['id', 'name', 'state', 'district'])
                 ->orderBy('name', 'asc')
                 ->get();
@@ -61,6 +65,7 @@ class ScopeService
             });
         }
 
+        // Never dump all global cities from cities table; return empty collection if campaign has no defined scopes
         return new Collection;
     }
 

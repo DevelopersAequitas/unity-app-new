@@ -292,6 +292,11 @@ Route::post('/leadership/form-2/{id}/upload', [LeadershipForm2Controller::class,
 
 Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 
+// Jury Web Portal Direct Root Aliases (support /web/jury and /admin/web/jury)
+Route::redirect('/web/jury/login', '/admin/web/jury/login');
+Route::redirect('/web/jury/dashboard', '/admin/web/jury/dashboard');
+Route::redirect('/web/jury', '/admin/web/jury/login');
+
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::get('/login/methods', [AdminAuthController::class, 'loginMethods'])->name('login.methods');

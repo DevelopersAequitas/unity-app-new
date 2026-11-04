@@ -571,7 +571,7 @@
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
                                 $rowDay = strtolower((string) data_get($meeting, 'day_of_week', ''));
-                                $rowTime = (string) data_get($meeting, 'default_meet_time', '');
+                                $rowTime = (string) (data_get($meeting, 'default_meet_time_local') ?: data_get($meeting, 'default_meet_time', ''));
                             @endphp
 
                             <div class="border rounded-3 p-3 meeting-row mb-3" data-index="{{ $rowIndex }}">

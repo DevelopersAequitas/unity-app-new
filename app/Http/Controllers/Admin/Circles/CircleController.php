@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Circles;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
+use App\Http\Resources\CircleResource;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
@@ -567,10 +568,35 @@ class CircleController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'circle_category_id', 'level2_id', 'level3_id']);
 
+        $categoryPeerCounts = [];
+        $categoryPeerNames = [];
+
+        if ($circleSubCategories->isNotEmpty() && Schema::hasTable('joined_circle_categories')) {
+            $allJoined = DB::table('joined_circle_categories as jcc')
+                ->join('users', 'users.id', '=', 'jcc.user_id')
+                ->where('jcc.circle_id', $circle->id)
+                ->whereNotNull('jcc.level4_category_id')
+                ->select([
+                    'jcc.level4_category_id',
+                    DB::raw("TRIM(COALESCE(NULLIF(users.display_name,''), CONCAT_WS(' ', NULLIF(users.first_name,''), NULLIF(users.last_name,'')), users.email)) as peer_name"),
+                ])
+                ->get();
+
+            foreach ($allJoined as $row) {
+                $lid = $row->level4_category_id;
+                $categoryPeerCounts[$lid] = ($categoryPeerCounts[$lid] ?? 0) + 1;
+                $categoryPeerNames[$lid][] = $row->peer_name ?: '—';
+            }
+        }
+
+        $circleApiData = (new CircleResource($circle))->toArray($request);
+        $leadershipTeamData = data_get($circleApiData, 'circle_leaders') ?: data_get($circleApiData, 'leadership_team', []);
+        $regionalLeadersData = array_filter(data_get($circleApiData, 'regional_leaders', []) ?: []);
+
         return view('admin.circles.show', [
             'circle' => $circle,
             'circleStage' => $circleStage,
-            'allUsers' => $this->allUsers(),
+            'allUsers' => collect(),
             'roles' => Role::query()->orderBy('name')->get(),
             'meetingRows' => $meetingRows,
             'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : config('app.timezone', 'UTC'),
@@ -583,6 +609,10 @@ class CircleController extends Controller
             'showDedId' => $showDed && $showId,
             'circleMainCategories' => $circleMainCategories,
             'circleSubCategories' => $circleSubCategories,
+            'categoryPeerCounts' => $categoryPeerCounts,
+            'categoryPeerNames' => $categoryPeerNames,
+            'leadershipTeamData' => $leadershipTeamData,
+            'regionalLeadersData' => $regionalLeadersData,
         ]);
     }
 

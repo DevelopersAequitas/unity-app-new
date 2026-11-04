@@ -20,6 +20,7 @@ use App\Models\Post;
 use App\Models\PostReport;
 use App\Models\User;
 use App\Models\VisitorRegistration;
+use App\Models\EventRegistration;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
@@ -333,12 +334,109 @@ class AdminOpsController extends BaseApiController
 
     public function eventRegistrations(string $id): JsonResponse
     {
-        return $this->success(DB::table('event_rsvps')->where('event_id', $id)->paginate(50));
+        $occurrenceIds = [];
+        $event = Event::find($id);
+        if ($event) {
+            try {
+                $occurrenceIds = $event->occurrences()->pluck('id')->toArray();
+            } catch (\Throwable) {
+            }
+        }
+
+        $query = EventRegistration::query()
+            ->with(['user', 'occurrence'])
+            ->where(function ($q) use ($id, $occurrenceIds) {
+                $q->where('event_id', $id);
+                if (! empty($occurrenceIds)) {
+                    $q->orWhereIn('occurrence_id', $occurrenceIds);
+                }
+            })
+            ->latest('registered_at')
+            ->latest('created_at');
+
+        $registrations = $query->paginate(max(1, min((int) request('per_page', 100), 200)));
+
+        $transformed = $registrations->through(function ($reg) use ($event, $id) {
+            $u = $reg->user;
+            $name = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name) : null;
+            $name = $name ?: $reg->visitor_name ?: 'Anonymous Peer';
+
+            $amount = (float) ($reg->amount ?? $reg->payment_amount ?? ($event ? $event->ticket_price : 0) ?? 0);
+            $isCheckedIn = ($reg->checkin_status === 'checked_in') || ! empty($reg->checked_in_at);
+
+            return [
+                'id' => (string) $reg->id,
+                'registrationId' => (string) $reg->id,
+                'eventId' => (string) ($reg->event_id ?: $id),
+                'occurrenceId' => (string) ($reg->occurrence_id ?? ''),
+                'userId' => (string) ($reg->user_id ?? ''),
+                'userName' => $name,
+                'name' => $name,
+                'email' => (string) ($u->email ?? $reg->visitor_email ?? ''),
+                'phone' => (string) ($u->phone ?? $reg->visitor_phone ?? ''),
+                'company' => (string) ($u->company_name ?? $reg->visitor_company ?? 'Peers Global Member'),
+                'designation' => (string) ($u->member_title ?? $u->designation ?? $reg->visitor_designation ?? 'Member'),
+                'city' => (string) ($u->city ?? $reg->visitor_city ?? 'Peers Global'),
+                'circle' => (string) ($u->circle?->name ?? 'Global Unity'),
+                'avatarUrl' => $u->profile_photo_url ?? null,
+                'attendeeType' => (string) ($reg->attendee_type ?? ($reg->user_id ? 'member' : 'visitor')),
+                'registrationType' => (string) ($reg->registration_type ?? ($reg->user_id ? 'member' : 'visitor')),
+                'ticketType' => ucfirst((string) ($reg->registration_type ?? $reg->attendee_type ?? 'Member Pass')),
+                'source' => (string) ($reg->source ?? 'app'),
+                'status' => (string) ($reg->status ?? 'registered'),
+                'checkinStatus' => (string) ($reg->checkin_status ?? ($isCheckedIn ? 'checked_in' : 'pending')),
+                'checkedIn' => $isCheckedIn,
+                'checkedInAt' => $reg->checked_in_at?->toIso8601String(),
+                'registeredAt' => ($reg->registered_at ?? $reg->created_at)?->toIso8601String(),
+                'amount' => $amount,
+                'paymentStatus' => (string) ($reg->payment_status ?? ($reg->status === 'registered' ? 'paid' : ($reg->status ?? 'pending'))),
+                'paymentGateway' => (string) ($reg->payment_gateway ?? ($amount > 0 ? 'Razorpay' : 'Free')),
+                'transactionId' => (string) ($reg->razorpay_payment_id ?? $reg->zoho_payment_id ?? $reg->id),
+                'invoiceNumber' => (string) ($reg->invoice_number ?? $reg->zoho_invoice_number ?? ''),
+                'qrToken' => (string) ($reg->qr_token ?? ''),
+                'qrCodeUrl' => (string) ($reg->qr_code_url ?? ''),
+            ];
+        });
+
+        return $this->success($transformed);
     }
 
     public function eventAttendees(string $id): JsonResponse
     {
         return $this->eventRegistrations($id);
+    }
+
+    public function eventAttendeeCheckin(Request $request, string $id, string $attendeeId): JsonResponse
+    {
+        $reg = EventRegistration::where(function ($q) use ($id) {
+            $q->where('event_id', $id)->orWhere('id', $id);
+        })->where(function ($q) use ($attendeeId) {
+            $q->where('id', $attendeeId)->orWhere('user_id', $attendeeId);
+        })->first();
+
+        if (! $reg) {
+            $reg = EventRegistration::where('id', $attendeeId)->orWhere('user_id', $attendeeId)->first();
+        }
+
+        if (! $reg) {
+            return $this->error('Attendee registration not found.', 404);
+        }
+
+        $isCurrentlyCheckedIn = $reg->checkin_status === 'checked_in';
+        $newStatus = $isCurrentlyCheckedIn ? 'pending' : 'checked_in';
+        $reg->checkin_status = $newStatus;
+        $reg->checked_in_at = $newStatus === 'checked_in' ? now() : null;
+        if ($newStatus === 'checked_in') {
+            $reg->checked_in_by_user_id = $request->user()?->id;
+        }
+        $reg->save();
+
+        return $this->success([
+            'id' => (string) $reg->id,
+            'checkinStatus' => $newStatus,
+            'checkedIn' => $newStatus === 'checked_in',
+            'checkedInAt' => $reg->checked_in_at?->toIso8601String(),
+        ], $newStatus === 'checked_in' ? 'Attendee checked in successfully.' : 'Attendee check-in reversed.');
     }
 
     public function eventSpeakerStore(Request $request, string $id): JsonResponse
@@ -379,10 +477,31 @@ class AdminOpsController extends BaseApiController
 
     public function eventPnl(string $id): JsonResponse
     {
-        $rev = (float) DB::table('event_sponsors')->where('event_id', $id)->sum('amount');
+        $ticketRev = (float) EventRegistration::where('event_id', $id)
+            ->where('status', '!=', 'cancelled')
+            ->sum(DB::raw('COALESCE(amount, payment_amount, 0)'));
+        if ($ticketRev <= 0) {
+            $ev = Event::find($id);
+            if ($ev && $ev->ticket_price > 0) {
+                $count = EventRegistration::where('event_id', $id)->where('status', '!=', 'cancelled')->count();
+                $ticketRev = (float) ($ev->ticket_price * $count);
+            }
+        }
+        $sponsorRev = (float) DB::table('event_sponsors')->where('event_id', $id)->sum('amount');
+        $rev = $ticketRev + $sponsorRev;
         $exp = (float) DB::table('event_expenses')->where('event_id', $id)->sum('amount');
 
-        return $this->success(['revenue' => $rev, 'expenses' => $exp, 'net_pnl' => $rev - $exp]);
+        return $this->success([
+            'totalRevenue' => $rev,
+            'totalExpenses' => $exp,
+            'netProfit' => $rev - $exp,
+            'ticketSalesRevenue' => $ticketRev,
+            'sponsorshipRevenue' => $sponsorRev,
+            'profitMarginPercentage' => $rev > 0 ? round((($rev - $exp) / $rev) * 100, 1) : 0,
+            'revenue' => $rev,
+            'expenses' => $exp,
+            'net_pnl' => $rev - $exp,
+        ]);
     }
 
     public function eventApprove(string $id): JsonResponse

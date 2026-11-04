@@ -7,13 +7,14 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\UpdatePostStatusRequest;
 use App\Models\Post;
+use App\Models\PostMention;
+use App\Models\User;
 use App\Services\Admin\AdminPostService;
 use App\Services\Posts\PostDeactivationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PostController extends BaseApiController
@@ -111,7 +112,22 @@ class PostController extends BaseApiController
             });
         }
 
-        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+        if ($request->boolean('all') || $request->query('all') === 'true' || $request->query('per_page') === 'all') {
+            $posts = $query->orderByDesc('created_at')->get();
+            $items = $posts->map(fn (Post $post): array => $this->formatPostItem($post))->values()->all();
+
+            return $this->success([
+                'items' => $items,
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => count($items),
+                    'total' => count($items),
+                ],
+            ]);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 15), 1000));
         $paginator = $query->orderByDesc('created_at')->paginate($perPage);
 
         $items = collect($paginator->items())
@@ -275,84 +291,88 @@ class PostController extends BaseApiController
             || str_contains(strtolower($currentAuthorName), 'peers global');
 
         if ($isRecognition) {
-            $recognizedPeer = null;
-            if (!empty($post->source_id)) {
-                $recognizedPeer = \App\Models\User::find($post->source_id);
-            }
-            if (!$recognizedPeer && !empty($post->id)) {
-                $mention = \App\Models\PostMention::where('post_id', $post->id)->first();
-                if ($mention && $mention->peer_id) {
-                    $recognizedPeer = \App\Models\User::find($mention->peer_id);
+            try {
+                $recognizedPeer = null;
+                if (! empty($post->source_id) && Str::isUuid((string) $post->source_id)) {
+                    $recognizedPeer = User::find($post->source_id);
                 }
-            }
-            if (!$recognizedPeer && !empty($post->tags) && is_array($post->tags)) {
-                foreach ($post->tags as $tag) {
-                    if (Str::isUuid((string) $tag)) {
-                        $recognizedPeer = \App\Models\User::find($tag);
-                        if ($recognizedPeer) break;
+                if (! $recognizedPeer && ! empty($post->id) && Str::isUuid((string) $post->id)) {
+                    $mention = PostMention::where('post_id', $post->id)->first();
+                    if ($mention && $mention->peer_id && Str::isUuid((string) $mention->peer_id)) {
+                        $recognizedPeer = User::find($mention->peer_id);
                     }
                 }
-            }
-            if (!$recognizedPeer && (!empty($post->content_text) || !empty($post->title))) {
-                $text = $post->content_text ?: $post->title;
-                if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
-                    $cName = trim($m[1]);
-                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
-                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
-                        ->orWhere('name', $cName)
-                        ->first();
-                } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
-                    $cName = trim($m[1]);
-                    $recognizedPeer = \App\Models\User::where('display_name', $cName)
-                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
-                        ->orWhere('name', $cName)
-                        ->first();
+                if (! $recognizedPeer && ! empty($post->tags) && is_array($post->tags)) {
+                    foreach ($post->tags as $tag) {
+                        if (Str::isUuid((string) $tag)) {
+                            $recognizedPeer = User::find($tag);
+                            if ($recognizedPeer) {
+                                break;
+                            }
+                        }
+                    }
                 }
-            }
+                if (! $recognizedPeer && (! empty($post->content_text) || ! empty($post->title))) {
+                    $text = $post->content_text ?: $post->title;
+                    if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                        $cName = trim($m[1]);
+                        $recognizedPeer = User::where('display_name', $cName)
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                            ->first();
+                    } elseif (preg_match('/—\s*([^—\n\r!]+)$/u', $post->title ?? '', $m)) {
+                        $cName = trim($m[1]);
+                        $recognizedPeer = User::where('display_name', $cName)
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                            ->first();
+                    }
+                }
 
-            if ($recognizedPeer) {
-                $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '') . ' ' . ($recognizedPeer->last_name ?? ''));
-                $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
-                if (! $peerAvatar && $recognizedPeer->profile_photo_file_id) {
-                    $peerAvatar = url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id);
-                }
-                if ($peerAvatar && !Str::startsWith($peerAvatar, ['http://', 'https://'])) {
-                    $peerAvatar = url(ltrim($peerAvatar, '/'));
-                }
-                $peerCompany = $recognizedPeer->company_name ?: ($recognizedPeer->company ?: 'Aequitas Information Technology Pvt Ltd');
+                if ($recognizedPeer) {
+                    $peerName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
+                    $peerAvatar = $recognizedPeer->profile_photo_url ?: $recognizedPeer->avatar;
+                    if (! $peerAvatar && $recognizedPeer->profile_photo_file_id) {
+                        $peerAvatar = url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id);
+                    }
+                    if ($peerAvatar && ! Str::startsWith($peerAvatar, ['http://', 'https://'])) {
+                        $peerAvatar = url(ltrim($peerAvatar, '/'));
+                    }
+                    $peerCompany = $recognizedPeer->company_name ?: ($recognizedPeer->company ?: 'Aequitas Information Technology Pvt Ltd');
 
-                $data['recognized_user'] = [
-                    'id' => (string) $recognizedPeer->id,
-                    'name' => $peerName,
-                    'display_name' => $peerName,
-                    'avatar' => $peerAvatar,
-                    'profile_photo_url' => $peerAvatar,
-                    'company' => $peerCompany,
-                    'company_name' => $peerCompany,
-                ];
-                $data['user_name'] = $peerName;
-                $data['userName'] = $peerName;
-                $data['author_name'] = $peerName;
-                $data['authorName'] = $peerName;
-                $data['author_avatar'] = $peerAvatar;
-                $data['authorAvatar'] = $peerAvatar;
-                $data['user_avatar'] = $peerAvatar;
-                $data['userAvatar'] = $peerAvatar;
-                $data['author_company'] = $peerCompany;
-                $data['company'] = $peerCompany;
-                $data['user'] = [
-                    'id' => (string) $recognizedPeer->id,
-                    'name' => $peerName,
-                    'display_name' => $peerName,
-                    'first_name' => $recognizedPeer->first_name,
-                    'last_name' => $recognizedPeer->last_name,
-                    'avatar' => $peerAvatar,
-                    'profile_photo_url' => $peerAvatar,
-                    'company' => $peerCompany,
-                    'company_name' => $peerCompany,
-                    'city' => $recognizedPeer->city,
-                    'circle' => $recognizedPeer->circle ? ['id' => (string) $recognizedPeer->circle->id, 'name' => $recognizedPeer->circle->name] : null,
-                ];
+                    $data['recognized_user'] = [
+                        'id' => (string) $recognizedPeer->id,
+                        'name' => $peerName,
+                        'display_name' => $peerName,
+                        'avatar' => $peerAvatar,
+                        'profile_photo_url' => $peerAvatar,
+                        'company' => $peerCompany,
+                        'company_name' => $peerCompany,
+                    ];
+                    $data['user_name'] = $peerName;
+                    $data['userName'] = $peerName;
+                    $data['author_name'] = $peerName;
+                    $data['authorName'] = $peerName;
+                    $data['author_avatar'] = $peerAvatar;
+                    $data['authorAvatar'] = $peerAvatar;
+                    $data['user_avatar'] = $peerAvatar;
+                    $data['userAvatar'] = $peerAvatar;
+                    $data['author_company'] = $peerCompany;
+                    $data['company'] = $peerCompany;
+                    $data['user'] = [
+                        'id' => (string) $recognizedPeer->id,
+                        'name' => $peerName,
+                        'display_name' => $peerName,
+                        'first_name' => $recognizedPeer->first_name,
+                        'last_name' => $recognizedPeer->last_name,
+                        'avatar' => $peerAvatar,
+                        'profile_photo_url' => $peerAvatar,
+                        'company' => $peerCompany,
+                        'company_name' => $peerCompany,
+                        'city' => $recognizedPeer->city,
+                        'circle' => $recognizedPeer->circle ? ['id' => (string) $recognizedPeer->circle->id, 'name' => $recognizedPeer->circle->name] : null,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Prevent recognition peer lookup errors from breaking the posts feed
             }
         }
 
@@ -696,33 +716,90 @@ class PostController extends BaseApiController
     }
 
     /**
-     * Restore a deactivated post.
+     * Preview post restoration / activation (coins & impact points to credit back, current balance, etc.).
      */
-    public function restore(string $id): JsonResponse
+    public function previewRestore(string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->with(['user.circle', 'circle'])->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $service = app(PostDeactivationService::class);
+        $preview = $service->getRestorePreview($post);
+
+        $user = $service->resolveTargetUser($post);
+        $name = (string) ($preview['user_name'] ?? 'Member');
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $first = $parts[0] ?? '';
+        $last = count($parts) > 1 ? end($parts) : '';
+        $initials = strtoupper(mb_substr($first, 0, 1).mb_substr($last, 0, 1));
+        if ($initials === '') {
+            $initials = 'PG';
+        }
+
+        $circleName = $user?->circle?->name ?? $post->circle?->name ?? $user?->company_name ?? 'Community';
+        $content = trim((string) ($post->content_text ?: $post->title ?: ''));
+
+        $preview['user_initials'] = $initials;
+        $preview['user_circle'] = $circleName;
+        $preview['post_date'] = $post->created_at?->format('M d, Y H:i') ?? '';
+        $preview['caption'] = $content !== '' ? $content : 'No caption';
+        $preview['is_already_deactivated'] = $service->isPostAlreadyDeactivated($post);
+
+        return $this->success($preview, 'Post restore preview retrieved successfully.');
+    }
+
+    /**
+     * Restore / activate a deactivated post with coins and life impact re-crediting (+), ledger history entries, and push/in-app notification.
+     */
+    public function restore(Request $request, string $id): JsonResponse
     {
         $post = Post::withTrashed()->find($id);
         if (! $post) {
             return $this->error('Post record not found', 404);
         }
 
-        DB::transaction(function () use ($post): void {
-            if (method_exists($post, 'restore')) {
-                $post->restore();
-            }
+        $validated = $request->validate([
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'restore_coins' => ['nullable'],
+            'restore_impact' => ['nullable'],
+            'notify_user' => ['nullable'],
+            'coins_amount' => ['nullable', 'numeric', 'min:0'],
+            'impact_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
 
-            if (array_key_exists('is_deleted', $post->getAttributes())) {
-                $post->is_deleted = false;
-            }
-            if (array_key_exists('status', $post->getAttributes())) {
-                $post->status = 'active';
-            }
-            $post->save();
-        });
+        $remarks = trim((string) ($validated['remarks'] ?? $validated['notes'] ?? $validated['reason'] ?? ''));
+        if ($remarks === '') {
+            $remarks = 'Deactivated due to a technical issue — now restored and active.';
+        }
 
-        return $this->success([
-            'id' => $post->id,
-            'status' => 'active',
-            'is_deleted' => false,
-        ], 'Post restored successfully.');
+        $restoreCoins = $request->has('restore_coins') ? $request->boolean('restore_coins') : true;
+        $restoreImpact = $request->has('restore_impact') ? $request->boolean('restore_impact') : true;
+        $notifyUser = $request->has('notify_user') ? $request->boolean('notify_user') : true;
+        $customCoins = isset($validated['coins_amount']) && $validated['coins_amount'] !== null ? (int) $validated['coins_amount'] : null;
+        $customImpact = isset($validated['impact_amount']) && $validated['impact_amount'] !== null ? (int) $validated['impact_amount'] : null;
+
+        $adminId = Auth::guard('admin')->id() ?? Auth::id();
+
+        $service = app(PostDeactivationService::class);
+        $result = $service->restorePost(
+            $post,
+            $remarks,
+            $adminId ? (string) $adminId : null,
+            $restoreCoins,
+            $restoreImpact,
+            $notifyUser,
+            $customCoins,
+            $customImpact
+        );
+
+        if (! empty($result['already_restored'])) {
+            return $this->error($result['message'] ?? 'This post is already active.', 400, $result);
+        }
+
+        return $this->success($result, $result['message'] ?? 'Post restored successfully.');
     }
 }

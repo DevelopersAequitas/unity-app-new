@@ -35,6 +35,49 @@ class LeadershipNominationAnswer extends Model
         'answer' => 'array',
     ];
 
+    protected $appends = [
+        'answer_text',
+        'question_label',
+    ];
+
+    public function getAnswerTextAttribute(): ?string
+    {
+        $ans = $this->answer;
+        if (is_array($ans)) {
+            $val = $ans['value'] ?? $ans['text'] ?? null;
+            if ($val !== null) {
+                if (is_bool($val)) {
+                    return $val ? 'true' : 'false';
+                }
+                return is_string($val) ? $val : json_encode($val);
+            }
+            return json_encode($ans);
+        }
+        if (is_bool($ans)) {
+            return $ans ? 'true' : 'false';
+        }
+        return $ans !== null ? (string) $ans : null;
+    }
+
+    public function getQuestionLabelAttribute(): ?string
+    {
+        if ($this->relationLoaded('question') && $this->question?->label) {
+            return $this->question->label;
+        }
+
+        $snapshot = $this->question_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['label'])) {
+            return (string) $snapshot['label'];
+        }
+
+        if (! empty($this->question_key)) {
+            $clean = preg_replace('/^q_/', '', (string) $this->question_key);
+            return ucwords(str_replace('_', ' ', (string) $clean));
+        }
+
+        return null;
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {

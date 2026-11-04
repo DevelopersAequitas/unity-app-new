@@ -961,11 +961,26 @@ class LeaderTeamsService
             $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($c, $peersCount) : '₹0.0';
             $launchDate = $c->launch_date ? (is_string($c->launch_date) ? substr($c->launch_date, 0, 10) : $c->launch_date->format('Y-m-d')) : ($c->created_at ? $c->created_at->format('Y-m-d') : '2026-08-26');
 
+            $logoMeta = $this->resolveCircleLogo($c);
+            $coverMeta = $this->resolveCircleCover($c);
             $imageMeta = $this->resolveCircleImage($c);
+
+            $circleLogo = ! empty($logoMeta['url']) ? [
+                'id' => $logoMeta['id'],
+                'url' => $logoMeta['url'],
+            ] : null;
+
+            $circleCover = $coverMeta && ! empty($coverMeta['url']) ? [
+                'id' => $coverMeta['id'],
+                'url' => $coverMeta['url'],
+            ] : null;
+
             $circleImage = [
                 'id' => $imageMeta['id'],
                 'url' => $imageMeta['url'],
             ];
+
+            $cadence = $this->resolveCircleCadence($c);
 
             return [
                 'id' => (string) $c->id,
@@ -974,8 +989,15 @@ class LeaderTeamsService
                 'location' => $location,
                 'description' => (string) ($c->description ?? ''),
                 'stage' => (string) ($c->stage ?: 'Active Circle'),
-                'meeting_frequency' => (string) ($c->meeting_frequency ?: 'Monthly'),
-                'meeting_mode' => (string) ($c->meeting_mode ?: 'Offline'),
+                'meeting_frequency' => (string) ($cadence['frequency'] ?: 'Monthly'),
+                'meeting_mode' => (string) ($cadence['mode'] ?: 'Offline'),
+                'meeting_day' => $cadence['day'],
+                'meeting_ordinal' => $cadence['ordinal'],
+                'meeting_time' => $cadence['start_time'],
+                'meeting_end_time' => $cadence['end_time'],
+                'cadence_summary' => $cadence['cadence_summary'],
+                'cadence_text' => $cadence['cadence_text'],
+                'cadence' => $cadence,
                 'health_percentage' => $healthPercentage,
                 'peers_count' => $peersCount,
                 'revenue' => $revenue,
@@ -983,6 +1005,11 @@ class LeaderTeamsService
                 'launch_date' => $launchDate,
                 'tags' => array_values($tags),
                 'circle_image' => $circleImage,
+                'circle_image_url' => $circleLogo['url'] ?? $circleImage['url'],
+                'circle_logo' => $circleLogo,
+                'logo_url' => $circleLogo['url'] ?? null,
+                'cover_image' => $circleCover,
+                'cover_image_url' => $circleCover['url'] ?? null,
                 'chairs' => $this->resolveCircleChairs($c),
                 'founders' => $this->resolveCircleFounders($c),
                 'directors' => $this->resolveCircleDirectors($c),
@@ -991,17 +1018,17 @@ class LeaderTeamsService
     }
 
     /**
-     * Resolve circle image object, URL, and collection with fallback to dev/prod default asset.
+     * Resolve circle logo (avatar/icon) object and URL.
      *
-     * @return array{id: string|null, url: string}
+     * @return array{id: string|null, url: string|null}
      */
-    public function resolveCircleImage(Circle $circle): array
+    public function resolveCircleLogo(Circle $circle): array
     {
         $fileId = $circle->circle_image_file_id
             ?? $circle->calendarGet('circle_image.file_id')
             ?? $circle->calendarGet('circle_image_file_id')
-            ?? $circle->cover_file_id
-            ?? $circle->calendarGet('cover.file_id');
+            ?? $circle->calendarGet('logo.file_id')
+            ?? $circle->calendarGet('logo_file_id');
 
         $imageUrl = null;
 
@@ -1009,16 +1036,46 @@ class LeaderTeamsService
             $imageUrl = url('/api/v1/files/'.$fileId);
         } else {
             $imageUrl = $circle->circle_image_url
-                ?? $circle->cover_image_url
                 ?? $circle->calendarGet('circle_image.url')
                 ?? $circle->calendarGet('circle_image_url')
+                ?? $circle->calendarGet('logo.url')
+                ?? $circle->calendarGet('logo_url')
                 ?? $circle->calendarGet('image_url');
         }
 
-        if (empty($imageUrl)) {
-            $defaultFileId = '01a0f23b-0472-713a-be9b-652bf3bed62d';
-            $fileId = $defaultFileId;
-            $imageUrl = url('/api/v1/files/'.$defaultFileId);
+        return [
+            'id' => $fileId ? (string) $fileId : null,
+            'url' => $imageUrl ? (string) $imageUrl : null,
+        ];
+    }
+
+    /**
+     * Resolve circle cover / banner image object and URL.
+     *
+     * @return array{id: string|null, url: string|null}|null
+     */
+    public function resolveCircleCover(Circle $circle): ?array
+    {
+        $fileId = $circle->cover_file_id
+            ?? $circle->calendarGet('cover.file_id')
+            ?? $circle->calendarGet('cover_file_id')
+            ?? $circle->calendarGet('banner.file_id')
+            ?? $circle->calendarGet('banner_file_id');
+
+        $imageUrl = null;
+
+        if ($fileId) {
+            $imageUrl = url('/api/v1/files/'.$fileId);
+        } else {
+            $imageUrl = $circle->cover_image_url
+                ?? $circle->calendarGet('cover.url')
+                ?? $circle->calendarGet('cover_image_url')
+                ?? $circle->calendarGet('banner.url')
+                ?? $circle->calendarGet('banner_image_url');
+        }
+
+        if (! $fileId && ! $imageUrl) {
+            return null;
         }
 
         return [
@@ -1028,10 +1085,134 @@ class LeaderTeamsService
     }
 
     /**
+     * Resolve circle image object, URL, and collection with fallback to dev/prod default asset.
+     *
+     * @return array{id: string|null, url: string}
+     */
+    public function resolveCircleImage(Circle $circle): array
+    {
+        $logo = $this->resolveCircleLogo($circle);
+        if (! empty($logo['url'])) {
+            return [
+                'id' => $logo['id'],
+                'url' => $logo['url'],
+            ];
+        }
+
+        $cover = $this->resolveCircleCover($circle);
+        if ($cover && ! empty($cover['url'])) {
+            return [
+                'id' => $cover['id'],
+                'url' => $cover['url'],
+            ];
+        }
+
+        $defaultFileId = '01a0f23b-0472-713a-be9b-652bf3bed62d';
+
+        return [
+            'id' => $defaultFileId,
+            'url' => url('/api/v1/files/'.$defaultFileId),
+        ];
+    }
+
+    /**
      * Get detailed circle information with rich metadata and full leadership team.
      *
      * @return array<string, mixed>|null
      */
+    /**
+     * Resolve circle meeting cadence, recurring rule, timing, and upcoming conclave.
+     *
+     * @return array<string, mixed>
+     */
+    public function resolveCircleCadence(Circle $circle): array
+    {
+        $repeat = $circle->meeting_repeat;
+        if (! is_array($repeat) || empty($repeat)) {
+            $repeat = $circle->calendarGet('settings.meeting_repeat');
+        }
+        if (! is_array($repeat) || empty($repeat)) {
+            $firstSchedule = $circle->calendarGet('meeting_schedule.0') ?? $circle->calendarGet('meetings.0');
+            if (is_array($firstSchedule)) {
+                $repeat = $firstSchedule;
+            }
+        }
+
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+        $normalized = (is_array($repeat) && ! empty($repeat))
+            ? Circle::normalizeCadencePayload($repeat, $calendar)
+            : [];
+
+        $frequency = (string) ($normalized['frequency'] ?? $circle->meeting_frequency ?? 'monthly');
+        $mode = (string) ($circle->meeting_mode ?? data_get($calendar, 'settings.meeting_mode') ?? 'offline');
+        $weekdayRaw = (string) ($normalized['weekday'] ?? data_get($calendar, 'default_meet_day') ?? 'tuesday');
+        $weekday = ucfirst(strtolower($weekdayRaw));
+        $ordinal = (string) ($normalized['ordinal_text'] ?? '1st');
+        $weekOfMonth = (string) ($normalized['week_of_month'] ?? 'week_1');
+
+        $startTime = (string) ($normalized['start_time_local'] ?? $normalized['time_local'] ?? data_get($calendar, 'settings.start_time') ?? '02:00');
+        $endTime = (string) ($normalized['end_time_local'] ?? data_get($calendar, 'settings.end_time') ?? '03:00');
+        $venue = (string) ($circle->meeting_venue ?? data_get($calendar, 'settings.meeting_venue') ?? data_get($calendar, 'settings.meeting_address') ?? '');
+        $link = (string) ($circle->meeting_link ?? data_get($calendar, 'settings.meeting_link') ?? '');
+
+        $formatTime12 = function (?string $t): string {
+            if (! $t) return '';
+            $tClean = trim($t);
+            if (preg_match('/^(\d{1,2}):(\d{2})/', $tClean, $m)) {
+                $h = (int) $m[1];
+                $min = $m[2];
+                $ampm = $h >= 12 ? 'PM' : 'AM';
+                $h12 = $h % 12 === 0 ? 12 : $h % 12;
+                return sprintf('%02d:%s %s', $h12, $min, $ampm);
+            }
+            return $tClean;
+        };
+
+        $start12 = $formatTime12($startTime);
+        $end12 = $formatTime12($endTime);
+        $timeRange = ($start12 && $end12) ? "{$start12} - {$end12}" : ($start12 ?: $startTime);
+
+        $freqTitle = ucfirst(strtolower($frequency));
+        $modeTitle = strtolower($mode) === 'online' ? 'Online' : (strtolower($mode) === 'hybrid' ? 'Hybrid' : 'Offline');
+        $cadenceSummary = "{$ordinal} {$weekday}";
+        $cadenceText = "{$ordinal} {$weekday}";
+        if ($startTime && $endTime) {
+            $cadenceText .= " from {$startTime} to {$endTime}";
+        } elseif ($startTime) {
+            $cadenceText .= " at {$startTime}";
+        }
+        $cadenceText .= " ({$freqTitle} • {$modeTitle})";
+
+        $upcoming = null;
+        try {
+            $upcoming = $circle->calculateUpcomingMeeting();
+        } catch (\Throwable $e) {
+            \Log::warning('leader.teams.upcoming_meeting_calc_failed', ['circle_id' => $circle->id, 'error' => $e->getMessage()]);
+        }
+
+        return [
+            'frequency' => $freqTitle,
+            'mode' => $modeTitle,
+            'day' => $weekday,
+            'weekday' => strtolower($weekday),
+            'ordinal' => $ordinal,
+            'week_of_month' => $weekOfMonth,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'start_time_utc' => (string) ($normalized['start_time_utc'] ?? ''),
+            'end_time_utc' => (string) ($normalized['end_time_utc'] ?? ''),
+            'start_time_formatted' => $start12,
+            'end_time_formatted' => $end12,
+            'time_range' => $timeRange,
+            'venue' => $venue,
+            'link' => $link,
+            'cadence_summary' => $cadenceSummary,
+            'cadence_text' => $cadenceText,
+            'meeting_repeat' => $normalized ?: $repeat,
+            'upcoming_meeting' => $upcoming,
+        ];
+    }
+
     public function getCircleDetails(string $circleId): ?array
     {
         $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user', 'categories', 'circleCategory', 'circleImageFile', 'coverFile'])->first();
@@ -1058,11 +1239,26 @@ class LeaderTeamsService
         $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($circle, $peersCount) : '₹0.0';
         $launchDate = $circle->launch_date ? (is_string($circle->launch_date) ? substr($circle->launch_date, 0, 10) : $circle->launch_date->format('Y-m-d')) : ($circle->created_at ? $circle->created_at->format('Y-m-d') : '2026-01-15');
 
+        $logoMeta = $this->resolveCircleLogo($circle);
+        $coverMeta = $this->resolveCircleCover($circle);
         $imageMeta = $this->resolveCircleImage($circle);
+
+        $circleLogo = ! empty($logoMeta['url']) ? [
+            'id' => $logoMeta['id'],
+            'url' => $logoMeta['url'],
+        ] : null;
+
+        $circleCover = $coverMeta && ! empty($coverMeta['url']) ? [
+            'id' => $coverMeta['id'],
+            'url' => $coverMeta['url'],
+        ] : null;
+
         $circleImage = [
             'id' => $imageMeta['id'],
             'url' => $imageMeta['url'],
         ];
+
+        $cadence = $this->resolveCircleCadence($circle);
 
         return [
             'id' => (string) $circle->id,
@@ -1071,8 +1267,24 @@ class LeaderTeamsService
             'location' => $location,
             'description' => (string) ($circle->description ?? ''),
             'stage' => (string) ($circle->stage ?: 'Active Circle'),
-            'meeting_frequency' => (string) ($circle->meeting_frequency ?: 'Monthly'),
-            'meeting_mode' => (string) ($circle->meeting_mode ?: 'Offline'),
+            'meeting_frequency' => (string) ($cadence['frequency'] ?: 'Monthly'),
+            'meeting_mode' => (string) ($cadence['mode'] ?: 'Offline'),
+            'meeting_day' => $cadence['day'],
+            'meeting_ordinal' => $cadence['ordinal'],
+            'meeting_week_of_month' => $cadence['week_of_month'],
+            'meeting_time' => $cadence['start_time'],
+            'meeting_end_time' => $cadence['end_time'],
+            'meeting_start_time' => $cadence['start_time'],
+            'meeting_time_formatted' => $cadence['start_time_formatted'],
+            'meeting_end_time_formatted' => $cadence['end_time_formatted'],
+            'meeting_time_range' => $cadence['time_range'],
+            'meeting_venue' => $cadence['venue'],
+            'meeting_link' => $cadence['link'],
+            'cadence_text' => $cadence['cadence_text'],
+            'cadence_summary' => $cadence['cadence_summary'],
+            'cadence' => $cadence,
+            'meeting_repeat' => $cadence['meeting_repeat'],
+            'upcoming_meeting' => $cadence['upcoming_meeting'],
             'health_percentage' => $healthPercentage,
             'peers_count' => $peersCount,
             'revenue' => $revenue,
@@ -1080,6 +1292,11 @@ class LeaderTeamsService
             'launch_date' => $launchDate,
             'tags' => array_values($tags),
             'circle_image' => $circleImage,
+            'circle_image_url' => $circleLogo['url'] ?? $circleImage['url'],
+            'circle_logo' => $circleLogo,
+            'logo_url' => $circleLogo['url'] ?? null,
+            'cover_image' => $circleCover,
+            'cover_image_url' => $circleCover['url'] ?? null,
             'chairs' => $this->resolveCircleChairs($circle, true),
             'founders' => $this->resolveCircleFounders($circle),
             'directors' => $this->resolveCircleDirectors($circle),
@@ -1342,6 +1559,8 @@ class LeaderTeamsService
      */
     public function getCircleEvents(string $circleId, ?string $filter = null): array
     {
+        $circle = Circle::query()->where('id', $circleId)->with(['city'])->first();
+
         $query = DB::table('events')
             ->where('circle_id', $circleId)
             ->whereNull('deleted_at');
@@ -1358,11 +1577,7 @@ class LeaderTeamsService
 
         $events = $query->orderByDesc('start_at')->take(50)->get();
 
-        if ($events->isEmpty()) {
-            return [];
-        }
-
-        return $events->map(function ($evt) use ($circleId): array {
+        $mappedEvents = $events->map(function ($evt) use ($circleId): array {
             $start = $evt->start_at ? Carbon::parse($evt->start_at) : now()->addDays(7);
             $isCompleted = $start->isPast();
 
@@ -1378,6 +1593,48 @@ class LeaderTeamsService
                 'attendees_count' => (int) ($evt->registration_limit ?: 25),
             ];
         })->values()->all();
+
+        // Synthesize the upcoming recurring conclave event from circle cadence
+        if ($circle && $filter !== 'completed') {
+            $cadence = $this->resolveCircleCadence($circle);
+            $upcoming = $cadence['upcoming_meeting'] ?? null;
+            if ($upcoming && ! empty($upcoming['date'])) {
+                $upcomingDate = (string) $upcoming['date'];
+                $alreadyExists = collect($mappedEvents)->contains(function ($e) use ($upcomingDate) {
+                    return ($e['date'] ?? '') === $upcomingDate && ($e['status'] ?? '') === 'Upcoming';
+                });
+
+                if (! $alreadyExists) {
+                    $peersCount = CircleMember::query()
+                        ->where('circle_id', $circle->id)
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->count();
+
+                    $timeDisplay = ! empty($upcoming['formatted_time'])
+                        ? (string) $upcoming['formatted_time']
+                        : (string) ($cadence['time_range'] ?: $cadence['start_time_formatted']);
+
+                    $conclaveEvent = [
+                        'id' => 'conclave_'.$circle->id.'_'.str_replace('-', '', $upcomingDate),
+                        'circle_id' => (string) $circle->id,
+                        'title' => ($cadence['frequency'] ?: 'Monthly').' Circle Conclave',
+                        'date' => $upcomingDate,
+                        'time' => $timeDisplay,
+                        'location' => (string) ($cadence['venue'] ?: ($circle->city?->name ?? $circle->location ?? 'Ahmedabad')),
+                        'mode' => strtolower((string) $cadence['mode']) === 'online' ? 'Online' : 'In-Person',
+                        'status' => 'Upcoming',
+                        'attendees_count' => max(15, (int) $peersCount),
+                        'cadence_summary' => $cadence['cadence_summary'],
+                        'cadence_text' => $cadence['cadence_text'],
+                    ];
+
+                    array_unshift($mappedEvents, $conclaveEvent);
+                }
+            }
+        }
+
+        return $mappedEvents;
     }
 
     /**
