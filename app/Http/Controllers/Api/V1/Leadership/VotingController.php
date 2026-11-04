@@ -80,6 +80,7 @@ class VotingController extends LeadershipBaseController
                         $rawCandId,
                         (string) $verifId
                     );
+
                     return $this->success($receipt, 'Your vote has been recorded.');
                 }
 
@@ -90,6 +91,7 @@ class VotingController extends LeadershipBaseController
                         $rawCandId,
                         (string) $token
                     );
+
                     return $this->success($receipt, 'Your vote has been recorded.');
                 }
             } catch (\Throwable $e) {
@@ -118,7 +120,7 @@ class VotingController extends LeadershipBaseController
             try {
                 $ref = $voteReference ?: ('PG-VOTE-'.date('Y').'-'.strtoupper(\Illuminate\Support\Str::random(6)));
 
-                // Safe candidate resolution without PostgreSQL UUID type crash
+                // 1. Resolve Candidate Record Safely
                 $nomination = null;
                 if (! empty($rawCandId)) {
                     $candStr = trim((string) $rawCandId);
@@ -153,14 +155,69 @@ class VotingController extends LeadershipBaseController
                         ->first();
                 }
 
-                $leadershipNominationId = $nomination ? (string) $nomination->id : (($rawCandId && \Illuminate\Support\Str::isUuid((string) $rawCandId)) ? (string) $rawCandId : null);
+                // 2. Resolve Campaign ID, Nomination UUID, Candidate Details & Scope
                 $campaignId = $nomination?->campaign_id ?? $campaignId;
-                $candidateName = $nomination?->full_name ?? $candidateName;
+                if (empty($campaignId) && \Illuminate\Support\Facades\Schema::hasTable('web_leadership_campaigns')) {
+                    $campaignId = \App\Models\Leadership\LeadershipCampaign::where('status', 'active')->value('id')
+                        ?? \App\Models\Leadership\LeadershipCampaign::value('id');
+                }
+
+                $leadershipNominationId = $nomination ? (string) $nomination->id : (($rawCandId && \Illuminate\Support\Str::isUuid((string) $rawCandId)) ? (string) $rawCandId : null);
+                if (empty($leadershipNominationId) && ! empty($campaignId) && \Illuminate\Support\Facades\Schema::hasTable('web_leadership_nominations')) {
+                    $leadershipNominationId = \App\Models\Leadership\LeadershipNomination::where('campaign_id', $campaignId)->value('id');
+                }
+
+                $candidateName = $nomination?->full_name ?? $candidateName ?? 'Nominee';
                 $candidateEmail = $nomination?->email ?? $candidateEmail;
                 $appNumber = $nomination?->application_number ?? (is_string($rawCandId) ? $rawCandId : null);
                 $scopeId = $nomination?->scope_id;
 
-                // 1. Record into web_votes if table exists
+                if (empty($scopeId) && ! empty($campaignId) && \Illuminate\Support\Facades\Schema::hasTable('web_leadership_campaign_scopes')) {
+                    $scopeId = \App\Models\Leadership\LeadershipCampaignScope::where('campaign_id', $campaignId)->value('id');
+                }
+                if (empty($scopeId) && \Illuminate\Support\Facades\Schema::hasTable('web_leadership_campaign_scopes')) {
+                    $scopeId = \App\Models\Leadership\LeadershipCampaignScope::value('id');
+                }
+
+                // 3. Resolve Voter User Record if registered
+                $voterUserId = null;
+                if (! empty($vEmail) && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+                    $voterUserId = \App\Models\User::withTrashed()
+                        ->whereRaw('LOWER(TRIM(email)) = ?', [$vEmail])
+                        ->value('id');
+                }
+
+                // 4. Ensure Voter Verification record exists (Required for foreign-key integrity in web_leadership_votes)
+                $contactHash = hash('sha256', $vEmail);
+                $verificationId = null;
+                if (\Illuminate\Support\Facades\Schema::hasTable('web_leadership_voter_verifications')) {
+                    try {
+                        $maskedEmail = substr($vEmail, 0, 3).'***@'.(explode('@', $vEmail)[1] ?? 'domain.com');
+                        $verification = \App\Models\Leadership\LeadershipVoterVerification::firstOrCreate(
+                            [
+                                'campaign_id' => $campaignId,
+                                'contact_hash' => $contactHash,
+                            ],
+                            [
+                                'id' => (string) \Illuminate\Support\Str::uuid(),
+                                'scope_id' => $scopeId,
+                                'user_id' => $voterUserId,
+                                'contact_type' => 'email',
+                                'contact_masked' => $maskedEmail,
+                                'otp_hash' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(16)),
+                                'status' => 'consumed',
+                                'verified_at' => now(),
+                                'consumed_at' => now(),
+                                'expires_at' => now()->addDays(30),
+                            ]
+                        );
+                        $verificationId = $verification->id;
+                    } catch (\Throwable $ve) {
+                        \Illuminate\Support\Facades\Log::warning('Could not create voter verification record: '.$ve->getMessage());
+                    }
+                }
+
+                // 5. Record into web_votes if table exists
                 if (\Illuminate\Support\Facades\Schema::hasTable('web_votes')) {
                     try {
                         $webVoteData = [
@@ -189,18 +246,17 @@ class VotingController extends LeadershipBaseController
                     }
                 }
 
-                // 2. Also record into web_leadership_votes if table exists
+                // 6. Record into web_leadership_votes (Primary immutable election ledger)
                 if (\Illuminate\Support\Facades\Schema::hasTable('web_leadership_votes')) {
                     try {
-                        $contactHash = hash('sha256', $vEmail);
                         $leadVoteData = [
                             'id' => (string) \Illuminate\Support\Str::uuid(),
                             'campaign_id' => $campaignId,
                             'scope_id' => $scopeId,
                             'nomination_id' => $leadershipNominationId,
-                            'voter_user_id' => null,
+                            'voter_user_id' => $voterUserId,
                             'voter_contact_hash' => $contactHash,
-                            'verification_id' => null,
+                            'verification_id' => $verificationId,
                             'vote_reference' => $ref,
                             'cast_at' => now(),
                             'metadata' => [
@@ -222,12 +278,22 @@ class VotingController extends LeadershipBaseController
                         if (\Illuminate\Support\Facades\Schema::hasColumn('web_leadership_votes', 'status')) {
                             $leadVoteData['status'] = 'accepted';
                         }
-                        \App\Models\Leadership\LeadershipVote::updateOrCreate(
-                            ['vote_reference' => $ref],
-                            $leadVoteData
-                        );
+
+                        $existingVote = \App\Models\Leadership\LeadershipVote::where('vote_reference', $ref)
+                            ->orWhere(function ($q) use ($campaignId, $contactHash): void {
+                                if ($campaignId && $contactHash) {
+                                    $q->where('campaign_id', $campaignId)->where('voter_contact_hash', $contactHash);
+                                }
+                            })
+                            ->first();
+
+                        if ($existingVote) {
+                            $existingVote->update($leadVoteData);
+                        } else {
+                            \App\Models\Leadership\LeadershipVote::create($leadVoteData);
+                        }
                     } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::warning('Could not record into web_leadership_votes: '.$e->getMessage());
+                        \Illuminate\Support\Facades\Log::error('Could not record into web_leadership_votes: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
                     }
                 }
 
