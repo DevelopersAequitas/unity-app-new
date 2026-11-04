@@ -393,7 +393,7 @@ class VotingService
         $candidatesQuery = LeadershipNomination::query()
             ->with(['scope', 'campaign.role'])
             ->where('campaign_id', $campaignId)
-            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected'])
+            ->whereNotIn('status', ['rejected', 'withdrawn'])
             ->withCount([
                 'votes' => function ($q) use ($scopeId): void {
                     if ($scopeId) {

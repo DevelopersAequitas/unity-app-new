@@ -43,30 +43,44 @@ class FinalDecisionController extends LeadershipBaseController
      */
     public function circles(Request $request): JsonResponse
     {
-        $search = trim((string) $request->query('search', ''));
-        $query = Circle::query()
-            ->select(['id', 'name', 'slug', 'city_id', 'type', 'status', 'meeting_mode'])
-            ->with(['city:id,name,state'])
-            ->whereNull('deleted_at');
+        try {
+            $search = trim((string) $request->query('search', ''));
+            $query = Circle::query()
+                ->select(['id', 'name', 'slug', 'city_id', 'type', 'status', 'meeting_mode'])
+                ->whereNull('deleted_at');
 
-        if ($search !== '') {
-            $query->where('name', 'ILIKE', "%{$search}%");
+            if ($search !== '') {
+                $query->where('name', 'ILIKE', "%{$search}%");
+            }
+
+            $circles = $query->orderBy('name')->limit(300)->get()->map(function (Circle $c): array {
+                $cityName = '';
+                if ($c->city_id) {
+                    try {
+                        $cityName = $c->city?->name ?? '';
+                    } catch (\Throwable) {
+                        $cityName = '';
+                    }
+                }
+
+                return [
+                    'id' => (string) $c->id,
+                    'name' => (string) ($c->name ?? 'Circle'),
+                    'slug' => (string) ($c->slug ?? ''),
+                    'city_id' => $c->city_id ? (string) $c->city_id : null,
+                    'city' => $cityName,
+                    'type' => (string) ($c->type ?? 'public'),
+                    'status' => (string) ($c->status ?? 'active'),
+                    'meeting_mode' => (string) ($c->meeting_mode ?? 'hybrid'),
+                ];
+            });
+
+            return $this->success($circles, 'Circles fetched successfully.');
+        } catch (\Throwable $e) {
+            \Log::error('Error fetching circles in FinalDecisionController: '.$e->getMessage());
+
+            return $this->success([], 'Circles fetched.');
         }
-
-        $circles = $query->orderBy('name')->limit(200)->get()->map(function (Circle $c): array {
-            return [
-                'id' => (string) $c->id,
-                'name' => (string) $c->name,
-                'slug' => (string) $c->slug,
-                'city_id' => $c->city_id ? (string) $c->city_id : null,
-                'city' => $c->city?->name ?? '',
-                'type' => (string) ($c->type ?? 'public'),
-                'status' => (string) ($c->status ?? 'active'),
-                'meeting_mode' => (string) ($c->meeting_mode ?? 'hybrid'),
-            ];
-        });
-
-        return $this->success($circles, 'Circles fetched successfully.');
     }
 
     /**

@@ -35,6 +35,7 @@ class LeadershipVote extends Model
         'vote_reference',
         'cast_at',
         'metadata',
+        'status',
     ];
 
     protected $casts = [

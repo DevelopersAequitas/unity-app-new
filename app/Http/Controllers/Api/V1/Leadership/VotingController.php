@@ -163,22 +163,26 @@ class VotingController extends LeadershipBaseController
                 // 1. Record into web_votes if table exists
                 if (\Illuminate\Support\Facades\Schema::hasTable('web_votes')) {
                     try {
+                        $webVoteData = [
+                            'campaign_id' => $campaignId,
+                            'nomination_id' => $leadershipNominationId ?? $rawCandId,
+                            'candidate_name' => $candidateName,
+                            'candidate_email' => $candidateEmail,
+                            'voter_name' => $vName,
+                            'voter_email' => $vEmail,
+                            'voter_phone' => $vPhone,
+                            'voter_city' => $vCity,
+                            'voter_company' => $vCompany,
+                            'voter_designation' => $vDesignation,
+                            'support_reason' => $supportReason,
+                            'created_at' => now(),
+                        ];
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('web_votes', 'status')) {
+                            $webVoteData['status'] = 'accepted';
+                        }
                         \App\Models\Web\WebVote::updateOrCreate(
                             ['vote_reference' => $ref],
-                            [
-                                'campaign_id' => $campaignId,
-                                'nomination_id' => $leadershipNominationId ?? $rawCandId,
-                                'candidate_name' => $candidateName,
-                                'candidate_email' => $candidateEmail,
-                                'voter_name' => $vName,
-                                'voter_email' => $vEmail,
-                                'voter_phone' => $vPhone,
-                                'voter_city' => $vCity,
-                                'voter_company' => $vCompany,
-                                'voter_designation' => $vDesignation,
-                                'support_reason' => $supportReason,
-                                'created_at' => now(),
-                            ]
+                            $webVoteData
                         );
                     } catch (\Throwable $e) {
                         \Illuminate\Support\Facades\Log::warning('Could not record into web_votes: '.$e->getMessage());
@@ -189,33 +193,38 @@ class VotingController extends LeadershipBaseController
                 if (\Illuminate\Support\Facades\Schema::hasTable('web_leadership_votes')) {
                     try {
                         $contactHash = hash('sha256', $vEmail);
+                        $leadVoteData = [
+                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                            'campaign_id' => $campaignId,
+                            'scope_id' => $scopeId,
+                            'nomination_id' => $leadershipNominationId,
+                            'voter_user_id' => null,
+                            'voter_contact_hash' => $contactHash,
+                            'verification_id' => null,
+                            'vote_reference' => $ref,
+                            'cast_at' => now(),
+                            'metadata' => [
+                                'voter_name' => $vName,
+                                'voter_email' => $vEmail,
+                                'voter_phone' => $vPhone,
+                                'voter_city' => $vCity,
+                                'voter_company' => $vCompany,
+                                'voter_designation' => $vDesignation,
+                                'support_reason' => $supportReason,
+                                'candidate_name' => $candidateName,
+                                'candidate_email' => $candidateEmail,
+                                'application_number' => $appNumber,
+                                'nomination_reference' => $rawCandId,
+                                'channel' => 'Website',
+                                'status' => 'accepted',
+                            ],
+                        ];
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('web_leadership_votes', 'status')) {
+                            $leadVoteData['status'] = 'accepted';
+                        }
                         \App\Models\Leadership\LeadershipVote::updateOrCreate(
                             ['vote_reference' => $ref],
-                            [
-                                'id' => (string) \Illuminate\Support\Str::uuid(),
-                                'campaign_id' => $campaignId,
-                                'scope_id' => $scopeId,
-                                'nomination_id' => $leadershipNominationId,
-                                'voter_user_id' => null,
-                                'voter_contact_hash' => $contactHash,
-                                'verification_id' => null,
-                                'vote_reference' => $ref,
-                                'cast_at' => now(),
-                                'metadata' => [
-                                    'voter_name' => $vName,
-                                    'voter_email' => $vEmail,
-                                    'voter_phone' => $vPhone,
-                                    'voter_city' => $vCity,
-                                    'voter_company' => $vCompany,
-                                    'voter_designation' => $vDesignation,
-                                    'support_reason' => $supportReason,
-                                    'candidate_name' => $candidateName,
-                                    'candidate_email' => $candidateEmail,
-                                    'application_number' => $appNumber,
-                                    'nomination_reference' => $rawCandId,
-                                    'channel' => 'Website Endorsement',
-                                ],
-                            ]
+                            $leadVoteData
                         );
                     } catch (\Throwable $e) {
                         \Illuminate\Support\Facades\Log::warning('Could not record into web_leadership_votes: '.$e->getMessage());
