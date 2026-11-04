@@ -1249,7 +1249,15 @@ class SpeedNetworkingService
 
         if (Schema::hasTable('event_registrations')) {
             try {
-                $regList = EventRegistration::where('event_id', $event->id)->with('user')->get();
+                $regQuery = EventRegistration::where('event_id', $event->id)->with('user');
+                if (($event->ticket_price ?? 0) > 0) {
+                    $regQuery->where(function ($q) {
+                        $q->where('status', 'registered')->orWhere('payment_status', 'paid');
+                    });
+                } else {
+                    $regQuery->where('status', '!=', 'cancelled');
+                }
+                $regList = $regQuery->get();
                 foreach ($regList as $reg) {
                     $u = $reg->user;
                     if ($u && ! isset($participantsMap[(string) $u->id])) {
@@ -2693,11 +2701,15 @@ class SpeedNetworkingService
 
             try {
                 if (Schema::hasTable('event_registrations')) {
-                    $regUserIds = EventRegistration::where('event_id', $event->id)
+                    $regUserQuery = EventRegistration::where('event_id', $event->id)
                         ->where('status', '!=', 'cancelled')
-                        ->whereNull('deleted_at')
-                        ->pluck('user_id')
-                        ->toArray();
+                        ->whereNull('deleted_at');
+                    if (($event->ticket_price ?? 0) > 0) {
+                        $regUserQuery->where(function ($q) {
+                            $q->where('status', 'registered')->orWhere('payment_status', 'paid');
+                        });
+                    }
+                    $regUserIds = $regUserQuery->pluck('user_id')->toArray();
                     $userIds = array_unique(array_merge($userIds, $regUserIds));
                 }
             } catch (\Throwable) {
