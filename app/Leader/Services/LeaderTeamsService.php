@@ -961,7 +961,20 @@ class LeaderTeamsService
             $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($c, $peersCount) : '₹0.0';
             $launchDate = $c->launch_date ? (is_string($c->launch_date) ? substr($c->launch_date, 0, 10) : $c->launch_date->format('Y-m-d')) : ($c->created_at ? $c->created_at->format('Y-m-d') : '2026-08-26');
 
+            $logoMeta = $this->resolveCircleLogo($c);
+            $coverMeta = $this->resolveCircleCover($c);
             $imageMeta = $this->resolveCircleImage($c);
+
+            $circleLogo = ! empty($logoMeta['url']) ? [
+                'id' => $logoMeta['id'],
+                'url' => $logoMeta['url'],
+            ] : null;
+
+            $circleCover = $coverMeta && ! empty($coverMeta['url']) ? [
+                'id' => $coverMeta['id'],
+                'url' => $coverMeta['url'],
+            ] : null;
+
             $circleImage = [
                 'id' => $imageMeta['id'],
                 'url' => $imageMeta['url'],
@@ -983,11 +996,83 @@ class LeaderTeamsService
                 'launch_date' => $launchDate,
                 'tags' => array_values($tags),
                 'circle_image' => $circleImage,
+                'circle_image_url' => $circleLogo['url'] ?? $circleImage['url'],
+                'circle_logo' => $circleLogo,
+                'logo_url' => $circleLogo['url'] ?? null,
+                'cover_image' => $circleCover,
+                'cover_image_url' => $circleCover['url'] ?? null,
                 'chairs' => $this->resolveCircleChairs($c),
                 'founders' => $this->resolveCircleFounders($c),
                 'directors' => $this->resolveCircleDirectors($c),
             ];
         })->values()->all();
+    }
+
+    /**
+     * Resolve circle logo (avatar/icon) object and URL.
+     *
+     * @return array{id: string|null, url: string|null}
+     */
+    public function resolveCircleLogo(Circle $circle): array
+    {
+        $fileId = $circle->circle_image_file_id
+            ?? $circle->calendarGet('circle_image.file_id')
+            ?? $circle->calendarGet('circle_image_file_id')
+            ?? $circle->calendarGet('logo.file_id')
+            ?? $circle->calendarGet('logo_file_id');
+
+        $imageUrl = null;
+
+        if ($fileId) {
+            $imageUrl = url('/api/v1/files/'.$fileId);
+        } else {
+            $imageUrl = $circle->circle_image_url
+                ?? $circle->calendarGet('circle_image.url')
+                ?? $circle->calendarGet('circle_image_url')
+                ?? $circle->calendarGet('logo.url')
+                ?? $circle->calendarGet('logo_url')
+                ?? $circle->calendarGet('image_url');
+        }
+
+        return [
+            'id' => $fileId ? (string) $fileId : null,
+            'url' => $imageUrl ? (string) $imageUrl : null,
+        ];
+    }
+
+    /**
+     * Resolve circle cover / banner image object and URL.
+     *
+     * @return array{id: string|null, url: string|null}|null
+     */
+    public function resolveCircleCover(Circle $circle): ?array
+    {
+        $fileId = $circle->cover_file_id
+            ?? $circle->calendarGet('cover.file_id')
+            ?? $circle->calendarGet('cover_file_id')
+            ?? $circle->calendarGet('banner.file_id')
+            ?? $circle->calendarGet('banner_file_id');
+
+        $imageUrl = null;
+
+        if ($fileId) {
+            $imageUrl = url('/api/v1/files/'.$fileId);
+        } else {
+            $imageUrl = $circle->cover_image_url
+                ?? $circle->calendarGet('cover.url')
+                ?? $circle->calendarGet('cover_image_url')
+                ?? $circle->calendarGet('banner.url')
+                ?? $circle->calendarGet('banner_image_url');
+        }
+
+        if (! $fileId && ! $imageUrl) {
+            return null;
+        }
+
+        return [
+            'id' => $fileId ? (string) $fileId : null,
+            'url' => (string) $imageUrl,
+        ];
     }
 
     /**
@@ -997,33 +1082,27 @@ class LeaderTeamsService
      */
     public function resolveCircleImage(Circle $circle): array
     {
-        $fileId = $circle->circle_image_file_id
-            ?? $circle->calendarGet('circle_image.file_id')
-            ?? $circle->calendarGet('circle_image_file_id')
-            ?? $circle->cover_file_id
-            ?? $circle->calendarGet('cover.file_id');
-
-        $imageUrl = null;
-
-        if ($fileId) {
-            $imageUrl = url('/api/v1/files/'.$fileId);
-        } else {
-            $imageUrl = $circle->circle_image_url
-                ?? $circle->cover_image_url
-                ?? $circle->calendarGet('circle_image.url')
-                ?? $circle->calendarGet('circle_image_url')
-                ?? $circle->calendarGet('image_url');
+        $logo = $this->resolveCircleLogo($circle);
+        if (! empty($logo['url'])) {
+            return [
+                'id' => $logo['id'],
+                'url' => $logo['url'],
+            ];
         }
 
-        if (empty($imageUrl)) {
-            $defaultFileId = '01a0f23b-0472-713a-be9b-652bf3bed62d';
-            $fileId = $defaultFileId;
-            $imageUrl = url('/api/v1/files/'.$defaultFileId);
+        $cover = $this->resolveCircleCover($circle);
+        if ($cover && ! empty($cover['url'])) {
+            return [
+                'id' => $cover['id'],
+                'url' => $cover['url'],
+            ];
         }
+
+        $defaultFileId = '01a0f23b-0472-713a-be9b-652bf3bed62d';
 
         return [
-            'id' => $fileId ? (string) $fileId : null,
-            'url' => (string) $imageUrl,
+            'id' => $defaultFileId,
+            'url' => url('/api/v1/files/'.$defaultFileId),
         ];
     }
 
@@ -1058,7 +1137,20 @@ class LeaderTeamsService
         $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($circle, $peersCount) : '₹0.0';
         $launchDate = $circle->launch_date ? (is_string($circle->launch_date) ? substr($circle->launch_date, 0, 10) : $circle->launch_date->format('Y-m-d')) : ($circle->created_at ? $circle->created_at->format('Y-m-d') : '2026-01-15');
 
+        $logoMeta = $this->resolveCircleLogo($circle);
+        $coverMeta = $this->resolveCircleCover($circle);
         $imageMeta = $this->resolveCircleImage($circle);
+
+        $circleLogo = ! empty($logoMeta['url']) ? [
+            'id' => $logoMeta['id'],
+            'url' => $logoMeta['url'],
+        ] : null;
+
+        $circleCover = $coverMeta && ! empty($coverMeta['url']) ? [
+            'id' => $coverMeta['id'],
+            'url' => $coverMeta['url'],
+        ] : null;
+
         $circleImage = [
             'id' => $imageMeta['id'],
             'url' => $imageMeta['url'],
@@ -1080,6 +1172,11 @@ class LeaderTeamsService
             'launch_date' => $launchDate,
             'tags' => array_values($tags),
             'circle_image' => $circleImage,
+            'circle_image_url' => $circleLogo['url'] ?? $circleImage['url'],
+            'circle_logo' => $circleLogo,
+            'logo_url' => $circleLogo['url'] ?? null,
+            'cover_image' => $circleCover,
+            'cover_image_url' => $circleCover['url'] ?? null,
             'chairs' => $this->resolveCircleChairs($circle, true),
             'founders' => $this->resolveCircleFounders($circle),
             'directors' => $this->resolveCircleDirectors($circle),
