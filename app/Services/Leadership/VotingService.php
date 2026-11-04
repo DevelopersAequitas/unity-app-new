@@ -194,7 +194,8 @@ class VotingService
                             'created_at' => $now,
                         ]
                     );
-                } catch (\Throwable) {}
+                } catch (\Throwable) {
+                }
             }
 
             // Invalidate the cache token
@@ -285,7 +286,8 @@ class VotingService
                             'created_at' => $now,
                         ]
                     );
-                } catch (\Throwable) {}
+                } catch (\Throwable) {
+                }
             }
 
             return [
@@ -443,7 +445,8 @@ class VotingService
                         $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $cand->id]);
                     }
                     if (! empty($candName)) {
-                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$candName]);
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$candName])
+                            ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$candName.'%']);
                     }
                     if (! empty($candEmail)) {
                         $q->orWhereRaw("LOWER(metadata->>'candidate_email') = ?", [$candEmail]);
@@ -480,7 +483,8 @@ class VotingService
                             ->orWhereRaw('LOWER(nomination_id) = ?', [strtolower($candAppNo)]);
                     }
                     if (! empty($candName)) {
-                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$candName]);
+                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$candName])
+                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$candName.'%']);
                     }
                     if (! empty($candEmail)) {
                         $q->orWhereRaw('LOWER(candidate_email) = ?', [$candEmail]);
@@ -686,7 +690,8 @@ class VotingService
                 }
                 foreach ($candNames as $name) {
                     if (! empty($name)) {
-                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name]);
+                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name])
+                            ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$name.'%']);
                     }
                 }
             });
@@ -732,6 +737,8 @@ class VotingService
                         || ($refApp && strtolower((string) $c->application_number) === strtolower((string) $refApp))
                         || ($refNom && ($c->id === $refNom || strtolower((string) $c->application_number) === strtolower((string) $refNom)))
                         || ($refName && strtolower(trim((string) $c->full_name)) === strtolower(trim((string) $refName)))
+                        || ($refName && str_contains(strtolower(trim((string) $c->full_name)), strtolower(trim((string) $refName))))
+                        || ($refName && str_contains(strtolower(trim((string) $refName)), strtolower(trim((string) $c->full_name))))
                         || ($refEmail && ! empty($c->email) && strtolower(trim((string) $c->email)) === strtolower(trim((string) $refEmail)));
                 });
                 $vName = $lv->voterUser?->name ?? ($meta['voter_name'] ?? null) ?? 'Verified Member';

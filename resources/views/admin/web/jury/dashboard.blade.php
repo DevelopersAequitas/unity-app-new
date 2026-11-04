@@ -704,12 +704,31 @@ function populateCandidateDetails(data, isViewOnly) {
         if (nom.answers && Array.isArray(nom.answers) && nom.answers.length > 0) {
             let qHtml = '';
             nom.answers.forEach((ans, idx) => {
-                const qText = ans.question?.question_text || `Question ${idx + 1}`;
-                const valText = ans.answer_text || (Array.isArray(ans.selected_options) ? ans.selected_options.join(', ') : '—');
+                const qText = ans.question_label || ans.question?.label || ans.question?.question_text || (() => {
+                    const k = ans.question_key || '';
+                    if (!k) return `Question ${idx + 1}`;
+                    const clean = k.replace(/^q_/, '').replace(/_/g, ' ');
+                    return clean.charAt(0).toUpperCase() + clean.slice(1);
+                })();
+
+                let val = ans.answer_text ?? ans.answer_json ?? (ans.answer && typeof ans.answer === 'object' && 'value' in ans.answer ? ans.answer.value : ans.answer);
+                let valHtml = '';
+                if (val === true || val === 'true') {
+                    valHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill"><i class="fa-solid fa-check me-1"></i> Affirmed (Yes)</span>';
+                } else if (val === false || val === 'false') {
+                    valHtml = '<span class="badge bg-light text-muted border px-2 py-0.5 rounded-pill">No</span>';
+                } else if (typeof val === 'string' && val.trim().length > 0) {
+                    valHtml = `<p class="fw-semibold text-dark mb-0 small">${val}</p>`;
+                } else if (val && typeof val === 'object') {
+                    valHtml = `<pre class="bg-white p-2 rounded small text-dark mb-0 border" style="white-space: pre-wrap;">${JSON.stringify(val, null, 2)}</pre>`;
+                } else {
+                    valHtml = '<span class="text-muted fst-italic small">No answer provided</span>';
+                }
+
                 qHtml += `
                     <div class="p-3 bg-light rounded-3 border">
                         <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 4.${idx + 1}: ${qText}</span>
-                        <p class="fw-semibold text-dark mb-0 small">${valText}</p>
+                        ${valHtml}
                     </div>
                 `;
             });

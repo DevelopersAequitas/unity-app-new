@@ -543,9 +543,18 @@ class NominationService
             $answers = $data['answers'] ?? [];
             if (is_array($answers)) {
                 foreach ($answers as $key => $val) {
+                    $question = LeadershipFormQuestion::query()
+                        ->where('question_key', (string) $key)
+                        ->first();
+
                     LeadershipNominationAnswer::create([
                         'nomination_id' => $nomination->id,
+                        'question_id' => $question?->id,
                         'question_key' => (string) $key,
+                        'question_snapshot' => $question ? [
+                            'label' => $question->label,
+                            'field_type' => $question->field_type,
+                        ] : null,
                         'answer' => is_array($val) ? $val : ['value' => $val],
                     ]);
                 }

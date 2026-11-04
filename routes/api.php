@@ -1111,6 +1111,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/events/{id}', [EventAdminController::class, 'destroy'])->whereUuid('id');
             Route::get('/events/{id}/registrations', [AdminOpsController::class, 'eventRegistrations'])->whereUuid('id');
             Route::get('/events/{id}/attendees', [AdminOpsController::class, 'eventAttendees'])->whereUuid('id');
+            Route::match(['patch', 'post'], '/events/{id}/attendees/{attendeeId}/checkin', [AdminOpsController::class, 'eventAttendeeCheckin'])->whereUuid('id');
             Route::post('/events/{id}/speakers', [AdminOpsController::class, 'eventSpeakerStore'])->whereUuid('id');
             Route::put('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerUpdate'])->whereUuid('id');
             Route::delete('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerDelete'])->whereUuid('id');

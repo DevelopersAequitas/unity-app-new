@@ -58,11 +58,7 @@ class CircleMeetingDetailsTest extends TestCase
         $normalized = Circle::normalizeCadencePayload($rawRepeat);
 
         $this->assertSame('13:00', $normalized['start_time']);
-        $this->assertSame('13:00', $normalized['time']);
-        $this->assertSame('13:00', $normalized['default_meet_time']);
         $this->assertSame('15:30', $normalized['end_time']);
-        $this->assertSame('15:30', $normalized['default_meet_end_time']);
-
         $this->assertSame('13:00', $normalized['start_time_utc']);
         $this->assertSame('15:30', $normalized['end_time_utc']);
         $this->assertSame('18:30', $normalized['start_time_local']);
@@ -88,18 +84,20 @@ class CircleMeetingDetailsTest extends TestCase
         $resourceArray = (new CircleResource($circle))->toArray(Request::create('/api/v1/circles'));
 
         $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.start_time'));
-        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.time'));
-        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.default_meet_time'));
         $this->assertSame('15:30', data_get($resourceArray, 'meeting_repeat.end_time'));
-        $this->assertSame('15:30', data_get($resourceArray, 'meeting_repeat.default_meet_end_time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'meeting_repeat.start_time_utc'));
+        $this->assertSame('15:30', data_get($resourceArray, 'meeting_repeat.end_time_utc'));
+        $this->assertSame('18:30', data_get($resourceArray, 'meeting_repeat.start_time_local'));
+        $this->assertSame('21:00', data_get($resourceArray, 'meeting_repeat.end_time_local'));
 
-        $this->assertSame('13:00', data_get($resourceArray, 'calendar.start_time'));
-        $this->assertSame('15:30', data_get($resourceArray, 'calendar.end_time'));
-        $this->assertSame('13:00', data_get($resourceArray, 'calendar.default_meet_time'));
+        // Calendar should not duplicate meeting schedule/flattened times
+        $this->assertNull(data_get($resourceArray, 'calendar.start_time'));
+        $this->assertNull(data_get($resourceArray, 'calendar.end_time'));
+        $this->assertNull(data_get($resourceArray, 'calendar.meeting_schedule'));
+        $this->assertNull(data_get($resourceArray, 'calendar.meetings'));
 
-        $this->assertSame('13:00', data_get($resourceArray, 'upcoming_meeting.time'));
-        $this->assertSame('13:00', data_get($resourceArray, 'upcoming_meeting.start_time'));
-        $this->assertSame('15:30', data_get($resourceArray, 'upcoming_meeting.end_time'));
+        $this->assertSame('13:00', data_get($resourceArray, 'upcoming_meeting.start_time_utc'));
+        $this->assertSame('15:30', data_get($resourceArray, 'upcoming_meeting.end_time_utc'));
         $this->assertSame('18:30', data_get($resourceArray, 'upcoming_meeting.start_time_local'));
         $this->assertSame('21:00', data_get($resourceArray, 'upcoming_meeting.end_time_local'));
     }
