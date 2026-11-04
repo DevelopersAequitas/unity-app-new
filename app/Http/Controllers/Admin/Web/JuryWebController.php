@@ -237,8 +237,24 @@ class JuryWebController extends Controller
             }
 
             // Fetch Form 2 child if exists
-            $form2Child = LeadershipNomination::where('application_number', $nomination->application_number.'-F2')->first();
-            $form2Data = $nomination->form_2_data ?? $form2Child?->profile_snapshot ?? null;
+            $form2Child = LeadershipNomination::where('application_number', $nomination->application_number.'-F2')
+                ->orWhere(function ($q) use ($nomination) {
+                    $q->where('campaign_id', $nomination->campaign_id)
+                        ->where(function ($sub) use ($nomination) {
+                            $sub->where('profile_snapshot->parent_nomination_id', $nomination->id)
+                                ->orWhere('profile_snapshot->parent_application_number', $nomination->application_number);
+                        });
+                })
+                ->latest()
+                ->first();
+
+            $rawF2 = $nomination->form_2_data 
+                ?? $nomination->profile_snapshot['form_2'] 
+                ?? $form2Child?->profile_snapshot['form_2'] 
+                ?? $form2Child?->profile_snapshot 
+                ?? null;
+
+            $form2Data = (is_array($rawF2) && isset($rawF2['form_2'])) ? $rawF2['form_2'] : $rawF2;
 
             $candidateName = $nomination->candidate_name ?: ($nomination->user?->name ?? 'Candidate');
             $companyName = $nomination->company ?: ($nomination->user?->company_name ?: ($nomination->profile_snapshot['company_name'] ?? ($nomination->profile_snapshot['company'] ?? 'Not Specified')));
