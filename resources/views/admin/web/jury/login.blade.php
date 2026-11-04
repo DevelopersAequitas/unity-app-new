@@ -281,12 +281,8 @@ async function handleSendOtp(e) {
             document.getElementById('displayTargetEmail').textContent = email;
             document.getElementById('stepEmail').classList.add('hidden');
             document.getElementById('stepOtp').classList.remove('hidden');
+            clearOtpInputs();
             showSuccess(data.message || 'Verification code sent to your email.');
-            // Focus first digit
-            setTimeout(() => {
-                const first = document.querySelector('.otp-digit[data-index="0"]');
-                if (first) first.focus();
-            }, 100);
         } else {
             showError(data.message || 'Could not find jury assignments for this email.');
         }
@@ -337,6 +333,18 @@ function updateFullOtp() {
     document.getElementById('fullOtp').value = combined;
 }
 
+function clearOtpInputs() {
+    otpInputs.forEach(input => {
+        input.value = '';
+    });
+    const fullOtpEl = document.getElementById('fullOtp');
+    if (fullOtpEl) fullOtpEl.value = '';
+    setTimeout(() => {
+        const first = document.querySelector('.otp-digit[data-index="0"]');
+        if (first) first.focus();
+    }, 50);
+}
+
 // Step 2: Verify OTP
 async function handleVerifyOtp(e) {
     if (e) e.preventDefault();
@@ -377,6 +385,7 @@ async function handleVerifyOtp(e) {
             }, 600);
         } else {
             showError(data.message || 'Invalid or expired verification code.');
+            clearOtpInputs();
         }
     } catch (err) {
         showError('Network error during verification. Please try again.');
@@ -388,11 +397,18 @@ async function handleVerifyOtp(e) {
 
 function backToEmail() {
     clearAlerts();
+    clearOtpInputs();
     document.getElementById('stepOtp').classList.add('hidden');
     document.getElementById('stepEmail').classList.remove('hidden');
+    setTimeout(() => {
+        const emailInput = document.getElementById('jurorEmail');
+        if (emailInput) emailInput.focus();
+    }, 100);
 }
 
 function resendOtp() {
+    clearAlerts();
+    clearOtpInputs();
     handleSendOtp();
 }
 </script>
