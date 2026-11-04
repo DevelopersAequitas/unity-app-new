@@ -1174,14 +1174,25 @@ class LeaderTeamsService
 
         $freqTitle = ucfirst(strtolower($frequency));
         $modeTitle = strtolower($mode) === 'online' ? 'Online' : (strtolower($mode) === 'hybrid' ? 'Hybrid' : 'Offline');
-        $cadenceSummary = "{$ordinal} {$weekday}";
-        $cadenceText = "{$ordinal} {$weekday}";
-        if ($startTime && $endTime) {
-            $cadenceText .= " from {$startTime} to {$endTime}";
-        } elseif ($startTime) {
-            $cadenceText .= " at {$startTime}";
-        }
-        $cadenceText .= " ({$freqTitle} • {$modeTitle})";
+
+        $weekLabel = match (strtolower($weekOfMonth)) {
+            'week_1' => 'Week 1',
+            'week_2' => 'Week 2',
+            'week_3' => 'Week 3',
+            'week_4' => 'Week 4',
+            'week_4_provisional' => 'Week 4 (provisional)',
+            'every_week' => 'Every Week',
+            default => $ordinal ? "{$ordinal} Week" : 'Week 1',
+        };
+
+        $pluralDay = Str::plural($weekday);
+        $timeStr = ($start12 && $end12)
+            ? "From {$start12} To {$end12}"
+            : ($startTime && $endTime ? "From {$startTime} To {$endTime}" : ($start12 ?: $startTime));
+
+        // Matching Web Admin Step 4: "Week 1 • Tuesdays From 02:00 To 03:00 (Monthly • Offline)"
+        $cadenceText = "{$weekLabel} • {$pluralDay} {$timeStr} ({$freqTitle} • {$modeTitle})";
+        $cadenceSummary = "{$ordinal} {$weekday} · {$freqTitle}";
 
         $upcoming = null;
         try {
@@ -1579,18 +1590,36 @@ class LeaderTeamsService
 
         $mappedEvents = $events->map(function ($evt) use ($circleId): array {
             $start = $evt->start_at ? Carbon::parse($evt->start_at) : now()->addDays(7);
+            $end = ! empty($evt->end_at) ? Carbon::parse($evt->end_at) : null;
             $isCompleted = $start->isPast();
+
+            $weekNum = (int) ceil($start->day / 7);
+            $ordinals = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', 5 => '5th'];
+            $ordText = $ordinals[$weekNum] ?? '1st';
+            $dayName = $start->format('l');
+
+            $startFmt = $start->format('h:i A');
+            $endFmt = $end ? $end->format('h:i A') : null;
+            $timeRange = $endFmt ? "{$startFmt} - {$endFmt}" : $startFmt;
+            $cadenceSumm = "{$ordText} {$dayName}";
 
             return [
                 'id' => (string) $evt->id,
                 'circle_id' => (string) ($evt->circle_id ?? $circleId),
                 'title' => (string) ($evt->title ?: 'Chapter Launch Assembly'),
                 'date' => $start->format('Y-m-d'),
-                'time' => $start->format('h:i A'),
+                'time' => $timeRange,
+                'start_time' => $startFmt,
+                'end_time' => $endFmt,
+                'time_range' => $timeRange,
                 'location' => (string) ($evt->location_text ?: ($evt->is_virtual ? 'Zoom Online' : 'Grand Ballroom, Hyatt Regency, Ahmedabad')),
                 'mode' => $evt->is_virtual ? 'Online' : 'In-Person',
                 'status' => $isCompleted ? 'Completed' : 'Upcoming',
                 'attendees_count' => (int) ($evt->registration_limit ?: 25),
+                'cadence_summary' => $cadenceSumm,
+                'cadence_text' => "{$cadenceSumm} from {$timeRange}",
+                'ordinal' => $ordText,
+                'day' => $dayName,
             ];
         })->values()->all();
 
@@ -1620,13 +1649,19 @@ class LeaderTeamsService
                         'circle_id' => (string) $circle->id,
                         'title' => ($cadence['frequency'] ?: 'Monthly').' Circle Conclave',
                         'date' => $upcomingDate,
-                        'time' => $timeDisplay,
+                        'time' => $cadence['time_range'] ?: $timeDisplay,
+                        'start_time' => $cadence['start_time_formatted'] ?: $cadence['start_time'],
+                        'end_time' => $cadence['end_time_formatted'] ?: $cadence['end_time'],
+                        'time_range' => $cadence['time_range'],
                         'location' => (string) ($cadence['venue'] ?: ($circle->city?->name ?? $circle->location ?? 'Ahmedabad')),
                         'mode' => strtolower((string) $cadence['mode']) === 'online' ? 'Online' : 'In-Person',
                         'status' => 'Upcoming',
                         'attendees_count' => max(15, (int) $peersCount),
                         'cadence_summary' => $cadence['cadence_summary'],
                         'cadence_text' => $cadence['cadence_text'],
+                        'frequency' => $cadence['frequency'],
+                        'ordinal' => $cadence['ordinal'],
+                        'day' => $cadence['day'],
                     ];
 
                     array_unshift($mappedEvents, $conclaveEvent);
