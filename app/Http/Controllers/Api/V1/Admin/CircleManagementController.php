@@ -218,31 +218,32 @@ class CircleManagementController extends BaseApiController
         }
 
         $calendar = isset($validated['calendar']) && is_array($validated['calendar']) ? $validated['calendar'] : [];
-        $rawRepeat = $circle->meeting_repeat
+        $rawRepeat = data_get($validated, 'meeting_repeat')
             ?? data_get($validated, 'calendar.settings.meeting_repeat')
-            ?? data_get($validated, 'calendar.meeting_schedule.0');
+            ?? data_get($validated, 'calendar.meeting_schedule.0')
+            ?? $circle->meeting_repeat;
         if (is_array($rawRepeat) && !empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $calendar);
             $circle->meeting_repeat = $normalizedRepeat;
             data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
             data_set($calendar, 'meeting_schedule', [$normalizedRepeat]);
             data_set($calendar, 'meetings', [$normalizedRepeat]);
-            data_set($calendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
-            data_set($calendar, 'week_of_month', $normalizedRepeat['week_of_month']);
-            data_set($calendar, 'week_number', $normalizedRepeat['week_number']);
-            data_set($calendar, 'ordinal', $normalizedRepeat['ordinal']);
-            data_set($calendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
-            data_set($calendar, 'day_of_week', $normalizedRepeat['day_of_week']);
-            data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
-            data_set($calendar, 'start_time', $normalizedRepeat['start_time']);
-            data_set($calendar, 'end_time', $normalizedRepeat['end_time']);
-            data_set($calendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
-            data_set($calendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
-            data_set($calendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
-            data_set($calendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
-            data_set($calendar, 'start_time_local', $normalizedRepeat['start_time_local']);
-            data_set($calendar, 'end_time_local', $normalizedRepeat['end_time_local']);
-            data_set($calendar, 'frequency', $normalizedRepeat['frequency']);
+            data_set($calendar, 'monthly_rule', $normalizedRepeat['monthly_rule'] ?? null);
+            data_set($calendar, 'week_of_month', $normalizedRepeat['week_of_month'] ?? null);
+            data_set($calendar, 'week_number', $normalizedRepeat['week_number'] ?? null);
+            data_set($calendar, 'ordinal', $normalizedRepeat['ordinal'] ?? null);
+            data_set($calendar, 'default_meet_day', $normalizedRepeat['default_meet_day'] ?? null);
+            data_set($calendar, 'day_of_week', $normalizedRepeat['day_of_week'] ?? null);
+            data_set($calendar, 'default_meet_time', $normalizedRepeat['default_meet_time'] ?? null);
+            data_set($calendar, 'start_time', $normalizedRepeat['start_time'] ?? null);
+            data_set($calendar, 'end_time', $normalizedRepeat['end_time'] ?? null);
+            data_set($calendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc'] ?? null);
+            data_set($calendar, 'start_time_utc', $normalizedRepeat['start_time_utc'] ?? null);
+            data_set($calendar, 'end_time_utc', $normalizedRepeat['end_time_utc'] ?? null);
+            data_set($calendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local'] ?? null);
+            data_set($calendar, 'start_time_local', $normalizedRepeat['start_time_local'] ?? null);
+            data_set($calendar, 'end_time_local', $normalizedRepeat['end_time_local'] ?? null);
+            data_set($calendar, 'frequency', $normalizedRepeat['frequency'] ?? null);
         }
         if ($request->filled('meeting_venue')) {
             data_set($calendar, 'settings.meeting_venue', $request->input('meeting_venue'));
@@ -494,9 +495,10 @@ class CircleManagementController extends BaseApiController
         if (isset($validated['calendar']) && is_array($validated['calendar'])) {
             $currentCalendar = array_replace_recursive($currentCalendar, $validated['calendar']);
         }
-        $rawRepeat = $circle->meeting_repeat
+        $rawRepeat = data_get($validated, 'meeting_repeat')
             ?? data_get($validated, 'calendar.settings.meeting_repeat')
             ?? data_get($validated, 'calendar.meeting_schedule.0')
+            ?? $circle->meeting_repeat
             ?? data_get($currentCalendar, 'settings.meeting_repeat');
         if (is_array($rawRepeat) && !empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $currentCalendar);
@@ -504,22 +506,22 @@ class CircleManagementController extends BaseApiController
             data_set($currentCalendar, 'settings.meeting_repeat', $normalizedRepeat);
             data_set($currentCalendar, 'meeting_schedule', [$normalizedRepeat]);
             data_set($currentCalendar, 'meetings', [$normalizedRepeat]);
-            data_set($currentCalendar, 'monthly_rule', $normalizedRepeat['monthly_rule']);
-            data_set($currentCalendar, 'week_of_month', $normalizedRepeat['week_of_month']);
-            data_set($currentCalendar, 'week_number', $normalizedRepeat['week_number']);
-            data_set($currentCalendar, 'ordinal', $normalizedRepeat['ordinal']);
-            data_set($currentCalendar, 'default_meet_day', $normalizedRepeat['default_meet_day']);
-            data_set($currentCalendar, 'day_of_week', $normalizedRepeat['day_of_week']);
-            data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time']);
-            data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time']);
-            data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time']);
-            data_set($currentCalendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc']);
-            data_set($currentCalendar, 'start_time_utc', $normalizedRepeat['start_time_utc']);
-            data_set($currentCalendar, 'end_time_utc', $normalizedRepeat['end_time_utc']);
-            data_set($currentCalendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local']);
-            data_set($currentCalendar, 'start_time_local', $normalizedRepeat['start_time_local']);
-            data_set($currentCalendar, 'end_time_local', $normalizedRepeat['end_time_local']);
-            data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency']);
+            data_set($currentCalendar, 'monthly_rule', $normalizedRepeat['monthly_rule'] ?? null);
+            data_set($currentCalendar, 'week_of_month', $normalizedRepeat['week_of_month'] ?? null);
+            data_set($currentCalendar, 'week_number', $normalizedRepeat['week_number'] ?? null);
+            data_set($currentCalendar, 'ordinal', $normalizedRepeat['ordinal'] ?? null);
+            data_set($currentCalendar, 'default_meet_day', $normalizedRepeat['default_meet_day'] ?? null);
+            data_set($currentCalendar, 'day_of_week', $normalizedRepeat['day_of_week'] ?? null);
+            data_set($currentCalendar, 'default_meet_time', $normalizedRepeat['default_meet_time'] ?? null);
+            data_set($currentCalendar, 'start_time', $normalizedRepeat['start_time'] ?? null);
+            data_set($currentCalendar, 'end_time', $normalizedRepeat['end_time'] ?? null);
+            data_set($currentCalendar, 'default_meet_time_utc', $normalizedRepeat['default_meet_time_utc'] ?? null);
+            data_set($currentCalendar, 'start_time_utc', $normalizedRepeat['start_time_utc'] ?? null);
+            data_set($currentCalendar, 'end_time_utc', $normalizedRepeat['end_time_utc'] ?? null);
+            data_set($currentCalendar, 'default_meet_time_local', $normalizedRepeat['default_meet_time_local'] ?? null);
+            data_set($currentCalendar, 'start_time_local', $normalizedRepeat['start_time_local'] ?? null);
+            data_set($currentCalendar, 'end_time_local', $normalizedRepeat['end_time_local'] ?? null);
+            data_set($currentCalendar, 'frequency', $normalizedRepeat['frequency'] ?? null);
         }
         if ($request->has('meeting_venue')) {
             data_set($currentCalendar, 'settings.meeting_venue', $request->input('meeting_venue'));

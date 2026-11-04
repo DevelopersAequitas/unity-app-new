@@ -536,6 +536,15 @@ class Circle extends Model
             default => 1,
         };
 
+        $weekOfMonth = (string) ($rawRepeat['week_of_month'] ?? match ($weekNum) {
+            1 => 'week_1',
+            2 => 'week_2',
+            3 => 'week_3',
+            4 => 'week_4',
+            5 => 'week_4_provisional',
+            default => 'week_1',
+        });
+
         $ordinalText = match ($weekNum) {
             1 => '1st',
             2 => '2nd',
@@ -575,16 +584,26 @@ class Circle extends Model
         return [
             'frequency' => $frequency,
             'interval' => (int) ($rawRepeat['interval'] ?? $rawRepeat['repeat_every'] ?? 1),
+            'week_of_month' => $weekOfMonth,
             'week_number' => $weekNum,
+            'ordinal' => $weekNum,
             'ordinal_text' => $ordinalText,
             'monthly_rule' => $monthlyRule,
             'weekday' => $weekday,
+            'day_of_week' => $weekday,
+            'default_meet_day' => $weekday,
             'start_time' => $utcTime,
             'end_time' => $utcEndTime,
+            'time' => $utcTime,
+            'default_meet_time' => $utcTime,
             'start_time_utc' => $utcTime,
             'end_time_utc' => $utcEndTime,
+            'default_meet_time_utc' => $utcTime,
             'start_time_local' => $time,
             'end_time_local' => $endTime,
+            'time_local' => $time,
+            'default_meet_time_local' => $time,
+            'default_meet_end_time_local' => $endTime,
             'timezone' => $tz,
         ];
     }
