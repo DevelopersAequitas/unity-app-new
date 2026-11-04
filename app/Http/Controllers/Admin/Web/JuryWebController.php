@@ -155,7 +155,7 @@ class JuryWebController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Logged in successfully.',
-                'redirect_url' => route('admin.web.jury.dashboard'),
+                'redirect_url' => route('admin.web.jury.dashboard', [], false),
             ]);
         }
 

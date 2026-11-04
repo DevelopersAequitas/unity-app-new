@@ -264,8 +264,9 @@ async function handleSendOtp(e) {
     btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> Sending Code...`;
 
     try {
-        const res = await fetch("{{ route('admin.web.jury.send-otp') }}", {
+        const res = await fetch("{{ route('admin.web.jury.send-otp', [], false) }}", {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
@@ -356,8 +357,9 @@ async function handleVerifyOtp(e) {
     btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> Verifying...`;
 
     try {
-        const res = await fetch("{{ route('admin.web.jury.verify-otp') }}", {
+        const res = await fetch("{{ route('admin.web.jury.verify-otp', [], false) }}", {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
@@ -371,7 +373,7 @@ async function handleVerifyOtp(e) {
         if (res.ok && data.success) {
             showSuccess('Verification successful! Redirecting to dashboard...');
             setTimeout(() => {
-                window.location.href = data.redirect_url || "{{ route('admin.web.jury.dashboard') }}";
+                window.location.href = data.redirect_url || "{{ route('admin.web.jury.dashboard', [], false) }}";
             }, 600);
         } else {
             showError(data.message || 'Invalid or expired verification code.');
