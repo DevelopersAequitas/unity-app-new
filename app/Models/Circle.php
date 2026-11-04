@@ -572,41 +572,19 @@ class Circle extends Model
             $frequency = 'weekly';
         }
 
-        $weekOffset = max(0, $weekNum - 1);
-
         return [
-            'repeat_every' => (int) ($rawRepeat['repeat_every'] ?? 1),
-            'interval' => (int) ($rawRepeat['interval'] ?? 1),
-            'unit' => $frequency === 'weekly' ? 'week' : 'month',
             'frequency' => $frequency,
-            'week_of_month' => "week_{$weekNum}",
-            'week_number' => $weekOffset,
-            'week' => $weekOffset,
-            'ordinal' => $weekOffset,
-            'week_offset' => $weekOffset,
-            'week_index' => $weekOffset,
-            'nth_week' => $weekNum,
-            'calendar_week' => $weekNum,
+            'interval' => (int) ($rawRepeat['interval'] ?? $rawRepeat['repeat_every'] ?? 1),
+            'week_number' => $weekNum,
             'ordinal_text' => $ordinalText,
             'monthly_rule' => $monthlyRule,
             'weekday' => $weekday,
-            'day_of_week' => $weekday,
-            'default_meet_day' => $weekday,
             'start_time' => $utcTime,
-            'time' => $utcTime,
-            'default_meet_time' => $utcTime,
             'end_time' => $utcEndTime,
-            'default_meet_end_time' => $utcEndTime,
             'start_time_utc' => $utcTime,
-            'time_utc' => $utcTime,
-            'default_meet_time_utc' => $utcTime,
             'end_time_utc' => $utcEndTime,
-            'default_meet_end_time_utc' => $utcEndTime,
             'start_time_local' => $time,
-            'time_local' => $time,
-            'default_meet_time_local' => $time,
             'end_time_local' => $endTime,
-            'default_meet_end_time_local' => $endTime,
             'timezone' => $tz,
         ];
     }
@@ -636,11 +614,11 @@ class Circle extends Model
 
         $frequency = $normalized['frequency'];
         $weekday = $normalized['weekday'];
-        $localTime = $normalized['time_local'];
+        $localTime = $normalized['start_time_local'];
         $localEndTime = $normalized['end_time_local'];
         $utcStartTime = $normalized['start_time_utc'];
         $utcEndTime = $normalized['end_time_utc'];
-        $weekNum = $normalized['calendar_week'] ?? $normalized['nth_week'] ?? ($normalized['week_number'] + 1);
+        $weekNum = $normalized['week_number'];
         $ordinalText = $normalized['ordinal_text'];
         $monthlyRule = $normalized['monthly_rule'];
 
@@ -670,32 +648,18 @@ class Circle extends Model
 
         return [
             'date' => $candidate->toDateString(),
-            'time' => $utcStartTime,
-            'start_time' => $utcStartTime,
-            'default_meet_time' => $utcStartTime,
-            'end_time' => $utcEndTime,
-            'default_meet_end_time' => $utcEndTime,
-            'time_utc' => $utcStartTime,
-            'start_time_utc' => $utcStartTime,
-            'end_time_utc' => $utcEndTime,
-            'default_meet_time_utc' => $utcStartTime,
-            'default_meet_end_time_utc' => $utcEndTime,
-            'time_local' => $localTime,
-            'start_time_local' => $localTime,
-            'end_time_local' => $localEndTime,
-            'default_meet_time_local' => $localTime,
-            'default_meet_end_time_local' => $localEndTime,
-            'day' => $shortDay,
             'day_name' => $candidate->format('l'),
-            'ordinal' => $ordinalText,
             'week_number' => $weekNum,
-            'week_of_month' => "week_{$weekNum}",
-            'monthly_rule' => $monthlyRule,
+            'ordinal' => $ordinalText,
             'formatted_date' => $candidate->format('j M Y'),
             'formatted_time' => $formattedTime,
             'display' => $display,
             'starts_at' => $candidate->toIso8601String(),
             'starts_at_utc' => $candidate->copy()->utc()->toIso8601ZuluString(),
+            'start_time_local' => $localTime,
+            'end_time_local' => $localEndTime,
+            'start_time_utc' => $utcStartTime,
+            'end_time_utc' => $utcEndTime,
             'timezone' => $tz,
         ];
     }
