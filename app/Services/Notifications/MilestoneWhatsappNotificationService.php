@@ -74,6 +74,15 @@ class MilestoneWhatsappNotificationService
      */
     public function handleMilestoneNotification(User $user, int $introducedCount, ?string $imageUrl = null): bool
     {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[MilestoneWhatsappNotificationService] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $user->id,
+                'introduced_count' => $introducedCount,
+            ]);
+
+            return false;
+        }
+
         try {
             // 1. Only trigger for exact milestone counts
             if (! $this->isExactMilestone($introducedCount)) {

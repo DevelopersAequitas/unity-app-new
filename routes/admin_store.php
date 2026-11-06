@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\Store\AdminStorePolicyController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreProductController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreReportController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreReturnController;
+use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreServiceabilityController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreSupportController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreVariantController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreWalletAdjustmentController;
@@ -56,9 +57,15 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
 
     // Variants & Inventory
     Route::prefix('variants')->group(function () {
+        Route::get('/', [AdminStoreVariantController::class, 'index']);
         Route::put('/{id}', [AdminStoreVariantController::class, 'update'])->whereUuid('id');
         Route::post('/{id}/stock-adjustment', [AdminStoreVariantController::class, 'adjustStock'])->whereUuid('id');
         Route::get('/{id}/inventory', [AdminStoreVariantController::class, 'inventoryHistory'])->whereUuid('id');
+    });
+
+    // Inventory Movements
+    Route::prefix('inventory')->group(function () {
+        Route::get('movements', [AdminStoreVariantController::class, 'allMovements']);
     });
 
     // Orders & Fulfillment
@@ -165,9 +172,33 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
         Route::delete('{id}', [AdminStoreWishlistController::class, 'destroy'])->whereUuid('id');
     });
 
+    // Serviceability, Pickup Points & Banners
+    Route::prefix('serviceability')->group(function () {
+        // Pincodes
+        Route::get('pincodes', [AdminStoreServiceabilityController::class, 'pincodes']);
+        Route::post('pincodes', [AdminStoreServiceabilityController::class, 'storePincode']);
+        Route::post('pincodes/{id}/status', [AdminStoreServiceabilityController::class, 'togglePincode'])->whereUuid('id');
+        Route::delete('pincodes/{id}', [AdminStoreServiceabilityController::class, 'deletePincode'])->whereUuid('id');
+
+        // Pickup Points
+        Route::get('pickup-points', [AdminStoreServiceabilityController::class, 'pickupPoints']);
+        Route::post('pickup-points', [AdminStoreServiceabilityController::class, 'storePickupPoint']);
+        Route::put('pickup-points/{id}', [AdminStoreServiceabilityController::class, 'updatePickupPoint'])->whereUuid('id');
+        Route::post('pickup-points/{id}/status', [AdminStoreServiceabilityController::class, 'togglePickupPoint'])->whereUuid('id');
+        Route::delete('pickup-points/{id}', [AdminStoreServiceabilityController::class, 'deletePickupPoint'])->whereUuid('id');
+
+        // Banners
+        Route::get('banners', [AdminStoreServiceabilityController::class, 'banners']);
+        Route::post('banners', [AdminStoreServiceabilityController::class, 'storeBanner']);
+        Route::put('banners/{id}', [AdminStoreServiceabilityController::class, 'updateBanner'])->whereUuid('id');
+        Route::post('banners/{id}/status', [AdminStoreServiceabilityController::class, 'toggleBanner'])->whereUuid('id');
+        Route::delete('banners/{id}', [AdminStoreServiceabilityController::class, 'deleteBanner'])->whereUuid('id');
+    });
+
     // Reports
     Route::prefix('reports')->group(function () {
         Route::get('sales', [AdminStoreReportController::class, 'sales']);
+        Route::get('coin-economy', [AdminStoreReportController::class, 'coinEconomy']);
         Route::get('coin-redemption', [AdminStoreReportController::class, 'coinRedemption']);
         Route::get('coin-issuance', [AdminStoreReportController::class, 'coinIssuance']);
         Route::get('membership-renewals', [AdminStoreReportController::class, 'membershipRenewals']);

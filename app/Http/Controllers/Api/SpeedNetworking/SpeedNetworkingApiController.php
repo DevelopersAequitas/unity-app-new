@@ -545,13 +545,18 @@ class SpeedNetworkingApiController extends Controller
         // If no event found in speed_networking_events table, search in base events table
         if (! $event && Schema::hasTable('events')) {
             $now = Carbon::now();
-            $candidates = Event::query()
+            $candidatesQuery = Event::query()
                 ->where(function ($q): void {
                     $q->where('event_type', 'speed_networking')
                         ->orWhere('event_type', 'virtual_networking')
                         ->orWhere('metadata->is_speed_networking', true);
-                })
-                ->whereNotIn('status', ['completed', 'ended', 'cancelled', 'canceled'])
+                });
+
+            if (Schema::hasColumn('events', 'status')) {
+                $candidatesQuery->whereNotIn('status', ['completed', 'ended', 'cancelled', 'canceled']);
+            }
+
+            $candidates = $candidatesQuery
                 ->orderBy('start_at', 'asc')
                 ->get();
 

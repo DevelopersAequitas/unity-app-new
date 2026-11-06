@@ -8,6 +8,7 @@ use App\Models\Store\Order;
 use App\Models\Store\Product;
 use App\Models\Store\StoreReturn;
 use App\Models\Store\WalletAdjustmentRequest;
+use App\Models\User;
 
 class StoreAdminReportService
 {
@@ -16,6 +17,7 @@ class StoreAdminReportService
         $today = now()->startOfDay();
 
         $ordersToday = Order::where('created_at', '>=', $today)->count();
+        $totalOrders = Order::count();
         $pendingOrders = Order::whereIn('status', ['PLACED', 'CONFIRMED', 'PROCESSING'])->count();
         $stuckOrders = Order::whereIn('status', ['CONFIRMED', 'PROCESSING'])
             ->where('created_at', '<=', now()->subHours(48))
@@ -26,23 +28,32 @@ class StoreAdminReportService
             ->where('created_at', '>=', $today)
             ->sum('amount'));
 
+        $totalCoinsRedeemed = (int) abs(CoinsLedger::where('amount', '<', 0)
+            ->where('reference_type', 'ORDER')
+            ->sum('amount'));
+
         $coinsIssuedToday = (int) CoinsLedger::where('amount', '>', 0)
             ->where('created_at', '>=', $today)
             ->sum('amount');
 
-        $lowStockProducts = Product::active()->where('track_inventory', true)->where('stock_qty', '<=', 5)->count();
+        $lowStockProducts = Product::where('status', 'ACTIVE')->where('stock_qty', '<=', 5)->count();
         $pendingReturns = StoreReturn::where('status', 'REQUESTED')->count();
         $pendingAdjustments = WalletAdjustmentRequest::where('status', 'PENDING')->count();
+        $activeProducts = Product::where('status', 'ACTIVE')->count();
 
         return [
             'orders_today' => $ordersToday,
+            'total_orders' => $totalOrders,
             'pending_orders' => $pendingOrders,
             'stuck_orders' => $stuckOrders,
             'coins_issued_today' => $coinsIssuedToday,
             'coins_redeemed_today' => $coinsRedeemedToday,
+            'total_coins_redeemed' => $totalCoinsRedeemed,
             'low_stock_products' => $lowStockProducts,
             'pending_returns' => $pendingReturns,
             'pending_wallet_adjustments' => $pendingAdjustments,
+            'active_products' => $activeProducts,
+            'total_revenue_inr' => 0,
         ];
     }
 
@@ -102,6 +113,26 @@ class StoreAdminReportService
             'total_coins_issued' => (int) $query->sum('amount'),
             'earned_issued' => (int) $query->clone()->where('bucket', 'EARNED')->sum('amount'),
             'bonus_issued' => (int) $query->clone()->where('bucket', 'BONUS')->sum('amount'),
+        ];
+    }
+
+    public function getCoinEconomyStats(): array
+    {
+        $totalCoinsInCirculation = (int) User::sum('coins_balance');
+        $totalCoinsEarned = (int) CoinsLedger::where('amount', '>', 0)->sum('amount');
+        $totalCoinsSpentStore = (int) abs(CoinsLedger::where('amount', '<', 0)->where('reference_type', 'ORDER')->sum('amount'));
+        $burnRate = $totalCoinsEarned > 0 ? round(($totalCoinsSpentStore / $totalCoinsEarned) * 100, 1) : 0;
+        $activeWallets = User::where('coins_balance', '>', 0)->count();
+        $totalUsersWithWallet = User::count();
+        $avgBalance = $totalUsersWithWallet > 0 ? (int) round($totalCoinsInCirculation / $totalUsersWithWallet) : 0;
+
+        return [
+            'total_coins_in_circulation' => $totalCoinsInCirculation,
+            'total_coins_earned_all_time' => $totalCoinsEarned,
+            'total_coins_spent_store' => $totalCoinsSpentStore,
+            'burn_rate_percent' => $burnRate,
+            'active_wallet_count' => $activeWallets,
+            'average_wallet_balance' => $avgBalance,
         ];
     }
 

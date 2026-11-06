@@ -66,6 +66,14 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
         ReferralService $referralService,
         IntroducedPeerCreativeGenerator $creativeGenerator
     ): void {
+        if (! (bool) config('services.whatsapp.auto_milestone_awards_enabled', false)) {
+            Log::info('[SendMilestoneConnectorWhatsappJob] Skipped: Automatic milestone WhatsApp notifications are disabled.', [
+                'user_id' => $this->userId,
+            ]);
+
+            return;
+        }
+
         $jobId = $this->job?->getJobId() ?? 'sync';
         $queueName = $this->queue ?: config('queue.connections.'.config('queue.default').'.queue', 'default');
 
