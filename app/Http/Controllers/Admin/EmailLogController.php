@@ -5,12 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\EmailLog;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class EmailLogController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
@@ -19,7 +20,7 @@ class EmailLogController extends Controller
             'status' => ['nullable', 'in:all,sent,failed,pending,queued'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
-            'per_page' => ['nullable', 'integer', 'in:10,20,50,100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));

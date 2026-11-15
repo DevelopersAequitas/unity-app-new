@@ -171,7 +171,7 @@ class NominationService
         $answers = $data['answers'] ?? [];
         $resolvedScopeId = $this->resolveScopeId($campaign->id, $data['scope_id'] ?? null);
 
-        return DB::transaction(function () use ($existingDraft, $campaign, $user, $data, $contact, $tokenData, $profileData, $answers, $resolvedScopeId): array {
+        return DB::transaction(function () use ($existingDraft, $campaign, $user, $contact, $tokenData, $profileData, $answers, $resolvedScopeId): array {
             if ($existingDraft) {
                 $existingDraft->update([
                     'scope_id' => $resolvedScopeId ?? $existingDraft->scope_id,
@@ -277,7 +277,7 @@ class NominationService
         $answers = $data['answers'] ?? [];
         $resolvedScopeId = isset($data['scope_id']) ? $this->resolveScopeId($nomination->campaign_id, $data['scope_id']) : $nomination->scope_id;
 
-        return DB::transaction(function () use ($nomination, $profileData, $answers, $data, $resolvedScopeId): LeadershipNomination {
+        return DB::transaction(function () use ($nomination, $profileData, $answers, $resolvedScopeId): LeadershipNomination {
             $updatedProfile = array_merge($nomination->edited_profile, $profileData);
             $nomination->update([
                 'scope_id' => $resolvedScopeId,
@@ -514,8 +514,7 @@ class NominationService
         $profile['form_type'] = $data['form_type'] ?? 'main_form_1';
 
         return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $data, $now): array {
-            /** @var LeadershipNomination $nomination */
-            $nomination = LeadershipNomination::create([
+            $nomData = [
                 'campaign_id' => $campaign->id,
                 'scope_id' => $scopeId,
                 'user_id' => $user?->id,
@@ -537,7 +536,13 @@ class NominationService
                 'profile_changes' => [],
                 'status' => 'submitted',
                 'submitted_at' => $now,
-            ]);
+            ];
+            $nomTable = (new LeadershipNomination)->getTable();
+            if (Schema::hasColumn($nomTable, 'form_type')) {
+                $nomData['form_type'] = $data['form_type'] ?? 'main_form_1';
+            }
+            /** @var LeadershipNomination $nomination */
+            $nomination = LeadershipNomination::create($nomData);
 
             // Save answers
             $answers = $data['answers'] ?? [];

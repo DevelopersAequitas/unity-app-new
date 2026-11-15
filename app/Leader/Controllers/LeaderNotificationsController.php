@@ -18,6 +18,65 @@ use Illuminate\Support\Str;
 class LeaderNotificationsController extends Controller
 {
     /**
+     * Non-leader notification types originating from the Peers Global consumer member app.
+     */
+    public const CONSUMER_EXCLUDED_TYPES = [
+        'new_post',
+        'post_created',
+        'post_like',
+        'post_liked',
+        'post_comment',
+        'post_commented',
+        'comment_like',
+        'comment_liked',
+        'post_tagged',
+        'post_shared',
+        'feed_post',
+        'peer_post',
+        'social_post',
+        'activity_update',
+        'feed_update',
+        'event',
+        'new_event',
+        'event_created',
+        'upcoming_event_reminder',
+        'event_starting_now',
+        'event_reminder',
+        'live_meeting',
+        'speed_networking',
+        'connection_request',
+        'connection_accepted',
+        'chat_message',
+        'chat',
+        'direct_message',
+        'badge_earned',
+        'profile_view',
+        'profile_viewed',
+        'daily_reminder',
+        'daily_engagement_reminder',
+        'engagement_reminder',
+        'engagement',
+        'engagement_founder',
+        'streak_reminder',
+        'streak',
+    ];
+
+    /**
+     * Consumer member screens that belong exclusively to the Peers Global consumer app.
+     */
+    public const CONSUMER_EXCLUDED_SCREENS = [
+        'event_detail',
+        'event_details',
+        'live_meeting',
+        'post_detail',
+        '/post-detail',
+        'feed',
+        '/feed',
+        'chat_conversation',
+        'connections',
+        'member_feed',
+    ];
+    /**
      * Get leader user notifications list with rich metadata and strict role-wise scoping.
      */
     public function index(Request $request): JsonResponse
@@ -48,8 +107,8 @@ class LeaderNotificationsController extends Controller
         }
 
         if ($user) {
-            // Exclude fixed-time spam/cron reminder types
-            $excludedTypes = [
+            // Exclude fixed-time spam/cron reminder types AND all consumer member app types
+            $excludedTypes = array_unique(array_merge(self::CONSUMER_EXCLUDED_TYPES, [
                 'engagement_reminder',
                 'daily_engagement_reminder',
                 'daily_reminder',
@@ -57,7 +116,7 @@ class LeaderNotificationsController extends Controller
                 'engagement_founder',
                 'streak_reminder',
                 'streak',
-            ];
+            ]));
 
             // If NOT Super Admin / Country Director, remove raw micro-financial ledger cuts
             if (! $isSuperAdmin) {
@@ -66,6 +125,8 @@ class LeaderNotificationsController extends Controller
                 $excludedTypes[] = 'joining_cut_credited';
                 $excludedTypes[] = 'ledger_entry';
             }
+
+            $excludedScreens = self::CONSUMER_EXCLUDED_SCREENS;
 
             $userId = (string) $user->id;
 
@@ -76,6 +137,10 @@ class LeaderNotificationsController extends Controller
                     $appNotifsQuery->whereNull('deleted_at');
                 }
                 $appNotifsQuery->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedScreens): void {
+                        $q->whereNull('screen')
+                            ->orWhereNotIn('screen', $excludedScreens);
+                    })
                     ->where(function ($q) use ($excludedTypes): void {
                         $q->whereNull('category')
                             ->orWhereNotIn('category', $excludedTypes);
@@ -87,6 +152,10 @@ class LeaderNotificationsController extends Controller
                     ->where(function ($q) use ($excludedTypes): void {
                         $q->whereNull('data->type')
                             ->orWhereNotIn('data->type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedScreens): void {
+                        $q->whereNull('data->screen')
+                            ->orWhereNotIn('data->screen', $excludedScreens);
                     });
 
                 $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(500)->get();
@@ -95,9 +164,12 @@ class LeaderNotificationsController extends Controller
                     $dataPayload = is_array($an->data) ? $an->data : [];
                     $type = (string) ($an->type ?: ($dataPayload['type'] ?? $dataPayload['notification_type'] ?? 'general'));
                     $category = (string) ($an->category ?: ($dataPayload['category'] ?? $type));
+                    $screen = (string) ($an->screen ?: ($dataPayload['screen'] ?? $dataPayload['navigation_screen'] ?? '/dashboard'));
                     $isRead = $an->read_at !== null;
 
-                    if (in_array(strtolower($type), $excludedTypes, true) || in_array(strtolower($category), $excludedTypes, true)) {
+                    if (in_array(strtolower($type), $excludedTypes, true) 
+                        || in_array(strtolower($category), $excludedTypes, true)
+                        || in_array(strtolower($screen), $excludedScreens, true)) {
                         continue;
                     }
 
@@ -131,9 +203,12 @@ class LeaderNotificationsController extends Controller
                     $payload = is_array($n->payload) ? $n->payload : [];
                     $type = (string) ($n->type ?: ($payload['notification_type'] ?? ($payload['type'] ?? 'general')));
                     $category = (string) ($payload['category'] ?? ($payload['notification_type'] ?? $type));
+                    $screen = (string) ($payload['screen'] ?? ($payload['data']['screen'] ?? ($payload['navigation_screen'] ?? '/dashboard')));
                     $isRead = (bool) ($n->is_read ?? false) || $n->read_at !== null;
 
-                    if (in_array(strtolower($type), $excludedTypes, true) || in_array(strtolower($category), $excludedTypes, true)) {
+                    if (in_array(strtolower($type), $excludedTypes, true) 
+                        || in_array(strtolower($category), $excludedTypes, true)
+                        || in_array(strtolower($screen), $excludedScreens, true)) {
                         continue;
                     }
 
@@ -708,7 +783,7 @@ class LeaderNotificationsController extends Controller
 
         if ($user) {
             $userId = (string) $user->id;
-            $excludedTypes = [
+            $excludedTypes = array_unique(array_merge(self::CONSUMER_EXCLUDED_TYPES, [
                 'engagement_reminder',
                 'daily_engagement_reminder',
                 'daily_reminder',
@@ -716,7 +791,8 @@ class LeaderNotificationsController extends Controller
                 'engagement_founder',
                 'streak_reminder',
                 'streak',
-            ];
+            ]));
+            $excludedScreens = self::CONSUMER_EXCLUDED_SCREENS;
 
             if (Schema::hasTable('notifications')) {
                 $rawNotifs = Notification::query()
@@ -732,7 +808,10 @@ class LeaderNotificationsController extends Controller
                     $p = is_array($rn->payload) ? $rn->payload : [];
                     $t = (string) ($rn->type ?: ($p['notification_type'] ?? ($p['type'] ?? 'general')));
                     $c = (string) ($p['category'] ?? ($p['notification_type'] ?? $t));
-                    if (! in_array(strtolower($t), $excludedTypes, true) && ! in_array(strtolower($c), $excludedTypes, true)) {
+                    $s = (string) ($p['screen'] ?? ($p['data']['screen'] ?? ($p['navigation_screen'] ?? '/dashboard')));
+                    if (! in_array(strtolower($t), $excludedTypes, true) 
+                        && ! in_array(strtolower($c), $excludedTypes, true)
+                        && ! in_array(strtolower($s), $excludedScreens, true)) {
                         $count++;
                     }
                 }
@@ -743,6 +822,10 @@ class LeaderNotificationsController extends Controller
                     ->where('user_id', $userId)
                     ->whereNull('read_at')
                     ->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedScreens): void {
+                        $q->whereNull('screen')
+                            ->orWhereNotIn('screen', $excludedScreens);
+                    })
                     ->where(function ($q) use ($excludedTypes): void {
                         $q->whereNull('category')
                             ->orWhereNotIn('category', $excludedTypes);
@@ -754,6 +837,10 @@ class LeaderNotificationsController extends Controller
                     ->where(function ($q) use ($excludedTypes): void {
                         $q->whereNull('data->type')
                             ->orWhereNotIn('data->type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedScreens): void {
+                        $q->whereNull('data->screen')
+                            ->orWhereNotIn('data->screen', $excludedScreens);
                     });
 
                 if (Schema::hasColumn('app_notifications', 'deleted_at')) {

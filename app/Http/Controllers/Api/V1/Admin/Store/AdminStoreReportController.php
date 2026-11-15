@@ -33,6 +33,13 @@ class AdminStoreReportController extends BaseApiController
         return $this->success($report, 'Coin redemption report retrieved');
     }
 
+    public function coinEconomy(Request $request): JsonResponse
+    {
+        $stats = $this->reportService->getCoinEconomyStats();
+
+        return $this->success($stats, 'Coin economy statistics retrieved');
+    }
+
     public function coinIssuance(Request $request): JsonResponse
     {
         $filters = $request->only(['from', 'to']);
