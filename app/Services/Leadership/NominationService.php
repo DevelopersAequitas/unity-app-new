@@ -482,15 +482,72 @@ class NominationService
         $email = $profile['email'] ?? $data['email'] ?? null;
         $mobile = $profile['mobile'] ?? $data['mobile'] ?? null;
 
-        $user = null;
-        if ($candidateId && Str::isUuid($candidateId)) {
-            $user = User::find($candidateId);
+        $rawProfile = is_array($data['profile'] ?? null) ? $data['profile'] : [];
+        $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
+        $declarations = is_array($data['declarations'] ?? null) ? $data['declarations'] : [];
+
+        $profile = array_merge(
+            $answers,
+            $rawProfile,
+            [
+                'full_name' => $fullName,
+                'email' => $email,
+                'mobile' => $mobile,
+                'company_name' => $rawProfile['company_name'] ?? $data['company_name'] ?? $data['company'] ?? ($answers['company_name'] ?? $answers['company'] ?? null),
+                'designation' => $rawProfile['designation'] ?? $data['designation'] ?? ($answers['designation'] ?? null),
+                'city' => $rawProfile['city'] ?? $data['city'] ?? ($answers['city_name'] ?? $answers['city'] ?? null),
+                'applied_role' => $rawProfile['applied_role'] ?? $data['applied_role'] ?? $data['role'] ?? ($answers['applied_role'] ?? null),
+                'goals' => $rawProfile['goals'] ?? $data['goals'] ?? ($answers['goals'] ?? []),
+                'leadership_roles' => $rawProfile['leadership_roles'] ?? $data['leadership_roles'] ?? ($answers['leadership_roles'] ?? []),
+                'time_commitment' => $rawProfile['time_commitment'] ?? $data['time_commitment'] ?? ($answers['time_commitment'] ?? null),
+                'video_url' => $rawProfile['video_url'] ?? $data['video_url'] ?? ($answers['video_url'] ?? null),
+                'since' => $rawProfile['since'] ?? $data['since'] ?? ($answers['since'] ?? null),
+                'declarations' => $declarations,
+                'form_type' => $data['form_type'] ?? 'main_form_1',
+            ]
+        );
+
+        if (is_array($data['documents'] ?? null)) {
+            foreach ($data['documents'] as $doc) {
+                if (is_array($doc)) {
+                    $docType = strtolower((string) ($doc['document_type'] ?? $doc['type'] ?? ''));
+                    $fileUrl = $doc['file_url'] ?? $doc['url'] ?? $doc['link'] ?? $doc['file'] ?? '';
+                    if (str_contains($docType, 'id')) {
+                        $profile['id_file'] = $fileUrl;
+                    } elseif (str_contains($docType, 'letter') || str_contains($docType, 'recommendation')) {
+                        $profile['letter_file'] = $fileUrl;
+                    } elseif (str_contains($docType, 'deck') || str_contains($docType, 'company') || str_contains($docType, 'profile')) {
+                        $profile['deck_file'] = $fileUrl;
+                    } elseif (str_contains($docType, 'manifesto')) {
+                        $profile['manifesto_file'] = $fileUrl;
+                    }
+                }
+            }
         }
-        if (! $user && $email) {
-            $user = User::where('email', strtolower(trim((string) $email)))->first();
-        }
-        if (! $user && $mobile) {
-            $user = User::where('phone', trim((string) $mobile))->first();
+
+        $flatDocMap = [
+            'id_file' => ['id_file', 'id_proof', 'identity_proof', 'aadhaar_file'],
+            'letter_file' => ['letter_file', 'recommendation_letter', 'recommendation_file'],
+            'deck_file' => ['deck_file', 'company_deck', 'company_profile', 'presentation_deck'],
+            'manifesto_file' => ['manifesto_file', 'manifesto', 'candidate_manifesto'],
+        ];
+        foreach ($flatDocMap as $targetKey => $sourceKeys) {
+            if (empty($profile[$targetKey])) {
+                foreach ($sourceKeys as $sk) {
+                    if (! empty($data[$sk])) {
+                        $profile[$targetKey] = $data[$sk];
+                        break;
+                    }
+                    if (! empty($rawProfile[$sk])) {
+                        $profile[$targetKey] = $rawProfile[$sk];
+                        break;
+                    }
+                    if (! empty($answers[$sk])) {
+                        $profile[$targetKey] = is_array($answers[$sk]) ? ($answers[$sk]['value'] ?? null) : $answers[$sk];
+                        break;
+                    }
+                }
+            }
         }
 
         if ($user) {
@@ -511,7 +568,6 @@ class NominationService
 
         $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
         $now = Carbon::now();
-        $profile['form_type'] = $data['form_type'] ?? 'main_form_1';
 
         return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $data, $now): array {
             $nomData = [
@@ -566,22 +622,51 @@ class NominationService
             }
 
             // Save documents
-            $documents = $data['documents'] ?? [];
+            $documents = $data['documents'] ?? ($data['profile']['documents'] ?? []);
             if (is_array($documents)) {
                 foreach ($documents as $doc) {
                     if (is_array($doc)) {
+                        $fileUrl = $doc['file_url'] ?? $doc['url'] ?? $doc['link'] ?? $doc['file'] ?? '';
+                        $fileName = $doc['original_name'] ?? $doc['original_filename'] ?? $doc['name'] ?? $doc['filename'] ?? (basename(parse_url((string) $fileUrl, PHP_URL_PATH) ?: 'document.pdf'));
+                        $docType = $doc['document_type'] ?? $doc['type'] ?? 'supporting_doc';
+
                         LeadershipNominationDocument::create([
                             'nomination_id' => $nomination->id,
-                            'document_type' => $doc['document_type'] ?? 'supporting_doc',
-                            'original_filename' => $doc['original_name'] ?? 'document.pdf',
+                            'document_type' => $docType,
+                            'original_filename' => $fileName,
                             'storage_disk' => 'local',
-                            'storage_key' => $doc['file_url'] ?? '',
+                            'storage_key' => $fileUrl,
                             'mime_type' => 'application/pdf',
                             'file_size_bytes' => 1024,
                             'verification_status' => 'pending',
                             'uploaded_by' => $user?->id,
                         ]);
                     }
+                }
+            }
+
+            // Also persist any individual files mapped into profile if not already stored in documents
+            $profileDocMap = [
+                'ID Proof (Aadhaar / Passport)' => $profile['id_file'] ?? null,
+                'Recommendation Letter' => $profile['letter_file'] ?? null,
+                'Company Profile / Deck' => $profile['deck_file'] ?? null,
+                'Candidate Manifesto' => $profile['manifesto_file'] ?? null,
+            ];
+            $savedUrls = LeadershipNominationDocument::where('nomination_id', $nomination->id)->pluck('storage_key')->filter()->toArray();
+            foreach ($profileDocMap as $label => $fileUrl) {
+                if ($fileUrl && ! in_array($fileUrl, $savedUrls, true)) {
+                    LeadershipNominationDocument::create([
+                        'nomination_id' => $nomination->id,
+                        'document_type' => $label,
+                        'original_filename' => basename(parse_url((string) $fileUrl, PHP_URL_PATH) ?: 'document.pdf'),
+                        'storage_disk' => 'local',
+                        'storage_key' => $fileUrl,
+                        'mime_type' => 'application/pdf',
+                        'file_size_bytes' => 1024,
+                        'verification_status' => 'pending',
+                        'uploaded_by' => $user?->id,
+                    ]);
+                    $savedUrls[] = $fileUrl;
                 }
             }
 

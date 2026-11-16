@@ -218,10 +218,12 @@ class AdminNominationService
             }
         }
 
-        // Synthesize Form 2 uploaded documents into documents relation if not already present as rows
+        // Synthesize Form 2 and Form 1 uploaded documents into documents relation if not already present as rows
         $f2 = $nomination->form_2_data;
+        $existingUrls = $nomination->documents->pluck('file_url')->filter()->toArray();
+        $synthDocs = collect();
+
         if (is_array($f2)) {
-            $existingUrls = $nomination->documents->pluck('file_url')->filter()->toArray();
             $secA = $f2['section_a_business_credibility'] ?? $f2;
             $secE = $f2['section_e_12_month_plan'] ?? $f2;
             $secH = $f2['section_h_documents'] ?? $f2;
@@ -232,7 +234,6 @@ class AdminNominationService
                 '12-Month Leadership Presentation Deck (Form 2)' => $secE['deck_url'] ?? $f2['deck_url'] ?? null,
             ];
 
-            $synthDocs = collect();
             foreach ($f2DocMap as $label => $url) {
                 if ($url && ! in_array($url, $existingUrls, true)) {
                     $doc = new LeadershipNominationDocument;
@@ -245,12 +246,72 @@ class AdminNominationService
                     $doc->verification_status = 'verified';
                     $doc->created_at = $nomination->submitted_at ?? Carbon::now();
                     $synthDocs->push($doc);
+                    $existingUrls[] = $url;
+                }
+            }
+        }
+
+        // Synthesize Form 1 documents from profile_snapshot
+        $snap = $nomination->profile_snapshot;
+        if (is_array($snap)) {
+            $snapDocMap = [
+                'ID Proof (Aadhaar / Passport)' => $snap['id_file'] ?? null,
+                'Recommendation Letter' => $snap['letter_file'] ?? null,
+                'Company Profile / Deck' => $snap['deck_file'] ?? null,
+                'Candidate Manifesto' => $snap['manifesto_file'] ?? null,
+            ];
+
+            foreach ($snapDocMap as $label => $url) {
+                if ($url && ! in_array($url, $existingUrls, true)) {
+                    $doc = new LeadershipNominationDocument;
+                    $doc->id = (string) Str::uuid();
+                    $doc->nomination_id = $nomination->id;
+                    $doc->document_type = $label;
+                    $doc->original_filename = basename(parse_url((string) $url, PHP_URL_PATH) ?: 'document.pdf');
+                    $doc->storage_key = (string) $url;
+                    $doc->storage_disk = 'public';
+                    $doc->verification_status = 'verified';
+                    $doc->created_at = $nomination->submitted_at ?? Carbon::now();
+                    $synthDocs->push($doc);
+                    $existingUrls[] = $url;
                 }
             }
 
-            if ($synthDocs->isNotEmpty()) {
-                $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
+            // Sync answers into profile_snapshot if missing in snapshot
+            if ($nomination->answers && $nomination->answers->isNotEmpty()) {
+                $updatedSnap = false;
+                foreach ($nomination->answers as $ans) {
+                    $key = (string) $ans->question_key;
+                    $val = is_array($ans->answer) && isset($ans->answer['value']) ? $ans->answer['value'] : $ans->answer;
+                    if (! isset($snap[$key]) && $val !== null) {
+                        $snap[$key] = $val;
+                        $updatedSnap = true;
+                    }
+                    if (in_array($key, ['goals', 'top_3_goals']) && empty($snap['goals'])) {
+                        $snap['goals'] = $val;
+                        $updatedSnap = true;
+                    }
+                    if (in_array($key, ['leadership_roles', 'past_roles']) && empty($snap['leadership_roles'])) {
+                        $snap['leadership_roles'] = $val;
+                        $updatedSnap = true;
+                    }
+                    if (in_array($key, ['time_commitment', 'monthly_commitment']) && empty($snap['time_commitment'])) {
+                        $snap['time_commitment'] = $val;
+                        $updatedSnap = true;
+                    }
+                    if (in_array($key, ['video_url', 'video']) && empty($snap['video_url'])) {
+                        $snap['video_url'] = $val;
+                        $updatedSnap = true;
+                    }
+                }
+                if ($updatedSnap) {
+                    $nomination->profile_snapshot = $snap;
+                }
             }
+        }
+
+        if ($synthDocs->isNotEmpty()) {
+            $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
         }
 
         return $nomination;
@@ -533,7 +594,7 @@ class AdminNominationService
         $campaignName = $nomination->campaign?->name ?? 'Leadership Campaign';
         $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
         $appNumber = $nomination->application_number;
-        $votingLink = "https://peersglobal.com/leadership/campaigns/{$nomination->campaign_id}/vote?candidate={$nomination->id}";
+        $votingLink = $nomination->voting_link;
 
         // 1. Dispatch WhatsApp message
         if ($phone) {
@@ -622,7 +683,7 @@ class AdminNominationService
 
         $this->sendNominationApprovedNotification($nomination);
 
-        $votingLink = "https://peersglobal.com/leadership/campaigns/{$nomination->campaign_id}/vote?candidate={$nomination->id}";
+        $votingLink = $nomination->voting_link;
 
         $this->auditService->log(
             action: 'nomination.manual_email_sent',
