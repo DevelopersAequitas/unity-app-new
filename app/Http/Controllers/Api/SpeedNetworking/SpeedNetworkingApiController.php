@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\SpeedNetworking;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SpeedNetworking\SpeedNetworkingMatchActionRequest;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventRegistration;
@@ -1072,13 +1073,29 @@ class SpeedNetworkingApiController extends Controller
             $hasMatch = ! $isWaiting && ! empty($data['channel_id']) && ! empty($data['peer']);
 
             $match = $hasMatch ? [
+                'event_id' => (string) ($data['event_id'] ?? $event->id),
+                'title' => (string) ($data['title'] ?? $event->title),
+                'match_id' => (string) ($data['match_id'] ?? ''),
                 'channel_id' => (string) ($data['channel_id'] ?? ''),
                 'agora_app_id' => $agoraAppId,
                 'agora_token' => (string) ($data['agora_token'] ?? ''),
-                'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
                 'current_round' => (int) ($data['current_round'] ?? 1),
                 'total_rounds' => (int) ($data['total_rounds'] ?? 1),
+                'round_duration_seconds' => (int) ($data['round_duration_seconds'] ?? $event->round_duration_seconds),
+                'break_duration_seconds' => (int) ($data['break_duration_seconds'] ?? $event->break_duration_seconds),
+                'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
+                'preview_duration_seconds' => (int) ($data['preview_duration_seconds'] ?? 15),
+                'match_status' => (string) ($data['match_status'] ?? 'preview'),
+                'my_decision' => (string) ($data['my_decision'] ?? 'pending'),
+                'peer_decision' => (string) ($data['peer_decision'] ?? 'pending'),
+                'both_accepted' => (bool) ($data['both_accepted'] ?? false),
+                'is_break_round' => (bool) ($data['is_break_round'] ?? false),
+                'is_waiting' => false,
+                'has_met_all_peers' => (bool) ($data['has_met_all_peers'] ?? false),
+                'completed' => (bool) ($data['completed'] ?? false),
+                'message' => (string) ($data['message'] ?? 'Match found! Review peer profile to connect.'),
                 'peer' => $data['peer'] ?? null,
+                'interacted_peers' => $data['interacted_peers'] ?? [],
             ] : null;
 
             $data['agora_app_id'] = $agoraAppId;
@@ -1267,13 +1284,29 @@ class SpeedNetworkingApiController extends Controller
                 $hasMatch = ! $isWaiting && ! empty($data['channel_id']) && ! empty($data['peer']);
 
                 $match = $hasMatch ? [
+                    'event_id' => (string) ($data['event_id'] ?? $event->id),
+                    'title' => (string) ($data['title'] ?? $event->title),
+                    'match_id' => (string) ($data['match_id'] ?? ''),
                     'channel_id' => (string) ($data['channel_id'] ?? ''),
                     'agora_app_id' => $agoraAppId,
                     'agora_token' => (string) ($data['agora_token'] ?? ''),
-                    'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
                     'current_round' => (int) ($data['current_round'] ?? 1),
                     'total_rounds' => (int) ($data['total_rounds'] ?? 1),
+                    'round_duration_seconds' => (int) ($data['round_duration_seconds'] ?? $event->round_duration_seconds),
+                    'break_duration_seconds' => (int) ($data['break_duration_seconds'] ?? $event->break_duration_seconds),
+                    'remaining_seconds' => (int) ($data['remaining_seconds'] ?? 0),
+                    'preview_duration_seconds' => (int) ($data['preview_duration_seconds'] ?? 15),
+                    'match_status' => (string) ($data['match_status'] ?? 'preview'),
+                    'my_decision' => (string) ($data['my_decision'] ?? 'pending'),
+                    'peer_decision' => (string) ($data['peer_decision'] ?? 'pending'),
+                    'both_accepted' => (bool) ($data['both_accepted'] ?? false),
+                    'is_break_round' => (bool) ($data['is_break_round'] ?? false),
+                    'is_waiting' => false,
+                    'has_met_all_peers' => (bool) ($data['has_met_all_peers'] ?? false),
+                    'completed' => (bool) ($data['completed'] ?? false),
+                    'message' => (string) ($data['message'] ?? 'Match found! Review peer profile to connect.'),
                     'peer' => $data['peer'] ?? null,
+                    'interacted_peers' => $data['interacted_peers'] ?? [],
                 ] : null;
 
                 $data['agora_app_id'] = $agoraAppId;
@@ -1401,6 +1434,52 @@ class SpeedNetworkingApiController extends Controller
     }
 
     /**
+     * Handle Match Preview Action ('connect' | 'skip' | 'block').
+     */
+    public function matchAction(SpeedNetworkingMatchActionRequest $request, string $eventId): JsonResponse
+    {
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $event = null;
+        if (Schema::hasTable('speed_networking_events')) {
+            $event = SpeedNetworkingEvent::find($eventId);
+            if (! $event && Schema::hasTable('events')) {
+                $base = Event::find($eventId);
+                if ($base) {
+                    $event = SpeedNetworkingEvent::where('id', $base->id)
+                        ->orWhere('title', $base->title)
+                        ->latest()
+                        ->first();
+                }
+            }
+        }
+
+        if (! $event) {
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'data' => [
+                    'event_id' => $eventId,
+                    'is_waiting' => true,
+                    'match_status' => 'waiting',
+                ],
+            ]);
+        }
+
+        $result = $this->speedNetworkingService->handleMatchAction($event, $user, $validated);
+        $result['agora_app_id'] ??= $this->getAgoraAppId();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'is_waiting' => (bool) ($result['is_waiting'] ?? false),
+            'match_status' => (string) ($result['match_status'] ?? 'preview'),
+            'data' => $result,
+        ]);
+    }
+
+    /**
      * Update participant presence heartbeat.
      * Automatically triggers matchmaking when 2+ peers are waiting in the lobby,
      * and returns the active match Agora credentials and peer details.
@@ -1445,13 +1524,17 @@ class SpeedNetworkingApiController extends Controller
 
         if ($event) {
             $activeCount = $this->speedNetworkingService->heartbeat($event, $user, $userStatus ?: null, $breakRemainingSeconds);
-            $activeMatch = $this->speedNetworkingService->getActiveMatchPayload($event, $user);
+            $activeMatch = $this->speedNetworkingService->getActiveMatchPayload($event, $user, $userStatus ?: null);
             $incomingMatch = ($userStatus === 'on_break' || $userStatus === 'break')
                 ? $this->speedNetworkingService->findIncomingMatchForBreakUser($event, $user)
                 : null;
 
-            // If user has no active match, check if we can pair them automatically
-            if ($activeMatch === null) {
+            // If user has no active match (and didn't just receive a partner-skipped notification), check if we can pair them automatically
+            $isPartnerSkippedNotice = is_array($activeMatch)
+                && ! empty($activeMatch['is_waiting'])
+                && in_array($activeMatch['match_status'] ?? '', ['skipped', 'blocked', 'expired'], true);
+
+            if ($activeMatch === null && ! in_array($userStatus, ['on_break', 'break'], true)) {
                 // If 2+ active peers are present, ensure round 1 is started
                 if ($activeCount >= 2 && ($event->current_round < 1 || $event->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS)) {
                     $event->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
@@ -1473,10 +1556,13 @@ class SpeedNetworkingApiController extends Controller
                 }
             }
 
-            $hasActiveMatch = $activeMatch !== null && ! empty($activeMatch['channel_id']) && empty($activeMatch['is_waiting']);
+            $hasActiveMatch = $activeMatch !== null
+                && ! $isPartnerSkippedNotice
+                && ! empty($activeMatch['channel_id'])
+                && empty($activeMatch['is_waiting']);
 
             // Check if session or event is completed
-            $isSessionCompleted = (! $hasActiveMatch) && (
+            $isSessionCompleted = (! $hasActiveMatch) && (! $isPartnerSkippedNotice) && (
                 (! empty($activeMatch['completed']))
                 || $event->isCompleted()
                 || $this->speedNetworkingService->isUserCompleted($event, $user)
@@ -1499,18 +1585,34 @@ class SpeedNetworkingApiController extends Controller
             }
 
             $matchData = null;
-            if ($hasActiveMatch) {
+            if ($hasActiveMatch && is_array($activeMatch)) {
                 $matchData = [
+                    'event_id' => (string) ($activeMatch['event_id'] ?? $event->id),
+                    'title' => (string) ($activeMatch['title'] ?? $event->title),
+                    'match_id' => (string) ($activeMatch['match_id'] ?? ''),
                     'channel_id' => (string) ($activeMatch['channel_id'] ?? ''),
                     'agora_app_id' => $agoraAppId,
                     'agora_token' => (string) ($activeMatch['agora_token'] ?? ''),
-                    'remaining_seconds' => (int) ($activeMatch['remaining_seconds'] ?? $event->round_duration_seconds),
-                    'is_waiting' => false,
-                    'is_break_round' => (bool) ($activeMatch['is_break_round'] ?? false),
                     'current_round' => (int) ($activeMatch['current_round'] ?? 1),
                     'total_rounds' => (int) ($activeMatch['total_rounds'] ?? $event->total_rounds),
+                    'round_duration_seconds' => (int) ($activeMatch['round_duration_seconds'] ?? $event->round_duration_seconds),
+                    'break_duration_seconds' => (int) ($activeMatch['break_duration_seconds'] ?? $event->break_duration_seconds),
+                    'remaining_seconds' => (int) ($activeMatch['remaining_seconds'] ?? $event->round_duration_seconds),
+                    'preview_duration_seconds' => (int) ($activeMatch['preview_duration_seconds'] ?? 15),
+                    'match_status' => (string) ($activeMatch['match_status'] ?? 'preview'),
+                    'my_decision' => (string) ($activeMatch['my_decision'] ?? 'pending'),
+                    'peer_decision' => (string) ($activeMatch['peer_decision'] ?? 'pending'),
+                    'both_accepted' => (bool) ($activeMatch['both_accepted'] ?? false),
+                    'is_waiting' => false,
+                    'is_break_round' => (bool) ($activeMatch['is_break_round'] ?? false),
+                    'has_met_all_peers' => false,
+                    'completed' => false,
+                    'message' => (string) ($activeMatch['message'] ?? ''),
                     'peer' => $activeMatch['peer'] ?? null,
+                    'interacted_peers' => $activeMatch['interacted_peers'] ?? [],
                 ];
+            } elseif ($isPartnerSkippedNotice && is_array($activeMatch)) {
+                $matchData = $activeMatch;
             }
 
             if ($incomingMatch !== null && is_array($incomingMatch)) {

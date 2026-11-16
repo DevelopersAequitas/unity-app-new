@@ -229,17 +229,23 @@ class JuryAssignmentController extends LeadershipBaseController
         try {
             if ($nominationId === 'all') {
                 $campaignId = $validated['campaign_id'] ?? $request->input('campaign_id');
-                if (! $campaignId) {
-                    return $this->error('Campaign ID is required to assign juror to all candidates.', 422);
+                $nomQuery = \App\Models\Leadership\LeadershipNomination::query()
+                    ->whereIn('status', ['shortlisted', 'approved', 'submitted'])
+                    ->where('application_number', 'not like', '%-F2');
+
+                if (! empty($campaignId) && $campaignId !== 'all') {
+                    $nomQuery->where('campaign_id', $campaignId);
                 }
 
-                $nominations = \App\Models\Leadership\LeadershipNomination::where('campaign_id', $campaignId)
-                    ->whereIn('status', ['shortlisted', 'approved', 'submitted'])
-                    ->where('application_number', 'not like', '%-F2')
-                    ->get();
+                $nominations = $nomQuery->get();
 
                 if ($nominations->isEmpty()) {
-                    return $this->error('No shortlisted candidates found for the selected campaign.', 404);
+                    // Fallback to all nominations if no shortlisted ones
+                    $nominations = \App\Models\Leadership\LeadershipNomination::where('application_number', 'not like', '%-F2')->get();
+                }
+
+                if ($nominations->isEmpty()) {
+                    return $this->error('No candidate nominations found to assign jurors to.', 404);
                 }
 
                 $totalCreated = 0;
@@ -391,17 +397,21 @@ class JuryAssignmentController extends LeadershipBaseController
     }
 
     /**
-     * Admin: Get jury evaluation report for a campaign.
+     * Admin: Get jury evaluation report for all candidates or a specific campaign.
      */
-    public function adminReport(string $campaignId): JsonResponse
+    public function adminReport(?string $campaignId = null): JsonResponse
     {
         try {
-            $assignments = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination', 'juror', 'scores.criterion', 'report'])
-                ->whereHas('nomination', fn ($q) => $q->where('campaign_id', $campaignId))
-                ->get();
+            $query = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination', 'juror', 'scores.criterion', 'report']);
+
+            if (! empty($campaignId) && $campaignId !== 'all') {
+                $query->whereHas('nomination', fn ($q) => $q->where('campaign_id', $campaignId));
+            }
+
+            $assignments = $query->get();
 
             return $this->success([
-                'campaign_id' => $campaignId,
+                'campaign_id' => $campaignId ?: 'all',
                 'total_assignments' => $assignments->count(),
                 'completed' => $assignments->where('status', 'completed')->count(),
                 'assignments' => $assignments,
@@ -409,5 +419,55 @@ class JuryAssignmentController extends LeadershipBaseController
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
+    }
+
+    /**
+     * Admin: Resend official appointment email to an assigned juror with portal evaluation link.
+     */
+    public function resendJurorEmail(Request $request): JsonResponse
+    {
+        $jurorUserId = $request->input('juror_user_id') ?? $request->input('user_id');
+        $assignmentId = $request->input('assignment_id');
+
+        if (! empty($assignmentId)) {
+            $assignment = \App\Models\Leadership\LeadershipJuryAssignment::with(['juror', 'nomination'])->findOrFail($assignmentId);
+            $this->juryService->sendInvitation($assignment->id, true, false, 'jury_evaluation_invitation');
+
+            return $this->success(null, 'Official appointment email resent successfully.');
+        }
+
+        if (! $jurorUserId) {
+            return $this->error('Juror User ID or Assignment ID is required.', 422);
+        }
+
+        $juror = \App\Models\User::findOrFail($jurorUserId);
+        $latestAsg = \App\Models\Leadership\LeadershipJuryAssignment::with('nomination')
+            ->where('juror_user_id', $jurorUserId)
+            ->latest()
+            ->first();
+
+        if ($latestAsg && $latestAsg->nomination) {
+            $this->juryService->sendInvitation($latestAsg->id, true, false, 'jury_evaluation_invitation');
+        } else {
+            $portalUrl = 'https://admin.peersunity.com/web/leadership/jury-evaluations';
+            $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
+            if (! empty($juror->email)) {
+                \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $portalUrl): void {
+                    $html = "
+                    <div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 14px;'>
+                        <h2 style='color: #1e293b;'>Jury Evaluation Portal Access</h2>
+                        <p>Dear <strong>{$jurorName}</strong>,</p>
+                        <p>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
+                        <p style='margin: 24px 0;'><a href='{$portalUrl}' style='display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;'>Access Jury Evaluation Portal</a></p>
+                        <p style='font-size: 13px; color: #64748b;'>Login with your email: {$juror->email}</p>
+                    </div>";
+                    $message->to($juror->email, $jurorName)
+                        ->subject('Jury Evaluation Portal Access - Peers Global Leadership')
+                        ->html($html);
+                });
+            }
+        }
+
+        return $this->success(null, "Official appointment email resent successfully to {$juror->email}.");
     }
 }
