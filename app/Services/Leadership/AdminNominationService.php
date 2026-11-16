@@ -1055,6 +1055,35 @@ class AdminNominationService
             $nomination->profile_snapshot = $parentSnapshot;
             $nomination->save();
 
+            // Auto-assign candidate to appointed standing jurors so candidate immediately appears in Jury Management
+            try {
+                $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereHas('nomination', function ($q): void {
+                    $q->where('application_number', 'PG-STANDING-POOL');
+                })->pluck('juror_user_id')->filter()->unique()->values()->all();
+
+                if (empty($standingJurorIds)) {
+                    $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereNotNull('juror_user_id')
+                        ->pluck('juror_user_id')->filter()->unique()->values()->all();
+                }
+
+                foreach ($standingJurorIds as $jurorId) {
+                    \App\Models\Leadership\LeadershipJuryAssignment::firstOrCreate(
+                        [
+                            'campaign_id' => $nomination->campaign_id,
+                            'nomination_id' => $nomination->id,
+                            'juror_user_id' => $jurorId,
+                        ],
+                        [
+                            'status' => 'assigned',
+                            'due_at' => Carbon::now()->addDays(7),
+                            'assignment_remarks' => 'Auto-assigned upon Jury Evaluation Form submission',
+                        ]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Auto-assigning jurors on Form 2 submit failed: '.$e->getMessage());
+            }
+
             LeadershipNominationHistory::create([
                 'id' => (string) Str::uuid(),
                 'nomination_id' => $nomination->id,
