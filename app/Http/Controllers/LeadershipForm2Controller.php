@@ -20,23 +20,17 @@ class LeadershipForm2Controller extends Controller
 
     /**
      * Show public Form 2 (Jury Evaluation Data Form).
-     * Redirects to peersglobal.com frontend portal, or renders blade if explicitly requested.
+     * Directly renders the official Form 2 evaluation data submission interface.
      */
-    public function show(string $id): View|RedirectResponse
+    public function show(Request $request, ?string $id = null): View
     {
+        $targetId = $id ?: (string) $request->query('nomination') ?: (string) $request->query('id');
         /** @var LeadershipNomination $nomination */
-        $nomination = LeadershipNomination::with(['campaign.role', 'scope'])->findOrFail($id);
+        $nomination = LeadershipNomination::with(['campaign.role', 'scope'])->findOrFail($targetId);
 
-        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
-        $targetUrl = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
-
-        if (request()->query('render_blade') !== '1') {
-            return redirect()->away($targetUrl);
-        }
-
-        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Candidate';
-        $campaignName = $nomination->campaign?->name ?? 'Peers Global Leadership Selection 2026';
-        $candidateName = $nomination->candidate_name ?: 'Candidate';
+        $roleName = $nomination->campaign?->role?->name ?? ($nomination->profile_snapshot['applied_role_name'] ?? 'District Executive Director (DED)');
+        $campaignName = 'Peers Global Leadership Selection 2026';
+        $candidateName = $nomination->candidate_name ?: ($nomination->full_name ?: 'Candidate');
         $email = $nomination->email;
         $status = $nomination->form_2_status;
         $isSubmitted = $status === 'submitted';

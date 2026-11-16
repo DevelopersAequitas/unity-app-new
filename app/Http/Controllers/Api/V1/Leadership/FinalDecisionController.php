@@ -86,9 +86,10 @@ class FinalDecisionController extends LeadershipBaseController
     /**
      * J1. Candidates eligible for final decision.
      */
-    public function candidates(string $id): JsonResponse
+    public function candidates(Request $request, ?string $id = null): JsonResponse
     {
-        $candidates = $this->decisionService->getEligibleDecisionCandidates($id);
+        $targetId = $id ?: $request->query('campaign_id') ?: 'all';
+        $candidates = $this->decisionService->getEligibleDecisionCandidates($targetId);
 
         return $this->success($candidates, 'Decision candidates fetched successfully.');
     }
@@ -186,9 +187,10 @@ class FinalDecisionController extends LeadershipBaseController
     /**
      * J8. List winner records.
      */
-    public function winners(string $id): JsonResponse
+    public function winners(Request $request, ?string $id = null): JsonResponse
     {
-        $winners = $this->decisionService->listWinners($id);
+        $targetId = $id ?: $request->query('campaign_id') ?: 'all';
+        $winners = $this->decisionService->listWinners($targetId);
 
         return $this->success($winners, 'Winners fetched successfully.');
     }
@@ -199,7 +201,7 @@ class FinalDecisionController extends LeadershipBaseController
     public function submitDecision(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'campaign_id' => 'required|uuid',
+            'campaign_id' => 'nullable|string',
             'nomination_id' => 'required|uuid',
             'decision' => 'required|string',
             'rank' => 'nullable|integer',
@@ -217,8 +219,18 @@ class FinalDecisionController extends LeadershipBaseController
         ]);
 
         try {
-            $campaign = LeadershipCampaign::findOrFail($validated['campaign_id']);
             $nomination = LeadershipNomination::findOrFail($validated['nomination_id']);
+            $campId = $validated['campaign_id'] ?? $nomination->campaign_id;
+            $campaign = (! empty($campId) && $campId !== 'all')
+                ? LeadershipCampaign::find($campId)
+                : LeadershipCampaign::first();
+
+            if (! $campaign) {
+                $campaign = LeadershipCampaign::firstOrCreate(
+                    ['name' => 'Peers Global Leadership Selection 2026'],
+                    ['status' => 'active']
+                );
+            }
 
             $decisionKey = strtolower(trim((string) $validated['decision']));
             $isWinner = $validated['is_winner'] ?? in_array($decisionKey, ['selected', 'winner'], true);
@@ -345,28 +357,38 @@ class FinalDecisionController extends LeadershipBaseController
     }
 
     /**
-     * Get all decisions for a campaign.
+     * Get all decisions for a campaign or globally.
      */
-    public function campaignDecisions(Request $request, string $id): JsonResponse
+    public function campaignDecisions(Request $request, ?string $id = null): JsonResponse
     {
-        $decisions = \App\Models\Leadership\LeadershipFinalDecision::with(['nomination'])
-            ->where('campaign_id', $id)
-            ->get();
+        $targetId = $id ?: $request->query('campaign_id');
+        $query = \App\Models\Leadership\LeadershipFinalDecision::with(['nomination.campaign.role', 'nomination.scope', 'circle'])
+            ->orderBy('created_at', 'desc');
+
+        if (! empty($targetId) && $targetId !== 'all') {
+            $query->where('campaign_id', $targetId);
+        }
+
+        $decisions = $query->get();
 
         return $this->success($decisions, 'Final decisions fetched successfully.');
     }
 
     /**
-     * Batch publish all winners for a campaign.
+     * Batch publish all winners for a campaign or globally.
      */
-    public function publishBatch(Request $request, string $id): JsonResponse
+    public function publishBatch(Request $request, ?string $id = null): JsonResponse
     {
         $remarks = (string) $request->input('remarks', 'Winners officially published');
+        $targetId = $id ?: $request->query('campaign_id') ?: $request->input('campaign_id');
 
         try {
-            $decisions = \App\Models\Leadership\LeadershipFinalDecision::where('campaign_id', $id)
-                ->where('is_winner', true)
-                ->get();
+            $query = \App\Models\Leadership\LeadershipFinalDecision::where('is_winner', true);
+            if (! empty($targetId) && $targetId !== 'all') {
+                $query->where('campaign_id', $targetId);
+            }
+
+            $decisions = $query->get();
 
             foreach ($decisions as $dec) {
                 $dec->update([
