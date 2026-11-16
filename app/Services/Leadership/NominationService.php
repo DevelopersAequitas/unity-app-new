@@ -8,6 +8,7 @@ use App\Mail\Leadership\LeadershipNominationSubmittedMail;
 use App\Models\City;
 use App\Models\Leadership\LeadershipCampaign;
 use App\Models\Leadership\LeadershipCampaignScope;
+use App\Models\Leadership\LeadershipFormQuestion;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationAnswer;
 use App\Models\Leadership\LeadershipNominationDocument;
@@ -186,6 +187,25 @@ class NominationService
                 $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
 
                 $origProfile = [];
+                if (! $user) {
+                    $cId = $data['candidate_id'] ?? null;
+                    $e = $profileData['email'] ?? ($tokenData['contact_type'] === 'email' ? $contact : null);
+                    $m = $profileData['mobile'] ?? ($tokenData['contact_type'] === 'mobile' ? $contact : null);
+                    if (! empty($cId)) {
+                        $user = User::find($cId);
+                    }
+                    if (! $user && ! empty($e)) {
+                        $user = User::whereRaw('LOWER(email) = ?', [strtolower(trim($e))])->first();
+                    }
+                    if (! $user && ! empty($m)) {
+                        $cleanedMobile = preg_replace('/\D/', '', $m);
+                        if (strlen($cleanedMobile) >= 10) {
+                            $last10 = substr($cleanedMobile, -10);
+                            $user = User::whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ?", [$last10])->first();
+                        }
+                    }
+                }
+
                 if ($user) {
                     $photo = $user->profile_photo_url;
                     $origProfile = [
@@ -547,6 +567,21 @@ class NominationService
                         break;
                     }
                 }
+            }
+        }
+
+        $user = null;
+        if (! empty($candidateId)) {
+            $user = User::find($candidateId);
+        }
+        if (! $user && ! empty($email)) {
+            $user = User::whereRaw('LOWER(email) = ?', [strtolower(trim($email))])->first();
+        }
+        if (! $user && ! empty($mobile)) {
+            $cleanedMobile = preg_replace('/\D/', '', $mobile);
+            if (strlen($cleanedMobile) >= 10) {
+                $last10 = substr($cleanedMobile, -10);
+                $user = User::whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ?", [$last10])->first();
             }
         }
 
