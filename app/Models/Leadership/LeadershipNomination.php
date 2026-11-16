@@ -424,7 +424,16 @@ class LeadershipNomination extends Model
 
     public function getVotingLinkAttribute(): string
     {
-        return "https://peersglobal.com/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
+        $customUrl = config('services.voting_url');
+        if (! empty($customUrl)) {
+            $separator = str_contains((string) $customUrl, '?') ? '&' : '?';
+
+            return "{$customUrl}{$separator}candidate={$this->id}";
+        }
+
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+
+        return "{$frontendUrl}/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
     }
 
     protected static function booted(): void
