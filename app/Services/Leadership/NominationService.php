@@ -637,22 +637,38 @@ class NominationService
 
             // Save answers
             $answers = $data['answers'] ?? [];
-            if (is_array($answers)) {
-                foreach ($answers as $key => $val) {
-                    $question = LeadershipFormQuestion::query()
-                        ->where('question_key', (string) $key)
-                        ->first();
+            if (is_array($answers) && Schema::hasTable('web_leadership_nomination_answers')) {
+                $hasQuestionId = Schema::hasColumn('web_leadership_nomination_answers', 'question_id');
+                $hasQuestionKey = Schema::hasColumn('web_leadership_nomination_answers', 'question_key');
+                $hasQuestionSnapshot = Schema::hasColumn('web_leadership_nomination_answers', 'question_snapshot');
 
-                    LeadershipNominationAnswer::create([
+                foreach ($answers as $key => $val) {
+                    $question = null;
+                    if ($hasQuestionId && Schema::hasTable('web_leadership_form_questions')) {
+                        $question = LeadershipFormQuestion::query()
+                            ->where('question_key', (string) $key)
+                            ->first();
+                    }
+
+                    $answerPayload = [
                         'nomination_id' => $nomination->id,
-                        'question_id' => $question?->id,
-                        'question_key' => (string) $key,
-                        'question_snapshot' => $question ? [
+                        'answer' => is_array($val) ? $val : ['value' => $val],
+                    ];
+
+                    if ($hasQuestionId) {
+                        $answerPayload['question_id'] = $question?->id;
+                    }
+                    if ($hasQuestionKey) {
+                        $answerPayload['question_key'] = (string) $key;
+                    }
+                    if ($hasQuestionSnapshot) {
+                        $answerPayload['question_snapshot'] = $question ? [
                             'label' => $question->label,
                             'field_type' => $question->field_type,
-                        ] : null,
-                        'answer' => is_array($val) ? $val : ['value' => $val],
-                    ]);
+                        ] : null;
+                    }
+
+                    LeadershipNominationAnswer::create($answerPayload);
                 }
             }
 
