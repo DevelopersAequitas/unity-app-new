@@ -54,6 +54,18 @@ class SpeedNetworkingP2pService
             return null;
         }
 
+        $matchStatus = (string) ($match->match_status ?: '');
+        if ($matchStatus !== '' && ! in_array($matchStatus, [
+            SpeedNetworkingMatch::MATCH_STATUS_IN_CALL,
+            SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
+        ], true)) {
+            return null;
+        }
+
+        if ($match->status === SpeedNetworkingMatch::STATUS_SKIPPED) {
+            return null;
+        }
+
         $userAId = (string) $match->user_a_id;
         $userBId = (string) $match->user_b_id;
 
@@ -261,7 +273,12 @@ class SpeedNetworkingP2pService
 
         $query = SpeedNetworkingMatch::query()
             ->where('event_id', $event->id)
-            ->whereNotNull('user_b_id');
+            ->whereNotNull('user_b_id')
+            ->where('status', '!=', SpeedNetworkingMatch::STATUS_SKIPPED)
+            ->whereIn('match_status', [
+                SpeedNetworkingMatch::MATCH_STATUS_IN_CALL,
+                SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
+            ]);
 
         if ($userId !== null && $userId !== '') {
             $query->where(function ($q) use ($userId): void {

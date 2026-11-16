@@ -20,6 +20,12 @@ class SpeedNetworkingParticipant extends Model
 
     public const STATUS_SEARCHING = 'searching';
 
+    public const STATUS_WAITING = 'waiting';
+
+    public const STATUS_PREVIEW = 'preview';
+
+    public const STATUS_ACCEPTED = 'accepted';
+
     public const STATUS_IN_CALL = 'in_call';
 
     public const STATUS_BREAK = 'break';
