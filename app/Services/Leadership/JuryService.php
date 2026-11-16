@@ -155,15 +155,20 @@ class JuryService
         }
 
         try {
+            $isStanding = ($nomination->application_number === 'PG-STANDING-POOL');
             $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
-            $campaignName = $nomination->campaign?->name ?? 'Leadership Selection Campaign';
-            $candidateName = $nomination->candidate_name ?? $nomination->full_name;
-            $appNumber = $nomination->application_number;
-            $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+            $campaignName = 'Peers Global Leadership Selection 2026';
+            $candidateName = $isStanding ? 'All Current & Incoming Candidates' : ($nomination->candidate_name ?? $nomination->full_name);
+            $appNumber = $isStanding ? 'Standing Appointment' : $nomination->application_number;
+            $roleName = $isStanding ? 'National & Circle Leadership Roles' : ($nomination->campaign?->role?->name ?? 'Leadership Role');
             $deadline = $dueAt ? Carbon::parse($dueAt)->format('d M Y, h:i A') : '7 Days from Assignment';
             $portalUrl = 'https://admin.peersunity.com/web/leadership/jury-evaluations';
 
-            \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl): void {
+            \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl, $isStanding): void {
+                $greetingParagraph = $isStanding
+                    ? 'You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>Peers Global Leadership Selection 2026</strong>. You have been appointed to evaluate and score all current and incoming candidate leadership applications submitted through the portal.'
+                    : "You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>Peers Global Leadership Selection 2026</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.";
+
                 $html = "
                 <div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;'>
                     <div style='text-align: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;'>
@@ -175,22 +180,22 @@ class JuryService
                     <p style='font-size: 15px; line-height: 1.6; margin-bottom: 16px;'>Dear <strong>{$jurorName}</strong>,</p>
 
                     <p style='font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;'>
-                        You have been officially appointed as a distinguished <strong>Jury Member</strong> for the campaign: <strong>{$campaignName}</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.
+                        {$greetingParagraph}
                     </p>
 
                     <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;'>
                         <div style='font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Assignment Details</div>
                         <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
                             <tr>
-                                <td style='padding: 6px 0; color: #64748b; width: 140px;'>Campaign:</td>
+                                <td style='padding: 6px 0; color: #64748b; width: 140px;'>Selection Scope:</td>
                                 <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$campaignName}</td>
                             </tr>
                             <tr>
-                                <td style='padding: 6px 0; color: #64748b;'>Candidate:</td>
+                                <td style='padding: 6px 0; color: #64748b;'>Candidate / Scope:</td>
                                 <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$candidateName} ({$appNumber})</td>
                             </tr>
                             <tr>
-                                <td style='padding: 6px 0; color: #64748b;'>Applied Role:</td>
+                                <td style='padding: 6px 0; color: #64748b;'>Target Roles:</td>
                                 <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$roleName}</td>
                             </tr>
                             <tr>
