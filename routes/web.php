@@ -31,9 +31,8 @@ use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
-use App\Http\Controllers\Admin\AppTutorialPopupsController;
-use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
+use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\AskManagementController;
 use App\Http\Controllers\Admin\AuditLogWebController;
@@ -134,6 +133,7 @@ use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -275,11 +275,12 @@ Route::get('/docs/ads-api', function () {
     abort(404, 'Documentation file not found.');
 })->name('docs.ads-api');
 
-
 // Leadership Form 2 (Jury Evaluation Data Form) Public Access
 Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
     ->whereUuid('id')
     ->name('leadership.form2.show');
+Route::get('/leadership/form-2', [LeadershipForm2Controller::class, 'show'])
+    ->name('leadership.form2.query');
 Route::post('/leadership/form-2/{id}/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])
     ->whereUuid('id')
     ->name('leadership.form2.verify-email');

@@ -797,8 +797,8 @@ class AdminNominationService
             $nomination->shortlisted_at = Carbon::now();
         }
 
-        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
-        $form2Link = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
+        $backendUrl = rtrim((string) config('app.url', env('APP_URL', 'https://peersunity.com')), '/');
+        $form2Link = "{$backendUrl}/leadership/form-2/{$nomination->id}";
 
         $snapshot = (array) ($nomination->profile_snapshot ?? []);
         $snapshot['form_2_link'] = $form2Link;

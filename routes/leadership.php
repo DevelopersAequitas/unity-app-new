@@ -225,15 +225,19 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('decisions/circles', [FinalDecisionController::class, 'circles']);
     Route::get('decisions/nominations/{id}/evaluations', [FinalDecisionController::class, 'evaluations'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-candidates', [FinalDecisionController::class, 'candidates'])->whereUuid('id');
+    Route::get('decisions/candidates', [FinalDecisionController::class, 'candidates']);
     Route::get('campaigns/{id}/decision-summary', [FinalDecisionController::class, 'summary'])->whereUuid('id');
     Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'campaignDecisions'])->whereUuid('id');
+    Route::get('decisions', [FinalDecisionController::class, 'campaignDecisions']);
     Route::post('decisions/campaigns/{id}/publish-winners', [FinalDecisionController::class, 'publishBatch'])->whereUuid('id');
+    Route::post('decisions/publish-winners', [FinalDecisionController::class, 'publishBatch']);
     Route::post('campaigns/{id}/decisions', [FinalDecisionController::class, 'store'])->whereUuid('id');
     Route::put('decisions/{id}', [FinalDecisionController::class, 'update'])->whereUuid('id');
     Route::get('campaigns/{id}/decisions', [FinalDecisionController::class, 'index'])->whereUuid('id');
     Route::post('decisions/{id}/publish', [FinalDecisionController::class, 'publish'])->whereUuid('id');
     Route::post('decisions/{id}/unpublish', [FinalDecisionController::class, 'unpublish'])->whereUuid('id');
     Route::get('campaigns/{id}/winners', [FinalDecisionController::class, 'winners'])->whereUuid('id');
+    Route::get('winners', [FinalDecisionController::class, 'winners']);
 
     // Module K: Winner Creative Management
     Route::get('creatives/templates', [CreativeController::class, 'templates']);
