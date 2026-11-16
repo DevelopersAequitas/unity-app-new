@@ -47,30 +47,49 @@ class AdminNominationService
             $query->where('scope_id', $filters['scope_id']);
         }
 
-        // Role filtering: supports role_id, role key, or role name (e.g. DED)
+        // Role filtering: supports role_id, role key, or role name (e.g. DED, eed, industry_director, etc.)
         if (! empty($filters['role_id']) && \Illuminate\Support\Str::isUuid((string) $filters['role_id'])) {
-            $query->whereHas('campaign', fn ($q) => $q->where('role_id', $filters['role_id']));
+            $query->where(function ($q) use ($filters): void {
+                $q->where('profile_snapshot->applied_role', $filters['role_id'])
+                    ->orWhereHas('campaign', fn ($cq) => $cq->where('role_id', $filters['role_id']));
+            });
         }
 
         if (! empty($filters['role_key'])) {
-            $query->whereHas('campaign.role', fn ($q) => $q->where('key', $filters['role_key']));
+            $keyTerm = trim((string) $filters['role_key']);
+            $query->where(function ($q) use ($keyTerm): void {
+                $q->where('profile_snapshot->applied_role', $keyTerm)
+                    ->orWhere('profile_snapshot->applied_role_name', 'ilike', '%'.$keyTerm.'%')
+                    ->orWhereHas('campaign.role', fn ($rq) => $rq->where('key', $keyTerm));
+            });
         }
 
         if (! empty($filters['role'])) {
             $roleTerm = trim((string) $filters['role']);
             $isUuid = \Illuminate\Support\Str::isUuid($roleTerm);
             $query->where(function ($q) use ($roleTerm, $isUuid): void {
-                $q->whereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
-                    if ($isUuid) {
-                        $cq->where('role_id', $roleTerm)
-                            ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
-                    } else {
-                        $cq->whereHas('role', function ($rq) use ($roleTerm): void {
-                            $rq->where('key', $roleTerm)
-                                ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
-                        });
-                    }
-                });
+                $q->where('profile_snapshot->applied_role', $roleTerm)
+                    ->orWhere('profile_snapshot->applied_role_name', 'ilike', '%'.$roleTerm.'%')
+                    ->orWhereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
+                        if ($isUuid) {
+                            $cq->where('role_id', $roleTerm)
+                                ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
+                        } else {
+                            $cq->whereHas('role', function ($rq) use ($roleTerm): void {
+                                $rq->where('key', $roleTerm)
+                                    ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
+                            });
+                        }
+                    });
+            });
+        }
+
+        if (! empty($filters['city'])) {
+            $cityTerm = '%'.trim((string) $filters['city']).'%';
+            $query->where(function ($q) use ($cityTerm): void {
+                $q->where('profile_snapshot->city', 'ilike', $cityTerm)
+                    ->orWhere('profile_snapshot->belonging_name', 'ilike', $cityTerm)
+                    ->orWhereHas('scope', fn ($sq) => $sq->where('name', 'ilike', $cityTerm));
             });
         }
 
@@ -124,7 +143,11 @@ class AdminNominationService
             $query->where(fn ($q) => $q->where('full_name', 'ilike', $term)
                 ->orWhere('application_number', 'ilike', $term)
                 ->orWhere('email', 'ilike', $term)
-                ->orWhere('mobile', 'ilike', $term));
+                ->orWhere('mobile', 'ilike', $term)
+                ->orWhere('profile_snapshot->company_name', 'ilike', $term)
+                ->orWhere('profile_snapshot->city', 'ilike', $term)
+                ->orWhere('profile_snapshot->belonging_name', 'ilike', $term)
+                ->orWhere('profile_snapshot->applied_role_name', 'ilike', $term));
         }
 
         $sortBy = $filters['sort_by'] ?? 'submitted_at';
