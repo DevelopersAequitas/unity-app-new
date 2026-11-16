@@ -68,6 +68,27 @@ class CityService
             });
         }
 
+        if (empty($filters['country_code']) && empty($filters['country'])) {
+            $indianStates = [
+                'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar', 'chhattisgarh', 'goa', 'gujarat',
+                'haryana', 'himachal pradesh', 'jharkhand', 'karnataka', 'kerala', 'madhya pradesh', 'maharashtra',
+                'manipur', 'meghalaya', 'mizoram', 'nagaland', 'odisha', 'orissa', 'punjab', 'rajasthan', 'sikkim',
+                'tamil nadu', 'telangana', 'tripura', 'uttarakhand', 'uttaranchal', 'uttar pradesh', 'west bengal',
+                'delhi', 'new delhi', 'chandigarh', 'jammu and kashmir', 'ladakh', 'puducherry', 'pondicherry',
+                'andaman and nicobar islands', 'dadra and nagar haveli and daman and diu', 'lakshadweep',
+            ];
+
+            $indianStatesList = "'".implode("','", $indianStates)."'";
+
+            $query->orderByRaw("CASE 
+                WHEN UPPER(COALESCE(country_code, '')) IN ('IN', 'IND') 
+                     OR LOWER(COALESCE(country, '')) LIKE '%india%' 
+                     OR LOWER(COALESCE(state, '')) IN ({$indianStatesList})
+                THEN 0 
+                ELSE 1 
+            END ASC");
+        }
+
         return $query->orderBy('name', 'asc');
     }
 

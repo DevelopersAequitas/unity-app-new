@@ -92,6 +92,8 @@ Route::post('votes', [VotingController::class, 'castVote']);
 Route::post('public/votes', [VotingController::class, 'castVote']);
 Route::get('circles', [FinalDecisionController::class, 'circles']);
 Route::get('public/circles', [FinalDecisionController::class, 'circles']);
+Route::get('cities', [PublicCampaignController::class, 'cities']);
+Route::get('public/cities', [PublicCampaignController::class, 'cities']);
 
 // ==========================================
 // 2. JUROR ROUTES (Sanctum Authenticated)
