@@ -155,6 +155,47 @@ class JuryAssignmentController extends LeadershipBaseController
      */
     public function adminAssignments(Request $request): JsonResponse
     {
+        // Auto-link any candidate who submitted Form 2 or was shortlisted to standing or appointed jurors
+        try {
+            $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereHas('nomination', function ($q): void {
+                $q->where('application_number', 'PG-STANDING-POOL');
+            })->pluck('juror_user_id')->filter()->unique()->values()->all();
+
+            if (empty($standingJurorIds)) {
+                $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereNotNull('juror_user_id')
+                    ->pluck('juror_user_id')->filter()->unique()->values()->all();
+            }
+
+            if (! empty($standingJurorIds)) {
+                $submittedCandidates = \App\Models\Leadership\LeadershipNomination::where('application_number', '!=', 'PG-STANDING-POOL')
+                    ->where('application_number', 'not like', '%-F2')
+                    ->where(function ($q): void {
+                        $q->where('profile_snapshot->form_2_status', 'submitted')
+                            ->orWhere('status', 'shortlisted');
+                    })
+                    ->get();
+
+                foreach ($submittedCandidates as $cand) {
+                    foreach ($standingJurorIds as $jId) {
+                        \App\Models\Leadership\LeadershipJuryAssignment::firstOrCreate(
+                            [
+                                'campaign_id' => $cand->campaign_id,
+                                'nomination_id' => $cand->id,
+                                'juror_user_id' => $jId,
+                            ],
+                            [
+                                'status' => 'assigned',
+                                'due_at' => Carbon::now()->addDays(7),
+                                'assignment_remarks' => 'Auto-assigned to standing jury panel',
+                            ]
+                        );
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Proceed to query
+        }
+
         $query = \App\Models\Leadership\LeadershipJuryAssignment::with([
             'nomination.campaign.role',
             'juror.mainBusinessCategory',
