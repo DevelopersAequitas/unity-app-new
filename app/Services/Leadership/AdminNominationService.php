@@ -254,6 +254,23 @@ class AdminNominationService
         // Synthesize Form 1 documents from profile_snapshot
         $snap = $nomination->profile_snapshot;
         if (is_array($snap)) {
+            $unwrapValue = static function ($v) use (&$unwrapValue) {
+                while (is_array($v) && count($v) === 1 && array_key_exists('value', $v)) {
+                    $v = $v['value'];
+                }
+                if (is_array($v)) {
+                    foreach ($v as $subK => $subV) {
+                        $v[$subK] = $unwrapValue($subV);
+                    }
+                }
+
+                return $v;
+            };
+
+            foreach ($snap as $k => $v) {
+                $snap[$k] = $unwrapValue($v);
+            }
+
             $snapDocMap = [
                 'ID Proof (Aadhaar / Passport)' => $snap['id_file'] ?? null,
                 'Recommendation Letter' => $snap['letter_file'] ?? null,
@@ -279,35 +296,27 @@ class AdminNominationService
 
             // Sync answers into profile_snapshot if missing in snapshot
             if ($nomination->answers && $nomination->answers->isNotEmpty()) {
-                $updatedSnap = false;
                 foreach ($nomination->answers as $ans) {
                     $key = (string) $ans->question_key;
-                    $val = is_array($ans->answer) && isset($ans->answer['value']) ? $ans->answer['value'] : $ans->answer;
+                    $val = $unwrapValue($ans->answer);
                     if (! isset($snap[$key]) && $val !== null) {
                         $snap[$key] = $val;
-                        $updatedSnap = true;
                     }
-                    if (in_array($key, ['goals', 'top_3_goals']) && empty($snap['goals'])) {
+                    if (in_array($key, ['goals', 'top_3_goals'], true) && empty($snap['goals'])) {
                         $snap['goals'] = $val;
-                        $updatedSnap = true;
                     }
-                    if (in_array($key, ['leadership_roles', 'past_roles']) && empty($snap['leadership_roles'])) {
+                    if (in_array($key, ['leadership_roles', 'past_roles'], true) && empty($snap['leadership_roles'])) {
                         $snap['leadership_roles'] = $val;
-                        $updatedSnap = true;
                     }
-                    if (in_array($key, ['time_commitment', 'monthly_commitment']) && empty($snap['time_commitment'])) {
+                    if (in_array($key, ['time_commitment', 'monthly_commitment'], true) && empty($snap['time_commitment'])) {
                         $snap['time_commitment'] = $val;
-                        $updatedSnap = true;
                     }
-                    if (in_array($key, ['video_url', 'video']) && empty($snap['video_url'])) {
+                    if (in_array($key, ['video_url', 'video'], true) && empty($snap['video_url'])) {
                         $snap['video_url'] = $val;
-                        $updatedSnap = true;
                     }
-                }
-                if ($updatedSnap) {
-                    $nomination->profile_snapshot = $snap;
                 }
             }
+            $nomination->profile_snapshot = $snap;
         }
 
         if ($synthDocs->isNotEmpty()) {
