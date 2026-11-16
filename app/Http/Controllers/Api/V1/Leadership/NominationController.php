@@ -190,7 +190,11 @@ class NominationController extends LeadershipBaseController
     {
         $cId = $campaignId ?: (string) $request->input('campaign_id');
         if (! $cId) {
-            return $this->error('Campaign ID is required.', 422);
+            $cId = (string) (\App\Models\Leadership\LeadershipCampaign::where('status', 'active')->latest()->value('id')
+                ?? \App\Models\Leadership\LeadershipCampaign::latest()->value('id'));
+        }
+        if (! $cId) {
+            return $this->error('No active leadership campaign found for nomination.', 422);
         }
 
         try {

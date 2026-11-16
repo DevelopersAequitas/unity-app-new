@@ -68,7 +68,8 @@ class AdminNominationService
             $roleTerm = trim((string) $filters['role']);
             $isUuid = \Illuminate\Support\Str::isUuid($roleTerm);
             $query->where(function ($q) use ($roleTerm, $isUuid): void {
-                $q->where('profile_snapshot->applied_role', $roleTerm)
+                $q->whereRaw("LOWER(COALESCE(profile_snapshot->>'applied_role', '')) = ?", [strtolower($roleTerm)])
+                    ->orWhere('profile_snapshot->applied_role', $roleTerm)
                     ->orWhere('profile_snapshot->applied_role_name', 'ilike', '%'.$roleTerm.'%')
                     ->orWhereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
                         if ($isUuid) {
@@ -1007,5 +1008,95 @@ class AdminNominationService
 
             return $subNomination;
         });
+    }
+
+    /**
+     * Permanently delete a single nomination and all dependent relations.
+     */
+    public function deleteNomination(string $id): void
+    {
+        $nomination = LeadershipNomination::findOrFail($id);
+
+        DB::transaction(function () use ($nomination): void {
+            $appNum = (string) $nomination->application_number;
+            if (! str_ends_with($appNum, '-F2')) {
+                $child = LeadershipNomination::where('application_number', $appNum.'-F2')->first();
+                if ($child) {
+                    $this->deleteNominationRelations($child);
+                    $child->delete();
+                }
+            }
+
+            $this->deleteNominationRelations($nomination);
+            $nomination->delete();
+        });
+    }
+
+    /**
+     * Permanently delete multiple or all nominations.
+     *
+     * @param  array<int, string>  $ids
+     */
+    public function bulkDeleteNominations(array $ids = [], bool $deleteAll = false, ?string $formType = null): int
+    {
+        return DB::transaction(function () use ($ids, $deleteAll, $formType): int {
+            $query = LeadershipNomination::query();
+
+            if (! $deleteAll) {
+                if (empty($ids)) {
+                    return 0;
+                }
+                $query->whereIn('id', $ids);
+            } elseif ($formType) {
+                if ($formType === 'sub_form_2') {
+                    $query->where(function ($q): void {
+                        $q->where('form_type', 'sub_form_2')
+                            ->orWhere('application_number', 'LIKE', '%-F2');
+                    });
+                } else {
+                    $query->where(function ($q): void {
+                        $q->where('form_type', 'main_form_1')
+                            ->orWhereNull('form_type')
+                            ->where('application_number', 'NOT LIKE', '%-F2');
+                    });
+                }
+            }
+
+            $nominations = $query->get();
+            $count = 0;
+
+            foreach ($nominations as $nomination) {
+                $appNum = (string) $nomination->application_number;
+                if (! str_ends_with($appNum, '-F2')) {
+                    $child = LeadershipNomination::where('application_number', $appNum.'-F2')->first();
+                    if ($child && ! in_array($child->id, $ids, true)) {
+                        $this->deleteNominationRelations($child);
+                        $child->delete();
+                    }
+                }
+
+                $this->deleteNominationRelations($nomination);
+                $nomination->delete();
+                $count++;
+            }
+
+            return $count;
+        });
+    }
+
+    /**
+     * Delete dependent relations for a nomination to satisfy foreign keys.
+     */
+    private function deleteNominationRelations(LeadershipNomination $nomination): void
+    {
+        $nomination->answers()->delete();
+        $nomination->documents()->delete();
+        $nomination->history()->delete();
+        $nomination->juryAssignments()->delete();
+        $nomination->jurySubmissions()->delete();
+        $nomination->finalDecision()->delete();
+        $nomination->resultTokens()->delete();
+        $nomination->votes()->delete();
+        $nomination->webVotes()->delete();
     }
 }

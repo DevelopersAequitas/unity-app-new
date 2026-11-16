@@ -66,7 +66,9 @@ Route::prefix('public')->group(function (): void {
     Route::delete('nominations/{id}/documents/{documentId}', [NominationController::class, 'deleteDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
+    Route::post('public/campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
     Route::post('nominations', [NominationController::class, 'nominate']);
+    Route::post('public/nominations', [NominationController::class, 'nominate']);
     Route::get('nominations/{id}/form-2', [LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
     Route::get('public/nominations/{id}/form-2', [LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
@@ -171,6 +173,8 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('nominations/{id}/request-correction', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
     Route::post('nominations/{id}/approve', [AdminNominationController::class, 'approve'])->whereUuid('id');
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
+    Route::post('nominations/bulk-delete', [AdminNominationController::class, 'bulkDestroy']);
+    Route::delete('nominations/bulk-delete', [AdminNominationController::class, 'bulkDestroy']);
     Route::delete('nominations/{id}', [AdminNominationController::class, 'destroy'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
     Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
