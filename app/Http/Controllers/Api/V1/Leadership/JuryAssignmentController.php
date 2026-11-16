@@ -176,6 +176,10 @@ class JuryAssignmentController extends LeadershipBaseController
         $assignments = $query->get();
 
         $assignments->each(function ($asg): void {
+            if ($asg->nomination?->application_number === 'PG-STANDING-POOL') {
+                $asg->setAttribute('is_standing', true);
+                $asg->setAttribute('candidate_name', 'All Incoming Candidates (Standing Pool)');
+            }
             if ($asg->juror) {
                 $compName = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
                 $catName = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
@@ -227,11 +231,34 @@ class JuryAssignmentController extends LeadershipBaseController
         $remarks = $validated['remarks'] ?? '';
 
         try {
+            // Always ensure the standing pool placeholder exists
+            $standingNomination = \App\Models\Leadership\LeadershipNomination::firstOrCreate(
+                ['application_number' => 'PG-STANDING-POOL'],
+                [
+                    'candidate_name' => 'Standing Jury Pool',
+                    'full_name' => 'Standing Jury Pool',
+                    'email' => 'jury-standing@peersglobal.com',
+                    'applied_role' => 'general',
+                    'status' => 'approved',
+                    'form_type' => 'main_form_1',
+                ]
+            );
+
+            // Register standing assignment for each juror so they are standing evaluators
+            $standingRes = $this->juryService->assignJurors(
+                $standingNomination->id,
+                $jurorIds,
+                $dueAt ? (string) $dueAt : null,
+                $remarks ?: 'Standing Juror appointment for all candidate applications',
+                Auth::id()
+            );
+
             if ($nominationId === 'all') {
                 $campaignId = $validated['campaign_id'] ?? $request->input('campaign_id');
                 $nomQuery = \App\Models\Leadership\LeadershipNomination::query()
-                    ->whereIn('status', ['shortlisted', 'approved', 'submitted'])
-                    ->where('application_number', 'not like', '%-F2');
+                    ->where('application_number', '!=', 'PG-STANDING-POOL')
+                    ->where('application_number', 'not like', '%-F2')
+                    ->whereIn('status', ['shortlisted', 'approved', 'submitted']);
 
                 if (! empty($campaignId) && $campaignId !== 'all') {
                     $nomQuery->where('campaign_id', $campaignId);
@@ -240,16 +267,15 @@ class JuryAssignmentController extends LeadershipBaseController
                 $nominations = $nomQuery->get();
 
                 if ($nominations->isEmpty()) {
-                    // Fallback to all nominations if no shortlisted ones
-                    $nominations = \App\Models\Leadership\LeadershipNomination::where('application_number', 'not like', '%-F2')->get();
-                }
-
-                if ($nominations->isEmpty()) {
-                    return $this->error('No candidate nominations found to assign jurors to.', 404);
+                    // Fallback to all candidate nominations if none shortlisted/submitted
+                    $nominations = \App\Models\Leadership\LeadershipNomination::where('application_number', '!=', 'PG-STANDING-POOL')
+                        ->where('application_number', 'not like', '%-F2')
+                        ->get();
                 }
 
                 $totalCreated = 0;
                 $allAssignments = new \Illuminate\Database\Eloquent\Collection;
+                $allAssignments = $allAssignments->merge($standingRes['assignments']);
 
                 foreach ($nominations as $nom) {
                     $res = $this->juryService->assignJurors(
@@ -263,10 +289,17 @@ class JuryAssignmentController extends LeadershipBaseController
                     $allAssignments = $allAssignments->merge($res['assignments']);
                 }
 
+                $candidateCount = $nominations->count();
+                $msg = $candidateCount > 0
+                    ? "Assigned juror(s) to {$candidateCount} candidate application(s) and registered as standing jurors for future nominations."
+                    : 'Appointed standing juror(s) successfully. Any future candidate nominations will automatically be assigned to them.';
+
                 return $this->success([
-                    'assignments_created' => $totalCreated,
+                    'assignments_created' => $totalCreated ?: count($jurorIds),
                     'assignments' => $allAssignments,
-                ], "Assigned juror to {$nominations->count()} candidates successfully.", 201);
+                    'candidates_assigned' => $candidateCount,
+                    'is_standing' => true,
+                ], $msg, 201);
             }
 
             $result = $this->juryService->assignJurors(

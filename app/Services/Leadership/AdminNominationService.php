@@ -34,6 +34,7 @@ class AdminNominationService
     public function listNominations(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $query = LeadershipNomination::query()
+            ->where('application_number', '!=', 'PG-STANDING-POOL')
             ->with(['campaign.role', 'scope', 'user'])
             ->withCount([
                 'documents as documents_pending' => fn ($q) => $q->where('verification_status', 'pending'),
@@ -1110,7 +1111,7 @@ class AdminNominationService
     public function bulkDeleteNominations(array $ids = [], bool $deleteAll = false, ?string $formType = null): int
     {
         return DB::transaction(function () use ($ids, $deleteAll, $formType): int {
-            $query = LeadershipNomination::query();
+            $query = LeadershipNomination::query()->where('application_number', '!=', 'PG-STANDING-POOL');
 
             if (! $deleteAll) {
                 if (empty($ids)) {
