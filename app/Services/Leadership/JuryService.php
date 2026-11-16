@@ -161,7 +161,7 @@ class JuryService
             $appNumber = $nomination->application_number;
             $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
             $deadline = $dueAt ? Carbon::parse($dueAt)->format('d M Y, h:i A') : '7 Days from Assignment';
-            $portalUrl = 'https://peersunity.com/admin/web/jury/login';
+            $portalUrl = 'https://admin.peersunity.com/web/leadership/jury-evaluations';
 
             \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl): void {
                 $html = "
@@ -279,16 +279,20 @@ class JuryService
     public function sendInvitation(string $assignmentId, bool $sendEmail, bool $sendWhatsapp, string $templateKey): array
     {
         /** @var LeadershipJuryAssignment $assignment */
-        $assignment = LeadershipJuryAssignment::with('juror')->findOrFail($assignmentId);
+        $assignment = LeadershipJuryAssignment::with(['juror', 'nomination.campaign.role'])->findOrFail($assignmentId);
 
         $assignment->update([
             'status' => 'invited',
             'invitation_sent_at' => Carbon::now(),
         ]);
 
+        if ($sendEmail && $assignment->juror && $assignment->nomination) {
+            $this->sendJurorAppointmentEmail($assignment->juror, $assignment->nomination, $assignment->due_at ? $assignment->due_at->toDateTimeString() : null);
+        }
+
         return [
             'assignment_id' => $assignment->id,
-            'notification_status' => 'queued',
+            'notification_status' => 'sent',
         ];
     }
 

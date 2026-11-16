@@ -387,14 +387,13 @@ class VotingService
      * @return array{campaign_id: string, total_votes: int, unique_voters: int, candidates: array<int, array<string, mixed>>}
      */
     public function getAdminVotingResults(
-        string $campaignId,
+        ?string $campaignId = null,
         ?string $scopeId = null,
         string $sortBy = 'vote_count',
         string $sortOrder = 'desc'
     ): array {
         $candidatesQuery = LeadershipNomination::query()
             ->with(['scope', 'campaign.role'])
-            ->where('campaign_id', $campaignId)
             ->whereNotIn('status', ['rejected', 'withdrawn'])
             ->withCount([
                 'votes' => function ($q) use ($scopeId): void {
@@ -403,6 +402,10 @@ class VotingService
                     }
                 },
             ]);
+
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $candidatesQuery->where('campaign_id', $campaignId);
+        }
 
         if ($scopeId) {
             $candidatesQuery->where('scope_id', $scopeId);
@@ -553,7 +556,7 @@ class VotingService
         unset($res);
 
         return [
-            'campaign_id' => $campaignId,
+            'campaign_id' => $campaignId ?: 'all',
             'total_votes' => $finalTotalVotes,
             'unique_voters' => $uniqueVotersCount,
             'candidates' => $candidateResults,
@@ -566,13 +569,17 @@ class VotingService
      * @return array<string, mixed>
      */
     public function getDetailedVotes(
-        string $campaignId,
+        ?string $campaignId = null,
         ?string $nominationId = null,
         ?string $search = null,
         int $page = 1,
         int $perPage = 25
     ): array {
-        $candidates = LeadershipNomination::where('campaign_id', $campaignId)->get();
+        $candQuery = LeadershipNomination::query();
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $candQuery->where('campaign_id', $campaignId);
+        }
+        $candidates = $candQuery->get();
         $candIds = array_values(array_filter($candidates->pluck('id')->toArray(), fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
         $candUserIds = array_values(array_filter($candidates->pluck('user_id')->toArray(), fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
         $candUuids = array_unique(array_merge($candIds, $candUserIds));
@@ -595,21 +602,23 @@ class VotingService
         // 1. Fetch from web_votes if exists
         if (Schema::hasTable('web_votes')) {
             $wQuery = WebVote::query();
-            $wQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candNames): void {
-                $q->where('campaign_id', $campaignId);
-                if (! empty($candUuids)) {
-                    $q->orWhereIn('nomination_id', $candUuids);
-                }
-                if (! empty($candAppNos)) {
-                    $q->orWhereIn('nomination_id', $candAppNos);
-                }
-                foreach ($candNames as $name) {
-                    if (! empty($name)) {
-                        $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
-                            ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
+            if (! empty($campaignId) && $campaignId !== 'all') {
+                $wQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candNames): void {
+                    $q->where('campaign_id', $campaignId);
+                    if (! empty($candUuids)) {
+                        $q->orWhereIn('nomination_id', $candUuids);
                     }
-                }
-            });
+                    if (! empty($candAppNos)) {
+                        $q->orWhereIn('nomination_id', $candAppNos);
+                    }
+                    foreach ($candNames as $name) {
+                        if (! empty($name)) {
+                            $q->orWhereRaw('LOWER(candidate_name) = ?', [$name])
+                                ->orWhereRaw('LOWER(candidate_name) LIKE ?', ['%'.$name.'%']);
+                        }
+                    }
+                });
+            }
 
             if (! empty($targetIds)) {
                 $targetUuids = array_values(array_filter($targetIds, fn ($id) => ! empty($id) && Str::isUuid((string) $id)));
@@ -670,31 +679,33 @@ class VotingService
         // 2. Fetch from web_leadership_votes if exists
         if (Schema::hasTable('web_leadership_votes')) {
             $lQuery = LeadershipVote::with(['nomination', 'voterUser']);
-            $lQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candIds, $candNames): void {
-                $q->where('campaign_id', $campaignId);
-                if (! empty($candUuids)) {
-                    $q->orWhereIn('nomination_id', $candUuids);
-                }
-                foreach ($candAppNos as $appNo) {
-                    if (! empty($appNo)) {
-                        $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $appNo])
-                            ->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $appNo])
-                            ->orWhereRaw("LOWER(metadata->>'application_number') = ?", [strtolower((string) $appNo)])
-                            ->orWhereRaw("LOWER(metadata->>'nomination_reference') = ?", [strtolower((string) $appNo)]);
+            if (! empty($campaignId) && $campaignId !== 'all') {
+                $lQuery->where(function ($q) use ($campaignId, $candUuids, $candAppNos, $candIds, $candNames): void {
+                    $q->where('campaign_id', $campaignId);
+                    if (! empty($candUuids)) {
+                        $q->orWhereIn('nomination_id', $candUuids);
                     }
-                }
-                foreach ($candIds as $cid) {
-                    if (! empty($cid)) {
-                        $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $cid]);
+                    foreach ($candAppNos as $appNo) {
+                        if (! empty($appNo)) {
+                            $q->orWhereRaw("metadata->>'application_number' = ?", [(string) $appNo])
+                                ->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $appNo])
+                                ->orWhereRaw("LOWER(metadata->>'application_number') = ?", [strtolower((string) $appNo)])
+                                ->orWhereRaw("LOWER(metadata->>'nomination_reference') = ?", [strtolower((string) $appNo)]);
+                        }
                     }
-                }
-                foreach ($candNames as $name) {
-                    if (! empty($name)) {
-                        $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name])
-                            ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$name.'%']);
+                    foreach ($candIds as $cid) {
+                        if (! empty($cid)) {
+                            $q->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $cid]);
+                        }
                     }
-                }
-            });
+                    foreach ($candNames as $name) {
+                        if (! empty($name)) {
+                            $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [$name])
+                                ->orWhereRaw("LOWER(metadata->>'candidate_name') LIKE ?", ['%'.$name.'%']);
+                        }
+                    }
+                });
+            }
 
             if (! empty($targetIds)) {
                 $targetUuids = array_values(array_filter($targetIds, fn ($id) => ! empty($id) && Str::isUuid((string) $id)));

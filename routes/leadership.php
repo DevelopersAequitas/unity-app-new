@@ -188,6 +188,9 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('campaigns/{id}/voting/results', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/tally', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/summary', [VotingController::class, 'results'])->whereUuid('id');
+    Route::get('voting/results', [VotingController::class, 'results']);
+    Route::get('voting/tally', [VotingController::class, 'results']);
+    Route::get('voting/summary', [VotingController::class, 'results']);
     Route::get('voting/campaigns/{id}/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
     Route::get('campaigns/{id}/voting/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
     Route::get('voting/votes', [VotingController::class, 'detailedVotes']);
@@ -204,12 +207,15 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('jury/criteria', [JuryAssignmentController::class, 'adminCreateCriterion']);
     Route::put('jury/criteria/{id}', [JuryAssignmentController::class, 'adminUpdateCriterion'])->whereUuid('id');
     Route::delete('jury/criteria/{id}', [JuryAssignmentController::class, 'adminDeleteCriterion'])->whereUuid('id');
+    Route::get('jury/reports', [JuryAssignmentController::class, 'adminReport']);
     Route::get('jury/reports/{campaignId}', [JuryAssignmentController::class, 'adminReport'])->whereUuid('campaignId');
     Route::get('jury/members', [JuryAssignmentController::class, 'members']);
     Route::post('nominations/{id}/jury-assignments', [JuryAssignmentController::class, 'assign'])->whereUuid('id');
     Route::get('nominations/{id}/jury-assignments', [JuryAssignmentController::class, 'candidateAssignments'])->whereUuid('id');
     Route::put('jury-assignments/{id}', [JuryAssignmentController::class, 'update'])->whereUuid('id');
     Route::post('jury-assignments/{id}/send-invitation', [JuryAssignmentController::class, 'sendInvitation'])->whereUuid('id');
+    Route::post('jury/assignments/{id}/resend-email', [JuryAssignmentController::class, 'sendInvitation'])->whereUuid('id');
+    Route::post('jury/resend-email', [JuryAssignmentController::class, 'resendJurorEmail']);
 
     // Module I: Admin Jury Summary
     Route::get('nominations/{id}/jury-summary', [JuryEvaluationController::class, 'summary'])->whereUuid('id');
