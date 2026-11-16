@@ -20,6 +20,26 @@ class SpeedNetworkingMatch extends Model
 
     public const STATUS_SKIPPED = 'skipped';
 
+    public const MATCH_STATUS_PREVIEW = 'preview';
+
+    public const MATCH_STATUS_IN_CALL = 'in_call';
+
+    public const MATCH_STATUS_COMPLETED = 'completed';
+
+    public const MATCH_STATUS_SKIPPED = 'skipped';
+
+    public const MATCH_STATUS_BLOCKED = 'blocked';
+
+    public const MATCH_STATUS_EXPIRED = 'expired';
+
+    public const DECISION_PENDING = 'pending';
+
+    public const DECISION_ACCEPTED = 'accepted';
+
+    public const DECISION_SKIP = 'skip';
+
+    public const DECISION_BLOCK = 'block';
+
     protected $table = 'speed_networking_matches';
 
     protected $primaryKey = 'id';
@@ -38,6 +58,12 @@ class SpeedNetworkingMatch extends Model
         'user_a_id',
         'user_b_id',
         'status',
+        'match_status',
+        'user_a_decision',
+        'user_b_decision',
+        'preview_duration_seconds',
+        'preview_expires_at',
+        'call_started_at',
         'duration_seconds',
         'started_at',
         'ended_at',
@@ -51,6 +77,9 @@ class SpeedNetworkingMatch extends Model
         return [
             'round_number' => 'integer',
             'table_number' => 'integer',
+            'preview_duration_seconds' => 'integer',
+            'preview_expires_at' => 'datetime',
+            'call_started_at' => 'datetime',
             'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
