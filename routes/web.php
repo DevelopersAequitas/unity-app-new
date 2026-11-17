@@ -106,6 +106,7 @@ use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\TutorialController;
+use App\Http\Controllers\Admin\UserActivityLogWebController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
@@ -411,6 +412,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Central Activity Logs & Audit Trail
         Route::get('/audit-logs', [AuditLogWebController::class, 'index'])->name('audit-logs.index');
         Route::get('/audit-logs/export', [AuditLogWebController::class, 'export'])->name('audit-logs.export');
+
+        // User Activity & Security Logs (Mobile & Web App Activity Forensics)
+        Route::get('/user-activity-logs', [UserActivityLogWebController::class, 'index'])->name('user-activity-logs.index');
+        Route::get('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'show'])->name('user-activity-logs.show')->whereUuid('id');
+        Route::get('/user-activity-logs/export/csv', [UserActivityLogWebController::class, 'export'])->name('user-activity-logs.export');
 
         // Tutorials routes
         Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');

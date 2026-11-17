@@ -22,6 +22,8 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
 use App\Http\Controllers\Api\Activities\ReferralHistoryController;
@@ -195,6 +197,7 @@ use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TutorialController;
+use App\Http\Controllers\Api\V1\UserActivityLogController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
@@ -202,8 +205,6 @@ use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
-use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
-use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -2391,4 +2392,13 @@ foreach (['v1/admin/commissions', 'admin/commissions', 'v1/commissions'] as $com
         Route::post('', [CommissionManagementController::class, 'store']);
         Route::delete('{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id');
     });
+}
+
+// =========================================================================
+// USER ACTIVITY & SECURITY LOGS API
+// Supports /api/v1/user-activity-logs and /api/user-activity-logs
+// =========================================================================
+foreach (['v1/user-activity-logs', 'user-activity-logs'] as $activityLogPrefix) {
+    Route::post($activityLogPrefix, [UserActivityLogController::class, 'store']);
+    Route::middleware('auth:sanctum')->get($activityLogPrefix, [UserActivityLogController::class, 'index']);
 }

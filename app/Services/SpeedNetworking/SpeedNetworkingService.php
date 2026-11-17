@@ -3406,6 +3406,9 @@ class SpeedNetworkingService
                 'p2p_meeting_id' => $p2pMeeting?->id ? (string) $p2pMeeting->id : null,
                 'creative_url' => $creativeUrl,
                 'p2p_logged' => $p2pMeeting !== null,
+                'meeting_notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
+                'notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
+                'remarks' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
             ];
         }
 
@@ -3414,12 +3417,12 @@ class SpeedNetworkingService
 
         $freshUser = $user->fresh() ?? $user;
         $userCoins = (int) ($freshUser->coins_balance ?? 0);
-        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
         if ($impactPerMeeting <= 0) {
-            $impactPerMeeting = 5;
+            $impactPerMeeting = 1;
         }
         $lifeImpactEarned = count($interactedPeers) * $impactPerMeeting;
-        $coinsEarned = count($interactedPeers) * 10;
+        $coinsEarned = count($interactedPeers) * 3000;
 
         $userLifeImpact = $this->resolveUserLifeImpact($freshUser, $event);
         if ($userLifeImpact < $lifeImpactEarned) {
@@ -3465,6 +3468,8 @@ class SpeedNetworkingService
                 'balance_after' => $userCoins,
             ],
             'coins_earned' => $coinsEarned,
+            'peers_met_count' => count($interactedPeers),
+            'peers_met' => $interactedPeers,
             'interacted_peers' => $interactedPeers,
         ];
     }
@@ -3682,7 +3687,11 @@ class SpeedNetworkingService
                     'current_round' => (int) $event->current_round,
                     'total_joined' => $totalJoined,
                     'participants_count' => $totalJoined,
+                    'rounds_completed' => (int) ($summary['rounds_completed'] ?? $peersMetCount),
                     'peers_met_count' => $peersMetCount,
+                    'life_impact_earned' => $peersMetCount * 1,
+                    'coins_earned' => $peersMetCount * 3000,
+                    'peers_met' => $summary['interacted_peers'] ?? [],
                     'ticket_price' => (float) $event->ticket_price,
                     'is_paid' => (bool) $event->is_paid,
                     'currency' => (string) $event->currency,

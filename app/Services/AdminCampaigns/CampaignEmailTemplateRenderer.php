@@ -4,6 +4,8 @@ namespace App\Services\AdminCampaigns;
 
 use App\Models\AdminCampaign;
 use App\Models\CampaignEmailTemplate;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class CampaignEmailTemplateRenderer
 {
@@ -28,10 +30,18 @@ class CampaignEmailTemplateRenderer
 
     public function defaultTemplate(): ?CampaignEmailTemplate
     {
-        return CampaignEmailTemplate::query()
-            ->where('slug', 'simple-text')
-            ->where('status', CampaignEmailTemplate::STATUS_ACTIVE)
-            ->first();
+        if (! Schema::hasTable('campaign_email_templates')) {
+            return null;
+        }
+
+        try {
+            return CampaignEmailTemplate::query()
+                ->where('slug', 'simple-text')
+                ->where('status', CampaignEmailTemplate::STATUS_ACTIVE)
+                ->first();
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function templateSnapshot(AdminCampaign $campaign): array

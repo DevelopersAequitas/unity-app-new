@@ -197,9 +197,9 @@ class SpeedNetworkingP2pService
 
         // 6. Increase Life Impact for BOTH users
         try {
-            $impactPoints = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+            $impactPoints = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
             if ($impactPoints <= 0) {
-                $impactPoints = 5;
+                $impactPoints = 1;
             }
 
             $userAName = $userA->display_name ?: $userA->name ?: 'Peer';
