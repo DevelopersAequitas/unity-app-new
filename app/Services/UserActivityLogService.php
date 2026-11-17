@@ -149,7 +149,7 @@ class UserActivityLogService
             });
         }
 
-        $query->orderBy('agg.last_active_at', 'desc');
+        $query->orderByRaw('agg.last_active_at DESC NULLS LAST');
 
         $paginated = $query->paginate($perPage)->withQueryString();
 
@@ -318,6 +318,21 @@ class UserActivityLogService
             'platforms' => ! empty($platforms) ? $platforms : ['android', 'ios', 'web', 'windows', 'macos'],
             'statuses' => ['success', 'failed', 'warning', 'blocked'],
         ];
+    }
+
+    /**
+     * Retrieve the single most recent activity log with associated user for the top card showcase.
+     */
+    public function getLatestActivity(): ?UserActivityLog
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            return null;
+        }
+
+        return UserActivityLog::query()
+            ->with(['user'])
+            ->latest('created_at')
+            ->first();
     }
 
     /**

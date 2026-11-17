@@ -100,6 +100,86 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
         </div>
     </div>
 
+    @if ($latestActivity)
+        @php
+            $latestUser = $latestActivity->user;
+            $latestUserName = $latestUser ? ($latestUser->display_name ?: trim(($latestUser->first_name ?? '').' '.($latestUser->last_name ?? ''))) : 'Guest / Peer';
+            if (empty($latestUserName)) {
+                $latestUserName = 'Peer User';
+            }
+            $latestDt = $latestActivity->created_at ? \Carbon\Carbon::parse($latestActivity->created_at) : null;
+        @endphp
+        <!-- LATEST USER & ACTIVITY TOP SPOTLIGHT -->
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-primary border-4 position-relative overflow-hidden">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="position-relative flex-shrink-0">
+                        @if ($latestUser && !empty($latestUser->profile_photo_url))
+                            <img src="{{ $latestUser->profile_photo_url }}" alt="{{ $latestUserName }}" class="rounded-circle shadow-sm" style="width: 50px; height: 50px; object-fit: cover;">
+                        @else
+                            <div class="rounded-circle bg-primary text-white fw-bold d-flex align-items-center justify-content-center shadow-sm" style="width: 50px; height: 50px; font-size: 18px;">
+                                {{ strtoupper(substr($latestUserName, 0, 1)) }}
+                            </div>
+                        @endif
+                        <span class="position-absolute bottom-0 end-0 p-1 bg-success border border-white rounded-circle" title="Live Recent Activity">
+                            <span class="visually-hidden">Live</span>
+                        </span>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small fw-bold text-uppercase">
+                                <i class="bi bi-broadcast me-1"></i> Latest User Activity
+                            </span>
+                            @if ($latestDt)
+                                <span class="text-muted extra-small font-monospace">
+                                    <i class="bi bi-clock me-1"></i>{{ $latestDt->diffForHumans() }} ({{ $latestDt->format('M d, H:i:s') }})
+                                </span>
+                            @endif
+                        </div>
+                        <h6 class="fw-bold text-dark mb-0.5 d-flex align-items-center gap-2 flex-wrap">
+                            @if ($latestUser)
+                                <a href="{{ route('admin.user-activity-logs.user', $latestUser->id) }}" class="text-dark text-decoration-none">
+                                    {{ $latestUserName }}
+                                </a>
+                                <span class="text-muted extra-small fw-normal">({{ $latestUser->email ?: ($latestUser->phone ?: 'No email') }})</span>
+                            @else
+                                <span>{{ $latestUserName }}</span>
+                            @endif
+                        </h6>
+                        <div class="small text-muted d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-semibold text-dark">{{ $latestActivity->description ?: $latestActivity->action }}</span>
+                            @if ($latestActivity->module)
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle extra-small">{{ strtoupper($latestActivity->module) }}</span>
+                            @endif
+                            @if ($latestActivity->activity_type)
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle extra-small">{{ strtoupper($latestActivity->activity_type) }}</span>
+                            @endif
+                            @if ($latestActivity->platform)
+                                <span class="extra-small text-muted font-monospace"><i class="bi bi-phone me-0.5"></i>{{ $latestActivity->platform }} @if($latestActivity->app_version) v{{ $latestActivity->app_version }} @endif</span>
+                            @endif
+                            @if ($latestActivity->ip_address)
+                                <span class="extra-small text-muted font-monospace"><i class="bi bi-globe me-0.5"></i>{{ $latestActivity->ip_address }}</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    @if ($latestUser)
+                        <button type="button" class="btn btn-primary btn-sm px-3 py-1.5 shadow-sm d-flex align-items-center gap-1.5"
+                                onclick="openUserDrawer('{{ $latestUser->id }}', '{{ addslashes($latestUserName) }}', '{{ addslashes($latestUser->email ?? '') }}')">
+                            <i class="bi bi-clock-history"></i>
+                            <span>Show All Activity</span>
+                        </button>
+                        <a href="{{ route('admin.user-activity-logs.user', $latestUser->id) }}" class="btn btn-outline-secondary btn-sm p-1.5" title="Full Page Activity View">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Navigation Tabs (By User vs Raw Logs) -->
     <div class="d-flex border-bottom mb-2 gap-2">
         <a href="{{ route('admin.user-activity-logs.index', array_merge(request()->query(), ['view' => 'users'])) }}" 
@@ -224,9 +304,16 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                             </div>
                                         @endif
                                         <div class="overflow-hidden">
-                                            <a href="{{ route('admin.user-activity-logs.user', $u->user_id) }}" class="fw-bold text-dark text-decoration-none d-block text-truncate" style="max-width: 180px;" onclick="event.stopPropagation();">
-                                                {{ $userName }}
-                                            </a>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <a href="{{ route('admin.user-activity-logs.user', $u->user_id) }}" class="fw-bold text-dark text-decoration-none text-truncate" style="max-width: 180px;" onclick="event.stopPropagation();">
+                                                    {{ $userName }}
+                                                </a>
+                                                @if ($loop->first)
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle extra-small flex-shrink-0" style="font-size: 10px;">
+                                                        <i class="bi bi-broadcast me-0.5"></i>LATEST
+                                                    </span>
+                                                @endif
+                                            </div>
                                             <div class="text-muted extra-small text-truncate" style="max-width: 180px;">
                                                 {{ $u->email ?: ($u->phone ?: 'No email') }}
                                             </div>
@@ -678,6 +765,7 @@ function openUserDrawer(userId, userName, userEmail) {
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-1.5">
                         <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            ${index === 0 ? '<span class="badge bg-success text-white extra-small fw-bold"><i class="bi bi-broadcast me-1"></i>LATEST</span>' : ''}
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle extra-small text-uppercase fw-bold">${log.activity_type || 'ACTIVITY'}</span>
                             ${log.module ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle extra-small">${log.module.toUpperCase()}</span>` : ''}
                             <span class="badge ${statusClass} border extra-small text-uppercase">${log.status || 'success'}</span>

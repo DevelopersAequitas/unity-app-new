@@ -44,6 +44,7 @@ class UserActivityLogWebController extends Controller
         $tableMissing = ! Schema::hasTable('user_activity_logs');
         $stats = $this->userActivityLogService->getAdminStats();
         $options = $this->userActivityLogService->getFilterOptions();
+        $latestActivity = $this->userActivityLogService->getLatestActivity();
 
         if ($viewMode === 'logs') {
             $logs = $this->userActivityLogService->getAdminLogs($filters, $perPage);
@@ -60,6 +61,7 @@ class UserActivityLogWebController extends Controller
             'options' => $options,
             'filters' => $filters,
             'viewMode' => $viewMode,
+            'latestActivity' => $latestActivity,
             'tableMissing' => $tableMissing,
         ]);
     }
