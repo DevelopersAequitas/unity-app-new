@@ -92,35 +92,14 @@ class UserActivityLogService
      */
     public function getUsersWithActivity(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        if (! Schema::hasTable('user_activity_logs')) {
-            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage);
-        }
-
         $search = trim((string) ($filters['search'] ?? ''));
         $platform = trim((string) ($filters['platform'] ?? 'all'));
         $module = trim((string) ($filters['module'] ?? 'all'));
         $dateFrom = ! empty($filters['date_from']) ? (string) $filters['date_from'] : null;
         $dateTo = ! empty($filters['date_to']) ? (string) $filters['date_to'] : null;
+        $hasTable = Schema::hasTable('user_activity_logs');
 
-        // Subquery for user activity metrics
-        $sub = UserActivityLog::query()
-            ->select([
-                'user_id',
-                DB::raw('COUNT(id) as total_activities'),
-                DB::raw('COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as today_activities'),
-                DB::raw('COUNT(CASE WHEN status IN (\'failed\', \'blocked\', \'warning\') THEN 1 END) as alert_activities'),
-                DB::raw('MAX(created_at) as last_active_at'),
-            ])
-            ->whereNotNull('user_id')
-            ->when($platform !== 'all' && $platform !== '', fn ($q) => $q->where('platform', $platform))
-            ->when($module !== 'all' && $module !== '', fn ($q) => $q->where('module', $module))
-            ->when($dateFrom, fn ($q) => $q->where('created_at', '>=', $dateFrom.' 00:00:00'))
-            ->when($dateTo, fn ($q) => $q->where('created_at', '<=', $dateTo.' 23:59:59'))
-            ->groupBy('user_id');
-
-        $query = DB::query()
-            ->fromSub($sub, 'agg')
-            ->join('users', 'users.id', '=', 'agg.user_id')
+        $query = User::query()
             ->select([
                 'users.id as user_id',
                 'users.first_name',
@@ -130,11 +109,52 @@ class UserActivityLogService
                 'users.phone',
                 'users.company_name',
                 'users.profile_photo_url',
-                'agg.total_activities',
-                'agg.today_activities',
-                'agg.alert_activities',
+                'users.created_at as registered_at',
+            ]);
+
+        if ($hasTable) {
+            // Subquery for user activity metrics
+            $sub = UserActivityLog::query()
+                ->select([
+                    'user_id',
+                    DB::raw('COUNT(id) as total_activities'),
+                    DB::raw('COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as today_activities'),
+                    DB::raw('COUNT(CASE WHEN status IN (\'failed\', \'blocked\', \'warning\') THEN 1 END) as alert_activities'),
+                    DB::raw('MAX(created_at) as last_active_at'),
+                ])
+                ->whereNotNull('user_id')
+                ->when($platform !== 'all' && $platform !== '', fn ($q) => $q->where('platform', $platform))
+                ->when($module !== 'all' && $module !== '', fn ($q) => $q->where('module', $module))
+                ->when($dateFrom, fn ($q) => $q->where('created_at', '>=', $dateFrom.' 00:00:00'))
+                ->when($dateTo, fn ($q) => $q->where('created_at', '<=', $dateTo.' 23:59:59'))
+                ->groupBy('user_id');
+
+            $query->leftJoinSub($sub, 'agg', function ($join): void {
+                $join->on('users.id', '=', 'agg.user_id');
+            });
+
+            $query->addSelect([
+                DB::raw('COALESCE(agg.total_activities, 0) as total_activities'),
+                DB::raw('COALESCE(agg.today_activities, 0) as today_activities'),
+                DB::raw('COALESCE(agg.alert_activities, 0) as alert_activities'),
                 'agg.last_active_at',
             ]);
+
+            // If user explicitly filtered by platform, module, or date range, only show users who have activity matching the filter
+            if (($platform !== 'all' && $platform !== '') || ($module !== 'all' && $module !== '') || $dateFrom || $dateTo) {
+                $query->whereNotNull('agg.last_active_at');
+            }
+
+            $query->orderByRaw('agg.last_active_at DESC NULLS LAST, users.created_at DESC');
+        } else {
+            $query->addSelect([
+                DB::raw('0 as total_activities'),
+                DB::raw('0 as today_activities'),
+                DB::raw('0 as alert_activities'),
+                DB::raw('NULL as last_active_at'),
+            ]);
+            $query->orderBy('users.created_at', 'desc');
+        }
 
         if ($search !== '') {
             $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -149,14 +169,17 @@ class UserActivityLogService
             });
         }
 
-        $query->orderByRaw('agg.last_active_at DESC NULLS LAST');
-
         $paginated = $query->paginate($perPage)->withQueryString();
 
-        // Populate latest activity metadata for each user in the page
-        $userIds = collect($paginated->items())->pluck('user_id')->filter()->all();
+        // Populate latest activity metadata for each user in the page who has activity
+        $userIds = collect($paginated->items())
+            ->filter(fn ($item): bool => (int) $item->total_activities > 0)
+            ->pluck('user_id')
+            ->filter()
+            ->all();
+
         $latestLogs = [];
-        if (! empty($userIds)) {
+        if ($hasTable && ! empty($userIds)) {
             $logs = UserActivityLog::query()
                 ->whereIn('user_id', $userIds)
                 ->orderBy('created_at', 'desc')
