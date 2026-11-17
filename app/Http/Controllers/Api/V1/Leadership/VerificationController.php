@@ -19,17 +19,22 @@ class VerificationController extends LeadershipBaseController
      */
     public function requestNominationOtp(Request $request): JsonResponse
     {
+        $contact = trim((string) $request->input('contact'));
+        $defaultType = str_contains($contact, '@') ? 'email' : 'mobile';
+
         $validated = $request->validate([
-            'campaign_id' => 'required|uuid',
-            'contact_type' => 'required|in:email,mobile',
+            'campaign_id' => 'required|string',
+            'contact_type' => 'nullable|in:email,mobile',
             'contact' => 'required|string',
         ]);
+
+        $contactType = $validated['contact_type'] ?? $defaultType;
 
         try {
             $res = $this->verificationService->requestNominationOtp(
                 $validated['campaign_id'],
-                $validated['contact_type'],
-                $validated['contact'],
+                $contactType,
+                $contact,
                 $request->ip()
             );
 
@@ -45,7 +50,7 @@ class VerificationController extends LeadershipBaseController
     public function verifyNominationOtp(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'verification_id' => 'required|uuid',
+            'verification_id' => 'required|string',
             'otp' => 'required|string',
         ]);
 
@@ -55,7 +60,13 @@ class VerificationController extends LeadershipBaseController
                 $validated['otp']
             );
 
-            return $this->success($res, 'Verification successful.');
+            return response()->json([
+                'success' => true,
+                'verified' => true,
+                'is_existing_member' => $res['is_existing_member'] ?? false,
+                'message' => 'Identity verified successfully.',
+                'data' => $res,
+            ]);
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }

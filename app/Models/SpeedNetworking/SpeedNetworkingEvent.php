@@ -273,11 +273,20 @@ class SpeedNetworkingEvent extends Model
     }
 
     /**
-     * Check if event has ended or reached all rounds.
+     * Check if event has ended or scheduled end time has elapsed.
+     * Keeps the matchmaking pool open until scheduled_end_time.
      */
     public function isCompleted(): bool
     {
-        return $this->status === self::STATUS_COMPLETED ||
-            ($this->total_rounds > 0 && $this->current_round >= $this->total_rounds && $this->status === self::STATUS_IN_PROGRESS);
+        if (in_array(strtolower((string) $this->status), [self::STATUS_COMPLETED, 'ended', 'closed', 'expired'], true)) {
+            return true;
+        }
+
+        $endTime = $this->scheduled_end_time;
+        if ($endTime && Carbon::now()->greaterThanOrEqualTo($endTime)) {
+            return true;
+        }
+
+        return false;
     }
 }

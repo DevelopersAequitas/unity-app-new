@@ -302,7 +302,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::get('/login/methods', [AdminAuthController::class, 'loginMethods'])->name('login.methods');
     Route::get('/auth/methods', [AdminAuthController::class, 'loginMethods'])->name('auth.methods');
+    Route::get('/login/send-otp', fn () => redirect()->route('admin.login'));
+    Route::get('/login/send_otp', fn () => redirect()->route('admin.login'));
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
+    Route::post('/login/send_otp', [AdminAuthController::class, 'requestOtp']);
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
     Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp'])->name('auth.request-otp');
     Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp'])->name('auth.verify-otp');

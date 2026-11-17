@@ -156,24 +156,16 @@ class WearTheBadgeWhatsappService
 
     /**
      * Check if a user is eligible for WearTheBadge WhatsApp notification.
+     * Note: Welcome WhatsApp is sent strictly once upon new registration.
+     * Membership approval or upgrade must never re-trigger this message.
      */
     public function isEligible(User $user): bool
     {
-        if ($this->isProcessed((string) $user->id)) {
-            return false;
-        }
-
-        // Profile reaching 100%
-        $isProfileComplete = $user->calculateProfileCompletionPercentage() === 100;
-
-        // First payment condition: last_payment_at filled or paid membership status
-        $isPaid = filled($user->last_payment_at) || ! in_array((string) $user->membership_status, ['visitor', 'free_peer', 'free_trial_peer', ''], true);
-
-        return $isProfileComplete || $isPaid;
+        return false;
     }
 
     /**
-     * Check whether WearTheBadge WhatsApp has already been processed or queued for this user.
+     * Check whether WearTheBadge or Welcome WhatsApp has already been processed or attempted for this user.
      */
     public function isProcessed(string $userId): bool
     {
@@ -190,10 +182,9 @@ class WearTheBadgeWhatsappService
                         ->orWhere(function ($sub) use ($userId): void {
                             $sub->where('user_id', $userId)
                                 ->where('channel', 'whatsapp')
-                                ->where('provider', self::TEMPLATE_KEY);
+                                ->whereIn('provider', [self::TEMPLATE_KEY, 'welcome']);
                         });
                 })
-                ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
                 ->exists();
         } catch (Throwable) {
             return false;
