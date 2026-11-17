@@ -287,12 +287,12 @@ class SpeedNetworkingApiController extends Controller
 
         $timeStr = $scheduledStart ? $scheduledStart->format('h:i A') : 'scheduled time';
 
-        if ($status === 'completed') {
+        if (in_array(strtolower($status), ['completed', 'ended', 'closed', 'expired'], true)) {
             return [
                 'action_type' => 'COMPLETED',
                 'label' => 'Event Ended',
                 'is_enabled' => false,
-                'helper_text' => 'This speed networking event has concluded.',
+                'helper_text' => 'This Speed Collaboration event has concluded.',
             ];
         }
 
@@ -359,16 +359,19 @@ class SpeedNetworkingApiController extends Controller
 
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
-            $event = SpeedNetworkingEvent::find($eventId);
+            $event = SpeedNetworkingEvent::withTrashed()->find($eventId);
         }
         if (! $event && Schema::hasTable('events')) {
-            $event = Event::find($eventId);
+            $event = Event::withTrashed()->find($eventId);
+        }
+        if (! $event && Schema::hasTable('speed_networking_events')) {
+            $event = SpeedNetworkingEvent::withTrashed()->where('title', $eventId)->latest()->first();
         }
         if (! $event) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Speed Networking event not found.',
+                'message' => 'Speed Collaboration event not found.',
             ], 404);
         }
 
@@ -831,16 +834,19 @@ class SpeedNetworkingApiController extends Controller
 
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
-            $event = SpeedNetworkingEvent::find($eventId);
+            $event = SpeedNetworkingEvent::withTrashed()->find($eventId);
         }
         if (! $event && Schema::hasTable('events')) {
-            $event = Event::find($eventId);
+            $event = Event::withTrashed()->find($eventId);
+        }
+        if (! $event && Schema::hasTable('speed_networking_events')) {
+            $event = SpeedNetworkingEvent::withTrashed()->where('title', $eventId)->latest()->first();
         }
         if (! $event) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Speed Networking event not found.',
+                'message' => 'Speed Collaboration event not found.',
             ], 404);
         }
 
@@ -899,7 +905,7 @@ class SpeedNetworkingApiController extends Controller
         return response()->json([
             'status' => true,
             'success' => true,
-            'message' => 'Speed Networking event fetched successfully.',
+            'message' => 'Speed Collaboration event fetched successfully.',
             'data' => [
                 'id' => (string) $event->id,
                 'event_id' => (string) $event->id,
@@ -974,16 +980,19 @@ class SpeedNetworkingApiController extends Controller
         // 1. Resolve event from speed_networking_events or events table
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
-            $event = SpeedNetworkingEvent::find($eventId);
+            $event = SpeedNetworkingEvent::withTrashed()->find($eventId);
         }
         if (! $event && Schema::hasTable('events')) {
-            $event = Event::find($eventId);
+            $event = Event::withTrashed()->find($eventId);
+        }
+        if (! $event && Schema::hasTable('speed_networking_events')) {
+            $event = SpeedNetworkingEvent::withTrashed()->where('title', $eventId)->latest()->first();
         }
         if (! $event) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Speed Networking event not found.',
+                'message' => 'Speed Collaboration event not found.',
             ], 404);
         }
 
@@ -1106,7 +1115,7 @@ class SpeedNetworkingApiController extends Controller
                 'success' => true,
                 'is_waiting' => $isWaiting,
                 'match' => $match,
-                'message' => $data['message'] ?? ($isWaiting ? 'Waiting for the event to begin.' : 'Speed Networking session active.'),
+                'message' => $data['message'] ?? ($isWaiting ? 'Waiting for the Speed Collaboration event to begin.' : 'Speed Collaboration is active.'),
                 'data' => $data,
             ]);
         }
@@ -1177,7 +1186,7 @@ class SpeedNetworkingApiController extends Controller
                 'is_waiting' => false,
                 'has_met_all_peers' => false,
                 'completed' => false,
-                'message' => 'Speed Networking session active.',
+                'message' => 'Speed Collaboration is active.',
                 'peer' => null,
             ],
         ]);
@@ -1278,12 +1287,66 @@ class SpeedNetworkingApiController extends Controller
             }
 
             if ($event) {
+                $now = Carbon::now();
+                $isEnded = $event->isCompleted()
+                    || in_array(strtolower((string) $event->status), ['ended', 'completed', 'closed', 'expired'], true)
+                    || ($event->scheduled_end_time && $now->greaterThanOrEqualTo($event->scheduled_end_time));
+
+                if ($isEnded) {
+                    if ($event->status !== SpeedNetworkingEvent::STATUS_COMPLETED && $event->status !== 'ended') {
+                        $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
+                        $event->actual_end_time ??= $now;
+                        $event->save();
+                    }
+                    $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
+
+                    return response()->json([
+                        'status' => 'event_ended',
+                        'success' => true,
+                        'is_waiting' => false,
+                        'match' => null,
+                        'message' => 'Speed Collaboration has concluded.',
+                        'data' => array_merge($summary, [
+                            'event_id' => (string) $event->id,
+                            'status' => 'event_ended',
+                            'match_status' => 'event_ended',
+                            'is_waiting' => false,
+                            'completed' => true,
+                            'has_met_all_peers' => true,
+                            'channel_id' => '',
+                            'peer' => null,
+                            'message' => 'Speed Collaboration has concluded.',
+                        ]),
+                    ]);
+                }
+
                 $data = $this->speedNetworkingService->getNextMatch($event, $user, $request->isMethod('get'));
-                $isCompleted = ! empty($data['completed']);
                 $isWaiting = (bool) ($data['is_waiting'] ?? false);
                 $hasMatch = ! $isWaiting && ! empty($data['channel_id']) && ! empty($data['peer']);
 
-                $match = $hasMatch ? [
+                if ($isWaiting || ! $hasMatch) {
+                    return response()->json([
+                        'status' => 'waiting',
+                        'success' => true,
+                        'is_waiting' => true,
+                        'match' => null,
+                        'message' => $data['message'] ?? 'Looking for new peers to join this Speed Collaboration...',
+                        'data' => array_merge($data, [
+                            'event_id' => (string) $event->id,
+                            'status' => 'waiting',
+                            'match_status' => 'waiting',
+                            'is_waiting' => true,
+                            'is_break_round' => false,
+                            'completed' => false,
+                            'has_met_all_peers' => false,
+                            'channel_id' => '',
+                            'peer' => null,
+                            'message' => 'Looking for new peers to join this Speed Collaboration...',
+                        ]),
+                    ]);
+                }
+
+                $match = [
                     'event_id' => (string) ($data['event_id'] ?? $event->id),
                     'title' => (string) ($data['title'] ?? $event->title),
                     'match_id' => (string) ($data['match_id'] ?? ''),
@@ -1300,14 +1363,14 @@ class SpeedNetworkingApiController extends Controller
                     'my_decision' => (string) ($data['my_decision'] ?? 'pending'),
                     'peer_decision' => (string) ($data['peer_decision'] ?? 'pending'),
                     'both_accepted' => (bool) ($data['both_accepted'] ?? false),
-                    'is_break_round' => (bool) ($data['is_break_round'] ?? false),
+                    'is_break_round' => false,
                     'is_waiting' => false,
-                    'has_met_all_peers' => (bool) ($data['has_met_all_peers'] ?? false),
-                    'completed' => (bool) ($data['completed'] ?? false),
+                    'has_met_all_peers' => false,
+                    'completed' => false,
                     'message' => (string) ($data['message'] ?? 'Match found! Review peer profile to connect.'),
                     'peer' => $data['peer'] ?? null,
                     'interacted_peers' => $data['interacted_peers'] ?? [],
-                ] : null;
+                ];
 
                 $data['agora_app_id'] = $agoraAppId;
                 $data['match'] = $match;
@@ -1315,9 +1378,9 @@ class SpeedNetworkingApiController extends Controller
                 return response()->json([
                     'status' => 'success',
                     'success' => true,
-                    'is_waiting' => $isWaiting,
+                    'is_waiting' => false,
                     'match' => $match,
-                    'message' => $isCompleted ? ($data['message'] ?? 'Session completed successfully') : 'Next match retrieved successfully',
+                    'message' => 'Next match retrieved successfully',
                     'data' => $data,
                 ]);
             }
@@ -1561,14 +1624,49 @@ class SpeedNetworkingApiController extends Controller
                 && ! empty($activeMatch['channel_id'])
                 && empty($activeMatch['is_waiting']);
 
-            // Check if session or event is completed
-            $isSessionCompleted = (! $hasActiveMatch) && (! $isPartnerSkippedNotice) && (
-                (! empty($activeMatch['completed']))
-                || $event->isCompleted()
-                || $this->speedNetworkingService->isUserCompleted($event, $user)
-            );
+            $now = Carbon::now();
+            $isEnded = $event->isCompleted()
+                || in_array(strtolower((string) $event->status), ['ended', 'completed', 'closed', 'expired'], true)
+                || ($event->scheduled_end_time && $now->greaterThanOrEqualTo($event->scheduled_end_time));
 
-            if ($isSessionCompleted) {
+            if ($isEnded) {
+                if ($event->status !== SpeedNetworkingEvent::STATUS_COMPLETED && $event->status !== 'ended') {
+                    $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
+                    $event->actual_end_time ??= $now;
+                    $event->save();
+                }
+                $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
+
+                return response()->json([
+                    'status' => 'event_ended',
+                    'success' => true,
+                    'is_waiting' => false,
+                    'message' => 'Speed Collaboration has concluded.',
+                    'active_attendees_count' => $activeCount,
+                    'has_active_match' => false,
+                    'match' => null,
+                    'incoming_match_request' => null,
+                    'data' => array_merge($summary, [
+                        'event_id' => (string) $event->id,
+                        'status' => 'event_ended',
+                        'match_status' => 'event_ended',
+                        'is_waiting' => false,
+                        'completed' => true,
+                        'has_met_all_peers' => true,
+                        'channel_id' => '',
+                        'peer' => null,
+                        'message' => 'Speed Collaboration has concluded.',
+                        'last_heartbeat_at' => $now->toIso8601String(),
+                        'active_attendees_count' => $activeCount,
+                        'has_active_match' => false,
+                        'match' => null,
+                    ]),
+                ]);
+            }
+
+            // Check if participant has manually left the session
+            $isParticipantLeft = $this->speedNetworkingService->isUserCompleted($event, $user);
+            if ($isParticipantLeft) {
                 $summary = $this->speedNetworkingService->getSessionSummary($event, $user);
 
                 return response()->json([
@@ -1576,11 +1674,42 @@ class SpeedNetworkingApiController extends Controller
                     'success' => true,
                     'message' => 'Session completed successfully',
                     'data' => array_merge($summary, [
-                        'last_heartbeat_at' => Carbon::now()->toIso8601String(),
+                        'last_heartbeat_at' => $now->toIso8601String(),
                         'active_attendees_count' => $activeCount,
                         'has_active_match' => false,
                         'match' => null,
                     ]),
+                ]);
+            }
+
+            // If user has no active match and no partner-skipped notice, return waiting payload
+            if (! $hasActiveMatch && ! $isPartnerSkippedNotice) {
+                return response()->json([
+                    'status' => 'waiting',
+                    'success' => true,
+                    'is_waiting' => true,
+                    'message' => 'Looking for new peers to join this Speed Collaboration...',
+                    'active_attendees_count' => $activeCount,
+                    'has_active_match' => false,
+                    'match' => null,
+                    'incoming_match_request' => $incomingMatch,
+                    'data' => [
+                        'event_id' => (string) $event->id,
+                        'status' => 'waiting',
+                        'match_status' => 'waiting',
+                        'is_waiting' => true,
+                        'is_break_round' => false,
+                        'completed' => false,
+                        'has_met_all_peers' => false,
+                        'channel_id' => '',
+                        'peer' => null,
+                        'message' => 'Looking for new peers to join this Speed Collaboration...',
+                        'last_heartbeat_at' => $now->toIso8601String(),
+                        'active_attendees_count' => $activeCount,
+                        'has_active_match' => false,
+                        'match' => null,
+                        'incoming_match_request' => $incomingMatch,
+                    ],
                 ]);
             }
 
@@ -1629,7 +1758,8 @@ class SpeedNetworkingApiController extends Controller
                 'incoming_match_request' => $incomingMatch,
                 'data' => [
                     'completed' => false,
-                    'last_heartbeat_at' => Carbon::now()->toIso8601String(),
+                    'is_waiting' => false,
+                    'last_heartbeat_at' => $now->toIso8601String(),
                     'active_attendees_count' => $activeCount,
                     'has_active_match' => $hasActiveMatch,
                     'match' => $matchData,

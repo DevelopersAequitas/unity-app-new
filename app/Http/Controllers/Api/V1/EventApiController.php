@@ -82,6 +82,8 @@ class EventApiController extends BaseApiController
             + count($grouped['upcoming_events'])
             + count($grouped['past_events']);
 
+        $snFilter = fn (array $e): bool => ($e['event_type'] ?? '') === 'speed_networking' || ($e['event_category'] ?? '') === 'speed_networking';
+
         return $this->success([
             'circle' => $circle ? $this->circlePayload($circle) : null,
             'server_now' => $now->toIso8601String(),
@@ -92,6 +94,12 @@ class EventApiController extends BaseApiController
             'upcoming_events' => $grouped['upcoming_events'],
             'past_events' => $grouped['past_events'],
             'completed_events' => $grouped['past_events'],
+            'speed_networking_events' => [
+                'live_events' => array_values(array_filter($grouped['live_events'], $snFilter)),
+                'today_events' => array_values(array_filter($grouped['today_events'], $snFilter)),
+                'upcoming_events' => array_values(array_filter($grouped['upcoming_events'], $snFilter)),
+                'past_events' => array_values(array_filter($grouped['past_events'], $snFilter)),
+            ],
         ], 'Circle events fetched successfully.');
     }
 
@@ -333,8 +341,8 @@ class EventApiController extends BaseApiController
                 'occurrence_id' => $occurrenceId,
                 'title' => $event->title,
                 'description' => $event->description,
-                'event_type' => $event->event_type,
-                'event_category' => $event->event_category,
+                'event_type' => $isSpeedNetworking ? 'speed_networking' : $event->event_type,
+                'event_category' => $isSpeedNetworking ? 'speed_networking' : ($event->event_category ?? $event->event_type),
                 'mode' => $event->mode,
                 'start_at' => $responseStartAt?->format('Y-m-d\TH:i:s'),
                 'end_at' => $responseEndAt?->format('Y-m-d\TH:i:s'),

@@ -19,7 +19,7 @@ class ContactInvitationController extends Controller
     /**
      * Display a listing of referral contact invitations.
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $filters = $request->only([
             'search',
@@ -83,6 +83,23 @@ class ContactInvitationController extends Controller
             ->with('user')
             ->limit(15)
             ->get();
+
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'invitations' => $invitations,
+                'stats' => [
+                    'total_invitations' => $totalInvitations,
+                    'total_completed' => $totalCompleted,
+                    'total_not_completed' => $totalNotCompleted,
+                    'total_referrers' => $totalUniqueReferrers,
+                ],
+                'userShares' => $userShares,
+                'users' => $users,
+                'presets' => $presets,
+                'filters' => $filters,
+            ]);
+        }
 
         return view('admin.contact-invitations.index', [
             'invitations' => $invitations,
@@ -185,9 +202,16 @@ class ContactInvitationController extends Controller
     /**
      * Show details of a specific invitation.
      */
-    public function show(string $id): View
+    public function show(string $id): View|JsonResponse
     {
         $invitation = ContactInvitation::with(['user', 'contactPost'])->findOrFail($id);
+
+        if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'invitation' => $invitation,
+            ]);
+        }
 
         return view('admin.contact-invitations.show', [
             'invitation' => $invitation,

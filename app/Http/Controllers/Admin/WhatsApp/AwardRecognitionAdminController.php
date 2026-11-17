@@ -13,7 +13,9 @@ use App\Services\WhatsApp\MetaWhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
@@ -39,15 +41,17 @@ class AwardRecognitionAdminController extends Controller
         $status = strtolower(trim((string) $request->query('status', '')));
         $peerFilter = trim((string) $request->query('peer_filter', 'all'));
 
+        $hasTable = Schema::hasTable('member_award_sends');
+
         $stats = [
             'total_peers' => User::count(),
-            'total_awards' => MemberAwardSend::count(),
-            'total_growth' => MemberAwardSend::where('award_track', 'GROWTH')->count(),
-            'total_impact' => MemberAwardSend::where('award_track', 'LIFE_IMPACT')->count(),
-            'total_sent' => MemberAwardSend::whereIn('status', ['sent', 'delivered', 'read'])->count(),
-            'total_delivered' => MemberAwardSend::whereIn('status', ['delivered', 'read'])->count(),
-            'total_read' => MemberAwardSend::where('status', 'read')->count(),
-            'total_failed' => MemberAwardSend::where('status', 'failed')->count(),
+            'total_awards' => $hasTable ? MemberAwardSend::count() : 0,
+            'total_growth' => $hasTable ? MemberAwardSend::where('award_track', 'GROWTH')->count() : 0,
+            'total_impact' => $hasTable ? MemberAwardSend::where('award_track', 'LIFE_IMPACT')->count() : 0,
+            'total_sent' => $hasTable ? MemberAwardSend::whereIn('status', ['sent', 'delivered', 'read'])->count() : 0,
+            'total_delivered' => $hasTable ? MemberAwardSend::whereIn('status', ['delivered', 'read'])->count() : 0,
+            'total_read' => $hasTable ? MemberAwardSend::where('status', 'read')->count() : 0,
+            'total_failed' => $hasTable ? MemberAwardSend::where('status', 'failed')->count() : 0,
         ];
 
         $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -62,8 +66,10 @@ class AwardRecognitionAdminController extends Controller
                 'users.email',
                 'users.phone',
                 'users.created_at',
-            ])
-            ->withCount([
+            ]);
+
+        if ($hasTable) {
+            $userQuery->withCount([
                 'memberAwardSends as total_awards_count',
                 'memberAwardSends as total_growth_count' => function ($q) {
                     $q->where('award_track', 'GROWTH');
@@ -78,6 +84,7 @@ class AwardRecognitionAdminController extends Controller
                     $q->where('status', 'failed');
                 },
             ]);
+        }
 
         if ($search !== '') {
             $userQuery->where(function ($q) use ($search, $like) {
@@ -89,56 +96,73 @@ class AwardRecognitionAdminController extends Controller
             });
         }
 
-        if ($peerFilter === 'has_awards') {
-            $userQuery->whereHas('memberAwardSends');
-        } elseif ($peerFilter === 'no_awards') {
-            $userQuery->whereDoesntHave('memberAwardSends');
-        } elseif ($peerFilter === 'track1') {
-            $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'GROWTH'));
-        } elseif ($peerFilter === 'track2') {
-            $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'LIFE_IMPACT'));
+        if ($hasTable) {
+            if ($peerFilter === 'has_awards') {
+                $userQuery->whereHas('memberAwardSends');
+            } elseif ($peerFilter === 'no_awards') {
+                $userQuery->whereDoesntHave('memberAwardSends');
+            } elseif ($peerFilter === 'track1') {
+                $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'GROWTH'));
+            } elseif ($peerFilter === 'track2') {
+                $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'LIFE_IMPACT'));
+            }
+        } elseif (in_array($peerFilter, ['has_awards', 'track1', 'track2'], true)) {
+            $userQuery->whereRaw('1 = 0');
         }
 
         $members = $userQuery->orderByDesc('created_at')->paginate(15, ['*'], 'members_page')->withQueryString();
 
         // 2. Query for Deliveries Log
-        $deliveriesQuery = MemberAwardSend::query()->with('user');
+        if ($hasTable) {
+            $deliveriesQuery = MemberAwardSend::query()->with('user');
 
-        if ($search !== '') {
-            $deliveriesQuery->where(function ($q) use ($search, $like) {
-                $q->where('phone_number', $like, "%{$search}%")
-                    ->orWhere('award_title', $like, "%{$search}%")
-                    ->orWhere('template_name', $like, "%{$search}%")
-                    ->orWhereHas('user', function ($uq) use ($search, $like) {
-                        $uq->where('first_name', $like, "%{$search}%")
-                            ->orWhere('last_name', $like, "%{$search}%")
-                            ->orWhere('display_name', $like, "%{$search}%")
-                            ->orWhere('email', $like, "%{$search}%")
-                            ->orWhere('phone', $like, "%{$search}%");
-                    });
-            });
-        }
-
-        if ($track !== '' && in_array($track, ['GROWTH', 'LIFE_IMPACT'], true)) {
-            $deliveriesQuery->where('award_track', $track);
-        }
-
-        if ($status !== '') {
-            if ($status === 'sent_group') {
-                $deliveriesQuery->whereIn('status', ['sent', 'delivered', 'read']);
-            } else {
-                $deliveriesQuery->where('status', $status);
+            if ($search !== '') {
+                $deliveriesQuery->where(function ($q) use ($search, $like) {
+                    $q->where('phone_number', $like, "%{$search}%")
+                        ->orWhere('award_title', $like, "%{$search}%")
+                        ->orWhere('template_name', $like, "%{$search}%")
+                        ->orWhereHas('user', function ($uq) use ($search, $like) {
+                            $uq->where('first_name', $like, "%{$search}%")
+                                ->orWhere('last_name', $like, "%{$search}%")
+                                ->orWhere('display_name', $like, "%{$search}%")
+                                ->orWhere('email', $like, "%{$search}%")
+                                ->orWhere('phone', $like, "%{$search}%");
+                        });
+                });
             }
+
+            if ($track !== '' && in_array($track, ['GROWTH', 'LIFE_IMPACT'], true)) {
+                $deliveriesQuery->where('award_track', $track);
+            }
+
+            if ($status !== '') {
+                if ($status === 'sent_group') {
+                    $deliveriesQuery->whereIn('status', ['sent', 'delivered', 'read']);
+                } else {
+                    $deliveriesQuery->where('status', $status);
+                }
+            }
+
+            $sends = $deliveriesQuery->orderByDesc('created_at')->paginate(20, ['*'], 'sends_page')->withQueryString();
+        } else {
+            $sends = new LengthAwarePaginator([], 0, 20, 1, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+                'pageName' => 'sends_page',
+            ]);
         }
 
-        $sends = $deliveriesQuery->orderByDesc('created_at')->paginate(20, ['*'], 'sends_page')->withQueryString();
+        $tableMissing = ! $hasTable;
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
             return response()->json([
                 'success' => true,
+                'table_missing' => $tableMissing,
                 'stats' => $stats,
                 'members' => $members,
                 'sends' => $sends,
+                'growth_awards' => AwardRecognitionWhatsappService::GROWTH_TRACK,
+                'impact_awards' => AwardRecognitionWhatsappService::IMPACT_TRACK,
             ]);
         }
 
@@ -155,7 +179,8 @@ class AwardRecognitionAdminController extends Controller
             'status',
             'peerFilter',
             'growthAwards',
-            'impactAwards'
+            'impactAwards',
+            'tableMissing'
         ));
     }
 
@@ -170,16 +195,22 @@ class AwardRecognitionAdminController extends Controller
     {
         $user = User::findOrFail($userId);
 
+        $hasTable = Schema::hasTable('member_award_sends');
+
         // Auto-sync delivery statuses from meta message logs
-        try {
-            $this->syncService->syncAwardDeliveries($userId);
-        } catch (Throwable) {
+        if ($hasTable) {
+            try {
+                $this->syncService->syncAwardDeliveries($userId);
+            } catch (Throwable) {
+            }
         }
 
         // Fetch all existing sends for this user
-        $sends = MemberAwardSend::where('user_id', $userId)->get()->keyBy(function ($item) {
-            return "{$item->award_track}_{$item->milestone_count}";
-        });
+        $sends = $hasTable
+            ? MemberAwardSend::where('user_id', $userId)->get()->keyBy(function ($item) {
+                return "{$item->award_track}_{$item->milestone_count}";
+            })
+            : collect();
 
         // 12 Growth Track Milestones (Member Introduction)
         $growthTrack = AwardRecognitionWhatsappService::GROWTH_TRACK;
@@ -257,7 +288,7 @@ class AwardRecognitionAdminController extends Controller
             }
         }
 
-        if (request()->wantsJson()) {
+        if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
             return response()->json([
                 'success' => true,
                 'user' => $user,
@@ -287,6 +318,15 @@ class AwardRecognitionAdminController extends Controller
      */
     public function sendUserMilestone(Request $request, string $userId): RedirectResponse|JsonResponse
     {
+        if (! Schema::hasTable('member_award_sends')) {
+            $msg = 'Database table "member_award_sends" is not set up in this database environment.';
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msg], 400);
+            }
+
+            return back()->with('error', $msg);
+        }
+
         $user = User::findOrFail($userId);
 
         $validated = $request->validate([
@@ -316,7 +356,7 @@ class AwardRecognitionAdminController extends Controller
 
             $message = "Award WhatsApp '{$awardInfo['title']}' dispatched successfully to ".($phoneOverride ?: ($user->phone ?? 'recipient')).'!';
 
-            if ($request->wantsJson()) {
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
                 return response()->json([
                     'success' => true,
                     'message' => $message,
@@ -326,7 +366,7 @@ class AwardRecognitionAdminController extends Controller
 
             return back()->with('success', $message);
         } catch (Throwable $e) {
-            if ($request->wantsJson()) {
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to dispatch award: '.$e->getMessage(),
@@ -342,12 +382,21 @@ class AwardRecognitionAdminController extends Controller
      */
     public function syncStatuses(Request $request): RedirectResponse|JsonResponse
     {
+        if (! Schema::hasTable('member_award_sends')) {
+            $msg = 'Database table "member_award_sends" is not set up in this database environment.';
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msg], 400);
+            }
+
+            return back()->with('error', $msg);
+        }
+
         $userId = $request->input('user_id') ? trim((string) $request->input('user_id')) : null;
         $updated = $this->syncService->syncAwardDeliveries($userId);
 
         $message = "Synced WhatsApp delivery statuses. {$updated} award message(s) updated.";
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'updated_count' => $updated,
@@ -363,9 +412,16 @@ class AwardRecognitionAdminController extends Controller
      */
     public function show(string $id): JsonResponse|View
     {
+        if (! Schema::hasTable('member_award_sends')) {
+            if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Table member_award_sends not found.'], 404);
+            }
+            abort(404, 'Table member_award_sends not found.');
+        }
+
         $send = MemberAwardSend::with('user')->findOrFail($id);
 
-        if (request()->wantsJson()) {
+        if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
             return response()->json([
                 'success' => true,
                 'data' => $send,
@@ -380,10 +436,22 @@ class AwardRecognitionAdminController extends Controller
      */
     public function resend(string $id): RedirectResponse|JsonResponse
     {
+        if (! Schema::hasTable('member_award_sends')) {
+            $msg = 'Database table "member_award_sends" is not set up in this database environment.';
+            if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+                return response()->json(['success' => false, 'message' => $msg], 400);
+            }
+
+            return back()->with('error', $msg);
+        }
+
         $send = MemberAwardSend::findOrFail($id);
         $user = $send->user ?: User::find($send->user_id);
 
         if (! $user) {
+            if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'User record not found for this send.'], 404);
+            }
             return back()->with('error', 'User record not found for this send.');
         }
 
@@ -399,7 +467,7 @@ class AwardRecognitionAdminController extends Controller
                 $send->phone_number
             );
 
-            if (request()->wantsJson()) {
+            if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
                 return response()->json([
                     'success' => true,
                     'message' => "Award template '{$send->template_name}' resent successfully!",
@@ -409,6 +477,9 @@ class AwardRecognitionAdminController extends Controller
 
             return back()->with('success', "Award template '{$send->template_name}' resent successfully!");
         } catch (Throwable $e) {
+            if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Failed to resend: '.$e->getMessage()], 400);
+            }
             return back()->with('error', 'Failed to resend: '.$e->getMessage());
         }
     }
@@ -440,6 +511,9 @@ class AwardRecognitionAdminController extends Controller
             : (AwardRecognitionWhatsappService::IMPACT_TRACK[$awardKey] ?? null);
 
         if (! $awardInfo) {
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Invalid award selected.'], 400);
+            }
             return back()->with('error', 'Invalid award selected.');
         }
 
@@ -464,7 +538,7 @@ class AwardRecognitionAdminController extends Controller
             );
 
             $msg = "Award WhatsApp template '{$awardInfo['template']}' dispatched to {$phone} successfully!";
-            if ($request->wantsJson()) {
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
                 return response()->json([
                     'success' => true,
                     'message' => $msg,
@@ -474,6 +548,12 @@ class AwardRecognitionAdminController extends Controller
 
             return back()->with('success', $msg);
         } catch (Throwable $e) {
+            if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test send failed: '.$e->getMessage(),
+                ], 400);
+            }
             return back()->with('error', 'Test send failed: '.$e->getMessage());
         }
     }
