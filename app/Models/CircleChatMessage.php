@@ -79,4 +79,9 @@ class CircleChatMessage extends Model
             ->withPivot('read_at')
             ->withTimestamps();
     }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(MessageReaction::class, 'message_id')->orderBy('created_at');
+    }
 }

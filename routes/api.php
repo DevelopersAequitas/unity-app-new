@@ -22,6 +22,8 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
 use App\Http\Controllers\Api\Activities\ReferralHistoryController;
@@ -55,6 +57,7 @@ use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\MemberWithCircleController;
 use App\Http\Controllers\Api\MessageDeletionController;
+use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MyCircleController;
 use App\Http\Controllers\Api\NotificationFeatureController;
 use App\Http\Controllers\Api\OnlineStatusController;
@@ -202,8 +205,6 @@ use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
-use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
-use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -1287,6 +1288,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/chat/messages/{message}/reads', [CircleChatController::class, 'readDetails']);
         Route::post('/circles/{circle}/chat/messages/{message}/delete-for-me', [CircleChatController::class, 'deleteForMe']);
         Route::delete('/circles/{circle}/chat/messages/{message}', [CircleChatController::class, 'destroy']);
+        Route::post('/circles/{circleId}/chat/messages/{messageId}/reactions', [MessageReactionController::class, 'toggleForCircle'])
+            ->whereUuid('circleId')
+            ->whereUuid('messageId');
         Route::get('/circles/{circle}/leadership-chat/members', [LeadershipGroupChatController::class, 'members']);
         Route::get('/circles/{circle}/leadership-chat/messages', [LeadershipGroupChatController::class, 'messages']);
         Route::post('/circles/{circle}/leadership-chat/messages/read', [LeadershipGroupChatController::class, 'markRead']);
@@ -1478,6 +1482,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/chats/{id}', [ChatController::class, 'showChat']);
         Route::get('/chats/{id}/messages', [ChatController::class, 'listMessages']);
         Route::post('/chats/{id}/messages', [ChatController::class, 'storeMessage']);
+        Route::post('/messages/{messageId}/reactions', [MessageReactionController::class, 'toggle'])->whereUuid('messageId');
+        Route::post('/chats/{chatId}/messages/{messageId}/reactions', [MessageReactionController::class, 'toggleForChat'])
+            ->whereUuid('chatId')
+            ->whereUuid('messageId');
         Route::post('/messages/{message}/delete-for-me', [MessageDeletionController::class, 'deleteForMe']);
         Route::post('/messages/{message}/delete-for-everyone', [MessageDeletionController::class, 'deleteForEveryone']);
         Route::post('/chats/{chat}/typing/start', [ChatTypingController::class, 'start']);

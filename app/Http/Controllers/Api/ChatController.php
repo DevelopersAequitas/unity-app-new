@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ChatController extends BaseApiController
@@ -168,7 +169,12 @@ class ChatController extends BaseApiController
 
         $beforeMessageId = $request->input('before_message_id') ?? $request->input('before_id');
 
-        $query = Message::with('sender')
+        $with = ['sender'];
+        if (Schema::hasTable('message_reactions')) {
+            $with[] = 'reactions.user:id,display_name,first_name,last_name,profile_photo_url,profile_photo_file_id';
+        }
+
+        $query = Message::with($with)
             ->where('chat_id', $chat->id)
             ->whereNull('deleted_at')
             ->when((string) $chat->user1_id === (string) $authUser->id, function ($q) {
