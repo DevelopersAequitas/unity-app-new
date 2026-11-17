@@ -117,19 +117,34 @@ class NominationService
 
         $photoUrl = $user->profile_photo_url;
 
+        $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
+        $sinceYear = $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
+        $memberSince = "Since {$sinceYear}";
+        $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
+
         return [
             'profile_found' => true,
             'profile' => [
+                'user_id' => (string) $user->id,
                 'full_name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? 'Member'),
                 'email' => $user->email,
                 'mobile' => $user->phone,
+                'phone' => $user->phone,
+                'company' => $user->company_name,
                 'company_name' => $user->company_name,
                 'designation' => $user->designation,
+                'city' => $user->city,
                 'profile_photo_url' => $photoUrl,
                 'photo_url' => $photoUrl,
                 'avatar_url' => $photoUrl,
                 'image_url' => $photoUrl,
-                'member_since' => $user->created_at?->format('Y-m-d'),
+                'life_impact_score' => $lifeImpactScore,
+                'lives_impacted' => $lifeImpactScore,
+                'member_since' => $memberSince,
+                'membership_starts_at' => $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
+                'role' => 'Peers Global Member',
+                'current_role' => 'Peers Global Member',
+                'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
             ],
         ];
     }
