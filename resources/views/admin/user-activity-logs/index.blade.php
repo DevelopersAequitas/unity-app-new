@@ -104,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
     <div class="d-flex border-bottom mb-2 gap-2">
         <a href="{{ route('admin.user-activity-logs.index', array_merge(request()->query(), ['view' => 'users'])) }}" 
            class="btn btn-sm pb-2 fw-semibold border-0 rounded-0 {{ $viewMode === 'users' ? 'border-bottom border-primary border-3 text-primary' : 'text-muted' }}">
-            <i class="bi bi-people me-1"></i> Peers with Activity (Click User to View)
+            <i class="bi bi-people me-1"></i> All Peers (Click User to View Activity)
         </a>
         <a href="{{ route('admin.user-activity-logs.index', array_merge(request()->query(), ['view' => 'logs'])) }}" 
            class="btn btn-sm pb-2 fw-semibold border-0 rounded-0 {{ $viewMode === 'logs' ? 'border-bottom border-primary border-3 text-primary' : 'text-muted' }}">
@@ -187,9 +187,9 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
             <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-people-fill text-primary"></i>
-                    Peers with Recorded Activities
+                    All Peers &amp; User Activity
                 </h6>
-                <span class="badge bg-light text-muted border">Click any peer to open their complete activity timeline</span>
+                <span class="badge bg-light text-muted border">Latest active users appear at top &bull; Click any peer to open their timeline</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 text-sm">
@@ -224,9 +224,16 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                             </div>
                                         @endif
                                         <div class="overflow-hidden">
-                                            <a href="{{ route('admin.user-activity-logs.user', $u->user_id) }}" class="fw-bold text-dark text-decoration-none d-block text-truncate" style="max-width: 180px;" onclick="event.stopPropagation();">
-                                                {{ $userName }}
-                                            </a>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <a href="{{ route('admin.user-activity-logs.user', $u->user_id) }}" class="fw-bold text-dark text-decoration-none text-truncate" style="max-width: 180px;" onclick="event.stopPropagation();">
+                                                    {{ $userName }}
+                                                </a>
+                                                @if ($loop->first && $u->last_active_at)
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small flex-shrink-0" style="font-size: 10px;">
+                                                        <i class="bi bi-broadcast me-0.5"></i>LATEST ACTIVE
+                                                    </span>
+                                                @endif
+                                            </div>
                                             <div class="text-muted extra-small text-truncate" style="max-width: 180px;">
                                                 {{ $u->email ?: ($u->phone ?: 'No email') }}
                                             </div>
@@ -239,9 +246,15 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-primary px-2.5 py-1.5 fs-7 rounded-pill">
-                                        {{ number_format((int) $u->total_activities) }} logs
-                                    </span>
+                                    @if ((int) $u->total_activities > 0)
+                                        <span class="badge bg-primary px-2.5 py-1.5 fs-7 rounded-pill">
+                                            {{ number_format((int) $u->total_activities) }} logs
+                                        </span>
+                                    @else
+                                        <span class="badge bg-light text-muted border px-2.5 py-1.5 fs-7 rounded-pill">
+                                            0 logs
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     @if ((int) $u->today_activities > 0)
@@ -260,7 +273,7 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                         <div class="fw-semibold text-dark">{{ $dt->format('M d, Y') }}</div>
                                         <div class="text-muted extra-small font-monospace">{{ $dt->format('H:i:s') }} ({{ $dt->diffForHumans() }})</div>
                                     @else
-                                        <span class="text-muted">-</span>
+                                        <span class="text-muted extra-small">No activity yet</span>
                                     @endif
                                 </td>
                                 <td>
@@ -279,7 +292,7 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                             {{ $latestLog->description ?: $latestLog->action }}
                                         </div>
                                     @else
-                                        <span class="text-muted extra-small">No recent activity</span>
+                                        <span class="text-muted extra-small">No activity recorded</span>
                                     @endif
                                 </td>
                                 <td>
@@ -678,6 +691,7 @@ function openUserDrawer(userId, userName, userEmail) {
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-1.5">
                         <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            ${index === 0 ? '<span class="badge bg-success text-white extra-small fw-bold"><i class="bi bi-broadcast me-1"></i>LATEST</span>' : ''}
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle extra-small text-uppercase fw-bold">${log.activity_type || 'ACTIVITY'}</span>
                             ${log.module ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle extra-small">${log.module.toUpperCase()}</span>` : ''}
                             <span class="badge ${statusClass} border extra-small text-uppercase">${log.status || 'success'}</span>
