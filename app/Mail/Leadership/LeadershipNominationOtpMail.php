@@ -23,7 +23,7 @@ class LeadershipNominationOtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Your Leadership Nomination Verification Code: {$this->otp} | Peers Global Unity",
+            subject: "{$this->otp} is your Peers Global verification code",
         );
     }
 
@@ -39,7 +39,7 @@ class LeadershipNominationOtpMail extends Mailable
             with: [
                 'otp' => $this->otp,
                 'verificationSubject' => $this->verificationSubject,
-                'expiresInMinutes' => 5,
+                'expiresInMinutes' => 10,
                 'logoUrl' => $logoUrl,
                 'websiteUrl' => config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')),
             ],

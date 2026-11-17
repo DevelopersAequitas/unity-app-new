@@ -77,6 +77,7 @@ class LeadershipNomination extends Model
         'form_2_status',
         'form_2_data',
         'jury_evaluation',
+        'creative_url',
     ];
 
     /**
@@ -351,6 +352,29 @@ class LeadershipNomination extends Model
     public function getImageUrlAttribute(): ?string
     {
         return $this->getPhotoUrlAttribute();
+    }
+
+    public function getCreativeUrlAttribute(): ?string
+    {
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['creative_url'])) {
+            return (string) $snapshot['creative_url'];
+        }
+
+        $relativePath = "creatives/leadership/nomination_{$this->id}.png";
+        $disk = config('filesystems.default', 'public');
+        if (\Illuminate\Support\Facades\Storage::disk($disk)->exists($relativePath) || \Illuminate\Support\Facades\Storage::disk('public')->exists($relativePath)) {
+            $url = \Illuminate\Support\Facades\Storage::disk('public')->url($relativePath);
+            if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
+                $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+
+                return $appUrl.'/'.ltrim($url, '/');
+            }
+
+            return $url;
+        }
+
+        return null;
     }
 
     public function getBioAttribute(): string

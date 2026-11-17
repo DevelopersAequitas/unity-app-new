@@ -51,7 +51,7 @@ class VerificationService
         $otp = app()->environment('local', 'testing') ? '123456' : (string) random_int(100000, 999999);
         $verificationId = (string) Str::uuid();
 
-        // 1. Cache the OTP challenge for 5 minutes (300 seconds)
+        // 1. Cache the OTP challenge for 10 minutes (600 seconds)
         Cache::put('nomination_challenge:'.$verificationId, [
             'campaign_id' => $campaign->id,
             'contact_type' => $contactType,
@@ -59,7 +59,7 @@ class VerificationService
             'otp_hash' => Hash::make($otp),
             'otp_plain' => config('app.debug') ? $otp : null,
             'attempts' => 0,
-        ], 300);
+        ], 600);
 
         // 2. Persist in database table (web_leadership_voter_verifications) for audit trail
         try {
@@ -78,7 +78,7 @@ class VerificationService
                 'otp_hash' => Hash::make($otp),
                 'status' => 'pending',
                 'attempt_count' => 0,
-                'expires_at' => Carbon::now()->addSeconds(300),
+                'expires_at' => Carbon::now()->addSeconds(600),
             ]);
         } catch (\Throwable $dbErr) {
             Log::warning('[Nomination OTP] Could not persist to voter_verifications table: '.$dbErr->getMessage());
@@ -89,7 +89,7 @@ class VerificationService
 
         return [
             'verification_id' => $verificationId,
-            'expires_in_seconds' => 300,
+            'expires_in_seconds' => 600,
             'resend_after_seconds' => 60,
         ];
     }

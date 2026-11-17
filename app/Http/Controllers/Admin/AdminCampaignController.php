@@ -20,9 +20,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -43,6 +45,39 @@ class AdminCampaignController extends Controller
 
     public function index(Request $request): View|JsonResponse
     {
+        if (! Schema::hasTable('admin_campaigns')) {
+            $campaigns = new LengthAwarePaginator([], 0, 20, 1, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]);
+            $stats = [
+                'total' => 0,
+                'draft' => 0,
+                'sent' => 0,
+                'failed' => 0,
+                'emails_sent' => 0,
+                'notifications_sent' => 0,
+            ];
+            $status = $request->input('status', 'all');
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'campaigns' => [],
+                    'stats' => $stats,
+                    'pagination' => [
+                        'current_page' => 1,
+                        'last_page' => 1,
+                        'per_page' => 20,
+                        'total' => 0,
+                    ],
+                ]);
+            }
+
+            return view('admin.campaigns.index', compact('campaigns', 'stats', 'status'));
+        }
+
         $query = AdminCampaign::query();
 
         // Apply Search Filter by Title
@@ -586,14 +621,22 @@ class AdminCampaignController extends Controller
 
     private function emailTemplates(): array
     {
-        return CampaignEmailTemplate::query()
-            ->where('status', CampaignEmailTemplate::STATUS_ACTIVE)
-            ->orderByRaw("CASE slug WHEN 'blank-template' THEN 1 WHEN 'simple-text' THEN 2 WHEN '1-column' THEN 3 WHEN '1-2-1-2-column' THEN 4 WHEN '1-2-column' THEN 5 WHEN '1-2-column-alternate' THEN 6 WHEN '1-3-column' THEN 7 ELSE 99 END")
-            ->orderBy('name')
-            ->get()
-            ->map(fn (CampaignEmailTemplate $template): array => $template->snapshot())
-            ->values()
-            ->all();
+        if (! Schema::hasTable('campaign_email_templates')) {
+            return [];
+        }
+
+        try {
+            return CampaignEmailTemplate::query()
+                ->where('status', CampaignEmailTemplate::STATUS_ACTIVE)
+                ->orderByRaw("CASE slug WHEN 'blank-template' THEN 1 WHEN 'simple-text' THEN 2 WHEN '1-column' THEN 3 WHEN '1-2-1-2-column' THEN 4 WHEN '1-2-column' THEN 5 WHEN '1-2-column-alternate' THEN 6 WHEN '1-3-column' THEN 7 ELSE 99 END")
+                ->orderBy('name')
+                ->get()
+                ->map(fn (CampaignEmailTemplate $template): array => $template->snapshot())
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     private function importMessage(string $audienceType, int $count): string

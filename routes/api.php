@@ -198,6 +198,7 @@ use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TutorialController;
+use App\Http\Controllers\Api\V1\UserActivityLogController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
@@ -2399,4 +2400,13 @@ foreach (['v1/admin/commissions', 'admin/commissions', 'v1/commissions'] as $com
         Route::post('', [CommissionManagementController::class, 'store']);
         Route::delete('{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id');
     });
+}
+
+// =========================================================================
+// USER ACTIVITY & SECURITY LOGS API
+// Supports /api/v1/user-activity-logs and /api/user-activity-logs
+// =========================================================================
+foreach (['v1/user-activity-logs', 'user-activity-logs'] as $activityLogPrefix) {
+    Route::post($activityLogPrefix, [UserActivityLogController::class, 'store']);
+    Route::middleware('auth:sanctum')->get($activityLogPrefix, [UserActivityLogController::class, 'index']);
 }

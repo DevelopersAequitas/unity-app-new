@@ -1485,6 +1485,8 @@ class SpeedNetworkingApiController extends Controller
                     'balance_after' => (int) ($user->coins_balance ?? 0),
                 ],
                 'coins_earned' => 0,
+                'peers_met_count' => 0,
+                'peers_met' => [],
                 'interacted_peers' => [],
             ];
 
@@ -1859,6 +1861,8 @@ class SpeedNetworkingApiController extends Controller
                     'balance_after' => (int) ($user->coins_balance ?? 0),
                 ],
                 'coins_earned' => 0,
+                'peers_met_count' => 0,
+                'peers_met' => [],
                 'interacted_peers' => [],
             ];
         }
