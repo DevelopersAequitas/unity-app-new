@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Post extends Model
@@ -67,23 +68,31 @@ class Post extends Model
             if (empty($post->id)) {
                 $post->id = Str::uuid()->toString();
             }
-            if (empty($post->status)) {
+            $hasStatus = Schema::hasColumn('posts', 'status');
+            $hasActive = Schema::hasColumn('posts', 'active');
+
+            if ($hasStatus && empty($post->status)) {
                 $post->status = 'active';
             }
-            if ($post->active === null) {
-                $post->active = $post->status === 'active';
+            if ($hasActive && $post->active === null) {
+                $post->active = ($post->status ?? 'active') === 'active';
             }
         });
 
         static::saving(function (self $post): void {
-            if ($post->isDirty('status')) {
-                if ($post->status === 'active') {
-                    $post->active = true;
-                } elseif (in_array($post->status, ['inactive', 'rejected', 'hidden'], true)) {
-                    $post->active = false;
+            $hasStatus = Schema::hasColumn('posts', 'status');
+            $hasActive = Schema::hasColumn('posts', 'active');
+
+            if ($hasStatus && $hasActive) {
+                if ($post->isDirty('status')) {
+                    if ($post->status === 'active') {
+                        $post->active = true;
+                    } elseif (in_array($post->status, ['inactive', 'rejected', 'hidden'], true)) {
+                        $post->active = false;
+                    }
+                } elseif ($post->isDirty('active')) {
+                    $post->status = $post->active ? 'active' : 'inactive';
                 }
-            } elseif ($post->isDirty('active')) {
-                $post->status = $post->active ? 'active' : 'inactive';
             }
         });
     }
@@ -187,7 +196,7 @@ class Post extends Model
 
         return array_map(function ($item) use ($baseUrl) {
             if (isset($item['id'])) {
-                $item['url'] = rtrim((string) $baseUrl, '/') . '/api/v1/files/' . $item['id'];
+                $item['url'] = rtrim((string) $baseUrl, '/').'/api/v1/files/'.$item['id'];
             }
 
             return $item;
@@ -204,7 +213,7 @@ class Post extends Model
         if (Str::isUuid($id)) {
             $baseUrl = request()->hasHeader('host') ? request()->root() : config('app.url');
 
-            return rtrim((string) $baseUrl, '/') . '/api/v1/files/' . $id;
+            return rtrim((string) $baseUrl, '/').'/api/v1/files/'.$id;
         }
 
         return $value;

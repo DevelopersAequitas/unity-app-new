@@ -71,9 +71,14 @@ class WelcomeCreativeImageGenerator
         // 2. Line 2: Company • City (Dark Navy, Montserrat SemiBold)
         $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
 
-        $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
-        if (! $cityModel && ! empty($user->city_id)) {
-            $cityModel = City::find($user->city_id);
+        $cityModel = null;
+        try {
+            $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
+            if (! $cityModel && ! empty($user->city_id) && Schema::hasTable('cities')) {
+                $cityModel = City::find($user->city_id);
+            }
+        } catch (\Throwable) {
+            $cityModel = null;
         }
         $cityName = $cityModel?->name ?? $user->city_name ?? $user->city ?? $user->business_city ?? '';
         if (is_array($cityName)) {
@@ -102,20 +107,24 @@ class WelcomeCreativeImageGenerator
 
         // 3. Line 3: Category / Subcategory / Designation (Slate Gray, Montserrat SemiBold)
         $categoryName = '';
-        if ($user->relationLoaded('level4Category') && $user->level4Category) {
-            $categoryName = $user->level4Category->name ?? '';
-        } elseif (! empty($user->business_category_id)) {
-            $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
-        } elseif (! empty($user->category_id)) {
-            $categoryName = CircleCategoryLevel4::find($user->category_id)?->name ?? '';
-        }
+        try {
+            if ($user->relationLoaded('level4Category') && $user->level4Category) {
+                $categoryName = $user->level4Category->name ?? '';
+            } elseif (! empty($user->business_category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
+            } elseif (! empty($user->category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->category_id)?->name ?? '';
+            }
 
-        if (empty($categoryName) && $user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
-            $categoryName = $user->mainBusinessCategory->name ?? '';
-        }
+            if (empty($categoryName) && $user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
+                $categoryName = $user->mainBusinessCategory->name ?? '';
+            }
 
-        if (empty($categoryName) && isset($user->businessCategory)) {
-            $categoryName = $user->businessCategory->name ?? '';
+            if (empty($categoryName) && isset($user->businessCategory)) {
+                $categoryName = $user->businessCategory->name ?? '';
+            }
+        } catch (\Throwable) {
+            // Safely fallback to string attributes if category table lookup fails
         }
 
         if (empty($categoryName)) {

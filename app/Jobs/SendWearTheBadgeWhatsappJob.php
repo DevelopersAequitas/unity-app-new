@@ -187,14 +187,11 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
         ]);
 
         try {
-            $success = $whatsappService->send(WearTheBadgeWhatsappService::TEMPLATE_KEY, (string) $rawPhone, $payload);
+            $success = $whatsappService->send(WearTheBadgeWhatsappService::TEMPLATE_KEY, (string) $rawPhone, $payload, $this->userId);
             if ($success) {
                 $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) $rawPhone, $firstName, 'sent', null, $creativeUrl);
             } else {
                 $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) $rawPhone, $firstName, 'failed', 'Webhook response check failed or template inactive', $creativeUrl);
-
-                // Fallback to welcome template if wear_the_badge template not active
-                $whatsappService->send('welcome', (string) $rawPhone, $payload);
             }
 
             Log::info('SendWearTheBadgeWhatsappJob executed successfully.', [
@@ -227,10 +224,9 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
                         ->orWhere(function ($sub) use ($userId): void {
                             $sub->where('user_id', $userId)
                                 ->where('channel', 'whatsapp')
-                                ->where('provider', WearTheBadgeWhatsappService::TEMPLATE_KEY);
+                                ->whereIn('provider', [WearTheBadgeWhatsappService::TEMPLATE_KEY, 'welcome']);
                         });
                 })
-                ->where('status', 'sent')
                 ->exists();
         } catch (Throwable) {
             return false;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
@@ -121,6 +122,55 @@ class WhatsappNotificationService
             $resolvedNotificationId = $notificationId ?? ($payload['notification_id'] ?? $payload['notificationId'] ?? null);
             if (! is_string($resolvedNotificationId) || trim($resolvedNotificationId) === '') {
                 $resolvedNotificationId = null;
+            }
+
+            // Welcome message one-time-only safeguard: never send 'welcome' more than once per user
+            if ($templateKey === 'welcome' && empty($payload['is_admin_test'])) {
+                $alreadySentWelcome = false;
+
+                if ($resolvedUserId !== null && Schema::hasTable('notification_delivery_logs')) {
+                    try {
+                        $alreadySentWelcome = NotificationDeliveryLog::query()
+                            ->where('user_id', $resolvedUserId)
+                            ->where('channel', 'whatsapp')
+                            ->where('provider', 'welcome')
+                            ->exists();
+                    } catch (Throwable) {
+                    }
+                }
+
+                if (! $alreadySentWelcome && Schema::hasTable('whatsapp_message_delivery_logs')) {
+                    try {
+                        $welcomeLogQuery = WhatsappMessageDeliveryLog::query()
+                            ->where('template_key', 'welcome')
+                            ->where('status', 'sent');
+
+                        if ($resolvedUserId !== null) {
+                            $welcomeLogQuery->where(function ($q) use ($resolvedUserId, $normalizedPhone): void {
+                                $q->where('user_id', $resolvedUserId);
+                                if ($normalizedPhone !== '') {
+                                    $q->orWhere('phone', $normalizedPhone);
+                                }
+                            });
+                        } elseif ($normalizedPhone !== '') {
+                            $welcomeLogQuery->where('phone', $normalizedPhone);
+                        }
+
+                        $alreadySentWelcome = $welcomeLogQuery->exists();
+                    } catch (Throwable) {
+                    }
+                }
+
+                if ($alreadySentWelcome) {
+                    self::$lastError = 'Welcome WhatsApp message already sent once for this user.';
+                    Log::info('WhatsApp welcome notification blocked: Already sent once for user.', [
+                        'template_key' => $templateKey,
+                        'user_id' => $resolvedUserId,
+                        'phone' => $normalizedPhone ?: $phone,
+                    ]);
+
+                    return false;
+                }
             }
 
             if ($customLogId !== null) {

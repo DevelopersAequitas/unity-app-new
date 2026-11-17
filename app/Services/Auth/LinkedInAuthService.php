@@ -5,15 +5,20 @@ declare(strict_types=1);
 namespace App\Services\Auth;
 
 use App\Http\Resources\UserResource;
+use App\Jobs\SendWelcomeWhatsappJob;
+use App\Models\FileModel;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
+use App\Services\Creative\WelcomeCreativeService;
+use App\Services\Referrals\ReferralService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -390,10 +395,10 @@ class LinkedInAuthService
                     $mime = $imgResponse->header('Content-Type') ?: 'image/jpeg';
                     $ext = str_contains($mime, 'png') ? 'png' : (str_contains($mime, 'webp') ? 'webp' : 'jpg');
                     $s3Key = 'avatars/linkedin_'.(string) Str::uuid().'.'.$ext;
-                    \Illuminate\Support\Facades\Storage::disk('public')->put($s3Key, $imgResponse->body());
+                    Storage::disk('public')->put($s3Key, $imgResponse->body());
 
                     $downloadedFileId = (string) Str::uuid();
-                    \App\Models\FileModel::query()->create([
+                    FileModel::query()->create([
                         'id' => $downloadedFileId,
                         'uploader_user_id' => $userData['id'] ?? null,
                         's3_key' => $s3Key,
@@ -450,6 +455,19 @@ class LinkedInAuthService
 
         $user = User::query()->create($userData);
 
+        try {
+            app(WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
+        } catch (\Throwable $e) {
+            Log::warning('LinkedInAuthService.registerWithLinkedIn: welcome creative skipped', [
+                'user_id' => (string) $user->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        if (filled($user->phone)) {
+            SendWelcomeWhatsappJob::dispatch((string) $user->id);
+        }
+
         // Link SocialAccount
         SocialAccount::query()->firstOrCreate(
             [
@@ -485,7 +503,7 @@ class LinkedInAuthService
 
         if (filled($data['referral_code'] ?? null)) {
             try {
-                app(\App\Services\Referrals\ReferralService::class)->applyReferralOnRegistration($user, (string) $data['referral_code']);
+                app(ReferralService::class)->applyReferralOnRegistration($user, (string) $data['referral_code']);
             } catch (\Throwable $e) {
                 Log::warning('LinkedInAuthService.registerWithLinkedIn: referral failed', [
                     'user_id' => (string) $user->id,
