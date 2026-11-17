@@ -18,6 +18,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -49,11 +50,12 @@ class CircleChatService
                     });
                 }
             })
-            ->with([
+            ->with(array_values(array_filter([
                 'sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
                 'replyTo:id,circle_id,sender_id,message_type,message_text,file_path,file_name,file_mime,file_size,thumbnail_path,created_at,updated_at',
                 'replyTo.sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
-            ])
+                Schema::hasTable('message_reactions') ? 'reactions.user:id,display_name,first_name,last_name,profile_photo_url,profile_photo_file_id' : null,
+            ])))
             ->withCount('reads')
             ->withExists(['reads as is_read_by_me' => fn ($q) => $q->where('user_id', $user->id)])
             ->orderByDesc('created_at')
