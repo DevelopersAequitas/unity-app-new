@@ -876,7 +876,7 @@ class MetaWhatsAppAdminController extends Controller
             'test' => WhatsAppMessageLog::where('is_test', true)->count(),
         ];
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'stats' => $stats,
@@ -917,7 +917,7 @@ class MetaWhatsAppAdminController extends Controller
             abort(404, 'WhatsApp message log not found.');
         }
 
-        if (request()->wantsJson()) {
+        if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
             return response()->json([
                 'success' => true,
                 'message' => $message,
@@ -932,7 +932,7 @@ class MetaWhatsAppAdminController extends Controller
     /**
      * Mark all delivered test messages as read (manual bulk action for local verification).
      */
-    public function markAllDeliveredAsRead(): RedirectResponse
+    public function markAllDeliveredAsRead(): RedirectResponse|JsonResponse
     {
         WhatsAppMessageLog::query()
             ->where('status', WhatsAppMessageLog::STATUS_DELIVERED)
@@ -946,6 +946,10 @@ class MetaWhatsAppAdminController extends Controller
                 'status' => 'READ',
                 'read_at' => now(),
             ]);
+
+        if (request()->wantsJson() || request()->is('api/*') || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'All delivered messages marked as READ successfully.']);
+        }
 
         return redirect()->back()->with('success', 'All delivered messages marked as READ successfully.');
     }
@@ -1029,7 +1033,7 @@ class MetaWhatsAppAdminController extends Controller
 
         $msg = 'Simulated Meta Webhook for status: '.strtoupper($status).'. Message status updated successfully!';
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
             return response()->json(['success' => true, 'message' => $msg]);
         }
 

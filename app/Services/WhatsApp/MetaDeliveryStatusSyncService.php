@@ -9,6 +9,7 @@ use App\Models\MemberJourneySend;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsAppMessageLog;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class MetaDeliveryStatusSyncService
@@ -18,6 +19,10 @@ class MetaDeliveryStatusSyncService
      */
     public function syncAwardDeliveries(?string $userId = null): int
     {
+        if (! Schema::hasTable('member_award_sends')) {
+            return 0;
+        }
+
         $updated = 0;
 
         try {
@@ -93,7 +98,7 @@ class MetaDeliveryStatusSyncService
                 }
             }
         } catch (Throwable $e) {
-            Log::warning('[MetaDeliveryStatusSyncService] Error syncing award deliveries: ' . $e->getMessage());
+            Log::warning('[MetaDeliveryStatusSyncService] Error syncing award deliveries: '.$e->getMessage());
         }
 
         return $updated;
@@ -159,7 +164,7 @@ class MetaDeliveryStatusSyncService
                 }
             }
         } catch (Throwable $e) {
-            Log::warning('[MetaDeliveryStatusSyncService] Error syncing journey deliveries: ' . $e->getMessage());
+            Log::warning('[MetaDeliveryStatusSyncService] Error syncing journey deliveries: '.$e->getMessage());
         }
 
         return $updated;

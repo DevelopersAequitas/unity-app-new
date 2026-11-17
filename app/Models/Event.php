@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Event extends Model
@@ -107,10 +109,11 @@ class Event extends Model
         });
 
         static::deleting(function (Event $event): void {
-            if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events')) {
+            if (Schema::hasTable('speed_networking_events')) {
                 try {
-                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $event->id)->delete();
-                } catch (\Throwable $e) {}
+                    SpeedNetworkingEvent::where('id', $event->id)->delete();
+                } catch (\Throwable $e) {
+                }
             }
         });
     }
@@ -199,13 +202,13 @@ class Event extends Model
             return true;
         }
 
-        if (stripos((string) $this->title, 'speed networking') !== false) {
+        if (stripos((string) $this->title, 'speed networking') !== false || stripos((string) $this->title, 'speed collaboration') !== false) {
             return true;
         }
 
         if (! empty($this->id)) {
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events') && \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $this->id)->exists()) {
+                if (Schema::hasTable('speed_networking_events') && SpeedNetworkingEvent::where('id', $this->id)->exists()) {
                     return true;
                 }
             } catch (\Throwable $e) {

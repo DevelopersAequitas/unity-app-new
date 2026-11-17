@@ -193,10 +193,18 @@ class VerificationService
 
         $profile = null;
         if ($user) {
+            $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
+            $sinceYear = $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
+            $memberSince = "Since {$sinceYear}";
+            $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
+
             $profile = [
+                'user_id' => (string) $user->id,
                 'full_name' => $fullName,
                 'email' => $user->email,
                 'mobile' => $user->phone,
+                'phone' => $user->phone,
+                'company' => $user->company_name,
                 'company_name' => $user->company_name,
                 'designation' => $user->designation,
                 'city' => $user->city,
@@ -204,7 +212,13 @@ class VerificationService
                 'photo_url' => $photoUrl,
                 'avatar_url' => $photoUrl,
                 'image_url' => $photoUrl,
-                'member_since' => $user->created_at?->format('Y-m-d'),
+                'life_impact_score' => $lifeImpactScore,
+                'lives_impacted' => $lifeImpactScore,
+                'member_since' => $memberSince,
+                'membership_starts_at' => $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
+                'role' => 'Peers Global Member',
+                'current_role' => 'Peers Global Member',
+                'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
             ];
         }
 
@@ -217,9 +231,14 @@ class VerificationService
             'email' => $user?->email ?? $contact,
             'mobile' => $user?->phone,
             'company_name' => $user?->company_name,
+            'company' => $user?->company_name,
             'designation' => $user?->designation,
             'city' => $user?->city,
             'photo_url' => $photoUrl,
+            'life_impact_score' => $profile['life_impact_score'] ?? 0,
+            'lives_impacted' => $profile['lives_impacted'] ?? 0,
+            'member_since' => $profile['member_since'] ?? null,
+            'role' => 'Peers Global Member',
             'profile' => $profile,
             'expires_in_seconds' => $expiresIn,
         ];

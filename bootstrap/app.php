@@ -57,6 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin/web/jury/*',
             'web/jury/*',
             'admin/pending-requests/certifications/*',
+            'admin/whatsapp/*',
             'whatsapp/webhook',
             'v1/whatsapp/webhook',
             'api/whatsapp/webhook',

@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
 use App\Http\Controllers\Admin\CampaignPamphletController;
 use App\Http\Controllers\Admin\CommissionManagementController;
+use App\Http\Controllers\Admin\ContactInvitationController as AdminContactInvitationController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\EmailTemplateController;
@@ -201,6 +202,8 @@ use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
 use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
 use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
+use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -550,6 +553,12 @@ Route::prefix('v1')->group(function () {
     Route::get('/referrals/invitation-history', [ContactInvitationApiController::class, 'getInvitationHistory']);
     Route::get('/contact-invitations/history', [ContactInvitationApiController::class, 'getInvitationHistory']);
     Route::get('/referrals/invitation-stats', [ContactInvitationApiController::class, 'getStats']);
+    Route::get('/contact-invitations', [AdminContactInvitationController::class, 'index']);
+    Route::get('/whatsapp/contact-invitations', [AdminContactInvitationController::class, 'index']);
+    Route::get('/contact-invitations/export', [AdminContactInvitationController::class, 'export']);
+    Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend']);
+    Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend']);
+    Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show']);
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
@@ -895,6 +904,39 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-tutorial-popups', [AppTutorialPopupsController::class, 'index']);
             Route::put('/app-tutorial-popups', [AppTutorialPopupsController::class, 'update']);
+
+            // Meta WhatsApp Award Recognitions
+            Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+                Route::get('/awards', [AwardRecognitionAdminController::class, 'index'])->name('awards.index');
+                Route::get('/awards/user/{userId}', [AwardRecognitionAdminController::class, 'userTimeline'])->whereUuid('userId')->name('awards.user_timeline');
+                Route::post('/awards/user/{userId}/send-milestone', [AwardRecognitionAdminController::class, 'sendUserMilestone'])->whereUuid('userId')->name('awards.send_user_milestone');
+                Route::post('/awards/sync-statuses', [AwardRecognitionAdminController::class, 'syncStatuses'])->name('awards.sync_statuses');
+                Route::get('/awards/{id}', [AwardRecognitionAdminController::class, 'show'])->whereUuid('id')->name('awards.show');
+                Route::post('/awards/{id}/resend', [AwardRecognitionAdminController::class, 'resend'])->whereUuid('id')->name('awards.resend');
+                Route::post('/awards/test-send', [AwardRecognitionAdminController::class, 'sendTest'])->name('awards.test_send');
+
+                // Meta WhatsApp Message Logs & Tools
+                Route::get('/messages', [MetaWhatsAppAdminController::class, 'messages'])->name('messages');
+                Route::get('/messages/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('messages.show');
+                Route::get('/message-logs', [MetaWhatsAppAdminController::class, 'messages'])->name('message_logs');
+                Route::get('/message-logs/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('message_logs.show');
+                Route::post('/messages/{id}/simulate-status', [MetaWhatsAppAdminController::class, 'simulateStatus'])->name('messages.simulate_status');
+                Route::post('/messages/mark-all-read', [MetaWhatsAppAdminController::class, 'markAllDeliveredAsRead'])->name('messages.mark_all_read');
+
+                // Referral Contact Invitations
+                Route::get('/contact-invitations', [AdminContactInvitationController::class, 'index'])->name('contact_invitations.index');
+                Route::get('/contact-invitations/export', [AdminContactInvitationController::class, 'export'])->name('contact_invitations.export');
+                Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact_invitations.bulk_resend');
+                Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact_invitations.resend');
+                Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact_invitations.show');
+            });
+
+            // Referral Contact Invitations (Admin Root Alias)
+            Route::get('/contact-invitations', [AdminContactInvitationController::class, 'index'])->name('contact-invitations.index');
+            Route::get('/contact-invitations/export', [AdminContactInvitationController::class, 'export'])->name('contact-invitations.export');
+            Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact-invitations.bulk-resend');
+            Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact-invitations.resend');
+            Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact-invitations.show');
 
             // AI Chatbot Admin API
             Route::get('/ai-chatbot', [AiChatbotAdminController::class, 'index']);
