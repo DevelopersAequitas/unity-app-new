@@ -27,6 +27,9 @@ class SpeedNetworkingBlockController extends Controller
         return response()->json([
             'status' => 'success',
             'success' => true,
+            'blocked_peers' => $peers,
+            'peers' => $peers,
+            'items' => $peers,
             'data' => [
                 'blocked_peers' => $peers,
                 'peers' => $peers,
@@ -43,27 +46,47 @@ class SpeedNetworkingBlockController extends Controller
         $user = $request->user();
         $validated = $request->validated();
         $userId = (string) $user->id;
-        $peerId = trim((string) $validated['peer_id']);
 
-        if ($userId === $peerId) {
+        $peerIds = [];
+        if (! empty($validated['peer_id'])) {
+            $peerIds[] = trim((string) $validated['peer_id']);
+        }
+        if (! empty($validated['peer_ids']) && is_array($validated['peer_ids'])) {
+            foreach ($validated['peer_ids'] as $pid) {
+                $pid = trim((string) $pid);
+                if ($pid !== '' && ! in_array($pid, $peerIds, true)) {
+                    $peerIds[] = $pid;
+                }
+            }
+        }
+
+        $peerIds = array_values(array_filter($peerIds, fn ($id) => $id !== $userId));
+
+        if (empty($peerIds)) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Cannot block yourself',
+                'message' => 'No valid peers provided to block.',
             ], 422);
         }
 
-        $eventId = isset($validated['event_id']) ? trim((string) $validated['event_id']) : null;
+        $eventId = isset($validated['event_id']) && trim((string) $validated['event_id']) !== ''
+            ? trim((string) $validated['event_id'])
+            : null;
         $reason = isset($validated['reason']) && trim((string) $validated['reason']) !== ''
             ? trim((string) $validated['reason'])
-            : 'Blocked during Speed Networking';
+            : 'Blocked from Speed Collaboration';
 
-        $this->speedNetworkingService->blockPeerInSpeedNetworking($userId, $peerId, $eventId, $reason);
+        foreach ($peerIds as $peerId) {
+            $this->speedNetworkingService->blockPeerInSpeedNetworking($userId, $peerId, $eventId, $reason);
+        }
 
         return response()->json([
             'status' => 'success',
             'success' => true,
-            'message' => 'Peer blocked from Speed Networking events.',
+            'message' => count($peerIds) > 1
+                ? 'Peers blocked from Speed Collaboration events.'
+                : 'Peer blocked from Speed Collaboration events.',
         ]);
     }
 
@@ -78,7 +101,7 @@ class SpeedNetworkingBlockController extends Controller
         return response()->json([
             'status' => 'success',
             'success' => true,
-            'message' => 'Peer unblocked from Speed Networking events.',
+            'message' => 'Peer unblocked from Speed Collaboration events.',
         ]);
     }
 }

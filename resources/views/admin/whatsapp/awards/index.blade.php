@@ -53,6 +53,50 @@
         </div>
     @endif
 
+    @if(!empty($tableMissing))
+        <div class="alert alert-warning border-warning shadow-sm mb-4" role="alert">
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-database-exclamation text-warning fs-4 me-2"></i>
+                <h5 class="alert-heading mb-0 fw-bold">Database Table Setup Required</h5>
+            </div>
+            <p class="mb-2 small">
+                The <code>member_award_sends</code> table was not found in this database environment. The page is operating in safe read-only mode without throwing errors.
+            </p>
+            <p class="mb-2 small text-muted">
+                To enable full logging and timeline tracking, execute the following SQL in <strong>Adminer</strong> or <strong>pgAdmin</strong>:
+            </p>
+            <pre class="bg-dark text-light p-3 rounded small mb-0 user-select-all" style="max-height: 180px; overflow-y: auto;"><code>CREATE TABLE IF NOT EXISTS member_award_sends (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    award_track VARCHAR(50) NOT NULL,
+    award_title VARCHAR(255) NOT NULL,
+    milestone_count INTEGER NOT NULL DEFAULT 0,
+    template_name VARCHAR(255) NOT NULL,
+    language VARCHAR(10) NOT NULL DEFAULT 'en_IN',
+    phone_number VARCHAR(50) NOT NULL,
+    creative_image_url TEXT,
+    referral_link TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    scheduled_at TIMESTAMP WITHOUT TIME ZONE,
+    sent_at TIMESTAMP WITHOUT TIME ZONE,
+    delivered_at TIMESTAMP WITHOUT TIME ZONE,
+    read_at TIMESTAMP WITHOUT TIME ZONE,
+    provider_message_id VARCHAR(255),
+    payload_json JSONB,
+    provider_response_json JSONB,
+    error_message TEXT,
+    is_test BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_award_sends_user_id ON member_award_sends(user_id);
+CREATE INDEX IF NOT EXISTS idx_member_award_sends_status ON member_award_sends(status);
+CREATE INDEX IF NOT EXISTS idx_member_award_sends_award_track ON member_award_sends(award_track);
+CREATE INDEX IF NOT EXISTS idx_member_award_sends_provider_msg_id ON member_award_sends(provider_message_id);</code></pre>
+        </div>
+    @endif
+
     <style>
         .award-metric-card {
             transition: transform 0.15s ease, box-shadow 0.15s ease;

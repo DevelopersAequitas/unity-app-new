@@ -19,7 +19,9 @@ class StoreSpeedNetworkingBlockedPeerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'peer_id' => ['required', 'string'],
+            'peer_id' => ['required_without:peer_ids', 'nullable', 'string'],
+            'peer_ids' => ['nullable', 'array'],
+            'peer_ids.*' => ['string'],
             'event_id' => ['nullable', 'string'],
             'reason' => ['nullable', 'string', 'max:255'],
         ];
