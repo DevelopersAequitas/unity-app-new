@@ -34,6 +34,7 @@ class AdminNominationService
     public function listNominations(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $query = LeadershipNomination::query()
+            ->where('application_number', '!=', 'PG-STANDING-POOL')
             ->with(['campaign.role', 'scope', 'user'])
             ->withCount([
                 'documents as documents_pending' => fn ($q) => $q->where('verification_status', 'pending'),
@@ -47,30 +48,50 @@ class AdminNominationService
             $query->where('scope_id', $filters['scope_id']);
         }
 
-        // Role filtering: supports role_id, role key, or role name (e.g. DED)
+        // Role filtering: supports role_id, role key, or role name (e.g. DED, eed, industry_director, etc.)
         if (! empty($filters['role_id']) && \Illuminate\Support\Str::isUuid((string) $filters['role_id'])) {
-            $query->whereHas('campaign', fn ($q) => $q->where('role_id', $filters['role_id']));
+            $query->where(function ($q) use ($filters): void {
+                $q->where('profile_snapshot->applied_role', $filters['role_id'])
+                    ->orWhereHas('campaign', fn ($cq) => $cq->where('role_id', $filters['role_id']));
+            });
         }
 
         if (! empty($filters['role_key'])) {
-            $query->whereHas('campaign.role', fn ($q) => $q->where('key', $filters['role_key']));
+            $keyTerm = trim((string) $filters['role_key']);
+            $query->where(function ($q) use ($keyTerm): void {
+                $q->where('profile_snapshot->applied_role', $keyTerm)
+                    ->orWhere('profile_snapshot->applied_role_name', 'ilike', '%'.$keyTerm.'%')
+                    ->orWhereHas('campaign.role', fn ($rq) => $rq->where('key', $keyTerm));
+            });
         }
 
         if (! empty($filters['role'])) {
             $roleTerm = trim((string) $filters['role']);
             $isUuid = \Illuminate\Support\Str::isUuid($roleTerm);
             $query->where(function ($q) use ($roleTerm, $isUuid): void {
-                $q->whereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
-                    if ($isUuid) {
-                        $cq->where('role_id', $roleTerm)
-                            ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
-                    } else {
-                        $cq->whereHas('role', function ($rq) use ($roleTerm): void {
-                            $rq->where('key', $roleTerm)
-                                ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
-                        });
-                    }
-                });
+                $q->whereRaw("LOWER(COALESCE(profile_snapshot->>'applied_role', '')) = ?", [strtolower($roleTerm)])
+                    ->orWhere('profile_snapshot->applied_role', $roleTerm)
+                    ->orWhere('profile_snapshot->applied_role_name', 'ilike', '%'.$roleTerm.'%')
+                    ->orWhereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
+                        if ($isUuid) {
+                            $cq->where('role_id', $roleTerm)
+                                ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
+                        } else {
+                            $cq->whereHas('role', function ($rq) use ($roleTerm): void {
+                                $rq->where('key', $roleTerm)
+                                    ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
+                            });
+                        }
+                    });
+            });
+        }
+
+        if (! empty($filters['city'])) {
+            $cityTerm = '%'.trim((string) $filters['city']).'%';
+            $query->where(function ($q) use ($cityTerm): void {
+                $q->where('profile_snapshot->city', 'ilike', $cityTerm)
+                    ->orWhere('profile_snapshot->belonging_name', 'ilike', $cityTerm)
+                    ->orWhereHas('scope', fn ($sq) => $sq->where('name', 'ilike', $cityTerm));
             });
         }
 
@@ -124,7 +145,11 @@ class AdminNominationService
             $query->where(fn ($q) => $q->where('full_name', 'ilike', $term)
                 ->orWhere('application_number', 'ilike', $term)
                 ->orWhere('email', 'ilike', $term)
-                ->orWhere('mobile', 'ilike', $term));
+                ->orWhere('mobile', 'ilike', $term)
+                ->orWhere('profile_snapshot->company_name', 'ilike', $term)
+                ->orWhere('profile_snapshot->city', 'ilike', $term)
+                ->orWhere('profile_snapshot->belonging_name', 'ilike', $term)
+                ->orWhere('profile_snapshot->applied_role_name', 'ilike', $term));
         }
 
         $sortBy = $filters['sort_by'] ?? 'submitted_at';
@@ -194,10 +219,12 @@ class AdminNominationService
             }
         }
 
-        // Synthesize Form 2 uploaded documents into documents relation if not already present as rows
+        // Synthesize Form 2 and Form 1 uploaded documents into documents relation if not already present as rows
         $f2 = $nomination->form_2_data;
+        $existingUrls = $nomination->documents->pluck('file_url')->filter()->toArray();
+        $synthDocs = collect();
+
         if (is_array($f2)) {
-            $existingUrls = $nomination->documents->pluck('file_url')->filter()->toArray();
             $secA = $f2['section_a_business_credibility'] ?? $f2;
             $secE = $f2['section_e_12_month_plan'] ?? $f2;
             $secH = $f2['section_h_documents'] ?? $f2;
@@ -208,7 +235,6 @@ class AdminNominationService
                 '12-Month Leadership Presentation Deck (Form 2)' => $secE['deck_url'] ?? $f2['deck_url'] ?? null,
             ];
 
-            $synthDocs = collect();
             foreach ($f2DocMap as $label => $url) {
                 if ($url && ! in_array($url, $existingUrls, true)) {
                     $doc = new LeadershipNominationDocument;
@@ -221,12 +247,81 @@ class AdminNominationService
                     $doc->verification_status = 'verified';
                     $doc->created_at = $nomination->submitted_at ?? Carbon::now();
                     $synthDocs->push($doc);
+                    $existingUrls[] = $url;
+                }
+            }
+        }
+
+        // Synthesize Form 1 documents from profile_snapshot
+        $snap = $nomination->profile_snapshot;
+        if (is_array($snap)) {
+            $unwrapValue = static function ($v) use (&$unwrapValue) {
+                while (is_array($v) && count($v) === 1 && array_key_exists('value', $v)) {
+                    $v = $v['value'];
+                }
+                if (is_array($v)) {
+                    foreach ($v as $subK => $subV) {
+                        $v[$subK] = $unwrapValue($subV);
+                    }
+                }
+
+                return $v;
+            };
+
+            foreach ($snap as $k => $v) {
+                $snap[$k] = $unwrapValue($v);
+            }
+
+            $snapDocMap = [
+                'ID Proof (Aadhaar / Passport)' => $snap['id_file'] ?? null,
+                'Recommendation Letter' => $snap['letter_file'] ?? null,
+                'Company Profile / Deck' => $snap['deck_file'] ?? null,
+                'Candidate Manifesto' => $snap['manifesto_file'] ?? null,
+            ];
+
+            foreach ($snapDocMap as $label => $url) {
+                if ($url && ! in_array($url, $existingUrls, true)) {
+                    $doc = new LeadershipNominationDocument;
+                    $doc->id = (string) Str::uuid();
+                    $doc->nomination_id = $nomination->id;
+                    $doc->document_type = $label;
+                    $doc->original_filename = basename(parse_url((string) $url, PHP_URL_PATH) ?: 'document.pdf');
+                    $doc->storage_key = (string) $url;
+                    $doc->storage_disk = 'public';
+                    $doc->verification_status = 'verified';
+                    $doc->created_at = $nomination->submitted_at ?? Carbon::now();
+                    $synthDocs->push($doc);
+                    $existingUrls[] = $url;
                 }
             }
 
-            if ($synthDocs->isNotEmpty()) {
-                $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
+            // Sync answers into profile_snapshot if missing in snapshot
+            if ($nomination->answers && $nomination->answers->isNotEmpty()) {
+                foreach ($nomination->answers as $ans) {
+                    $key = (string) $ans->question_key;
+                    $val = $unwrapValue($ans->answer);
+                    if (! isset($snap[$key]) && $val !== null) {
+                        $snap[$key] = $val;
+                    }
+                    if (in_array($key, ['goals', 'top_3_goals'], true) && empty($snap['goals'])) {
+                        $snap['goals'] = $val;
+                    }
+                    if (in_array($key, ['leadership_roles', 'past_roles'], true) && empty($snap['leadership_roles'])) {
+                        $snap['leadership_roles'] = $val;
+                    }
+                    if (in_array($key, ['time_commitment', 'monthly_commitment'], true) && empty($snap['time_commitment'])) {
+                        $snap['time_commitment'] = $val;
+                    }
+                    if (in_array($key, ['video_url', 'video'], true) && empty($snap['video_url'])) {
+                        $snap['video_url'] = $val;
+                    }
+                }
             }
+            $nomination->profile_snapshot = $snap;
+        }
+
+        if ($synthDocs->isNotEmpty()) {
+            $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
         }
 
         return $nomination;
@@ -509,7 +604,7 @@ class AdminNominationService
         $campaignName = $nomination->campaign?->name ?? 'Leadership Campaign';
         $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
         $appNumber = $nomination->application_number;
-        $votingLink = "https://peersglobal.com/leadership/campaigns/{$nomination->campaign_id}/vote?candidate={$nomination->id}";
+        $votingLink = $nomination->voting_link;
 
         // 1. Dispatch WhatsApp message
         if ($phone) {
@@ -598,7 +693,7 @@ class AdminNominationService
 
         $this->sendNominationApprovedNotification($nomination);
 
-        $votingLink = "https://peersglobal.com/leadership/campaigns/{$nomination->campaign_id}/vote?candidate={$nomination->id}";
+        $votingLink = $nomination->voting_link;
 
         $this->auditService->log(
             action: 'nomination.manual_email_sent',
@@ -702,8 +797,8 @@ class AdminNominationService
             $nomination->shortlisted_at = Carbon::now();
         }
 
-        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
-        $form2Link = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
+        $backendUrl = rtrim((string) config('app.url', env('APP_URL', 'https://peersunity.com')), '/');
+        $form2Link = "{$backendUrl}/leadership/form-2/{$nomination->id}";
 
         $snapshot = (array) ($nomination->profile_snapshot ?? []);
         $snapshot['form_2_link'] = $form2Link;
@@ -960,6 +1055,35 @@ class AdminNominationService
             $nomination->profile_snapshot = $parentSnapshot;
             $nomination->save();
 
+            // Auto-assign candidate to appointed standing jurors so candidate immediately appears in Jury Management
+            try {
+                $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereHas('nomination', function ($q): void {
+                    $q->where('application_number', 'PG-STANDING-POOL');
+                })->pluck('juror_user_id')->filter()->unique()->values()->all();
+
+                if (empty($standingJurorIds)) {
+                    $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereNotNull('juror_user_id')
+                        ->pluck('juror_user_id')->filter()->unique()->values()->all();
+                }
+
+                foreach ($standingJurorIds as $jurorId) {
+                    \App\Models\Leadership\LeadershipJuryAssignment::firstOrCreate(
+                        [
+                            'campaign_id' => $nomination->campaign_id,
+                            'nomination_id' => $nomination->id,
+                            'juror_user_id' => $jurorId,
+                        ],
+                        [
+                            'status' => 'assigned',
+                            'due_at' => Carbon::now()->addDays(7),
+                            'assignment_remarks' => 'Auto-assigned upon Jury Evaluation Form submission',
+                        ]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Auto-assigning jurors on Form 2 submit failed: '.$e->getMessage());
+            }
+
             LeadershipNominationHistory::create([
                 'id' => (string) Str::uuid(),
                 'nomination_id' => $nomination->id,
@@ -984,5 +1108,95 @@ class AdminNominationService
 
             return $subNomination;
         });
+    }
+
+    /**
+     * Permanently delete a single nomination and all dependent relations.
+     */
+    public function deleteNomination(string $id): void
+    {
+        $nomination = LeadershipNomination::findOrFail($id);
+
+        DB::transaction(function () use ($nomination): void {
+            $appNum = (string) $nomination->application_number;
+            if (! str_ends_with($appNum, '-F2')) {
+                $child = LeadershipNomination::where('application_number', $appNum.'-F2')->first();
+                if ($child) {
+                    $this->deleteNominationRelations($child);
+                    $child->delete();
+                }
+            }
+
+            $this->deleteNominationRelations($nomination);
+            $nomination->delete();
+        });
+    }
+
+    /**
+     * Permanently delete multiple or all nominations.
+     *
+     * @param  array<int, string>  $ids
+     */
+    public function bulkDeleteNominations(array $ids = [], bool $deleteAll = false, ?string $formType = null): int
+    {
+        return DB::transaction(function () use ($ids, $deleteAll, $formType): int {
+            $query = LeadershipNomination::query()->where('application_number', '!=', 'PG-STANDING-POOL');
+
+            if (! $deleteAll) {
+                if (empty($ids)) {
+                    return 0;
+                }
+                $query->whereIn('id', $ids);
+            } elseif ($formType) {
+                if ($formType === 'sub_form_2') {
+                    $query->where(function ($q): void {
+                        $q->where('form_type', 'sub_form_2')
+                            ->orWhere('application_number', 'LIKE', '%-F2');
+                    });
+                } else {
+                    $query->where(function ($q): void {
+                        $q->where('form_type', 'main_form_1')
+                            ->orWhereNull('form_type')
+                            ->where('application_number', 'NOT LIKE', '%-F2');
+                    });
+                }
+            }
+
+            $nominations = $query->get();
+            $count = 0;
+
+            foreach ($nominations as $nomination) {
+                $appNum = (string) $nomination->application_number;
+                if (! str_ends_with($appNum, '-F2')) {
+                    $child = LeadershipNomination::where('application_number', $appNum.'-F2')->first();
+                    if ($child && ! in_array($child->id, $ids, true)) {
+                        $this->deleteNominationRelations($child);
+                        $child->delete();
+                    }
+                }
+
+                $this->deleteNominationRelations($nomination);
+                $nomination->delete();
+                $count++;
+            }
+
+            return $count;
+        });
+    }
+
+    /**
+     * Delete dependent relations for a nomination to satisfy foreign keys.
+     */
+    private function deleteNominationRelations(LeadershipNomination $nomination): void
+    {
+        $nomination->answers()->delete();
+        $nomination->documents()->delete();
+        $nomination->history()->delete();
+        $nomination->juryAssignments()->delete();
+        $nomination->jurySubmissions()->delete();
+        $nomination->finalDecision()->delete();
+        $nomination->resultTokens()->delete();
+        $nomination->votes()->delete();
+        $nomination->webVotes()->delete();
     }
 }

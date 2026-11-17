@@ -354,14 +354,15 @@ class VotingController extends LeadershipBaseController
     /**
      * G7. Admin voting report.
      */
-    public function results(Request $request, string $id): JsonResponse
+    public function results(Request $request, ?string $id = null): JsonResponse
     {
+        $campaignId = $id ?: (string) $request->query('campaign_id');
         $scopeId = $request->query('scope_id');
         $sortBy = (string) $request->query('sort_by', 'vote_count');
         $sortOrder = (string) $request->query('sort_order', 'desc');
 
         $report = $this->votingService->getAdminVotingResults(
-            $id,
+            ! empty($campaignId) && $campaignId !== 'all' ? (string) $campaignId : null,
             $scopeId ? (string) $scopeId : null,
             $sortBy,
             $sortOrder
@@ -411,9 +412,6 @@ class VotingController extends LeadershipBaseController
     public function detailedVotes(Request $request, ?string $id = null): JsonResponse
     {
         $campaignId = $id ?: (string) $request->query('campaign_id');
-        if (! $campaignId) {
-            return $this->error('Campaign ID is required.', 400);
-        }
 
         $nominationId = $request->query('nomination_id');
         $search = $request->query('search');
@@ -421,7 +419,7 @@ class VotingController extends LeadershipBaseController
         $perPage = (int) $request->query('per_page', 25);
 
         $results = $this->votingService->getDetailedVotes(
-            $campaignId,
+            ! empty($campaignId) && $campaignId !== 'all' ? (string) $campaignId : null,
             $nominationId ? (string) $nominationId : null,
             $search ? (string) $search : null,
             $page,

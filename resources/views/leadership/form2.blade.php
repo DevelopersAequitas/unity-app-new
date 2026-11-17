@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Form 2: Jury Evaluation Data Form | Peers Global Leadership Selection</title>
+    <title>Jury Evaluation Form | Peers Global Leadership Selection</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -113,7 +113,7 @@
                 <i class="bi bi-shield-check text-warning"></i>
                 <span>Peers Global Community of Collaboration</span>
             </div>
-            <h1 class="h2 fw-bold text-white mb-2">Form 2: Jury Evaluation Data Form</h1>
+            <h1 class="h2 fw-bold text-white mb-2">Jury Evaluation Form</h1>
             <p class="text-white-50 mb-4 mx-auto" style="max-width: 650px;">
                 Detailed Operational, Track Record & Leadership Bench Evidence for Shortlisted Nominees
             </p>
@@ -133,19 +133,16 @@
                             <h2 class="h5 fw-bold text-dark mb-0">{{ $candidateName }}</h2>
                             <span class="badge bg-primary text-white">{{ $roleName }}</span>
                         </div>
-                        <p class="text-muted small mb-0 mt-0.5">
-                            Application #: <strong class="text-dark font-monospace">{{ $nomination->application_number }}</strong> &bull; Campaign: {{ $campaignName }}
-                        </p>
                     </div>
                 </div>
                 <div>
                     @if($isSubmitted)
                         <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-6">
-                            <i class="bi bi-check-circle-fill me-1"></i> Form 2 Submitted
+                            <i class="bi bi-check-circle-fill me-1"></i> Evaluation Submitted
                         </span>
                     @else
                         <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 fs-6">
-                            <i class="bi bi-clock-history me-1"></i> Form 2 Pending
+                            <i class="bi bi-clock-history me-1"></i> Evaluation Pending
                         </span>
                     @endif
                 </div>
@@ -158,14 +155,14 @@
                 <div class="mx-auto rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
                     <i class="bi bi-check-lg fs-1"></i>
                 </div>
-                <h3 class="h4 fw-bold text-dark mb-2">Form 2 Successfully Submitted!</h3>
+                <h3 class="h4 fw-bold text-dark mb-2">Jury Evaluation Form Successfully Submitted!</h3>
                 <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
-                    Thank you, <strong>{{ $candidateName }}</strong>. Your Jury Evaluation Data and Leadership Bench records have been securely stored in <strong>Jury Forms (2)</strong> and forwarded to the Scrutiny Committee and Jury Board.
+                    Thank you, <strong>{{ $candidateName }}</strong>. Your Jury Evaluation Data and Leadership Bench records have been securely stored in the <strong>Jury Evaluation Dossier</strong> and forwarded to the Scrutiny Committee and Jury Board.
                 </p>
-                <div class="bg-light p-3 rounded-3 border mb-4 text-start small font-monospace">
-                    <div><strong>Reference ID:</strong> {{ $nomination->application_number }}-F2</div>
-                    <div><strong>Role Evaluated:</strong> {{ $roleName }}</div>
-                    <div><strong>Status:</strong> Under Jury Review</div>
+                <div class="mb-4">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6 fw-semibold">
+                        <i class="bi bi-shield-check me-1"></i> Status: Under Jury Review
+                    </span>
                 </div>
                 <div>
                     <a href="/" class="btn btn-outline-primary px-4 py-2">Return to Peers Global</a>
@@ -198,7 +195,7 @@
 
                 <button type="button" id="btnVerifyEmail" class="btn btn-pg-primary w-100 py-2.5">
                     <span id="verifyBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-                    <i class="bi bi-arrow-right-circle me-1" id="verifyBtnIcon"></i> Verify & Unlock Form 2
+                    <i class="bi bi-arrow-right-circle me-1" id="verifyBtnIcon"></i> Verify & Unlock Evaluation Form
                 </button>
             </div>
 
@@ -254,7 +251,12 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label">Business Registration Proof (GST / Incorporation) <span class="text-danger">*</span></label>
-                            <input type="file" name="business_proof_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                            <div class="input-group">
+                                <input type="file" id="business_proof_file" name="business_proof_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                                <button type="button" class="btn btn-outline-secondary px-3 btn-clear-file" data-target="business_proof_file" title="Clear / Deselect file">
+                                    <i class="bi bi-x-circle me-1"></i> Clear
+                                </button>
+                            </div>
                             <div class="form-text small">Accepted formats: PDF, JPG, PNG (Max 10MB)</div>
                         </div>
                     </div>
@@ -513,11 +515,21 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Identity Proof (Masked Aadhaar / Passport / DL) <span class="text-danger">*</span></label>
-                            <input type="file" name="identity_proof_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <div class="input-group">
+                                <input type="file" id="identity_proof_file" name="identity_proof_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                                <button type="button" class="btn btn-outline-secondary px-3 btn-clear-file" data-target="identity_proof_file" title="Clear / Deselect file">
+                                    <i class="bi bi-x-circle me-1"></i> Clear
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Company Profile or Pitch Deck (Optional)</label>
-                            <input type="file" name="deck_file" class="form-control" accept=".pdf,.ppt,.pptx">
+                            <div class="input-group">
+                                <input type="file" id="deck_file" name="deck_file" class="form-control" accept=".pdf,.ppt,.pptx">
+                                <button type="button" class="btn btn-outline-secondary px-3 btn-clear-file" data-target="deck_file" title="Clear / Deselect file">
+                                    <i class="bi bi-x-circle me-1"></i> Clear
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -525,11 +537,11 @@
                 <!-- Submit Button Bar -->
                 <div class="card card-custom p-4 text-center">
                     <p class="text-muted small mb-3">
-                        By submitting Form 2, you affirm that all business numbers, track record data, and leadership bench references are accurate and true.
+                        By submitting this evaluation, you affirm that all business numbers, track record data, and leadership bench references are accurate and true.
                     </p>
                     <div>
                         <button type="submit" class="btn btn-pg-primary px-5 py-3 fs-6">
-                            <i class="bi bi-send-check-fill me-2"></i> Submit Form 2: Jury Evaluation Data
+                            <i class="bi bi-send-check-fill me-2"></i> Submit Jury Evaluation Form
                         </button>
                     </div>
                 </div>
@@ -539,6 +551,18 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // File input clear / deselect handler
+            document.querySelectorAll('.btn-clear-file').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const targetId = this.getAttribute('data-target');
+                    const input = document.getElementById(targetId);
+                    if (input) {
+                        input.value = '';
+                        input.dispatchEvent(new Event('change'));
+                    }
+                });
+            });
+
             const verifyBtn = document.getElementById('btnVerifyEmail');
             const verifyInput = document.getElementById('verifyEmailInput');
             const verifyAlert = document.getElementById('emailVerifyAlert');

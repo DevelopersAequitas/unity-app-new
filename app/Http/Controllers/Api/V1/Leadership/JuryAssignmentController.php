@@ -155,6 +155,47 @@ class JuryAssignmentController extends LeadershipBaseController
      */
     public function adminAssignments(Request $request): JsonResponse
     {
+        // Auto-link any candidate who submitted Form 2 or was shortlisted to standing or appointed jurors
+        try {
+            $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereHas('nomination', function ($q): void {
+                $q->where('application_number', 'PG-STANDING-POOL');
+            })->pluck('juror_user_id')->filter()->unique()->values()->all();
+
+            if (empty($standingJurorIds)) {
+                $standingJurorIds = \App\Models\Leadership\LeadershipJuryAssignment::whereNotNull('juror_user_id')
+                    ->pluck('juror_user_id')->filter()->unique()->values()->all();
+            }
+
+            if (! empty($standingJurorIds)) {
+                $submittedCandidates = \App\Models\Leadership\LeadershipNomination::where('application_number', '!=', 'PG-STANDING-POOL')
+                    ->where('application_number', 'not like', '%-F2')
+                    ->where(function ($q): void {
+                        $q->where('profile_snapshot->form_2_status', 'submitted')
+                            ->orWhere('status', 'shortlisted');
+                    })
+                    ->get();
+
+                foreach ($submittedCandidates as $cand) {
+                    foreach ($standingJurorIds as $jId) {
+                        \App\Models\Leadership\LeadershipJuryAssignment::firstOrCreate(
+                            [
+                                'campaign_id' => $cand->campaign_id,
+                                'nomination_id' => $cand->id,
+                                'juror_user_id' => $jId,
+                            ],
+                            [
+                                'status' => 'assigned',
+                                'due_at' => Carbon::now()->addDays(7),
+                                'assignment_remarks' => 'Auto-assigned to standing jury panel',
+                            ]
+                        );
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Proceed to query
+        }
+
         $query = \App\Models\Leadership\LeadershipJuryAssignment::with([
             'nomination.campaign.role',
             'juror.mainBusinessCategory',
@@ -176,6 +217,10 @@ class JuryAssignmentController extends LeadershipBaseController
         $assignments = $query->get();
 
         $assignments->each(function ($asg): void {
+            if ($asg->nomination?->application_number === 'PG-STANDING-POOL') {
+                $asg->setAttribute('is_standing', true);
+                $asg->setAttribute('candidate_name', 'All Incoming Candidates (Standing Pool)');
+            }
             if ($asg->juror) {
                 $compName = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
                 $catName = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
@@ -227,23 +272,51 @@ class JuryAssignmentController extends LeadershipBaseController
         $remarks = $validated['remarks'] ?? '';
 
         try {
+            // Always ensure the standing pool placeholder exists
+            $standingNomination = \App\Models\Leadership\LeadershipNomination::firstOrCreate(
+                ['application_number' => 'PG-STANDING-POOL'],
+                [
+                    'candidate_name' => 'Standing Jury Pool',
+                    'full_name' => 'Standing Jury Pool',
+                    'email' => 'jury-standing@peersglobal.com',
+                    'applied_role' => 'general',
+                    'status' => 'approved',
+                    'form_type' => 'main_form_1',
+                ]
+            );
+
+            // Register standing assignment for each juror so they are standing evaluators
+            $standingRes = $this->juryService->assignJurors(
+                $standingNomination->id,
+                $jurorIds,
+                $dueAt ? (string) $dueAt : null,
+                $remarks ?: 'Standing Juror appointment for all candidate applications',
+                Auth::id()
+            );
+
             if ($nominationId === 'all') {
                 $campaignId = $validated['campaign_id'] ?? $request->input('campaign_id');
-                if (! $campaignId) {
-                    return $this->error('Campaign ID is required to assign juror to all candidates.', 422);
+                $nomQuery = \App\Models\Leadership\LeadershipNomination::query()
+                    ->where('application_number', '!=', 'PG-STANDING-POOL')
+                    ->where('application_number', 'not like', '%-F2')
+                    ->whereIn('status', ['shortlisted', 'approved', 'submitted']);
+
+                if (! empty($campaignId) && $campaignId !== 'all') {
+                    $nomQuery->where('campaign_id', $campaignId);
                 }
 
-                $nominations = \App\Models\Leadership\LeadershipNomination::where('campaign_id', $campaignId)
-                    ->whereIn('status', ['shortlisted', 'approved', 'submitted'])
-                    ->where('application_number', 'not like', '%-F2')
-                    ->get();
+                $nominations = $nomQuery->get();
 
                 if ($nominations->isEmpty()) {
-                    return $this->error('No shortlisted candidates found for the selected campaign.', 404);
+                    // Fallback to all candidate nominations if none shortlisted/submitted
+                    $nominations = \App\Models\Leadership\LeadershipNomination::where('application_number', '!=', 'PG-STANDING-POOL')
+                        ->where('application_number', 'not like', '%-F2')
+                        ->get();
                 }
 
                 $totalCreated = 0;
                 $allAssignments = new \Illuminate\Database\Eloquent\Collection;
+                $allAssignments = $allAssignments->merge($standingRes['assignments']);
 
                 foreach ($nominations as $nom) {
                     $res = $this->juryService->assignJurors(
@@ -257,10 +330,17 @@ class JuryAssignmentController extends LeadershipBaseController
                     $allAssignments = $allAssignments->merge($res['assignments']);
                 }
 
+                $candidateCount = $nominations->count();
+                $msg = $candidateCount > 0
+                    ? "Assigned juror(s) to {$candidateCount} candidate application(s) and registered as standing jurors for future nominations."
+                    : 'Appointed standing juror(s) successfully. Any future candidate nominations will automatically be assigned to them.';
+
                 return $this->success([
-                    'assignments_created' => $totalCreated,
+                    'assignments_created' => $totalCreated ?: count($jurorIds),
                     'assignments' => $allAssignments,
-                ], "Assigned juror to {$nominations->count()} candidates successfully.", 201);
+                    'candidates_assigned' => $candidateCount,
+                    'is_standing' => true,
+                ], $msg, 201);
             }
 
             $result = $this->juryService->assignJurors(
@@ -391,17 +471,21 @@ class JuryAssignmentController extends LeadershipBaseController
     }
 
     /**
-     * Admin: Get jury evaluation report for a campaign.
+     * Admin: Get jury evaluation report for all candidates or a specific campaign.
      */
-    public function adminReport(string $campaignId): JsonResponse
+    public function adminReport(?string $campaignId = null): JsonResponse
     {
         try {
-            $assignments = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination', 'juror', 'scores.criterion', 'report'])
-                ->whereHas('nomination', fn ($q) => $q->where('campaign_id', $campaignId))
-                ->get();
+            $query = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination', 'juror', 'scores.criterion', 'report']);
+
+            if (! empty($campaignId) && $campaignId !== 'all') {
+                $query->whereHas('nomination', fn ($q) => $q->where('campaign_id', $campaignId));
+            }
+
+            $assignments = $query->get();
 
             return $this->success([
-                'campaign_id' => $campaignId,
+                'campaign_id' => $campaignId ?: 'all',
                 'total_assignments' => $assignments->count(),
                 'completed' => $assignments->where('status', 'completed')->count(),
                 'assignments' => $assignments,
@@ -409,5 +493,55 @@ class JuryAssignmentController extends LeadershipBaseController
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
+    }
+
+    /**
+     * Admin: Resend official appointment email to an assigned juror with portal evaluation link.
+     */
+    public function resendJurorEmail(Request $request): JsonResponse
+    {
+        $jurorUserId = $request->input('juror_user_id') ?? $request->input('user_id');
+        $assignmentId = $request->input('assignment_id');
+
+        if (! empty($assignmentId)) {
+            $assignment = \App\Models\Leadership\LeadershipJuryAssignment::with(['juror', 'nomination'])->findOrFail($assignmentId);
+            $this->juryService->sendInvitation($assignment->id, true, false, 'jury_evaluation_invitation');
+
+            return $this->success(null, 'Official appointment email resent successfully.');
+        }
+
+        if (! $jurorUserId) {
+            return $this->error('Juror User ID or Assignment ID is required.', 422);
+        }
+
+        $juror = \App\Models\User::findOrFail($jurorUserId);
+        $latestAsg = \App\Models\Leadership\LeadershipJuryAssignment::with('nomination')
+            ->where('juror_user_id', $jurorUserId)
+            ->latest()
+            ->first();
+
+        if ($latestAsg && $latestAsg->nomination) {
+            $this->juryService->sendInvitation($latestAsg->id, true, false, 'jury_evaluation_invitation');
+        } else {
+            $portalUrl = 'https://admin.peersunity.com/web/leadership/jury-evaluations';
+            $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
+            if (! empty($juror->email)) {
+                \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $portalUrl): void {
+                    $html = "
+                    <div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 14px;'>
+                        <h2 style='color: #1e293b;'>Jury Evaluation Portal Access</h2>
+                        <p>Dear <strong>{$jurorName}</strong>,</p>
+                        <p>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
+                        <p style='margin: 24px 0;'><a href='{$portalUrl}' style='display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;'>Access Jury Evaluation Portal</a></p>
+                        <p style='font-size: 13px; color: #64748b;'>Login with your email: {$juror->email}</p>
+                    </div>";
+                    $message->to($juror->email, $jurorName)
+                        ->subject('Jury Evaluation Portal Access - Peers Global Leadership')
+                        ->html($html);
+                });
+            }
+        }
+
+        return $this->success(null, "Official appointment email resent successfully to {$juror->email}.");
     }
 }

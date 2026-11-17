@@ -158,10 +158,36 @@ class AdminNominationController extends LeadershipBaseController
     public function destroy(string $id): JsonResponse
     {
         try {
-            $nomination = \App\Models\Leadership\LeadershipNomination::findOrFail($id);
-            $nomination->delete();
+            $this->nominationService->deleteNomination($id);
 
             return $this->success(null, 'Nomination deleted successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Delete multiple or all nominations permanently.
+     */
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => 'nullable|array',
+            'ids.*' => 'required|uuid',
+            'delete_all' => 'nullable|boolean',
+            'form_type' => 'nullable|string',
+        ]);
+
+        try {
+            $deletedCount = $this->nominationService->bulkDeleteNominations(
+                $validated['ids'] ?? [],
+                (bool) ($validated['delete_all'] ?? false),
+                $validated['form_type'] ?? null
+            );
+
+            return $this->success([
+                'deleted_count' => $deletedCount,
+            ], "Successfully deleted {$deletedCount} nomination request(s).");
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }

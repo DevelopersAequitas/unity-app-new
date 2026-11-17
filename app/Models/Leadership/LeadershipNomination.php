@@ -249,12 +249,21 @@ class LeadershipNomination extends Model
 
     public function getScopeNameAttribute(): string
     {
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot)) {
+            if (! empty($snapshot['belonging_name'])) {
+                return (string) $snapshot['belonging_name'];
+            }
+            if (! empty($snapshot['city'])) {
+                return (string) $snapshot['city'];
+            }
+            if (! empty($snapshot['scope_name'])) {
+                return (string) $snapshot['scope_name'];
+            }
+        }
+
         if (! empty($this->scope?->name)) {
             return $this->scope->name;
-        }
-        $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && ! empty($snapshot['scope_name'])) {
-            return $snapshot['scope_name'];
         }
 
         return 'Surat District';
@@ -385,12 +394,46 @@ class LeadershipNomination extends Model
 
     public function getAppliedRoleNameAttribute(): ?string
     {
-        return $this->campaign?->role?->name;
+        $roleMap = [
+            'ded' => 'District Executive Director (DED)',
+            'eed' => 'Ecosystem Executive Director (EED)',
+            'industry_director' => 'Industry Director',
+            'circle_director' => 'Circle Director',
+            'chair' => 'Circle Chair',
+            'vice_chair' => 'Circle Vice Chair',
+            'circle_leader' => 'Circle Leader',
+            'circle_founder' => 'Circle Founder',
+            'secretary' => 'Circle Secretary',
+            'committee_leader' => 'Committee Leader',
+        ];
+
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot)) {
+            if (! empty($snapshot['applied_role_name'])) {
+                return (string) $snapshot['applied_role_name'];
+            }
+            if (! empty($snapshot['applied_role'])) {
+                $rawRole = (string) $snapshot['applied_role'];
+
+                return $roleMap[$rawRole] ?? ucwords(str_replace('_', ' ', $rawRole));
+            }
+        }
+
+        return $this->campaign?->role?->name ?? 'Leadership Role';
     }
 
     public function getVotingLinkAttribute(): string
     {
-        return "https://peersglobal.com/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
+        $customUrl = config('services.voting_url');
+        if (! empty($customUrl)) {
+            $separator = str_contains((string) $customUrl, '?') ? '&' : '?';
+
+            return "{$customUrl}{$separator}candidate={$this->id}";
+        }
+
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+
+        return "{$frontendUrl}/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
     }
 
     protected static function booted(): void

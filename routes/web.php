@@ -279,6 +279,8 @@ Route::get('/docs/ads-api', function () {
 Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
     ->whereUuid('id')
     ->name('leadership.form2.show');
+Route::get('/leadership/form-2', [LeadershipForm2Controller::class, 'show'])
+    ->name('leadership.form2.query');
 Route::post('/leadership/form-2/{id}/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])
     ->whereUuid('id')
     ->name('leadership.form2.verify-email');

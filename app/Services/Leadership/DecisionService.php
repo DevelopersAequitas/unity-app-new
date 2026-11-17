@@ -25,14 +25,20 @@ class DecisionService
      *
      * @return Collection<int, LeadershipNomination>
      */
-    public function getEligibleDecisionCandidates(string $campaignId): Collection
+    public function getEligibleDecisionCandidates(?string $campaignId = null): Collection
     {
-        return LeadershipNomination::query()
+        $query = LeadershipNomination::query()
+            ->where('application_number', '!=', 'PG-STANDING-POOL')
+            ->where('application_number', 'not like', '%-F2')
             ->with(['scope', 'campaign.role', 'finalDecision'])
             ->withCount(['votes', 'juryAssignments', 'juryAssignments as jury_completed_count' => fn ($q) => $q->where('status', 'completed')])
-            ->where('campaign_id', $campaignId)
-            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected'])
-            ->get();
+            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected', 'submitted']);
+
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $query->where('campaign_id', $campaignId);
+        }
+
+        return $query->get();
     }
 
     /**
@@ -40,14 +46,20 @@ class DecisionService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getConsolidatedDecisionSummary(string $campaignId): array
+    public function getConsolidatedDecisionSummary(?string $campaignId = null): array
     {
-        $candidates = LeadershipNomination::query()
+        $query = LeadershipNomination::query()
+            ->where('application_number', '!=', 'PG-STANDING-POOL')
+            ->where('application_number', 'not like', '%-F2')
             ->with(['scope', 'campaign.role', 'juryAssignments.report', 'juryAssignments.scores.criterion', 'documents'])
             ->withCount(['votes'])
-            ->where('campaign_id', $campaignId)
-            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected'])
-            ->get();
+            ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected', 'submitted']);
+
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $query->where('campaign_id', $campaignId);
+        }
+
+        $candidates = $query->get();
 
         $totalCampaignVotes = (int) LeadershipVote::where('campaign_id', $campaignId)->count();
 
@@ -215,11 +227,14 @@ class DecisionService
      *
      * @param  array<string, mixed>  $filters
      */
-    public function listDecisions(string $campaignId, array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function listDecisions(?string $campaignId = null, array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $query = LeadershipFinalDecision::query()
-            ->with(['nomination.scope', 'nomination.campaign.role', 'decider'])
-            ->where('campaign_id', $campaignId);
+            ->with(['nomination.scope', 'nomination.campaign.role', 'decider']);
+
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $query->where('campaign_id', $campaignId);
+        }
 
         if (! empty($filters['decision'])) {
             $query->where('decision', $filters['decision']);
@@ -298,12 +313,16 @@ class DecisionService
      *
      * @return Collection<int, LeadershipFinalDecision>
      */
-    public function listWinners(string $campaignId): Collection
+    public function listWinners(?string $campaignId = null): Collection
     {
-        return LeadershipFinalDecision::query()
+        $query = LeadershipFinalDecision::query()
             ->with(['nomination.scope', 'nomination.campaign.role', 'creatives'])
-            ->where('campaign_id', $campaignId)
-            ->where('is_winner', true)
-            ->get();
+            ->where('is_winner', true);
+
+        if (! empty($campaignId) && $campaignId !== 'all') {
+            $query->where('campaign_id', $campaignId);
+        }
+
+        return $query->get();
     }
 }

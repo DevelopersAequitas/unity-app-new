@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingAdminController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingApiController;
+use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingBlockController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\UserCircleRequestController;
 use App\Http\Controllers\Api\UserContactController;
@@ -2037,11 +2038,18 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
         Route::get('history', [SpeedNetworkingApiController::class, 'history']);
+
+        // Speed-Networking-Scoped Block & Unblock
+        Route::get('blocked-peers', [SpeedNetworkingBlockController::class, 'index']);
+        Route::post('blocked-peers', [SpeedNetworkingBlockController::class, 'store']);
+        Route::delete('blocked-peers/{peerId}', [SpeedNetworkingBlockController::class, 'destroy'])->whereUuid('peerId');
+
         Route::get('events/{eventId}', [SpeedNetworkingApiController::class, 'show'])->whereUuid('eventId');
         Route::post('events/{eventId}/register', [SpeedNetworkingApiController::class, 'register'])->whereUuid('eventId');
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
         Route::post('events/{eventId}/verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment'])->whereUuid('eventId');
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
+        Route::post('events/{eventId}/match-action', [SpeedNetworkingApiController::class, 'matchAction'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
         Route::get('events/{eventId}/summary', [SpeedNetworkingApiController::class, 'summary'])->whereUuid('eventId');
@@ -2056,6 +2064,7 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
         Route::post('join', [SpeedNetworkingApiController::class, 'join']);
         Route::post('verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment']);
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
+        Route::post('match-action', [SpeedNetworkingApiController::class, 'matchAction']);
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
         Route::get('summary', [SpeedNetworkingApiController::class, 'summary']);

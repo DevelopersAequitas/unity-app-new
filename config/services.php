@@ -79,6 +79,7 @@ return [
     ],
 
     'frontend_url' => env('FRONTEND_URL', 'https://peersglobal.com'),
+    'voting_url' => env('FRONTEND_VOTING_URL'),
 
     'agora' => [
         'app_id' => env('AGORA_APP_ID'),

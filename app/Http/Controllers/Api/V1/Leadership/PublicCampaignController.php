@@ -10,6 +10,7 @@ use App\Services\Leadership\CampaignService;
 use App\Services\Leadership\ScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class PublicCampaignController extends LeadershipBaseController
 {
@@ -78,11 +79,44 @@ class PublicCampaignController extends LeadershipBaseController
 
     /**
      * Public active cities for jurisdiction scope fallback.
+     * Orders Indian cities first in alphabetical order, followed by international cities.
      */
     public function cities(): JsonResponse
     {
+        $indianStates = [
+            'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar', 'chhattisgarh', 'goa', 'gujarat',
+            'haryana', 'himachal pradesh', 'jharkhand', 'karnataka', 'kerala', 'madhya pradesh', 'maharashtra',
+            'manipur', 'meghalaya', 'mizoram', 'nagaland', 'odisha', 'orissa', 'punjab', 'rajasthan', 'sikkim',
+            'tamil nadu', 'telangana', 'tripura', 'uttarakhand', 'uttaranchal', 'uttar pradesh', 'west bengal',
+            'delhi', 'new delhi', 'chandigarh', 'jammu and kashmir', 'ladakh', 'puducherry', 'pondicherry',
+            'andaman and nicobar islands', 'dadra and nagar haveli and daman and diu', 'lakshadweep',
+        ];
+
+        $indianStatesList = "'".implode("','", $indianStates)."'";
+
+        $hasCountryCode = Schema::hasColumn('cities', 'country_code');
+        $hasStateCode = Schema::hasColumn('cities', 'state_code');
+
+        $selectColumns = ['id', 'name', 'state', 'district', 'country'];
+        if ($hasCountryCode) {
+            $selectColumns[] = 'country_code';
+        }
+        if ($hasStateCode) {
+            $selectColumns[] = 'state_code';
+        }
+
+        $countryCheckSql = $hasCountryCode
+            ? "UPPER(COALESCE(country_code, '')) IN ('IN', 'IND') OR LOWER(COALESCE(country, '')) LIKE '%india%'"
+            : "LOWER(COALESCE(country, '')) LIKE '%india%'";
+
         $cities = City::query()
-            ->select(['id', 'name', 'state', 'district', 'country'])
+            ->select($selectColumns)
+            ->orderByRaw("CASE 
+                WHEN {$countryCheckSql} 
+                     OR LOWER(COALESCE(state, '')) IN ({$indianStatesList})
+                THEN 0 
+                ELSE 1 
+            END ASC")
             ->orderBy('name', 'asc')
             ->get();
 
