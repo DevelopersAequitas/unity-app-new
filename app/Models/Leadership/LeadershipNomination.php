@@ -445,9 +445,9 @@ class LeadershipNomination extends Model
         }
 
         $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
-        $slug = $this->candidate_slug;
+        $campaignId = $this->campaign_id ?: '23ba107a-f314-4cd9-b04a-7af04951f95c';
 
-        return "{$frontendUrl}/leadership/nomination/{$slug}";
+        return "{$frontendUrl}/leadership/campaigns/{$campaignId}/vote?candidate={$this->id}";
     }
 
     protected static function booted(): void
