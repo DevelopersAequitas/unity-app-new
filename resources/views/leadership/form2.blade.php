@@ -207,7 +207,6 @@
                 <!-- Section A: Business Credibility -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section A</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Business Credibility</h3>
                     </div>
 
@@ -265,7 +264,6 @@
                 <!-- Section B: Leadership Track Record -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section B</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Leadership Track Record</h3>
                     </div>
 
@@ -299,7 +297,6 @@
                 <!-- Section C: Network Strength -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section C</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Network Strength</h3>
                     </div>
 
@@ -322,7 +319,6 @@
                 <!-- Section D: Leadership Bench, "Who will you bring?" -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section D</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Leadership Bench &mdash; "Who will you bring?"</h3>
                     </div>
 
@@ -402,7 +398,6 @@
                 <!-- Section E: 12-Month Plan -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section E</span>
                         <h3 class="h5 fw-bold text-dark mb-0">12-Month Strategic Plan</h3>
                     </div>
 
@@ -435,7 +430,6 @@
                 <!-- Section F: Commitment & Fit -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section F</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Commitment & Culture Fit</h3>
                     </div>
 
@@ -479,7 +473,6 @@
                 <!-- Section G: References -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section G</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Professional References</h3>
                     </div>
 
@@ -508,7 +501,6 @@
                 <!-- Section H: Documents -->
                 <div class="card card-custom p-4 p-md-5 mb-4">
                     <div class="section-header">
-                        <span class="section-badge">Section H</span>
                         <h3 class="h5 fw-bold text-dark mb-0">Confidential Documents (Admin & Jury View Only)</h3>
                     </div>
 
@@ -536,9 +528,6 @@
 
                 <!-- Submit Button Bar -->
                 <div class="card card-custom p-4 text-center">
-                    <p class="text-muted small mb-3">
-                        By submitting this evaluation, you affirm that all business numbers, track record data, and leadership bench references are accurate and true.
-                    </p>
                     <div>
                         <button type="submit" class="btn btn-pg-primary px-5 py-3 fs-6">
                             <i class="bi bi-send-check-fill me-2"></i> Submit Jury Evaluation Form

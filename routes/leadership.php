@@ -180,6 +180,8 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::delete('nominations/{id}', [AdminNominationController::class, 'destroy'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
     Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/generate-creative', [AdminNominationController::class, 'generateCreative'])->whereUuid('id');
+    Route::get('nominations/{id}/creative', [AdminNominationController::class, 'generateCreative'])->whereUuid('id');
     Route::post('nominations/{id}/proceed-to-jury', [AdminNominationController::class, 'proceedToJury'])->whereUuid('id');
     Route::post('nominations/batch-proceed-to-jury', [AdminNominationController::class, 'batchProceedToJury']);
     Route::get('nominations/{id}/history', [AdminNominationController::class, 'history'])->whereUuid('id');

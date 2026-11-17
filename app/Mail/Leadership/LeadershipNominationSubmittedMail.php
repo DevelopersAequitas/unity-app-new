@@ -23,18 +23,20 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $roleName = $this->nomination->applied_role_name ?? 'Leadership Role';
+        $roleName = $this->nomination->applied_role_name
+            ?? $this->nomination->campaign?->role?->name
+            ?? 'Leadership Role';
         $appNo = $this->nomination->application_number;
 
         return new Envelope(
-            subject: "Nomination Application Received [{$appNo}] - {$roleName} | Peers Global Unity",
+            subject: "Nomination Received: {$roleName} [{$appNo}] | Peers Global",
         );
     }
 
     public function content(): Content
     {
-        $roleName = $this->nomination->applied_role_name 
-            ?? $this->nomination->campaign?->role?->name 
+        $roleName = $this->nomination->applied_role_name
+            ?? $this->nomination->campaign?->role?->name
             ?? 'Leadership Role';
 
         $jurisdiction = $this->nomination->scope_name;
@@ -63,4 +65,3 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
         );
     }
 }
-
