@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Chat\MessageReactionService;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 
@@ -9,7 +10,7 @@ class CircleChatMessageResource extends JsonResource
 {
     public function toArray($request): array
     {
-        $authUserId = (string) optional($request->user())->id;
+        $authUserId = (string) optional($request?->user())->id;
         $sender = $this->whenLoaded('sender');
         $replyTo = $this->whenLoaded('replyTo');
 
@@ -30,6 +31,9 @@ class CircleChatMessageResource extends JsonResource
             'is_mine' => (string) $this->sender_id === $authUserId,
             'read_count' => (int) ($this->read_count ?? ($this->relationLoaded('reads') ? $this->reads->count() : 0)),
             'is_read_by_me' => (bool) ($this->is_read_by_me ?? false),
+            'reactions' => $this->relationLoaded('reactions')
+                ? MessageReactionService::formatReactionsCollection($this->reactions, $authUserId)
+                : [],
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

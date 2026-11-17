@@ -195,16 +195,30 @@ class PublicCampaignController extends LeadershipBaseController
             $photoUrl = null;
         }
 
+        $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
+        $sinceYear = $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
+        $memberSince = "Since {$sinceYear}";
+        $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
+
         $profile = [
             'user_id' => (string) $user->id,
             'full_name' => $fullName,
             'company' => $company,
+            'company_name' => $company,
             'designation' => $designation,
             'email' => $user->email,
             'mobile' => $user->phone ?: '',
             'phone' => $user->phone ?: '',
             'city' => $cityName,
             'photo_url' => $photoUrl,
+            'profile_photo_url' => $photoUrl,
+            'life_impact_score' => $lifeImpactScore,
+            'lives_impacted' => $lifeImpactScore,
+            'member_since' => $memberSince,
+            'membership_starts_at' => $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
+            'role' => 'Peers Global Member',
+            'current_role' => 'Peers Global Member',
+            'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
         ];
 
         return response()->json([
