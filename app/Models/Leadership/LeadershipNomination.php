@@ -61,6 +61,7 @@ class LeadershipNomination extends Model
         'candidate_name',
         'campaign_name',
         'applied_role_name',
+        'candidate_slug',
         'voting_link',
         'company',
         'designation',
@@ -422,6 +423,18 @@ class LeadershipNomination extends Model
         return $this->campaign?->role?->name ?? 'Leadership Role';
     }
 
+    public function getCandidateSlugAttribute(): string
+    {
+        $name = $this->candidate_name ?: $this->full_name;
+        if (empty($name) && ! empty($this->profile_snapshot['full_name'])) {
+            $name = (string) $this->profile_snapshot['full_name'];
+        }
+
+        $slug = Str::slug((string) ($name ?: 'nominee'));
+
+        return $slug ?: 'nominee';
+    }
+
     public function getVotingLinkAttribute(): string
     {
         $customUrl = config('services.voting_url');
@@ -432,8 +445,9 @@ class LeadershipNomination extends Model
         }
 
         $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $campaignId = $this->campaign_id ?: '23ba107a-f314-4cd9-b04a-7af04951f95c';
 
-        return "{$frontendUrl}/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
+        return "{$frontendUrl}/leadership/campaigns/{$campaignId}/vote?candidate={$this->id}";
     }
 
     protected static function booted(): void

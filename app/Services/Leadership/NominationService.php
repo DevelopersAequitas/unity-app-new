@@ -500,14 +500,49 @@ class NominationService
         $candidateId = $data['candidate_id'] ?? null;
         $scopeId = $this->resolveScopeId($campaign->id, $data['scope_id'] ?? null);
 
-        $profile = $data['profile'] ?? [];
-        $fullName = $profile['full_name'] ?? $data['full_name'] ?? 'Candidate';
-        $email = $profile['email'] ?? $data['email'] ?? null;
-        $mobile = $profile['mobile'] ?? $data['mobile'] ?? null;
-
         $rawProfile = is_array($data['profile'] ?? null) ? $data['profile'] : [];
         $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
         $declarations = is_array($data['declarations'] ?? null) ? $data['declarations'] : [];
+
+        $fullName = $rawProfile['full_name'] ?? $data['full_name'] ?? 'Candidate';
+        $email = strtolower(trim((string) ($rawProfile['email'] ?? $data['email'] ?? '')));
+        $mobile = $rawProfile['mobile'] ?? $data['mobile'] ?? null;
+        $appliedRole = trim((string) ($rawProfile['applied_role'] ?? $data['applied_role'] ?? $data['role'] ?? ($answers['applied_role'] ?? '')));
+        $roleName = $data['role_name'] ?? $rawProfile['role_name'] ?? $appliedRole;
+
+        // 1. Backend Safeguard: Idempotency / Debounce check (60-second window for identical campaign, email, and applied role)
+        if (! empty($email)) {
+            $recentDuplicate = LeadershipNomination::where('campaign_id', $campaign->id)
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->where('created_at', '>=', Carbon::now()->subSeconds(60))
+                ->when($appliedRole !== '', function ($q) use ($appliedRole) {
+                    $q->where(function ($sub) use ($appliedRole) {
+                        $sub->where('profile_snapshot->applied_role', $appliedRole)
+                            ->orWhere('profile_snapshot->role', $appliedRole)
+                            ->orWhere('profile_snapshot->role_name', $appliedRole);
+                    });
+                })
+                ->latest()
+                ->first();
+
+            if ($recentDuplicate) {
+                Log::info("[Nomination Idempotency] Duplicate submission blocked within 60s for {$email} ({$appliedRole}). Returning existing application {$recentDuplicate->application_number}.");
+
+                return [
+                    'id' => $recentDuplicate->id,
+                    'nomination_id' => $recentDuplicate->id,
+                    'application_number' => $recentDuplicate->application_number,
+                    'status' => $recentDuplicate->status,
+                    'submitted_at' => $recentDuplicate->submitted_at?->toIso8601String() ?? $recentDuplicate->created_at->toIso8601String(),
+                    'is_idempotent_duplicate' => true,
+                ];
+            }
+        }
+
+        // 2. Comprehensive Profile Snapshot Mapping (Matching updated Web Portal Schema)
+        $profileChanges = is_array($rawProfile['profile_changes'] ?? null)
+            ? $rawProfile['profile_changes']
+            : (is_array($data['profile_changes'] ?? null) ? $data['profile_changes'] : []);
 
         $profile = array_merge(
             $answers,
@@ -516,34 +551,55 @@ class NominationService
                 'full_name' => $fullName,
                 'email' => $email,
                 'mobile' => $mobile,
+                'photo_url' => $rawProfile['photo_url'] ?? $data['photo_url'] ?? ($rawProfile['profile_photo_url'] ?? null),
+                'linkedin' => $rawProfile['linkedin'] ?? $data['linkedin'] ?? null,
+                'website' => $rawProfile['website'] ?? $data['website'] ?? null,
                 'company_name' => $rawProfile['company_name'] ?? $data['company_name'] ?? $data['company'] ?? ($answers['company_name'] ?? $answers['company'] ?? null),
                 'designation' => $rawProfile['designation'] ?? $data['designation'] ?? ($answers['designation'] ?? null),
-                'city' => $rawProfile['city'] ?? $data['city'] ?? ($answers['city_name'] ?? $answers['city'] ?? null),
-                'applied_role' => $rawProfile['applied_role'] ?? $data['applied_role'] ?? $data['role'] ?? ($answers['applied_role'] ?? null),
+                'industry' => $rawProfile['industry'] ?? $data['industry'] ?? ($answers['industry'] ?? null),
+                'since' => $rawProfile['since'] ?? $data['since'] ?? ($answers['since'] ?? null),
+                'city' => $rawProfile['city'] ?? $data['city'] ?? $data['city_name'] ?? ($answers['city_name'] ?? $answers['city'] ?? null),
+                'city_name' => $data['city_name'] ?? $rawProfile['city_name'] ?? $data['city'] ?? null,
+                'belonging_type' => $data['belonging_type'] ?? $rawProfile['belonging_type'] ?? null,
+                'belonging_name' => $data['belonging_name'] ?? $rawProfile['belonging_name'] ?? null,
+                'applied_role' => $appliedRole,
+                'role_name' => $roleName,
+                // Leadership & Vision (NEW Portal Schema)
+                'leadership_statement' => $rawProfile['leadership_statement'] ?? $data['leadership_statement'] ?? null,
+                'why_role' => $rawProfile['why_role'] ?? $data['why_role'] ?? null,
+                'vision_12_months' => $rawProfile['vision_12_months'] ?? $data['vision_12_months'] ?? null,
+                'hours_per_week' => $rawProfile['hours_per_week'] ?? $data['hours_per_week'] ?? ($rawProfile['time_commitment'] ?? $data['time_commitment'] ?? null),
+                'time_commitment' => $rawProfile['time_commitment'] ?? $rawProfile['hours_per_week'] ?? $data['hours_per_week'] ?? $data['time_commitment'] ?? null,
+                'other_network_involvement' => filter_var($rawProfile['other_network_involvement'] ?? $data['other_network_involvement'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'other_network_details' => $rawProfile['other_network_details'] ?? $data['other_network_details'] ?? null,
+                'video_url' => $rawProfile['video_url'] ?? $data['video_url'] ?? ($answers['video_url'] ?? null),
                 'goals' => $rawProfile['goals'] ?? $data['goals'] ?? ($answers['goals'] ?? []),
                 'leadership_roles' => $rawProfile['leadership_roles'] ?? $data['leadership_roles'] ?? ($answers['leadership_roles'] ?? []),
-                'time_commitment' => $rawProfile['time_commitment'] ?? $data['time_commitment'] ?? ($answers['time_commitment'] ?? null),
-                'video_url' => $rawProfile['video_url'] ?? $data['video_url'] ?? ($answers['video_url'] ?? null),
-                'since' => $rawProfile['since'] ?? $data['since'] ?? ($answers['since'] ?? null),
                 'declarations' => $declarations,
+                'profile_changes' => $profileChanges,
                 'form_type' => $data['form_type'] ?? 'main_form_1',
             ]
         );
 
         if (is_array($data['documents'] ?? null)) {
-            foreach ($data['documents'] as $doc) {
+            foreach ($data['documents'] as $key => $doc) {
                 if (is_array($doc)) {
                     $docType = strtolower((string) ($doc['document_type'] ?? $doc['type'] ?? ''));
                     $fileUrl = $doc['file_url'] ?? $doc['url'] ?? $doc['link'] ?? $doc['file'] ?? '';
-                    if (str_contains($docType, 'id')) {
-                        $profile['id_file'] = $fileUrl;
-                    } elseif (str_contains($docType, 'letter') || str_contains($docType, 'recommendation')) {
-                        $profile['letter_file'] = $fileUrl;
-                    } elseif (str_contains($docType, 'deck') || str_contains($docType, 'company') || str_contains($docType, 'profile')) {
-                        $profile['deck_file'] = $fileUrl;
-                    } elseif (str_contains($docType, 'manifesto')) {
-                        $profile['manifesto_file'] = $fileUrl;
-                    }
+                } elseif (is_string($doc)) {
+                    $docType = strtolower((string) $key);
+                    $fileUrl = $doc;
+                } else {
+                    continue;
+                }
+                if (str_contains($docType, 'id')) {
+                    $profile['id_file'] = $fileUrl;
+                } elseif (str_contains($docType, 'letter') || str_contains($docType, 'recommendation')) {
+                    $profile['letter_file'] = $fileUrl;
+                } elseif (str_contains($docType, 'deck') || str_contains($docType, 'company') || str_contains($docType, 'profile')) {
+                    $profile['deck_file'] = $fileUrl;
+                } elseif (str_contains($docType, 'manifesto')) {
+                    $profile['manifesto_file'] = $fileUrl;
                 }
             }
         }
@@ -607,7 +663,7 @@ class NominationService
         $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
         $now = Carbon::now();
 
-        return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $data, $now): array {
+        return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $profileChanges, $data, $now): array {
             $nomData = [
                 'campaign_id' => $campaign->id,
                 'scope_id' => $scopeId,
@@ -627,7 +683,7 @@ class NominationService
                     'image_url' => $user->profile_photo_url,
                 ] : [],
                 'edited_profile' => $profile,
-                'profile_changes' => [],
+                'profile_changes' => $profileChanges,
                 'status' => 'submitted',
                 'submitted_at' => $now,
             ];

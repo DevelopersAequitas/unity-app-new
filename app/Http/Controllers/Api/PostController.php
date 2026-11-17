@@ -240,7 +240,6 @@ class PostController extends BaseApiController
                     ->where(function ($sq): void {
                         $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
                     })
-                    ->where('author_filter.status', '!=', 'inactive')
                     ->whereNull('author_filter.deleted_at');
             });
 
@@ -288,7 +287,6 @@ class PostController extends BaseApiController
                         ->where(function ($sq): void {
                             $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
                         })
-                        ->where('author_filter.status', '!=', 'inactive')
                         ->whereNull('author_filter.deleted_at');
                 });
 
@@ -344,7 +342,6 @@ class PostController extends BaseApiController
                         ->where(function ($sq): void {
                             $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
                         })
-                        ->where('author_filter.status', '!=', 'inactive')
                         ->whereNull('author_filter.deleted_at');
                 });
 
@@ -368,14 +365,16 @@ class PostController extends BaseApiController
             ->values()
             ->all();
 
-        $activityCreativesByPostId = ActivityCreative::query()
-            ->whereIn('post_id', $postIds)
-            ->where('status', 'active')
-            ->whereNull('deleted_at')
-            ->latest('created_at')
-            ->get(['id', 'post_id', 'user_id', 'activity_type', 'activity_id', 'title', 'description', 'creative_file_id', 'creative_url'])
-            ->groupBy(fn (ActivityCreative $creative): string => (string) $creative->post_id)
-            ->map(fn ($creatives) => $creatives->first());
+        $activityCreativesByPostId = (Schema::hasTable('activity_creatives') && $postIds !== [])
+            ? ActivityCreative::query()
+                ->whereIn('post_id', $postIds)
+                ->where('status', 'active')
+                ->whereNull('deleted_at')
+                ->latest('created_at')
+                ->get(['id', 'post_id', 'user_id', 'activity_type', 'activity_id', 'title', 'description', 'creative_file_id', 'creative_url'])
+                ->groupBy(fn (ActivityCreative $creative): string => (string) $creative->post_id)
+                ->map(fn ($creatives) => $creatives->first())
+            : collect();
 
         $authors = User::query()
             ->whereIn('id', $authorIds)
@@ -795,7 +794,7 @@ class PostController extends BaseApiController
             }
         }
 
-        $postMentionsByPostId = $postIds !== []
+        $postMentionsByPostId = (Schema::hasTable('post_mentions') && $postIds !== [])
             ? DB::table('post_mentions')
                 ->join('users', 'users.id', '=', 'post_mentions.peer_id')
                 ->whereIn('post_mentions.post_id', $postIds)
@@ -2168,7 +2167,9 @@ class PostController extends BaseApiController
         $sourceType = (string) ($post->source_type ?? '');
         $postType = (string) ($post->post_type ?? '');
         $tags = is_array($post->tags) ? $post->tags : $this->decodeJsonColumn($post->tags ?? null);
-        $activityCreative = ActivityCreative::where('post_id', $post->id)->where('status', 'active')->first();
+        $activityCreative = Schema::hasTable('activity_creatives')
+            ? ActivityCreative::where('post_id', $post->id)->where('status', 'active')->first()
+            : null;
 
         // Resolve counterpart peer for P2P Meeting
         if ($sourceType === 'p2p_meeting' || in_array('p2p_meeting', $tags, true) || ($activityCreative && in_array(strtolower((string) $activityCreative->activity_type), ['p2p_meeting', 'p2pmeeting'], true))) {

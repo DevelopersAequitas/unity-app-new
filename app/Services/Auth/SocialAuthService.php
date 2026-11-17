@@ -6,6 +6,7 @@ namespace App\Services\Auth;
 
 use App\Models\SocialAccount;
 use App\Models\User;
+use App\Services\Creative\WelcomeCreativeService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -106,6 +107,15 @@ class SocialAuthService
             }
 
             $user = User::query()->create($userData);
+
+            try {
+                app(WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
+            } catch (\Throwable $e) {
+                Log::warning('SocialAuthService: welcome creative skipped', [
+                    'user_id' => (string) $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         // 4. Link social account

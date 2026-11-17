@@ -77,6 +77,8 @@ Route::prefix('public')->group(function (): void {
     Route::post('public/nominations/{id}/form-2/upload', [LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
     Route::post('public/nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
+    Route::get('nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
+    Route::get('public/nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');

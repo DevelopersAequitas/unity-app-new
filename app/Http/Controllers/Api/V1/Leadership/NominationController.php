@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Leadership;
 
+use App\Models\Leadership\LeadershipNomination;
 use App\Services\Leadership\FormBuilderService;
 use App\Services\Leadership\NominationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class NominationController extends LeadershipBaseController
 {
@@ -212,5 +214,42 @@ class NominationController extends LeadershipBaseController
     public function viewDocument(string $id, string $documentId): \Symfony\Component\HttpFoundation\Response
     {
         return $this->nominationService->streamDocument($id, $documentId);
+    }
+
+    /**
+     * C11. Fetch candidate / nominee details by clean slug, application number, or UUID for public voting.
+     */
+    public function candidateBySlugOrId(string $slugOrId): JsonResponse
+    {
+        $nomination = null;
+
+        if (Str::isUuid($slugOrId)) {
+            $nomination = LeadershipNomination::find($slugOrId);
+        }
+
+        if (! $nomination) {
+            $nomination = LeadershipNomination::where('application_number', $slugOrId)->first();
+        }
+
+        if (! $nomination) {
+            $nomination = LeadershipNomination::where('id', $slugOrId)->first();
+        }
+
+        if (! $nomination) {
+            // Slug match against candidate name
+            $candidates = LeadershipNomination::all();
+            foreach ($candidates as $cand) {
+                if ($cand->candidate_slug === $slugOrId || Str::slug((string) ($cand->candidate_name ?: $cand->full_name)) === $slugOrId) {
+                    $nomination = $cand;
+                    break;
+                }
+            }
+        }
+
+        if (! $nomination) {
+            return $this->error('Nominee not found.', 404);
+        }
+
+        return $this->success($nomination, 'Nominee details retrieved successfully.');
     }
 }
