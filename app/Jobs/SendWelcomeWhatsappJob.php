@@ -6,6 +6,8 @@ namespace App\Jobs;
 
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
+use App\Models\WhatsappMessageDeliveryLog;
+use App\Models\WhatsAppMessageLog;
 use App\Services\Creative\WelcomeCreativeService;
 use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Bus\Queueable;
@@ -52,17 +54,15 @@ class SendWelcomeWhatsappJob implements ShouldQueue
             return;
         }
 
-        // Generate app-side welcome creative image & automatically store URL in SQL database
+        // Always ensure the welcome creative image and timeline post exist (idempotent)
         $creativeUrl = $user->welcome_creative_url ?? null;
-        if (! $creativeUrl) {
-            try {
-                $creative = $welcomeService->generateAndPostWelcomeCreative($user);
-                $creativeUrl = $creative?->creative_url ?? $user->refresh()->welcome_creative_url;
-            } catch (Throwable $e) {
-                Log::warning('Failed generating welcome creative image in SendWelcomeWhatsappJob: '.$e->getMessage(), [
-                    'user_id' => $this->userId,
-                ]);
-            }
+        try {
+            $creative = $welcomeService->generateAndPostWelcomeCreative($user);
+            $creativeUrl = $creative?->creative_url ?? $user->refresh()->welcome_creative_url ?? $creativeUrl;
+        } catch (Throwable $e) {
+            Log::warning('Failed generating welcome creative image in SendWelcomeWhatsappJob: '.$e->getMessage(), [
+                'user_id' => $this->userId,
+            ]);
         }
 
         $rawPhone = $user->phone ?? $user->secondary_mobile;
@@ -78,7 +78,7 @@ class SendWelcomeWhatsappJob implements ShouldQueue
 
         // Duplicate & retry protection check: Registration-time only notification.
         // If ANY attempt (sent or failed) already exists, never attempt or send again.
-        if ($this->alreadyAttempted($this->userId)) {
+        if ($this->alreadyAttempted($this->userId, (string) $rawPhone)) {
             Log::info('WhatsApp welcome notification skipped: Already attempted for user.', [
                 'user_id' => $this->userId,
                 'template_key' => 'welcome',
@@ -96,6 +96,7 @@ class SendWelcomeWhatsappJob implements ShouldQueue
         }
 
         $payload = array_filter([
+            'user_id' => $this->userId,
             'first_name' => $firstName,
             'welcome_creative_url' => $creativeUrl,
             'header_image_url' => $creativeUrl,
@@ -103,7 +104,7 @@ class SendWelcomeWhatsappJob implements ShouldQueue
         ]);
 
         try {
-            $success = $whatsappService->send('welcome', (string) $rawPhone, $payload);
+            $success = $whatsappService->send('welcome', (string) $rawPhone, $payload, $this->userId);
 
             if ($success) {
                 $this->logDelivery($this->userId, (string) $rawPhone, $firstName, 'sent', null);
@@ -131,21 +132,60 @@ class SendWelcomeWhatsappJob implements ShouldQueue
         }
     }
 
-    private function alreadyAttempted(string $userId): bool
+    private function alreadyAttempted(string $userId, ?string $rawPhone = null): bool
     {
-        if (! Schema::hasTable('notification_delivery_logs')) {
-            return false;
+        if (Schema::hasTable('notification_delivery_logs')) {
+            try {
+                if (NotificationDeliveryLog::query()
+                    ->where('user_id', $userId)
+                    ->where('channel', 'whatsapp')
+                    ->whereIn('provider', ['welcome', 'wear_the_badge'])
+                    ->exists()) {
+                    return true;
+                }
+            } catch (Throwable) {
+            }
         }
 
-        try {
-            return NotificationDeliveryLog::query()
-                ->where('user_id', $userId)
-                ->where('channel', 'whatsapp')
-                ->where('provider', 'welcome')
-                ->exists();
-        } catch (Throwable) {
-            return false;
+        $normalizedPhone = $rawPhone !== null ? WhatsappNotificationService::normalizePhone($rawPhone) : '';
+
+        if (Schema::hasTable('whatsapp_message_delivery_logs')) {
+            try {
+                $query = WhatsappMessageDeliveryLog::query()
+                    ->where('template_key', 'welcome')
+                    ->where(function ($q) use ($userId, $normalizedPhone): void {
+                        $q->where('user_id', $userId);
+                        if ($normalizedPhone !== '') {
+                            $q->orWhere('phone', $normalizedPhone);
+                        }
+                    });
+
+                if ($query->exists()) {
+                    return true;
+                }
+            } catch (Throwable) {
+            }
         }
+
+        if (Schema::hasTable('whatsapp_message_logs')) {
+            try {
+                $query = WhatsAppMessageLog::query()
+                    ->where('template_key', 'welcome')
+                    ->where(function ($q) use ($userId, $normalizedPhone): void {
+                        $q->where('user_id', $userId);
+                        if ($normalizedPhone !== '') {
+                            $q->orWhere('recipient_phone', $normalizedPhone);
+                        }
+                    });
+
+                if ($query->exists()) {
+                    return true;
+                }
+            } catch (Throwable) {
+            }
+        }
+
+        return false;
     }
 
     private function logDelivery(string $userId, string $phone, string $firstName, string $status, ?string $errorMessage): void

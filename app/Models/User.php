@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Store\Wishlist;
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
+use App\Services\Creative\WelcomeCreativeService;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\WearTheBadgeWhatsappService;
@@ -467,6 +468,10 @@ class User extends Authenticatable
         });
 
         static::created(function (self $user): void {
+            if ($user->isSystemUser()) {
+                return;
+            }
+
             if (app()->runningUnitTests()) {
                 return;
             }
@@ -475,6 +480,14 @@ class User extends Authenticatable
                 app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
             } catch (Throwable) {
                 // Safeguard: User creation completes safely even if image generation encounters an error
+            }
+
+            try {
+                app(WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
+            } catch (Throwable $e) {
+                Log::warning('[User] Auto-post welcome creative on new member register failed: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
             }
 
             // Automatically initialize the 30-Day WhatsApp Onboarding Journey for NEW registered members
@@ -506,10 +519,6 @@ class User extends Authenticatable
                         Log::error('[User::saved] Failed auto publishing life impact timeline post: '.$e->getMessage());
                     }
                 }
-            }
-
-            if ($user->shouldSendWearTheBadgeWhatsapp()) {
-                app(WearTheBadgeWhatsappService::class)->handleWearTheBadge($user);
             }
         });
     }
@@ -1494,8 +1503,7 @@ class User extends Authenticatable
         return $query->where(function (Builder $q) use ($table): void {
             $q->whereNull("{$table}.status")
                 ->orWhere("{$table}.status", 'active');
-        })->where("{$table}.status", '!=', 'inactive')
-            ->whereNull("{$table}.deleted_at");
+        })->whereNull("{$table}.deleted_at");
     }
 
     public function scopeWithoutSystemUser(Builder $query, string $table = 'users'): Builder
@@ -1521,12 +1529,12 @@ class User extends Authenticatable
 
     public static function getSystemUser(): self
     {
-        $systemUser = static::query()
+        $systemUser = static::withTrashed()
             ->where('email', 'info@peersglobal.com')
             ->first();
 
         if (! $systemUser) {
-            $systemUser = static::query()
+            $systemUser = static::withTrashed()
                 ->where('display_name', 'like', '%Genie%')
                 ->first();
         }
@@ -1551,14 +1559,24 @@ class User extends Authenticatable
                 $userData['password'] = bcrypt(Str::random(16));
             }
             $systemUser = static::query()->create($userData);
-        } elseif ($systemUser->display_name !== 'Peers Global Genie' || $systemUser->first_name !== 'Peers Global' || $systemUser->last_name !== 'Genie') {
-            $systemUser->update([
-                'first_name' => 'Peers Global',
-                'last_name' => 'Genie',
-                'display_name' => 'Peers Global Genie',
-                'company_name' => 'Peers Global',
-                'designation' => 'Peers Global Genie',
-            ]);
+        } else {
+            $updates = [];
+            if ($systemUser->display_name !== 'Peers Global Genie' || $systemUser->first_name !== 'Peers Global' || $systemUser->last_name !== 'Genie') {
+                $updates['first_name'] = 'Peers Global';
+                $updates['last_name'] = 'Genie';
+                $updates['display_name'] = 'Peers Global Genie';
+                $updates['company_name'] = 'Peers Global';
+                $updates['designation'] = 'Peers Global Genie';
+            }
+            if (Schema::hasColumn('users', 'status') && $systemUser->status !== 'active') {
+                $updates['status'] = 'active';
+            }
+            if ($systemUser->trashed()) {
+                $updates['deleted_at'] = null;
+            }
+            if (! empty($updates)) {
+                $systemUser->forceFill($updates)->saveQuietly();
+            }
         }
 
         return $systemUser;
