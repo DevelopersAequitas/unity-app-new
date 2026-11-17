@@ -360,6 +360,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::post('/tutorials', [TutorialController::class, 'store']);
+    Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id');
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 

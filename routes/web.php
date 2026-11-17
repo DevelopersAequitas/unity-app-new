@@ -31,9 +31,8 @@ use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
-use App\Http\Controllers\Admin\AppTutorialPopupsController;
-use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
+use App\Http\Controllers\Admin\AppTutorialPopupsController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\AskManagementController;
 use App\Http\Controllers\Admin\AuditLogWebController;
@@ -134,6 +133,7 @@ use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -275,7 +275,6 @@ Route::get('/docs/ads-api', function () {
     abort(404, 'Documentation file not found.');
 })->name('docs.ads-api');
 
-
 // Leadership Form 2 (Jury Evaluation Data Form) Public Access
 Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
     ->whereUuid('id')
@@ -407,15 +406,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Central Activity Logs & Audit Trail
         Route::get('/audit-logs', [AuditLogWebController::class, 'index'])->name('audit-logs.index');
         Route::get('/audit-logs/export', [AuditLogWebController::class, 'export'])->name('audit-logs.export');
-
-        // Campaigns routes
-        Route::get('/campaigns', [AdminCampaignController::class, 'index']);
-        Route::post('/campaigns', [AdminCampaignController::class, 'store']);
-        Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
-        Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
-        Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
-        Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
-        Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 
         // Tutorials routes
         Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
@@ -919,16 +909,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/campaigns/audience-samples/{audienceType}', [AdminCampaignController::class, 'downloadAudienceSample'])->name('campaigns.audience-samples');
         Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions'])->name('campaigns.filter-options');
         Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch'])->name('campaigns.member-search');
-        Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->name('campaigns.show');
-        Route::get('/campaigns/{campaign}/edit', [AdminCampaignController::class, 'edit'])->name('campaigns.edit');
-        Route::put('/campaigns/{campaign}', [AdminCampaignController::class, 'update'])->name('campaigns.update');
-        Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->name('campaigns.send');
-        Route::delete('/campaigns/{campaign}', [AdminCampaignController::class, 'destroy'])->name('campaigns.destroy');
-        Route::post('/campaigns/{campaign}/pause', [AdminCampaignController::class, 'pause'])->name('campaigns.pause');
-        Route::post('/campaigns/{campaign}/resume', [AdminCampaignController::class, 'resume'])->name('campaigns.resume');
-        Route::post('/campaigns/{campaign}/stop', [AdminCampaignController::class, 'stop'])->name('campaigns.stop');
-        Route::post('/campaigns/{campaign}/duplicate', [AdminCampaignController::class, 'duplicate'])->name('campaigns.duplicate');
-        Route::post('/campaigns/{campaign}/retry', [AdminCampaignController::class, 'retry'])->name('campaigns.retry');
+        Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign')->name('campaigns.show');
+        Route::get('/campaigns/{campaign}/edit', [AdminCampaignController::class, 'edit'])->whereUuid('campaign')->name('campaigns.edit');
+        Route::put('/campaigns/{campaign}', [AdminCampaignController::class, 'update'])->whereUuid('campaign')->name('campaigns.update');
+        Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign')->name('campaigns.send');
+        Route::delete('/campaigns/{campaign}', [AdminCampaignController::class, 'destroy'])->whereUuid('campaign')->name('campaigns.destroy');
+        Route::post('/campaigns/{campaign}/pause', [AdminCampaignController::class, 'pause'])->whereUuid('campaign')->name('campaigns.pause');
+        Route::post('/campaigns/{campaign}/resume', [AdminCampaignController::class, 'resume'])->whereUuid('campaign')->name('campaigns.resume');
+        Route::post('/campaigns/{campaign}/stop', [AdminCampaignController::class, 'stop'])->whereUuid('campaign')->name('campaigns.stop');
+        Route::post('/campaigns/{campaign}/duplicate', [AdminCampaignController::class, 'duplicate'])->whereUuid('campaign')->name('campaigns.duplicate');
+        Route::post('/campaigns/{campaign}/retry', [AdminCampaignController::class, 'retry'])->whereUuid('campaign')->name('campaigns.retry');
         Route::get('/campaign-pamphlets/select-list', [CampaignPamphletController::class, 'selectList'])->name('campaign-pamphlets.select-list');
         Route::get('/campaign-pamphlets', [CampaignPamphletController::class, 'index'])->name('campaign-pamphlets.index');
         Route::get('/campaign-pamphlets/create', [CampaignPamphletController::class, 'create'])->name('campaign-pamphlets.create');
