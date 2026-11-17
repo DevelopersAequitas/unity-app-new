@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\UserActivityLog;
 use App\Services\UserActivityLogService;
 use Illuminate\Contracts\View\View;
@@ -20,11 +21,66 @@ class UserActivityLogWebController extends Controller
     ) {}
 
     /**
-     * Display the paginated user activity & security logs with stats and filters.
+     * Display the user activity & security logs.
+     * Default view: Grouped by User / Peer (click user to view all their activity).
      */
     public function index(Request $request): View
     {
         $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
+        $viewMode = (string) $request->query('view', 'users'); // default to 'users'
+
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'activity_type' => trim((string) $request->query('activity_type', 'all')),
+            'module' => trim((string) $request->query('module', 'all')),
+            'status' => trim((string) $request->query('status', 'all')),
+            'platform' => trim((string) $request->query('platform', 'all')),
+            'date_from' => trim((string) $request->query('date_from', '')),
+            'date_to' => trim((string) $request->query('date_to', '')),
+            'per_page' => $perPage,
+            'view' => $viewMode,
+        ];
+
+        $tableMissing = ! Schema::hasTable('user_activity_logs');
+        $stats = $this->userActivityLogService->getAdminStats();
+        $options = $this->userActivityLogService->getFilterOptions();
+
+        if ($viewMode === 'logs') {
+            $logs = $this->userActivityLogService->getAdminLogs($filters, $perPage);
+            $users = null;
+        } else {
+            $users = $this->userActivityLogService->getUsersWithActivity($filters, $perPage);
+            $logs = null;
+        }
+
+        return view('admin.user-activity-logs.index', [
+            'users' => $users,
+            'logs' => $logs,
+            'stats' => $stats,
+            'options' => $options,
+            'filters' => $filters,
+            'viewMode' => $viewMode,
+            'tableMissing' => $tableMissing,
+        ]);
+    }
+
+    /**
+     * Show all activities for a specific user.
+     */
+    public function userActivity(Request $request, string $userId): View|JsonResponse
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Table user_activity_logs does not exist yet.',
+                ], 404);
+            }
+        }
+
+        $user = User::withTrashed()->findOrFail($userId);
+        $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
+
         $filters = [
             'search' => trim((string) $request->query('search', '')),
             'activity_type' => trim((string) $request->query('activity_type', 'all')),
@@ -36,17 +92,38 @@ class UserActivityLogWebController extends Controller
             'per_page' => $perPage,
         ];
 
-        $tableMissing = ! Schema::hasTable('user_activity_logs');
-        $logs = $this->userActivityLogService->getAdminLogs($filters, $perPage);
-        $stats = $this->userActivityLogService->getAdminStats();
+        $logs = $this->userActivityLogService->getLogsForUserWithFilters($userId, $filters, $perPage);
+        $userStats = $this->userActivityLogService->getUserActivityStats($userId);
         $options = $this->userActivityLogService->getFilterOptions();
 
-        return view('admin.user-activity-logs.index', [
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => (string) $user->id,
+                    'name' => $user->display_name ?: $user->first_name.' '.$user->last_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'company' => $user->company_name,
+                    'avatar_url' => $user->profile_photo_url,
+                ],
+                'stats' => $userStats,
+                'logs' => $logs->items(),
+                'pagination' => [
+                    'current_page' => $logs->currentPage(),
+                    'last_page' => $logs->lastPage(),
+                    'per_page' => $logs->perPage(),
+                    'total' => $logs->total(),
+                ],
+            ]);
+        }
+
+        return view('admin.user-activity-logs.user', [
+            'user' => $user,
             'logs' => $logs,
-            'stats' => $stats,
+            'userStats' => $userStats,
             'options' => $options,
             'filters' => $filters,
-            'tableMissing' => $tableMissing,
         ]);
     }
 

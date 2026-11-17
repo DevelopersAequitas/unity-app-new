@@ -9,6 +9,7 @@ use App\Models\UserActivityLog;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -82,6 +83,155 @@ class UserActivityLogService
             ->latest('created_at');
 
         return $query->paginate($perPage);
+    }
+
+    /**
+     * Retrieve paginated users who have recorded activity, with aggregate counts and last active info.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function getUsersWithActivity(array $filters = [], int $perPage = 20): LengthAwarePaginator
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage);
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        $platform = trim((string) ($filters['platform'] ?? 'all'));
+        $module = trim((string) ($filters['module'] ?? 'all'));
+        $dateFrom = ! empty($filters['date_from']) ? (string) $filters['date_from'] : null;
+        $dateTo = ! empty($filters['date_to']) ? (string) $filters['date_to'] : null;
+
+        // Subquery for user activity metrics
+        $sub = UserActivityLog::query()
+            ->select([
+                'user_id',
+                DB::raw('COUNT(id) as total_activities'),
+                DB::raw('COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as today_activities'),
+                DB::raw('COUNT(CASE WHEN status IN (\'failed\', \'blocked\', \'warning\') THEN 1 END) as alert_activities'),
+                DB::raw('MAX(created_at) as last_active_at'),
+            ])
+            ->whereNotNull('user_id')
+            ->when($platform !== 'all' && $platform !== '', fn ($q) => $q->where('platform', $platform))
+            ->when($module !== 'all' && $module !== '', fn ($q) => $q->where('module', $module))
+            ->when($dateFrom, fn ($q) => $q->where('created_at', '>=', $dateFrom.' 00:00:00'))
+            ->when($dateTo, fn ($q) => $q->where('created_at', '<=', $dateTo.' 23:59:59'))
+            ->groupBy('user_id');
+
+        $query = DB::query()
+            ->fromSub($sub, 'agg')
+            ->join('users', 'users.id', '=', 'agg.user_id')
+            ->select([
+                'users.id as user_id',
+                'users.first_name',
+                'users.last_name',
+                'users.display_name',
+                'users.email',
+                'users.phone',
+                'users.company_name',
+                'users.profile_photo_url',
+                'agg.total_activities',
+                'agg.today_activities',
+                'agg.alert_activities',
+                'agg.last_active_at',
+            ]);
+
+        if ($search !== '') {
+            $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $likeQuery = "%{$search}%";
+            $query->where(function ($q) use ($likeQuery, $like): void {
+                $q->where('users.first_name', $like, $likeQuery)
+                    ->orWhere('users.last_name', $like, $likeQuery)
+                    ->orWhere('users.display_name', $like, $likeQuery)
+                    ->orWhere('users.email', $like, $likeQuery)
+                    ->orWhere('users.phone', $like, $likeQuery)
+                    ->orWhere('users.company_name', $like, $likeQuery);
+            });
+        }
+
+        $query->orderBy('agg.last_active_at', 'desc');
+
+        $paginated = $query->paginate($perPage)->withQueryString();
+
+        // Populate latest activity metadata for each user in the page
+        $userIds = collect($paginated->items())->pluck('user_id')->filter()->all();
+        $latestLogs = [];
+        if (! empty($userIds)) {
+            $logs = UserActivityLog::query()
+                ->whereIn('user_id', $userIds)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($logs as $log) {
+                if (! isset($latestLogs[(string) $log->user_id])) {
+                    $latestLogs[(string) $log->user_id] = $log;
+                }
+            }
+        }
+
+        foreach ($paginated->items() as $item) {
+            $item->latest_log = $latestLogs[(string) $item->user_id] ?? null;
+        }
+
+        return $paginated;
+    }
+
+    /**
+     * Retrieve paginated activity logs for a specific user with full filtering.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function getLogsForUserWithFilters(string $userId, array $filters = [], int $perPage = 25): LengthAwarePaginator
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage);
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        $activityType = trim((string) ($filters['activity_type'] ?? 'all'));
+        $module = trim((string) ($filters['module'] ?? 'all'));
+        $status = trim((string) ($filters['status'] ?? 'all'));
+        $platform = trim((string) ($filters['platform'] ?? 'all'));
+        $dateFrom = ! empty($filters['date_from']) ? (string) $filters['date_from'] : null;
+        $dateTo = ! empty($filters['date_to']) ? (string) $filters['date_to'] : null;
+
+        $query = UserActivityLog::query()
+            ->where('user_id', $userId)
+            ->search($search)
+            ->activityType($activityType)
+            ->module($module)
+            ->status($status)
+            ->platform($platform)
+            ->dateRange($dateFrom, $dateTo)
+            ->latest('created_at');
+
+        return $query->paginate($perPage)->withQueryString();
+    }
+
+    /**
+     * Get aggregate statistics for a specific user's activity logs.
+     *
+     * @return array<string, int>
+     */
+    public function getUserActivityStats(string $userId): array
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            return [
+                'total_logs' => 0,
+                'today_logs' => 0,
+                'failed_logs' => 0,
+                'screen_views' => 0,
+            ];
+        }
+
+        $today = Carbon::today()->startOfDay();
+
+        return [
+            'total_logs' => (int) UserActivityLog::query()->where('user_id', $userId)->count(),
+            'today_logs' => (int) UserActivityLog::query()->where('user_id', $userId)->where('created_at', '>=', $today)->count(),
+            'failed_logs' => (int) UserActivityLog::query()->where('user_id', $userId)->whereIn('status', ['failed', 'blocked', 'warning'])->count(),
+            'screen_views' => (int) UserActivityLog::query()->where('user_id', $userId)->where('activity_type', 'screen_view')->count(),
+        ];
     }
 
     /**
