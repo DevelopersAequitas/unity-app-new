@@ -8,7 +8,9 @@ use App\Models\UserTag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -19,8 +21,17 @@ class UserTagController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
 
+        if (! Schema::hasTable('user_tags')) {
+            return view('admin.user_tags.index', [
+                'tags' => new LengthAwarePaginator([], 0, 15),
+                'search' => $search,
+            ]);
+        }
+
         $tags = UserTag::query()
-            ->withCount('users')
+            ->when(Schema::hasTable('user_tag_assignments'), function ($q) {
+                $q->withCount('users');
+            })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
                     $sub->where('name', 'ILIKE', "%{$search}%")

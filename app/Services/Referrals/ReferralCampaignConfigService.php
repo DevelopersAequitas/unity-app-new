@@ -6,6 +6,7 @@ namespace App\Services\Referrals;
 
 use App\Models\ReferralCampaignConfig;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ReferralCampaignConfigService
@@ -115,6 +116,21 @@ class ReferralCampaignConfigService
      */
     public function getOrCreateCurrentConfig(): ReferralCampaignConfig
     {
+        if (! Schema::hasTable('referral_campaign_configs')) {
+            return new ReferralCampaignConfig([
+                'id' => (string) Str::uuid(),
+                'show_floating_badge' => true,
+                'auto_open_badge_screen' => true,
+                'floating_badge_delay_seconds' => 10,
+                'auto_open_delay_seconds' => 30,
+                'reward_title' => 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book',
+                'reward_subtitle' => "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep.",
+                'reward_image_url' => null,
+                'show_send_invite_button' => true,
+                'is_active' => true,
+            ]);
+        }
+
         /** @var ReferralCampaignConfig|null $config */
         $config = ReferralCampaignConfig::query()->latest('updated_at')->first();
 
@@ -178,7 +194,7 @@ class ReferralCampaignConfigService
     /**
      * Update configuration attributes.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateConfig(array $data): ReferralCampaignConfig
     {

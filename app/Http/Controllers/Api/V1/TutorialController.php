@@ -56,4 +56,19 @@ class TutorialController extends BaseApiController
             return $this->error('Failed to create tutorial: '.$e->getMessage(), 500);
         }
     }
+
+    /**
+     * Remove the specified tutorial.
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $tutorial = Tutorial::findOrFail($id);
+            $tutorial->delete();
+
+            return $this->success(null, 'Tutorial deleted successfully');
+        } catch (Exception $e) {
+            return $this->error('Failed to delete tutorial: '.$e->getMessage(), 500);
+        }
+    }
 }

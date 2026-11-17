@@ -11,6 +11,7 @@ use App\Models\WhatsappMessage;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -231,6 +232,10 @@ class WhatsAppChatService
      */
     public function getTotalUnreadCount(): int
     {
+        if (! Schema::hasTable('whatsapp_conversations')) {
+            return 0;
+        }
+
         return (int) WhatsappConversation::where('status', '!=', 'ARCHIVED')->sum('unread_count');
     }
 
