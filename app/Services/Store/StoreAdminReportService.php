@@ -9,6 +9,7 @@ use App\Models\Store\Product;
 use App\Models\Store\StoreReturn;
 use App\Models\Store\WalletAdjustmentRequest;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 class StoreAdminReportService
 {
@@ -38,7 +39,9 @@ class StoreAdminReportService
 
         $lowStockProducts = Product::where('status', 'ACTIVE')->where('stock_qty', '<=', 5)->count();
         $pendingReturns = StoreReturn::where('status', 'REQUESTED')->count();
-        $pendingAdjustments = WalletAdjustmentRequest::where('status', 'PENDING')->count();
+        $pendingAdjustments = Schema::hasTable('wallet_adjustment_requests')
+            ? WalletAdjustmentRequest::where('status', 'PENDING')->count()
+            : 0;
         $activeProducts = Product::where('status', 'ACTIVE')->count();
 
         return [
