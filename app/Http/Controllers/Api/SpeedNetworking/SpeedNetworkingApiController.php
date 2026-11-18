@@ -1536,12 +1536,19 @@ class SpeedNetworkingApiController extends Controller
 
         $result = $this->speedNetworkingService->handleMatchAction($event, $user, $validated);
         $result['agora_app_id'] ??= $this->getAgoraAppId();
+        $hasMatch = empty($result['is_waiting']) && ! empty($result['channel_id']) && ! empty($result['peer']);
+        $matchPayload = $hasMatch ? $result : null;
+        if ($matchPayload !== null) {
+            $result['match'] = $matchPayload;
+        }
 
         return response()->json([
             'status' => 'success',
             'success' => true,
             'is_waiting' => (bool) ($result['is_waiting'] ?? false),
             'match_status' => (string) ($result['match_status'] ?? 'preview'),
+            'match' => $matchPayload,
+            'peer' => $result['peer'] ?? null,
             'data' => $result,
         ]);
     }
@@ -1759,6 +1766,7 @@ class SpeedNetworkingApiController extends Controller
                 'active_attendees_count' => $activeCount,
                 'has_active_match' => $hasActiveMatch,
                 'match' => $matchData,
+                'peer' => $matchData['peer'] ?? null,
                 'incoming_match_request' => $incomingMatch,
                 'data' => [
                     'completed' => false,
@@ -1767,6 +1775,7 @@ class SpeedNetworkingApiController extends Controller
                     'active_attendees_count' => $activeCount,
                     'has_active_match' => $hasActiveMatch,
                     'match' => $matchData,
+                    'peer' => $matchData['peer'] ?? null,
                     'incoming_match_request' => $incomingMatch,
                 ],
             ]);

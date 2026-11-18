@@ -13,6 +13,7 @@ use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartnerClick;
 use App\Models\BrandPartnerView;
+use App\Models\User;
 use App\Services\Advertiser\AdvertiserAnalyticsService;
 use App\Services\Advertiser\AdvertiserApplicationService;
 use App\Services\Advertiser\AdvertiserCampaignService;
@@ -82,6 +83,9 @@ class AdvertiserAdminApiController extends BaseApiController
             $counter++;
         }
 
+        $actorId = auth()->id();
+        $validUserActorId = (! empty($actorId) && User::where('id', $actorId)->exists()) ? $actorId : null;
+
         $package = AdvertiserPackage::create([
             'name' => $validated['name'],
             'slug' => $slug,
@@ -94,8 +98,8 @@ class AdvertiserAdminApiController extends BaseApiController
             'max_banner_assets' => (int) ($validated['max_banner_assets'] ?? 5),
             'is_active' => (bool) ($validated['is_active'] ?? true),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
-            'created_by' => auth()->id(),
-            'updated_by' => auth()->id(),
+            'created_by' => $validUserActorId,
+            'updated_by' => $validUserActorId,
         ]);
 
         return $this->success($package, 'Package created successfully.', 201);
@@ -162,7 +166,8 @@ class AdvertiserAdminApiController extends BaseApiController
             $package->sort_order = (int) $validated['sort_order'];
         }
 
-        $package->updated_by = auth()->id();
+        $actorId = auth()->id();
+        $package->updated_by = ($actorId && User::where('id', $actorId)->exists()) ? $actorId : null;
         $package->save();
 
         return $this->success($package, 'Package updated successfully.');
@@ -182,7 +187,8 @@ class AdvertiserAdminApiController extends BaseApiController
             $package->is_active = ! $package->is_active;
         }
 
-        $package->updated_by = auth()->id();
+        $actorId = auth()->id();
+        $package->updated_by = ($actorId && User::where('id', $actorId)->exists()) ? $actorId : null;
         $package->save();
 
         return $this->success([
@@ -525,11 +531,6 @@ class AdvertiserAdminApiController extends BaseApiController
 
     public function reviewAsset(Request $request, string $applicationId, string $assetId): JsonResponse
     {
-        $validated = $request->validate([
-            'review_status' => ['required', 'string', 'in:pending,approved,rejected'],
-            'feedback' => ['nullable', 'string', 'max:500'],
-        ]);
-
         $asset = AdvertiserApplicationAsset::where('application_id', $applicationId)
             ->where('id', $assetId)
             ->first();
@@ -538,11 +539,75 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Asset not found.', 404);
         }
 
+        $uploadedFile = $request->file('file')
+            ?? $request->file('image')
+            ?? $request->file('asset')
+            ?? collect($request->allFiles())->first();
+
+        if ($uploadedFile) {
+            $request->validate([
+                'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+                'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+            ]);
+
+            $disk = $asset->storage_disk ?: config('filesystems.default', 'public');
+            $path = $uploadedFile->store('advertiser/'.$applicationId, $disk);
+
+            $asset->original_filename = $uploadedFile->getClientOriginalName();
+            $asset->storage_disk = $disk;
+            $asset->storage_key = $path;
+            $asset->mime_type = $uploadedFile->getClientMimeType() ?: 'image/jpeg';
+            $asset->file_size_bytes = (int) $uploadedFile->getSize();
+            $asset->review_status = AdvertiserApplicationAsset::STATUS_APPROVED;
+            $asset->save();
+
+            $application = AdvertiserApplication::find($applicationId);
+            if ($application && ! empty($application->brand_partner_id)) {
+                $partner = BrandPartner::find($application->brand_partner_id);
+                if ($partner) {
+                    if ($asset->asset_type === AdvertiserApplicationAsset::TYPE_LOGO) {
+                        $partner->update(['logo' => $asset->url]);
+                    } elseif (in_array($asset->asset_type, [
+                        AdvertiserApplicationAsset::TYPE_BANNER,
+                        AdvertiserApplicationAsset::TYPE_COVER,
+                        AdvertiserApplicationAsset::TYPE_CREATIVE,
+                    ], true)) {
+                        $partner->update(['cover_image' => $asset->url]);
+                    }
+                }
+            }
+
+            return $this->success([
+                'id' => $asset->id,
+                'asset_id' => $asset->id,
+                'application_id' => $asset->application_id,
+                'asset_type' => $asset->asset_type,
+                'original_filename' => $asset->original_filename,
+                'storage_disk' => $asset->storage_disk,
+                'storage_key' => $asset->storage_key,
+                'mime_type' => $asset->mime_type,
+                'file_size_bytes' => $asset->file_size_bytes,
+                'url' => $asset->url,
+                'review_status' => $asset->review_status,
+            ], 'Creative image updated successfully.');
+        }
+
+        if ($request->has('status') && ! $request->has('review_status')) {
+            $request->merge(['review_status' => $request->input('status')]);
+        }
+
+        $validated = $request->validate([
+            'review_status' => ['required', 'string', 'in:pending,approved,rejected'],
+            'feedback' => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
         $asset->review_status = $validated['review_status'];
-        $asset->review_notes = $validated['feedback'] ?? null;
+        $asset->review_notes = $validated['feedback'] ?? $validated['notes'] ?? null;
         $asset->save();
 
         return $this->success([
+            'id' => $asset->id,
             'asset_id' => $asset->id,
             'review_status' => $asset->review_status,
             'feedback' => $asset->review_notes,
@@ -775,11 +840,12 @@ class AdvertiserAdminApiController extends BaseApiController
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $actor = $request->user();
         $updated = $this->campaignService->reviewCampaign(
             $campaign,
             $validated['decision'],
             $validated['notes'] ?? null,
-            $request->user()
+            $actor instanceof User ? $actor : null
         );
 
         return $this->success([
@@ -796,7 +862,8 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
-        $ad = $this->publicationService->publishCampaignAd($campaign, $request->user());
+        $actor = $request->user();
+        $ad = $this->publicationService->publishCampaignAd($campaign, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,
@@ -812,8 +879,9 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
+        $actor = $request->user();
         $reason = $request->input('reason', 'Paused by admin');
-        $this->campaignService->pauseCampaign($campaign, $reason, $request->user());
+        $this->campaignService->pauseCampaign($campaign, $reason, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,
@@ -828,7 +896,8 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
-        $this->campaignService->resumeCampaign($campaign, $request->user());
+        $actor = $request->user();
+        $this->campaignService->resumeCampaign($campaign, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,

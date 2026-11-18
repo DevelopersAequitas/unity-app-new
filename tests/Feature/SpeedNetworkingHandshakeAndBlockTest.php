@@ -226,7 +226,29 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.my_decision', 'pending')
             ->assertJsonPath('data.peer_decision', 'pending')
             ->assertJsonPath('data.both_accepted', false)
-            ->assertJsonPath('data.peer.id', (string) $userA->id);
+            ->assertJsonPath('data.peer.id', (string) $userA->id)
+            ->assertJsonStructure([
+                'data' => [
+                    'peer' => [
+                        'id',
+                        'name',
+                        'avatar_url',
+                        'city',
+                        'designation',
+                        'company',
+                        'industry',
+                        'category',
+                        'skills',
+                        'life_impacted_count',
+                        'is_verified',
+                        'is_pro',
+                        'connection_status',
+                        'is_following',
+                        'bio',
+                        'round',
+                    ],
+                ],
+            ]);
 
         $matchId = (string) $joinB->json('data.match_id');
         $channelId = (string) $joinB->json('data.channel_id');
@@ -289,7 +311,29 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.match_status', 'in_call')
             ->assertJsonPath('data.my_decision', 'accepted')
             ->assertJsonPath('data.peer_decision', 'accepted')
-            ->assertJsonPath('data.both_accepted', true);
+            ->assertJsonPath('data.both_accepted', true)
+            ->assertJsonStructure([
+                'data' => [
+                    'peer' => [
+                        'id',
+                        'name',
+                        'avatar_url',
+                        'city',
+                        'designation',
+                        'company',
+                        'industry',
+                        'category',
+                        'skills',
+                        'life_impacted_count',
+                        'is_verified',
+                        'is_pro',
+                        'connection_status',
+                        'is_following',
+                        'bio',
+                        'round',
+                    ],
+                ],
+            ]);
 
         // 8. Summary now includes the connected peer
         $summaryAfterConnect = $this->getJson("/api/v1/speed-networking/events/{$event->id}/summary");

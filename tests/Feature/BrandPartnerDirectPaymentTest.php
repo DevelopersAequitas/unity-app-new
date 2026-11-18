@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Jobs\SendPushNotificationJob;
+use App\Mail\AdvertiserNotificationMail;
+use App\Models\AdminUser;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -28,6 +34,7 @@ class BrandPartnerDirectPaymentTest extends TestCase
         Config::set('database.connections.sqlite.database', ':memory:');
         DB::purge('sqlite');
         DB::reconnect('sqlite');
+        DB::statement('PRAGMA foreign_keys = ON;');
 
         $this->createTestTables();
     }
@@ -124,6 +131,8 @@ class BrandPartnerDirectPaymentTest extends TestCase
             $table->json('metadata')->nullable();
             $table->timestamp('submitted_at')->nullable();
             $table->timestamps();
+
+            $table->foreign('reviewed_by')->references('id')->on('users')->nullOnDelete();
         });
 
         Schema::create('advertiser_application_assets', function (Blueprint $table): void {
@@ -151,6 +160,8 @@ class BrandPartnerDirectPaymentTest extends TestCase
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamp('created_at')->nullable();
+
+            $table->foreign('changed_by')->references('id')->on('users')->nullOnDelete();
         });
 
         Schema::create('advertiser_subscriptions', function (Blueprint $table): void {
@@ -240,6 +251,42 @@ class BrandPartnerDirectPaymentTest extends TestCase
             $table->json('metadata')->nullable();
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        Schema::create('brand_partner_views', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->nullable();
+            $table->uuid('brand_partner_id')->index();
+            $table->string('ip_address')->nullable();
+            $table->string('session_id')->nullable();
+            $table->timestamp('viewed_at')->nullable();
+        });
+
+        Schema::create('brand_partner_clicks', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->nullable();
+            $table->uuid('brand_partner_id')->index();
+            $table->string('click_type')->nullable();
+            $table->string('ip')->nullable();
+            $table->string('ip_address')->nullable();
+            $table->string('session_id')->nullable();
+            $table->string('device')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('notifications', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->index();
+            $table->string('type')->nullable();
+            $table->string('title')->nullable();
+            $table->text('message')->nullable();
+            $table->string('source_type')->nullable();
+            $table->string('source_id')->nullable();
+            $table->string('source_event')->nullable();
+            $table->json('payload')->nullable();
+            $table->boolean('is_read')->default(false);
+            $table->timestamp('created_at')->nullable();
+            $table->timestamp('read_at')->nullable();
         });
     }
 
@@ -370,7 +417,14 @@ class BrandPartnerDirectPaymentTest extends TestCase
             ->assertJsonPath('data.publication_status', 'pending_admin_approval')
             ->assertJsonPath('data.next_action', 'awaiting_admin_approval');
 
-        // 5. Admin approves & publishes the paid Brand Partner application
+        // 5. Admin (authenticated via admin_users, NOT present in users table) approves & publishes the paid Brand Partner application
+        $adminUser = AdminUser::create([
+            'id' => '2ef56eab-29ae-4d26-8077-ee848ff80e70',
+            'name' => 'Harsh Super Admin',
+            'email' => 'admin@peersglobal.com',
+        ]);
+        Sanctum::actingAs($adminUser);
+
         $publishResponse = $this->postJson("/api/v1/admin/advertiser/applications/{$applicationId}/approve", [
             'start_date' => '2026-11-25',
             'admin_note' => 'Payment verified and creatives approved for publish.',
@@ -382,10 +436,76 @@ class BrandPartnerDirectPaymentTest extends TestCase
             ->assertJsonPath('data.start_date', '2026-11-25')
             ->assertJsonPath('data.end_date', '2027-02-25');
 
+        Sanctum::actingAs($user);
+
         $this->assertSame(1, BrandPartner::count(), 'Brand Partner should be created upon admin publish');
         $partner = BrandPartner::first();
         $this->assertNotNull($partner);
         $this->assertSame('2026-11-25', $partner->valid_from?->format('Y-m-d'));
         $this->assertSame('2027-02-25', $partner->valid_to?->format('Y-m-d'));
+
+        // 6. Test Callback Request submission (POST /api/v1/brand-partners/{id}/callback-request) + Email Dispatch + Push/In-App Notification + Dashboard Analytics
+        Mail::fake();
+        Bus::fake([SendPushNotificationJob::class]);
+
+        // Even if contact_email is cleared on the BrandPartner row, resolveBrandPartnerRecipient resolves it from linked Application/User
+        $partner->update(['contact_email' => null]);
+
+        $callbackRes = $this->postJson("/api/v1/brand-partners/{$partner->id}/callback-request", [
+            'name' => 'Rahul Parmar',
+            'phone' => '+919265898194',
+            'email' => 'rp91883018@gmail.com',
+            'message' => 'Interested in corporate pricing and partnership for our 50-member team.',
+        ]);
+
+        $callbackRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Callback request submitted successfully. The brand partner has been notified.')
+            ->assertJsonPath('data.email_sent', true)
+            ->assertJsonPath('data.callback_requests', 1)
+            ->assertJsonPath('data.notification.type', 'brand_partner_callback_request')
+            ->assertJsonPath('data.notification.screen', 'advertiser_dashboard')
+            ->assertJsonPath('data.notification.navigation_screen', '/advertiser/dashboard')
+            ->assertJsonPath('data.notification.requester_name', 'Rahul Parmar')
+            ->assertJsonPath('data.notification.requester_phone', '+919265898194')
+            ->assertJsonPath('data.notification.requester_email', 'rp91883018@gmail.com');
+
+        // Verify lead email was sent to Brand Partner (rohan@example.com) with Reply-To set to Rahul's email
+        Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
+            return $mail->subjectLine === '📞 New Callback Request: Rahul Parmar on Peers Global Unity'
+                && $mail->replyToEmail === 'rp91883018@gmail.com';
+        });
+
+        // Verify confirmation email was also sent to the requesting Peer (rp91883018@gmail.com)
+        Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
+            return str_contains($mail->subjectLine, 'Callback Request Sent to Acme Brand Pvt Ltd');
+        });
+
+        // Verify in-app notification & push notification job were dispatched to Brand Partner owner
+        $this->assertSame(
+            1,
+            Notification::where('user_id', $user->id)
+                ->where('type', 'brand_partner_callback_request')
+                ->count()
+        );
+        Bus::assertDispatched(SendPushNotificationJob::class);
+
+        // 7. Verify GET /api/v1/advertiser/dashboard includes callback_requests: 1 and recent_callback_requests list
+        $dashboardRes = $this->getJson('/api/v1/advertiser/dashboard');
+        $dashboardRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.company_name', 'Acme Brand Pvt Ltd')
+            ->assertJsonPath('data.brand_name', 'Acme Brand Pvt Ltd')
+            ->assertJsonPath('data.publication_status', 'published')
+            ->assertJsonPath('data.metrics.callback_requests', 1)
+            ->assertJsonPath('data.recent_callback_requests.0.name', 'Rahul Parmar');
+
+        // 8. Verify Weekly Brand Partner Report Command sends weekly performance summary email
+        $partner->update(['valid_from' => now()->subDays(2), 'valid_to' => now()->addMonths(3)]);
+        $this->artisan('PGU:brand-partner-weekly-report')->assertExitCode(0);
+
+        Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
+            return str_contains($mail->subjectLine, 'Weekly Brand Partner Performance Report');
+        });
     }
 }
