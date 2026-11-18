@@ -9,7 +9,9 @@ use App\Models\AdvertiserApplicationAsset;
 use App\Models\AdvertiserApplicationStatusHistory;
 use App\Models\AdvertiserEmailVerification;
 use App\Models\AdvertiserPackage;
+use App\Models\AdvertiserSubscription;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -19,7 +21,8 @@ class AdvertiserApplicationService
 {
     public function __construct(
         protected AdvertiserNotificationService $notificationService
-    ) {}
+    ) {
+    }
 
     /**
      * Generate sequential application number. e.g. ADV-2026-00001
@@ -76,17 +79,38 @@ class AdvertiserApplicationService
 
         if ($authenticatedUser) {
             $userId = $authenticatedUser->id;
-            $emailVerified = true;
-            $initialStatus = AdvertiserApplication::STATUS_SUBMITTED;
         } else {
-            $userId = null;
-            $emailVerified = false;
-            $initialStatus = AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION;
+            $matchedUser = $applicantEmail !== ''
+                ? User::whereRaw('LOWER(email) = ?', [$applicantEmail])->first()
+                : null;
+            $userId = $matchedUser?->id;
         }
+
+        // Direct-to-payment onboarding flow: application is immediately ready for payment upon submission
+        $emailVerified = true;
+        $initialStatus = AdvertiserApplication::STATUS_APPROVED;
+
+        $rawStartDate = $data['start_date']
+            ?? $data['preferred_start_date']
+            ?? $data['requested_start_date']
+            ?? $campaign['preferred_start_date']
+            ?? $campaign['start_date']
+            ?? $company['start_date']
+            ?? null;
+
+        try {
+            $parsedStartDate = ! empty($rawStartDate)
+                ? Carbon::parse((string) $rawStartDate)->startOfDay()
+                : now()->startOfDay();
+        } catch (\Throwable) {
+            $parsedStartDate = now()->startOfDay();
+        }
+
+        $durationMonths = max(1, (int) ($package->duration_months ?: 1));
+        $parsedEndDate = $parsedStartDate->copy()->addMonths($durationMonths)->endOfDay();
 
         return DB::transaction(function () use (
             $package,
-            $applicant,
             $company,
             $campaign,
             $consents,
@@ -98,7 +122,10 @@ class AdvertiserApplicationService
             $userId,
             $emailVerified,
             $initialStatus,
-            $idempotencyKey
+            $idempotencyKey,
+            $parsedStartDate,
+            $parsedEndDate,
+            $durationMonths
         ): AdvertiserApplication {
             $applicationNumber = $this->generateApplicationNumber();
 
@@ -130,19 +157,28 @@ class AdvertiserApplicationService
                 'target_audience' => $campaign['target_audience'] ?? null,
                 'target_locations' => $campaign['target_locations'] ?? [],
                 'advertising_objective' => $campaign['advertising_objective'] ?? null,
-                'requested_start_date' => $campaign['preferred_start_date'] ?? null,
+                'requested_start_date' => $parsedStartDate->toDateString(),
                 'additional_requirements' => $campaign['additional_requirements'] ?? null,
-                'requested_duration_months' => $package->duration_months,
+                'requested_duration_months' => $durationMonths,
                 'requested_package_name' => $package->name,
                 'requested_package_price' => $package->price,
                 'requested_currency' => $package->currency ?? 'INR',
                 'status' => $initialStatus,
+                'approved_at' => now(),
                 'idempotency_key' => $idempotencyKey,
                 'consent_to_terms' => (bool) ($consents['terms_accepted'] ?? false),
                 'consent_to_privacy' => (bool) ($consents['privacy_notice_accepted'] ?? false),
                 'marketing_consent' => (bool) ($consents['marketing_consent'] ?? false),
                 'consented_at' => now(),
-                'submitted_at' => ($initialStatus === AdvertiserApplication::STATUS_SUBMITTED) ? now() : null,
+                'metadata' => [
+                    'start_date' => $parsedStartDate->toDateString(),
+                    'end_date' => $parsedEndDate->toDateString(),
+                    'expiry_date' => $parsedEndDate->toDateString(),
+                    'payment_completed' => false,
+                    'pending_admin_publish' => false,
+                    'published' => false,
+                ],
+                'submitted_at' => now(),
             ]);
 
             // Save initial assets if provided
@@ -166,6 +202,23 @@ class AdvertiserApplicationService
                 }
             }
 
+            // Immediately initialize pending subscription with start & expiry dates so payment can be initiated directly
+            AdvertiserSubscription::firstOrCreate(
+                ['application_id' => $application->id],
+                [
+                    'user_id' => $userId,
+                    'brand_partner_id' => $application->brand_partner_id,
+                    'package_id' => $package->id,
+                    'package_name_snapshot' => $package->name ?? 'Standard Package',
+                    'duration_months' => $durationMonths,
+                    'amount' => $package->price ?? 0.0,
+                    'currency' => $package->currency ?? 'INR',
+                    'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                    'starts_at' => $parsedStartDate,
+                    'expires_at' => $parsedEndDate,
+                ]
+            );
+
             // Create initial status history
             AdvertiserApplicationStatusHistory::create([
                 'application_id' => $application->id,
@@ -173,7 +226,7 @@ class AdvertiserApplicationService
                 'new_status' => $initialStatus,
                 'changed_by' => $userId,
                 'actor_type' => $userId ? 'applicant' : 'system',
-                'notes' => 'Application submitted through ' . $source,
+                'notes' => 'Application submitted through ' . $source . ' (ready for direct payment)',
                 'metadata' => [
                     'package_id' => $package->id,
                     'package_price' => $package->price,
@@ -181,14 +234,9 @@ class AdvertiserApplicationService
                 'created_at' => now(),
             ]);
 
-            // If guest user, trigger email verification challenge
-            if ($initialStatus === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION) {
-                $this->createEmailVerificationChallenge($application);
-            } else {
-                $this->notificationService->sendApplicationSubmitted($application);
-            }
+            $this->notificationService->sendApplicationSubmitted($application);
 
-            return $application->fresh(['package', 'assets', 'statusHistory']);
+            return $application->fresh(['package', 'assets', 'statusHistory', 'subscriptions']);
         });
     }
 
@@ -313,15 +361,30 @@ class AdvertiserApplicationService
 
             $application->applicant_email_verified = true;
             if ($application->status === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION) {
-                $application->status = AdvertiserApplication::STATUS_SUBMITTED;
+                $application->status = AdvertiserApplication::STATUS_APPROVED;
                 $application->submitted_at = now();
+                $application->approved_at = now();
+
+                AdvertiserSubscription::firstOrCreate(
+                    ['application_id' => $application->id],
+                    [
+                        'user_id' => $application->user_id,
+                        'brand_partner_id' => $application->brand_partner_id,
+                        'package_id' => $application->package_id,
+                        'package_name_snapshot' => $application->requested_package_name ?? 'Standard Package',
+                        'duration_months' => $application->requested_duration_months ?: 1,
+                        'amount' => $application->requested_package_price ?? 0.0,
+                        'currency' => $application->requested_currency ?? 'INR',
+                        'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                    ]
+                );
 
                 AdvertiserApplicationStatusHistory::create([
                     'application_id' => $application->id,
                     'old_status' => AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION,
-                    'new_status' => AdvertiserApplication::STATUS_SUBMITTED,
+                    'new_status' => AdvertiserApplication::STATUS_APPROVED,
                     'actor_type' => 'applicant',
-                    'notes' => 'Email verified successfully.',
+                    'notes' => 'Email verified successfully (ready for direct payment).',
                     'created_at' => now(),
                 ]);
 
@@ -414,8 +477,15 @@ class AdvertiserApplicationService
         array $data,
         bool $resubmit = false
     ): AdvertiserApplication {
-        // Only allow edits if in draft or changes_requested or submitted state
-        if (!in_array($application->status, [AdvertiserApplication::STATUS_DRAFT, AdvertiserApplication::STATUS_CHANGES_REQUESTED, AdvertiserApplication::STATUS_SUBMITTED], true)) {
+        // Allow edits if in draft, changes_requested, submitted, or approved state
+        if (
+            !in_array($application->status, [
+                AdvertiserApplication::STATUS_DRAFT,
+                AdvertiserApplication::STATUS_CHANGES_REQUESTED,
+                AdvertiserApplication::STATUS_SUBMITTED,
+                AdvertiserApplication::STATUS_APPROVED,
+            ], true)
+        ) {
             throw ValidationException::withMessages([
                 'application' => ['Application cannot be edited in its current status.'],
             ]);

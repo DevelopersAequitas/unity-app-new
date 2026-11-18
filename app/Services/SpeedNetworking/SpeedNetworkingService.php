@@ -69,6 +69,18 @@ class SpeedNetworkingService
                     if (! Schema::hasColumn('speed_networking_matches', 'call_started_at')) {
                         $table->timestamp('call_started_at')->nullable();
                     }
+                    if (! Schema::hasColumn('speed_networking_matches', 'duration_seconds')) {
+                        $table->integer('duration_seconds')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'user_a_notes')) {
+                        $table->text('user_a_notes')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'user_b_notes')) {
+                        $table->text('user_b_notes')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'meeting_notes')) {
+                        $table->text('meeting_notes')->nullable();
+                    }
                 });
             }
 
@@ -1601,10 +1613,21 @@ class SpeedNetworkingService
                     }
 
                     // User is completing/leaving the active call
+                    $endedAt = $activeMatch->ended_at ?? Carbon::now();
+                    $durationSeconds = $activeMatch->duration_seconds !== null && (int) $activeMatch->duration_seconds > 0
+                        ? (int) $activeMatch->duration_seconds
+                        : ($callStart
+                            ? min(
+                                max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                                max(1, (int) $lockedEvent->round_duration_seconds)
+                            )
+                            : 0);
+
                     $activeMatch->update([
                         'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                         'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                        'ended_at' => Carbon::now(),
+                        'ended_at' => $endedAt,
+                        'duration_seconds' => $durationSeconds,
                     ]);
                 }
             }
@@ -1898,10 +1921,22 @@ class SpeedNetworkingService
             $partnerId = (string) ((string) $match->user_a_id === (string) $user->id ? $match->user_b_id : $match->user_a_id);
 
             if ($match->match_status === SpeedNetworkingMatch::MATCH_STATUS_IN_CALL) {
+                $endedAt = $match->ended_at ?? Carbon::now();
+                $callStart = $match->call_started_at ?? $match->started_at;
+                $durationSeconds = $match->duration_seconds !== null && (int) $match->duration_seconds > 0
+                    ? (int) $match->duration_seconds
+                    : ($callStart
+                        ? min(
+                            max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                            max(1, (int) $event->round_duration_seconds)
+                        )
+                        : 0);
+
                 $match->update([
                     'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                     'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                    'ended_at' => Carbon::now(),
+                    'ended_at' => $endedAt,
+                    'duration_seconds' => $durationSeconds,
                 ]);
             } else {
                 $match->update([
@@ -2418,10 +2453,21 @@ class SpeedNetworkingService
                         return $this->formatMatchResponse($event, $existingMatch, $userId);
                     }
 
+                    $endedAt = $existingMatch->ended_at ?? Carbon::now();
+                    $durationSeconds = $existingMatch->duration_seconds !== null && (int) $existingMatch->duration_seconds > 0
+                        ? (int) $existingMatch->duration_seconds
+                        : ($callStart
+                            ? min(
+                                max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                                max(1, (int) $event->round_duration_seconds)
+                            )
+                            : 0);
+
                     $existingMatch->update([
                         'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                         'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                        'ended_at' => Carbon::now(),
+                        'ended_at' => $endedAt,
+                        'duration_seconds' => $durationSeconds,
                     ]);
                 }
             }
@@ -2980,10 +3026,16 @@ class SpeedNetworkingService
             $callStart = $activeMatch->call_started_at ?? $activeMatch->started_at;
             $elapsed = $callStart ? Carbon::now()->diffInSeconds($callStart) : 0;
             if ($elapsed >= $event->round_duration_seconds) {
+                $endedAt = $activeMatch->ended_at ?? Carbon::now();
+                $durationSeconds = $activeMatch->duration_seconds !== null && (int) $activeMatch->duration_seconds > 0
+                    ? (int) $activeMatch->duration_seconds
+                    : min(max(0, (int) $elapsed), max(1, (int) $event->round_duration_seconds));
+
                 $activeMatch->update([
                     'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                     'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                    'ended_at' => Carbon::now(),
+                    'ended_at' => $endedAt,
+                    'duration_seconds' => $durationSeconds,
                 ]);
 
                 SpeedNetworkingParticipant::where('event_id', $event->id)
@@ -3305,45 +3357,40 @@ class SpeedNetworkingService
                 $bio = (string) ($peer->i_can_help_with ?? '');
             }
 
-            // Calculate duration in seconds
-            $duration = 0;
-            if ($match->started_at && $match->ended_at) {
-                $duration = max(0, (int) $match->ended_at->diffInSeconds($match->started_at));
-            } elseif ($match->started_at) {
-                $duration = max(0, (int) Carbon::now()->diffInSeconds($match->started_at));
-            }
+            // Calculate actual 1-on-1 call duration in seconds (strictly from call_started_at)
+            $duration = $match->resolveCallDurationSeconds((int) $event->round_duration_seconds);
+            $qualifiesForP2p = $duration >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS;
 
-            if ($duration === 0 && (int) $event->round_duration_seconds > 0) {
-                $duration = (int) $event->round_duration_seconds;
-            }
-
-            // Automatically process P2P meeting and creative for this match
+            // Only process P2P meeting, creative, Life Impact (+1), and Coins (+3,000) if duration >= 120s
             $p2pMeeting = null;
             $creativeUrl = null;
-            try {
-                $p2pMeeting = $this->p2pService->completeMatchAsP2pMeeting($match, $event);
-                if ($p2pMeeting) {
-                    $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
+            if ($qualifiesForP2p) {
+                try {
+                    $p2pMeeting = $this->p2pService->completeMatchAsP2pMeeting($match, $event);
+                    if ($p2pMeeting) {
+                        $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
+                    }
+                } catch (\Throwable $p2pEx) {
+                    Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
                 }
-            } catch (\Throwable $p2pEx) {
-                Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
             }
 
             // Refresh peer after completing P2P meeting so life impact & profile details are fresh
             $peer = $peer->fresh() ?? $peer;
-            $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+            $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
             if ($impactPerMeeting <= 0) {
-                $impactPerMeeting = 5;
+                $impactPerMeeting = 1;
             }
 
             $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
-            if ($peerLifeImpact <= 0) {
-                $peerLifeImpact = $impactPerMeeting;
-            }
 
             $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
             $companyName = ! empty($peer->company_name) ? (string) $peer->company_name : (! empty($peer->company) ? (string) $peer->company : null);
             $businessCategory = $peer->level4_category ?? $peer->business_category ?? null;
+
+            $savedMatchNotes = $match->getNotesForUser($userId);
+            $cleanP2pRemarks = trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? '');
+            $resolvedNotes = $savedMatchNotes !== '' ? $savedMatchNotes : $cleanP2pRemarks;
 
             $interactedPeers[] = [
                 'id' => (string) $peer->id,
@@ -3403,17 +3450,23 @@ class SpeedNetworkingService
                 'peer_life_impact' => $peerLifeImpact,
                 'peer_life_impacted_count' => $peerLifeImpact,
 
-                'p2p_meeting_id' => $p2pMeeting?->id ? (string) $p2pMeeting->id : null,
-                'creative_url' => $creativeUrl,
-                'p2p_logged' => $p2pMeeting !== null,
-                'meeting_notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
-                'notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
-                'remarks' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
+                'p2p_meeting_id' => ($qualifiesForP2p && $p2pMeeting?->id) ? (string) $p2pMeeting->id : null,
+                'creative_url' => $qualifiesForP2p ? $creativeUrl : null,
+                'p2p_logged' => $qualifiesForP2p && $p2pMeeting !== null,
+                'meeting_notes' => $resolvedNotes,
+                'notes' => $resolvedNotes,
+                'remarks' => $resolvedNotes,
             ];
         }
 
         $roundsCompleted = (int) $matches->pluck('round_number')->unique()->count();
         $hasMetAllPeers = $this->hasMetAllActivePeers($event, $userId);
+
+        $qualifyingPeersCount = count(array_filter(
+            $interactedPeers,
+            static fn (array $peerItem): bool => ($peerItem['p2p_logged'] ?? false) === true
+                && ((int) ($peerItem['interaction_duration_seconds'] ?? 0)) >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS
+        ));
 
         $freshUser = $user->fresh() ?? $user;
         $userCoins = (int) ($freshUser->coins_balance ?? 0);
@@ -3421,8 +3474,8 @@ class SpeedNetworkingService
         if ($impactPerMeeting <= 0) {
             $impactPerMeeting = 1;
         }
-        $lifeImpactEarned = count($interactedPeers) * $impactPerMeeting;
-        $coinsEarned = count($interactedPeers) * 3000;
+        $lifeImpactEarned = $qualifyingPeersCount * $impactPerMeeting;
+        $coinsEarned = $qualifyingPeersCount * 3000;
 
         $userLifeImpact = $this->resolveUserLifeImpact($freshUser, $event);
         if ($userLifeImpact < $lifeImpactEarned) {
@@ -3440,6 +3493,7 @@ class SpeedNetworkingService
             'total_rounds' => (int) $event->total_rounds,
             'rounds_completed' => $roundsCompleted,
             'total_interactions_count' => count($interactedPeers),
+            'qualifying_peers_count' => $qualifyingPeersCount,
             'life_impact' => [
                 'earned' => $lifeImpactEarned,
                 'total' => $userLifeImpact,
@@ -3558,9 +3612,9 @@ class SpeedNetworkingService
         }
 
         // 5. Table p2p_meetings
-        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
         if ($impactPerMeeting <= 0) {
-            $impactPerMeeting = 5;
+            $impactPerMeeting = 1;
         }
 
         if (Schema::hasTable('p2p_meetings')) {
@@ -3581,10 +3635,10 @@ class SpeedNetworkingService
             }
         }
 
-        // 6. Current Speed Networking Event matches (only actual in_call / completed rounds)
+        // 6. Current Speed Networking Event matches (only actual in_call / completed rounds lasting >= 120s)
         if ($event && Schema::hasTable('speed_networking_matches')) {
             try {
-                $eventMatchesCount = SpeedNetworkingMatch::where('event_id', $event->id)
+                $eventMatches = SpeedNetworkingMatch::where('event_id', $event->id)
                     ->where(function ($q) use ($userId): void {
                         $q->where('user_a_id', $userId)
                             ->orWhere('user_b_id', $userId);
@@ -3595,10 +3649,14 @@ class SpeedNetworkingService
                         SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
                     ])
                     ->where('status', '!=', SpeedNetworkingMatch::STATUS_SKIPPED)
-                    ->count();
+                    ->get();
 
-                if ($eventMatchesCount > 0) {
-                    $total = max($total, $eventMatchesCount * $impactPerMeeting);
+                $qualifyingEventMatchesCount = $eventMatches->filter(
+                    static fn (SpeedNetworkingMatch $m): bool => $m->qualifiesForP2pRewards((int) $event->round_duration_seconds)
+                )->count();
+
+                if ($qualifyingEventMatchesCount > 0) {
+                    $total = max($total, $qualifyingEventMatchesCount * $impactPerMeeting);
                 }
             } catch (\Throwable) {
                 // ignore
@@ -3689,8 +3747,9 @@ class SpeedNetworkingService
                     'participants_count' => $totalJoined,
                     'rounds_completed' => (int) ($summary['rounds_completed'] ?? $peersMetCount),
                     'peers_met_count' => $peersMetCount,
-                    'life_impact_earned' => $peersMetCount * 1,
-                    'coins_earned' => $peersMetCount * 3000,
+                    'qualifying_peers_count' => (int) ($summary['qualifying_peers_count'] ?? 0),
+                    'life_impact_earned' => (int) ($summary['life_impact_earned'] ?? 0),
+                    'coins_earned' => (int) ($summary['coins_earned'] ?? 0),
                     'peers_met' => $summary['interacted_peers'] ?? [],
                     'ticket_price' => (float) $event->ticket_price,
                     'is_paid' => (bool) $event->is_paid,

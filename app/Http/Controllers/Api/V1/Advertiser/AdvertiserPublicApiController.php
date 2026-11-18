@@ -12,7 +12,7 @@ use App\Services\Advertiser\AdvertiserApplicationService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class AdvertiserPublicApiController extends BaseApiController
@@ -73,6 +73,34 @@ class AdvertiserPublicApiController extends BaseApiController
                 ], (array) $request->input('campaign', [])),
             ]);
         }
+        $incomingStartDate = $request->input('start_date')
+            ?? $request->input('preferred_start_date')
+            ?? $request->input('requested_start_date')
+            ?? $request->input('campaign.start_date')
+            ?? $request->input('campaign.preferred_start_date')
+            ?? $request->input('company.start_date');
+        if ($incomingStartDate !== null && !$request->has('campaign.preferred_start_date')) {
+            $request->merge([
+                'campaign' => array_merge(
+                    (array) $request->input('campaign', []),
+                    ['preferred_start_date' => $incomingStartDate]
+                ),
+            ]);
+        }
+        $incomingStartDate = $request->input('start_date')
+            ?? $request->input('preferred_start_date')
+            ?? $request->input('requested_start_date')
+            ?? $request->input('campaign.start_date')
+            ?? $request->input('campaign.preferred_start_date')
+            ?? $request->input('company.start_date');
+        if ($incomingStartDate !== null && ! $request->has('campaign.preferred_start_date')) {
+            $request->merge([
+                'campaign' => array_merge(
+                    (array) $request->input('campaign', []),
+                    ['preferred_start_date' => $incomingStartDate]
+                ),
+            ]);
+        }
         if ($request->has('consent_to_terms') && ! $request->has('consents.terms_accepted')) {
             $request->merge([
                 'consents' => array_merge([
@@ -108,6 +136,10 @@ class AdvertiserPublicApiController extends BaseApiController
             'campaign.target_audience' => ['nullable', 'string'],
             'campaign.target_locations' => ['nullable', 'array'],
             'campaign.preferred_start_date' => ['nullable', 'date'],
+            'campaign.start_date' => ['nullable', 'date'],
+            'start_date' => ['nullable', 'date'],
+            'preferred_start_date' => ['nullable', 'date'],
+            'requested_start_date' => ['nullable', 'date'],
             'campaign.additional_requirements' => ['nullable', 'string'],
             'assets' => ['nullable', 'array'],
             'assets.*.asset_type' => ['required', 'string', 'in:logo,banner,cover_image,campaign_creative,document,other'],
@@ -140,7 +172,7 @@ class AdvertiserPublicApiController extends BaseApiController
                     'cover_image' => AdvertiserApplicationAsset::TYPE_COVER,
                     default => AdvertiserApplicationAsset::TYPE_CREATIVE,
                 };
-                $path = $fileObj->store('advertiser/' . $application->id, $disk);
+                $path = $fileObj->store('advertiser/'.$application->id, $disk);
                 AdvertiserApplicationAsset::create([
                     'application_id' => $application->id,
                     'asset_type' => $type,
@@ -154,23 +186,47 @@ class AdvertiserPublicApiController extends BaseApiController
             }
         }
 
-        $nextAction = ($application->status === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION)
-            ? 'verify_email'
-            : 'await_review';
+        $subscription = $application->subscriptions->first();
+        $startDateStr = $application->requested_start_date?->format('Y-m-d')
+            ?? $subscription?->starts_at?->format('Y-m-d')
+            ?? now()->toDateString();
+        $endDateStr = $subscription?->expires_at?->format('Y-m-d')
+            ?? Carbon::parse($startDateStr)->addMonths(max(1, (int) ($application->requested_duration_months ?: 1)))->format('Y-m-d');
+        $startDateStr = $application->requested_start_date?->format('Y-m-d')
+            ?? $subscription?->starts_at?->format('Y-m-d')
+            ?? now()->toDateString();
+        $endDateStr = $subscription?->expires_at?->format('Y-m-d')
+            ?? \Illuminate\Support\Carbon::parse($startDateStr)->addMonths(max(1, (int) ($application->requested_duration_months ?: 1)))->format('Y-m-d');
 
         $data = [
             'application_id' => $application->id,
             'application_number' => $application->application_number,
+            'subscription_id' => $subscription?->id,
             'status' => $application->status,
-            'email_verification_required' => ($application->status === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION),
-            'next_action' => $nextAction,
+            'payment_status' => 'pending',
+            'is_paid' => false,
+            'publication_status' => 'pending_payment',
+            'is_published' => false,
+            'payment_required' => ((float) ($application->requested_package_price ?? 0) > 0),
+            'email_verification_required' => false,
+            'next_action' => 'complete_payment',
+            'start_date' => $startDateStr,
+            'preferred_start_date' => $startDateStr,
+            'requested_start_date' => $startDateStr,
+            'end_date' => $endDateStr,
+            'expiry_date' => $endDateStr,
+            'valid_from' => $subscription?->starts_at?->toIso8601String(),
+            'valid_to' => $subscription?->expires_at?->toIso8601String(),
+            'package' => [
+                'id' => $application->package_id,
+                'name' => $application->requested_package_name,
+                'duration_months' => $application->requested_duration_months,
+                'price' => $application->requested_package_price,
+                'currency' => $application->requested_currency,
+            ],
         ];
 
-        if (app()->environment('local', 'testing') && ($application->status === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION)) {
-            $data['debug_otp'] = '123456';
-        }
-
-        return $this->success($data, 'Your application has been received successfully.', 201);
+        return $this->success($data, 'Your application has been submitted. Please proceed with payment.', 201);
     }
 
     /**
@@ -180,7 +236,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function requestEmailVerification(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -215,7 +271,7 @@ class AdvertiserPublicApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -230,7 +286,7 @@ class AdvertiserPublicApiController extends BaseApiController
             'application_id' => $application->id,
             'email_verified' => true,
             'status' => $application->status,
-            'next_action' => 'await_review',
+            'next_action' => 'complete_payment',
         ], 'Email verified successfully.');
     }
 
@@ -241,7 +297,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function resendEmailVerification(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -268,16 +324,16 @@ class AdvertiserPublicApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
         $ext = pathinfo($request->input('file_name'), PATHINFO_EXTENSION);
-        $cleanExt = $ext ? '.' . strtolower($ext) : '.jpg';
-        $storageKey = 'advertiser/' . $application->id . '/' . (string) Str::uuid() . $cleanExt;
+        $cleanExt = $ext ? '.'.strtolower($ext) : '.jpg';
+        $storageKey = 'advertiser/'.$application->id.'/'.(string) Str::uuid().$cleanExt;
 
         $disk = config('filesystems.default', 'public');
-        $uploadUrl = url('/api/v1/advertiser/applications/' . $application->id . '/assets/direct-upload');
+        $uploadUrl = url('/api/v1/advertiser/applications/'.$application->id.'/assets/direct-upload');
 
         return $this->success([
             'upload_url' => $uploadUrl,
@@ -298,7 +354,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function confirmAsset(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -314,14 +370,19 @@ class AdvertiserPublicApiController extends BaseApiController
         if ($uploadedFile) {
             $assetType = $request->input('asset_type');
             if (empty($assetType)) {
-                if ($request->hasFile('logo')) $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
-                elseif ($request->hasFile('banner')) $assetType = AdvertiserApplicationAsset::TYPE_BANNER;
-                elseif ($request->hasFile('cover_image')) $assetType = AdvertiserApplicationAsset::TYPE_COVER;
-                else $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
+                if ($request->hasFile('logo')) {
+                    $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
+                } elseif ($request->hasFile('banner')) {
+                    $assetType = AdvertiserApplicationAsset::TYPE_BANNER;
+                } elseif ($request->hasFile('cover_image')) {
+                    $assetType = AdvertiserApplicationAsset::TYPE_COVER;
+                } else {
+                    $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
+                }
             }
 
             $disk = config('filesystems.default', 'public');
-            $path = $uploadedFile->store('advertiser/' . $application->id, $disk);
+            $path = $uploadedFile->store('advertiser/'.$application->id, $disk);
 
             $asset = AdvertiserApplicationAsset::create([
                 'application_id' => $application->id,
@@ -385,7 +446,7 @@ class AdvertiserPublicApiController extends BaseApiController
 
         $application = AdvertiserApplication::findOrFail($request->input('application_id'));
 
-        if (!$application->applicant_email_verified) {
+        if (! $application->applicant_email_verified) {
             $nextAction = 'verify_email';
         } elseif ($application->user_id === null) {
             $nextAction = 'sign_in_or_create_account';
@@ -408,7 +469,7 @@ class AdvertiserPublicApiController extends BaseApiController
     {
         $application = AdvertiserApplication::with(['package', 'assets'])->find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -443,9 +504,9 @@ class AdvertiserPublicApiController extends BaseApiController
             'next_action' => match ($application->status) {
                 AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
                 AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
-                AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
                 AdvertiserApplication::STATUS_ACTIVE => null,
-                default => 'await_review',
+                AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN => null,
+                default => 'complete_payment',
             },
             'submitted_at' => $application->submitted_at?->toIso8601String(),
         ], 'Application details retrieved successfully.');

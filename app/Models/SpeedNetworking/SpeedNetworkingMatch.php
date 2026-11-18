@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models\SpeedNetworking;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,6 +41,8 @@ class SpeedNetworkingMatch extends Model
 
     public const DECISION_BLOCK = 'block';
 
+    public const MIN_QUALIFYING_DURATION_SECONDS = 120;
+
     protected $table = 'speed_networking_matches';
 
     protected $primaryKey = 'id';
@@ -65,6 +68,9 @@ class SpeedNetworkingMatch extends Model
         'preview_expires_at',
         'call_started_at',
         'duration_seconds',
+        'user_a_notes',
+        'user_b_notes',
+        'meeting_notes',
         'started_at',
         'ended_at',
     ];
@@ -149,5 +155,89 @@ class SpeedNetworkingMatch extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Resolve actual 1-on-1 call duration in seconds, counting strictly from call_started_at (or started_at).
+     */
+    public function resolveCallDurationSeconds(?int $maxRoundDurationSeconds = null): int
+    {
+        if ($this->duration_seconds !== null && (int) $this->duration_seconds >= 0) {
+            $persisted = (int) $this->duration_seconds;
+            if ($persisted > 0 || ($this->ended_at !== null && $this->call_started_at !== null)) {
+                if ($maxRoundDurationSeconds !== null && $maxRoundDurationSeconds > 0) {
+                    return min($persisted, $maxRoundDurationSeconds);
+                }
+
+                return $persisted;
+            }
+        }
+
+        $callStart = $this->call_started_at ?? $this->started_at;
+        if (! $callStart) {
+            return 0;
+        }
+
+        $callEnd = $this->ended_at ?? Carbon::now();
+        $duration = max(0, (int) $callStart->diffInSeconds($callEnd, false));
+
+        if ($maxRoundDurationSeconds !== null && $maxRoundDurationSeconds > 0) {
+            $duration = min($duration, $maxRoundDurationSeconds);
+        }
+
+        return $duration;
+    }
+
+    /**
+     * Check whether this match lasted at least 120 seconds (2 minutes) in an actual 1-on-1 call.
+     */
+    public function qualifiesForP2pRewards(?int $maxRoundDurationSeconds = null): bool
+    {
+        if ($this->isBreakRound() || empty($this->user_a_id) || empty($this->user_b_id)) {
+            return false;
+        }
+
+        if ($this->status === self::STATUS_SKIPPED) {
+            return false;
+        }
+
+        $matchStatus = (string) ($this->match_status ?: '');
+        if ($matchStatus !== '' && ! in_array($matchStatus, [
+            self::MATCH_STATUS_IN_CALL,
+            self::MATCH_STATUS_COMPLETED,
+        ], true)) {
+            return false;
+        }
+
+        return $this->resolveCallDurationSeconds($maxRoundDurationSeconds) >= self::MIN_QUALIFYING_DURATION_SECONDS;
+    }
+
+    /**
+     * Get saved meeting notes for the given user (or fallback to shared meeting_notes).
+     */
+    public function getNotesForUser(?string $userId = null): string
+    {
+        if ($userId !== null && $userId !== '') {
+            if ((string) $this->user_a_id === $userId && ! empty($this->user_a_notes)) {
+                return trim((string) $this->user_a_notes);
+            }
+            if ((string) $this->user_b_id === $userId && ! empty($this->user_b_notes)) {
+                return trim((string) $this->user_b_notes);
+            }
+        }
+
+        if (! empty($this->meeting_notes)) {
+            return trim((string) $this->meeting_notes);
+        }
+
+        if (! empty($this->user_a_notes)) {
+            return trim((string) $this->user_a_notes);
+        }
+
+        if (! empty($this->user_b_notes)) {
+            return trim((string) $this->user_b_notes);
+        }
+
+        return '';
     }
 }

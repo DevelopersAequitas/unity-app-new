@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Advertiser;
 
 use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserApplicationStatusHistory;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -19,7 +21,8 @@ class AdvertiserPaymentService
 {
     public function __construct(
         protected AdvertiserPublicationService $publicationService
-    ) {}
+    ) {
+    }
 
     protected function getApi(): Api
     {
@@ -43,9 +46,16 @@ class AdvertiserPaymentService
         $subscription->loadMissing(['application', 'user', 'package']);
         $application = $subscription->application;
 
-        if (!$application || $application->status !== AdvertiserApplication::STATUS_APPROVED) {
+        if (!$application || in_array($application->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)) {
             throw ValidationException::withMessages([
-                'payment' => ['Payment cannot be initiated until the application has been approved.'],
+                'payment' => ['Payment cannot be initiated for this application.'],
+            ]);
+        }
+
+        if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
+            $application->update([
+                'status' => AdvertiserApplication::STATUS_APPROVED,
+                'approved_at' => $application->approved_at ?? now(),
             ]);
         }
 
@@ -67,15 +77,16 @@ class AdvertiserPaymentService
         // Check if package is free (zero amount)
         $amount = round((float) $subscription->amount, 2);
         if ($amount <= 0) {
-            // Free package activation path
-            $this->publicationService->activateAndPublish($subscription);
+            // Free package: mark ready for admin approval to publish
+            $this->markPaymentCompletedPendingAdminPublish($subscription, null);
 
             return [
                 'payment_id' => null,
                 'is_free' => true,
-                'message' => 'Free package activated successfully.',
+                'message' => 'Application submitted and pending admin approval to publish.',
                 'subscription_id' => $subscription->id,
-                'status' => 'active',
+                'status' => 'pending_publish',
+                'publication_status' => 'pending_admin_approval',
             ];
         }
 
@@ -434,7 +445,7 @@ class AdvertiserPaymentService
             }
             $payment->save();
 
-            // Activate and publish (or extend for renewals)
+            // For renewals, extend immediately; for new Brand Partner applications, hold for Admin Approval to Publish
             $isRenewal = (bool) ($payment->provider_payload['is_renewal'] ?? false);
             if ($isRenewal) {
                 $durationMonths = (int) ($payment->provider_payload['renewal_duration_months'] ?? 1);
@@ -442,11 +453,85 @@ class AdvertiserPaymentService
                 $package = $packageId ? AdvertiserPackage::find($packageId) : null;
                 $this->publicationService->extendSubscription($payment->subscription, $durationMonths, $package);
             } else {
-                $this->publicationService->activateAndPublish($payment->subscription);
+                $this->markPaymentCompletedPendingAdminPublish($payment->subscription, $payment);
             }
 
-            return $payment->fresh(['subscription.brandPartner']);
+            return $payment->fresh(['subscription.brandPartner', 'subscription.application']);
         });
+    }
+
+    /**
+     * Mark payment as completed and place the Brand Partner application in the Admin "Pending Publish" queue
+     * instead of auto-publishing immediately.
+     */
+    public function markPaymentCompletedPendingAdminPublish(
+        AdvertiserSubscription $subscription,
+        ?AdvertiserPayment $payment = null
+    ): void {
+        $subscription->loadMissing(['application', 'package']);
+        $application = $subscription->application;
+
+        $durationMonths = max(
+            1,
+            (int) ($subscription->duration_months ?: $application?->requested_duration_months ?: $subscription->package?->duration_months ?: 1)
+        );
+
+        $rawStart = $application?->requested_start_date
+            ?? $subscription->starts_at
+            ?? now();
+
+        try {
+            $startDate = Carbon::parse($rawStart)->startOfDay();
+        } catch (Throwable) {
+            $startDate = now()->startOfDay();
+        }
+
+        $endDate = $startDate->copy()->addMonths($durationMonths)->endOfDay();
+
+        $subscription->starts_at = $startDate;
+        $subscription->expires_at = $endDate;
+        $subscription->duration_months = $durationMonths;
+        $subscription->save();
+
+        if ($application) {
+            $oldStatus = $application->status;
+            $existingMeta = is_array($application->metadata) ? $application->metadata : [];
+
+            $application->requested_start_date = $startDate->toDateString();
+            $application->requested_duration_months = $durationMonths;
+            $application->status = AdvertiserApplication::STATUS_UNDER_REVIEW;
+            $application->metadata = array_merge($existingMeta, [
+                'payment_completed' => true,
+                'paid_at' => now()->toIso8601String(),
+                'payment_id' => $payment?->id,
+                'razorpay_payment_id' => $payment?->provider_payment_id,
+                'razorpay_order_id' => $payment?->provider_order_id,
+                'paid_amount' => $payment?->amount ?? $subscription->amount,
+                'pending_admin_publish' => true,
+                'published' => false,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'expiry_date' => $endDate->toDateString(),
+            ]);
+            $application->save();
+
+            AdvertiserApplicationStatusHistory::create([
+                'application_id' => $application->id,
+                'old_status' => $oldStatus,
+                'new_status' => AdvertiserApplication::STATUS_UNDER_REVIEW,
+                'changed_by' => $application->user_id,
+                'actor_type' => $payment ? 'webhook' : 'applicant',
+                'notes' => 'Payment completed. Pending admin approval to publish Brand Partner.',
+                'metadata' => [
+                    'payment_id' => $payment?->id,
+                    'razorpay_payment_id' => $payment?->provider_payment_id,
+                    'amount' => $payment?->amount ?? $subscription->amount,
+                    'start_date' => $startDate->toDateString(),
+                    'end_date' => $endDate->toDateString(),
+                ],
+                'created_at' => now(),
+            ]);
+        }
     }
 
     /**
@@ -511,7 +596,7 @@ class AdvertiserPaymentService
                         $package = $packageId ? AdvertiserPackage::find($packageId) : null;
                         $this->publicationService->extendSubscription($localPayment->subscription, $durationMonths, $package);
                     } else {
-                        $this->publicationService->activateAndPublish($localPayment->subscription);
+                        $this->markPaymentCompletedPendingAdminPublish($localPayment->subscription, $localPayment);
                     }
                 });
             }
@@ -558,7 +643,7 @@ class AdvertiserPaymentService
                     $payment->verified_at = now();
                     $payment->save();
 
-                    $this->publicationService->activateAndPublish($payment->subscription);
+                    $this->markPaymentCompletedPendingAdminPublish($payment->subscription, $payment);
                 });
             } elseif ($remoteStatus === 'failed') {
                 $payment->update([

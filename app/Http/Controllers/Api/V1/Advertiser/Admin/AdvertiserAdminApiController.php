@@ -41,11 +41,11 @@ class AdvertiserAdminApiController extends BaseApiController
     {
         $query = AdvertiserPackage::ordered();
 
-        if ($request->has('status') && !empty($request->query('status'))) {
+        if ($request->has('status') && ! empty($request->query('status'))) {
             $query->where('is_active', $request->query('status') === 'active');
         }
 
-        if ($request->has('q') && !empty($request->query('q'))) {
+        if ($request->has('q') && ! empty($request->query('q'))) {
             $q = trim((string) $request->query('q'));
             $query->where(function ($sub) use ($q) {
                 $sub->where('name', 'ILIKE', "%{$q}%")
@@ -78,7 +78,7 @@ class AdvertiserAdminApiController extends BaseApiController
         $slug = $baseSlug;
         $counter = 1;
         while (AdvertiserPackage::where('slug', $slug)->exists()) {
-            $slug = "{$baseSlug}-" . $counter;
+            $slug = "{$baseSlug}-".$counter;
             $counter++;
         }
 
@@ -104,7 +104,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function showPackage(string $id): JsonResponse
     {
         $package = AdvertiserPackage::find($id);
-        if (!$package) {
+        if (! $package) {
             return $this->error('Package not found.', 404);
         }
 
@@ -114,7 +114,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function updatePackage(Request $request, string $id): JsonResponse
     {
         $package = AdvertiserPackage::find($id);
-        if (!$package) {
+        if (! $package) {
             return $this->error('Package not found.', 404);
         }
 
@@ -171,7 +171,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function togglePackageStatus(Request $request, string $id): JsonResponse
     {
         $package = AdvertiserPackage::find($id);
-        if (!$package) {
+        if (! $package) {
             return $this->error('Package not found.', 404);
         }
 
@@ -179,7 +179,7 @@ class AdvertiserAdminApiController extends BaseApiController
         if ($status !== null) {
             $package->is_active = ($status === 'active' || (bool) $status);
         } else {
-            $package->is_active = !$package->is_active;
+            $package->is_active = ! $package->is_active;
         }
 
         $package->updated_by = auth()->id();
@@ -212,9 +212,15 @@ class AdvertiserAdminApiController extends BaseApiController
 
     public function applications(Request $request): JsonResponse
     {
-        $query = AdvertiserApplication::with(['package', 'user'])->orderByDesc('created_at');
+        $query = AdvertiserApplication::with([
+            'package',
+            'user',
+            'assets',
+            'brandPartner',
+            'subscriptions.payments',
+        ])->orderByDesc('created_at');
 
-        if ($request->has('q') && !empty($request->query('q'))) {
+        if ($request->has('q') && ! empty($request->query('q'))) {
             $q = trim((string) $request->query('q'));
             $query->where(function ($sub) use ($q) {
                 $sub->where('application_number', 'ILIKE', "%{$q}%")
@@ -224,27 +230,34 @@ class AdvertiserAdminApiController extends BaseApiController
             });
         }
 
-        if ($request->has('status') && !empty($request->query('status'))) {
-            $query->where('status', $request->query('status'));
+        if ($request->has('status') && ! empty($request->query('status'))) {
+            $statusFilter = (string) $request->query('status');
+            if ($statusFilter === 'pending_publish') {
+                $query->where('status', AdvertiserApplication::STATUS_UNDER_REVIEW);
+            } else {
+                $query->where('status', $statusFilter);
+            }
         }
 
-        if ($request->has('package_id') && !empty($request->query('package_id'))) {
+        if ($request->has('package_id') && ! empty($request->query('package_id'))) {
             $query->where('package_id', $request->query('package_id'));
         }
 
-        if ($request->has('source') && !empty($request->query('source'))) {
+        if ($request->has('source') && ! empty($request->query('source'))) {
             $query->where('source', $request->query('source'));
         }
 
-        if ($request->has('from') && !empty($request->query('from'))) {
+        if ($request->has('from') && ! empty($request->query('from'))) {
             $query->whereDate('created_at', '>=', $request->query('from'));
         }
-        if ($request->has('to') && !empty($request->query('to'))) {
+        if ($request->has('to') && ! empty($request->query('to'))) {
             $query->whereDate('created_at', '<=', $request->query('to'));
         }
 
         $perPage = (int) $request->query('per_page', 20);
         $apps = $query->paginate($perPage);
+
+        $apps->through(fn (AdvertiserApplication $app) => $this->enrichApplicationForAdmin($app));
 
         return $this->success($apps, 'Applications retrieved successfully.');
     }
@@ -260,17 +273,86 @@ class AdvertiserAdminApiController extends BaseApiController
             'reviewer',
         ])->find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
-        return $this->success($application, 'Application details retrieved.');
+        return $this->success($this->enrichApplicationForAdmin($application), 'Application details retrieved.');
+    }
+
+    /**
+     * Enrich application model with payment, publication, start_date, and calculated expiry_date details for Admin UI.
+     */
+    protected function enrichApplicationForAdmin(AdvertiserApplication $application): AdvertiserApplication
+    {
+        $sub = $application->subscriptions->first();
+        $latestPayment = $sub?->payments->first();
+        $meta = is_array($application->metadata) ? $application->metadata : [];
+
+        $isPaid = (
+            $latestPayment?->status === AdvertiserPayment::STATUS_CAPTURED ||
+            ! empty($meta['payment_completed']) ||
+            $sub?->status === AdvertiserSubscription::STATUS_ACTIVE ||
+            $application->status === AdvertiserApplication::STATUS_ACTIVE
+        );
+
+        $isPublished = (
+            ! empty($application->brand_partner_id) &&
+            ($application->brandPartner?->is_active ?? false) &&
+            $sub?->status === AdvertiserSubscription::STATUS_ACTIVE
+        );
+
+        $durationMonths = max(
+            1,
+            (int) ($application->requested_duration_months ?: $sub?->duration_months ?: $application->package?->duration_months ?: 1)
+        );
+
+        $rawStart = $application->requested_start_date?->format('Y-m-d')
+            ?? $sub?->starts_at?->format('Y-m-d')
+            ?? ($meta['start_date'] ?? null)
+            ?? $application->created_at?->format('Y-m-d')
+            ?? now()->toDateString();
+
+        try {
+            $startCarbon = Carbon::parse($rawStart)->startOfDay();
+        } catch (\Throwable) {
+            $startCarbon = now()->startOfDay();
+        }
+
+        $endCarbon = $sub?->expires_at
+            ? Carbon::parse($sub->expires_at)->endOfDay()
+            : $startCarbon->copy()->addMonths($durationMonths)->endOfDay();
+
+        $publicationStatus = $isPublished
+            ? 'published'
+            : ($isPaid
+                ? 'pending_admin_approval'
+                : (in_array($application->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)
+                    ? $application->status
+                    : 'pending_payment'));
+
+        $application->setAttribute('is_paid', $isPaid);
+        $application->setAttribute('payment_status', $latestPayment?->status ?? ($isPaid ? 'captured' : 'pending'));
+        $application->setAttribute('payment_id', $latestPayment?->id ?? ($meta['payment_id'] ?? null));
+        $application->setAttribute('razorpay_payment_id', $latestPayment?->provider_payment_id ?? ($meta['razorpay_payment_id'] ?? null));
+        $application->setAttribute('razorpay_order_id', $latestPayment?->provider_order_id ?? ($meta['razorpay_order_id'] ?? null));
+        $application->setAttribute('paid_amount', $latestPayment?->amount ?? ($meta['paid_amount'] ?? $application->requested_package_price));
+        $application->setAttribute('paid_at', $latestPayment?->captured_at?->toIso8601String() ?? ($meta['paid_at'] ?? null));
+        $application->setAttribute('is_published', $isPublished);
+        $application->setAttribute('publication_status', $publicationStatus);
+        $application->setAttribute('start_date', $startCarbon->toDateString());
+        $application->setAttribute('end_date', $endCarbon->toDateString());
+        $application->setAttribute('expiry_date', $endCarbon->toDateString());
+        $application->setAttribute('valid_from', $startCarbon->toIso8601String());
+        $application->setAttribute('valid_to', $endCarbon->toIso8601String());
+
+        return $application;
     }
 
     public function startReview(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -297,7 +379,7 @@ class AdvertiserAdminApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -319,13 +401,29 @@ class AdvertiserAdminApiController extends BaseApiController
 
     public function approve(Request $request, string $id): JsonResponse
     {
-        $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        $application = AdvertiserApplication::with(['package', 'assets', 'subscriptions.payments'])->find($id);
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
-        $note = (string) $request->input('admin_note', 'Company details and creatives approved.');
+        $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'preferred_start_date' => ['nullable', 'date'],
+            'requested_start_date' => ['nullable', 'date'],
+            'admin_note' => ['nullable', 'string'],
+            'applicant_message' => ['nullable', 'string'],
+        ]);
+
+        $note = (string) $request->input('admin_note', 'Brand Partner application approved and published by admin.');
         $applicantMessage = $request->input('applicant_message');
+        $overrideStartDate = $request->input('start_date')
+            ?? $request->input('preferred_start_date')
+            ?? $request->input('requested_start_date');
+
+        if (! empty($overrideStartDate)) {
+            $application->requested_start_date = Carbon::parse((string) $overrideStartDate)->toDateString();
+            $application->save();
+        }
 
         $updated = $this->applicationService->transitionStatus(
             application: $application,
@@ -333,10 +431,19 @@ class AdvertiserAdminApiController extends BaseApiController
             actorType: 'admin',
             actorId: auth()->id(),
             notes: $note,
-            metadata: ['applicant_message' => $applicantMessage]
+            metadata: [
+                'applicant_message' => $applicantMessage,
+                'start_date' => $application->requested_start_date?->format('Y-m-d'),
+            ]
         );
 
-        // Ensure a pending subscription record is initialized
+        $durationMonths = max(1, (int) ($updated->requested_duration_months ?: $updated->package?->duration_months ?: 1));
+        $startCarbon = $updated->requested_start_date
+            ? Carbon::parse($updated->requested_start_date)->startOfDay()
+            : now()->startOfDay();
+        $endCarbon = $startCarbon->copy()->addMonths($durationMonths)->endOfDay();
+
+        // Ensure a subscription record is initialized
         $subscription = AdvertiserSubscription::firstOrCreate(
             ['application_id' => $updated->id],
             [
@@ -344,22 +451,43 @@ class AdvertiserAdminApiController extends BaseApiController
                 'brand_partner_id' => $updated->brand_partner_id,
                 'package_id' => $updated->package_id,
                 'package_name_snapshot' => $updated->requested_package_name ?? 'Standard Package',
-                'duration_months' => $updated->requested_duration_months ?: 1,
+                'duration_months' => $durationMonths,
                 'amount' => $updated->requested_package_price ?? 0.0,
                 'currency' => $updated->requested_currency ?? 'INR',
                 'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                'starts_at' => $startCarbon,
+                'expires_at' => $endCarbon,
             ]
         );
 
-        $paymentRequired = ((float) $subscription->amount > 0);
+        // Publish Brand Partner based on the selected start_date and package duration
+        $partner = $this->publicationService->activateAndPublish(
+            $subscription,
+            $startCarbon->toDateString()
+        );
+
+        $freshSub = $subscription->fresh();
 
         return $this->success([
             'application_id' => $updated->id,
             'status' => $updated->status,
             'subscription_id' => $subscription->id,
-            'payment_required' => $paymentRequired,
-            'next_action' => $paymentRequired ? 'complete_payment' : 'publish_free_campaign',
-        ], 'Application approved successfully.');
+            'brand_partner_id' => $partner->id,
+            'is_published' => true,
+            'publication_status' => 'published',
+            'start_date' => $freshSub?->starts_at?->format('Y-m-d') ?? $startCarbon->toDateString(),
+            'end_date' => $freshSub?->expires_at?->format('Y-m-d') ?? $endCarbon->toDateString(),
+            'expiry_date' => $freshSub?->expires_at?->format('Y-m-d') ?? $endCarbon->toDateString(),
+            'valid_from' => $freshSub?->starts_at?->toIso8601String() ?? $startCarbon->toIso8601String(),
+            'valid_to' => $freshSub?->expires_at?->toIso8601String() ?? $endCarbon->toIso8601String(),
+            'payment_required' => false,
+            'next_action' => null,
+        ], 'Brand Partner approved and published successfully.');
+    }
+
+    public function publishApplication(Request $request, string $id): JsonResponse
+    {
+        return $this->approve($request, $id);
     }
 
     public function reject(Request $request, string $id): JsonResponse
@@ -370,7 +498,7 @@ class AdvertiserAdminApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -406,7 +534,7 @@ class AdvertiserAdminApiController extends BaseApiController
             ->where('id', $assetId)
             ->first();
 
-        if (!$asset) {
+        if (! $asset) {
             return $this->error('Asset not found.', 404);
         }
 
@@ -424,7 +552,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function history(string $id): JsonResponse
     {
         $application = AdvertiserApplication::with('statusHistory.user')->find($id);
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -441,7 +569,7 @@ class AdvertiserAdminApiController extends BaseApiController
             'subscriptions.payments',
         ])->find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -501,7 +629,7 @@ class AdvertiserAdminApiController extends BaseApiController
     {
         $query = AdvertiserSubscription::with(['application', 'brandPartner', 'package'])->orderByDesc('created_at');
 
-        if ($request->has('status') && !empty($request->query('status'))) {
+        if ($request->has('status') && ! empty($request->query('status'))) {
             $query->where('status', $request->query('status'));
         }
 
@@ -515,7 +643,7 @@ class AdvertiserAdminApiController extends BaseApiController
     {
         $query = AdvertiserPayment::with('subscription.application')->orderByDesc('created_at');
 
-        if ($request->has('status') && !empty($request->query('status'))) {
+        if ($request->has('status') && ! empty($request->query('status'))) {
             $query->where('status', $request->query('status'));
         }
 
@@ -528,7 +656,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function subscriptionDetails(string $id): JsonResponse
     {
         $sub = AdvertiserSubscription::with(['application.assets', 'brandPartner', 'payments', 'package'])->find($id);
-        if (!$sub) {
+        if (! $sub) {
             return $this->error('Subscription not found.', 404);
         }
 
@@ -538,7 +666,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function paymentDetails(string $id): JsonResponse
     {
         $payment = AdvertiserPayment::with('subscription.application')->find($id);
-        if (!$payment) {
+        if (! $payment) {
             return $this->error('Payment not found.', 404);
         }
 
@@ -548,7 +676,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function reconcilePayment(Request $request, string $id): JsonResponse
     {
         $payment = AdvertiserPayment::find($id);
-        if (!$payment) {
+        if (! $payment) {
             return $this->error('Payment not found.', 404);
         }
 
@@ -623,7 +751,7 @@ class AdvertiserAdminApiController extends BaseApiController
             'reviewer',
         ])->find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -638,7 +766,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function reviewCampaign(Request $request, string $id): JsonResponse
     {
         $campaign = AdvertiserCampaign::find($id);
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -664,7 +792,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function publishCampaign(Request $request, string $id): JsonResponse
     {
         $campaign = AdvertiserCampaign::find($id);
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -680,7 +808,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function pauseCampaign(Request $request, string $id): JsonResponse
     {
         $campaign = AdvertiserCampaign::find($id);
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -696,7 +824,7 @@ class AdvertiserAdminApiController extends BaseApiController
     public function resumeCampaign(Request $request, string $id): JsonResponse
     {
         $campaign = AdvertiserCampaign::find($id);
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
