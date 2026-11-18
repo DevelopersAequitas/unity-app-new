@@ -77,6 +77,7 @@ class LeadershipNomination extends Model
         'form_2_status',
         'form_2_data',
         'jury_evaluation',
+        'creative_url',
     ];
 
     /**
@@ -272,35 +273,52 @@ class LeadershipNomination extends Model
 
     public function getPhotoUrlAttribute(): ?string
     {
-        // 1. Check profile snapshot
-        $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot)) {
-            $url = $snapshot['photo_url']
-                ?? $snapshot['profile_photo_url']
-                ?? $snapshot['avatar_url']
-                ?? $snapshot['avatar']
-                ?? $snapshot['image_url']
-                ?? $snapshot['image']
+        $extractUrl = function ($data): ?string {
+            if (! is_array($data)) {
+                return null;
+            }
+
+            // Check nested profile object from website portal schema: profile.photo_url
+            if (isset($data['profile']) && is_array($data['profile'])) {
+                $nested = $data['profile']['photo_url']
+                    ?? $data['profile']['photo']
+                    ?? $data['profile']['avatar_url']
+                    ?? $data['profile']['image_url']
+                    ?? $data['profile']['avatar']
+                    ?? null;
+
+                if (! empty($nested) && is_string($nested)) {
+                    return $nested;
+                }
+            }
+
+            $url = $data['photo_url']
+                ?? $data['profile_photo_url']
+                ?? $data['avatar_url']
+                ?? $data['avatar']
+                ?? $data['image_url']
+                ?? $data['image']
+                ?? $data['profile_photo']
+                ?? $data['photo']
                 ?? null;
 
-            if (! empty($url) && is_string($url) && (str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || str_starts_with($url, '/'))) {
+            if (! empty($url) && is_string($url)) {
                 return $url;
             }
+
+            return null;
+        };
+
+        // 1. Check profile snapshot
+        $url = $extractUrl($this->profile_snapshot);
+        if ($url) {
+            return $url;
         }
 
         // 2. Check edited profile
-        $edited = $this->edited_profile;
-        if (is_array($edited)) {
-            $url = $edited['photo_url']
-                ?? $edited['profile_photo_url']
-                ?? $edited['avatar_url']
-                ?? $edited['avatar']
-                ?? $edited['image_url']
-                ?? null;
-
-            if (! empty($url) && is_string($url) && (str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || str_starts_with($url, '/'))) {
-                return $url;
-            }
+        $url = $extractUrl($this->edited_profile);
+        if ($url) {
+            return $url;
         }
 
         // 3. Check attached Unity user account
@@ -321,18 +339,23 @@ class LeadershipNomination extends Model
         }
 
         // 5. Check uploaded documents for portrait photo or image
-        if ($this->relationLoaded('documents') && $this->documents->isNotEmpty()) {
-            $photoDoc = $this->documents->first(function ($doc) {
-                $type = strtolower((string) ($doc->document_type ?? ''));
+        try {
+            $docs = $this->relationLoaded('documents') ? $this->documents : $this->documents()->get();
+            if ($docs && $docs->isNotEmpty()) {
+                $photoDoc = $docs->first(function ($doc) {
+                    $type = strtolower((string) ($doc->document_type ?? ''));
 
-                return in_array($type, ['profile_photo', 'photo', 'avatar', 'profile_image', 'candidate_photo', 'kyc_id_proof', 'image'], true)
-                    || str_contains($type, 'photo')
-                    || str_contains($type, 'image');
-            });
+                    return in_array($type, ['profile_photo', 'photo', 'avatar', 'profile_image', 'candidate_photo', 'kyc_id_proof', 'image', 'id_proof'], true)
+                        || str_contains($type, 'photo')
+                        || str_contains($type, 'image');
+                });
 
-            if ($photoDoc && ! empty($photoDoc->file_url)) {
-                return $photoDoc->file_url;
+                if ($photoDoc && ! empty($photoDoc->file_url)) {
+                    return $photoDoc->file_url;
+                }
             }
+        } catch (\Throwable) {
+            // Safe fallback if documents query fails
         }
 
         return null;
@@ -351,6 +374,29 @@ class LeadershipNomination extends Model
     public function getImageUrlAttribute(): ?string
     {
         return $this->getPhotoUrlAttribute();
+    }
+
+    public function getCreativeUrlAttribute(): ?string
+    {
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['creative_url'])) {
+            return (string) $snapshot['creative_url'];
+        }
+
+        $relativePath = "creatives/leadership/nomination_{$this->id}.png";
+        $disk = config('filesystems.default', 'public');
+        if (\Illuminate\Support\Facades\Storage::disk($disk)->exists($relativePath) || \Illuminate\Support\Facades\Storage::disk('public')->exists($relativePath)) {
+            $url = \Illuminate\Support\Facades\Storage::disk('public')->url($relativePath);
+            if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
+                $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+
+                return $appUrl.'/'.ltrim($url, '/');
+            }
+
+            return $url;
+        }
+
+        return null;
     }
 
     public function getBioAttribute(): string

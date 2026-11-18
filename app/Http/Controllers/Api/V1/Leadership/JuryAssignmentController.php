@@ -245,7 +245,9 @@ class JuryAssignmentController extends LeadershipBaseController
     public function adminAssign(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'nomination_id' => 'required|string',
+            'nomination_id' => 'nullable|string',
+            'nomination_ids' => 'nullable|array',
+            'nomination_ids.*' => 'string',
             'campaign_id' => 'nullable|uuid',
             'jury_user_id' => 'nullable|uuid',
             'juror_user_ids' => 'nullable|array',
@@ -255,7 +257,9 @@ class JuryAssignmentController extends LeadershipBaseController
             'remarks' => 'nullable|string',
         ]);
 
-        $nominationId = (string) $validated['nomination_id'];
+        $nominationId = (string) ($validated['nomination_id'] ?? '');
+        $nominationIds = ! empty($validated['nomination_ids']) ? (array) $validated['nomination_ids'] : [];
+
         $jurorIds = [];
         if (! empty($validated['jury_user_id'])) {
             $jurorIds[] = $validated['jury_user_id'];
@@ -294,7 +298,35 @@ class JuryAssignmentController extends LeadershipBaseController
                 Auth::id()
             );
 
-            if ($nominationId === 'all') {
+            // Multi-candidate bulk assignment
+            if (! empty($nominationIds)) {
+                $totalCreated = 0;
+                $allAssignments = new \Illuminate\Database\Eloquent\Collection;
+                $allAssignments = $allAssignments->merge($standingRes['assignments']);
+
+                foreach ($nominationIds as $nId) {
+                    if ($nId === 'all') {
+                        continue;
+                    }
+                    $res = $this->juryService->assignJurors(
+                        (string) $nId,
+                        $jurorIds,
+                        $dueAt ? (string) $dueAt : null,
+                        $remarks,
+                        Auth::id()
+                    );
+                    $totalCreated += $res['assignments_created'];
+                    $allAssignments = $allAssignments->merge($res['assignments']);
+                }
+
+                return $this->success([
+                    'assignments_created' => $totalCreated,
+                    'assignments' => $allAssignments,
+                    'candidates_assigned' => count($nominationIds),
+                ], 'Juror(s) assigned to '.count($nominationIds).' candidate application(s) successfully.', 201);
+            }
+
+            if ($nominationId === 'all' || empty($nominationId)) {
                 $campaignId = $validated['campaign_id'] ?? $request->input('campaign_id');
                 $nomQuery = \App\Models\Leadership\LeadershipNomination::query()
                     ->where('application_number', '!=', 'PG-STANDING-POOL')
@@ -377,14 +409,51 @@ class JuryAssignmentController extends LeadershipBaseController
      */
     public function adminCriteria(Request $request): JsonResponse
     {
+        $campaignId = $request->query('campaign_id');
+        if (! $campaignId) {
+            $campaignId = \App\Models\Leadership\LeadershipCampaign::orderBy('created_at', 'desc')->value('id');
+        }
+
         $query = \App\Models\Leadership\LeadershipJuryEvaluationCriterion::query()
             ->orderBy('sort_order', 'asc');
 
-        if ($request->filled('campaign_id')) {
-            $query->where('campaign_id', $request->query('campaign_id'));
+        if ($campaignId) {
+            $query->where('campaign_id', $campaignId);
         }
 
         $criteria = $query->get();
+
+        // Auto-seed the 8 standard criteria requested by leadership if none exist
+        if ($criteria->isEmpty() && $campaignId) {
+            $defaultCriteria = [
+                ['name' => 'Leadership of leaders', 'category' => 'Leadership Capability', 'description' => 'Ability to inspire, align, and empower peer leaders', 'weight' => 15.0, 'sort_order' => 1],
+                ['name' => 'Execution capability', 'category' => 'Execution Rigor', 'description' => 'Track record of delivering results, operational rigor, and accountability', 'weight' => 15.0, 'sort_order' => 2],
+                ['name' => 'Leadership Bench strength (quality and status of the named people)', 'category' => 'Bench Depth', 'description' => 'Depth, credibility, and readiness of the proposed leadership team', 'weight' => 15.0, 'sort_order' => 3],
+                ['name' => 'Community-building track record', 'category' => 'Community Impact', 'description' => 'Evidence of fostering high-trust circles, giving first, and peer collaboration', 'weight' => 15.0, 'sort_order' => 4],
+                ['name' => 'Business credibility', 'category' => 'Business Stature', 'description' => 'Soundness of enterprise background, reputation, and ethical standing', 'weight' => 10.0, 'sort_order' => 5],
+                ['name' => 'Vision and plan realism', 'category' => 'Strategic Vision', 'description' => 'Clarity, feasibility, and milestones of the 12-month build plan', 'weight' => 10.0, 'sort_order' => 6],
+                ['name' => 'Commitment and availability', 'category' => 'Availability & Time', 'description' => 'Time allocation, presence, and responsiveness to chapter/district needs', 'weight' => 10.0, 'sort_order' => 7],
+                ['name' => 'Values alignment', 'category' => 'Culture & Integrity', 'description' => 'Embodiment of Partners in business, friends in life principle and code of conduct', 'weight' => 10.0, 'sort_order' => 8],
+            ];
+
+            foreach ($defaultCriteria as $c) {
+                \App\Models\Leadership\LeadershipJuryEvaluationCriterion::create([
+                    'campaign_id' => $campaignId,
+                    'criterion_key' => $c['category'],
+                    'name' => $c['name'],
+                    'description' => $c['description'],
+                    'max_score' => 10.0,
+                    'weight' => (float) $c['weight'],
+                    'sort_order' => (int) $c['sort_order'],
+                    'is_active' => true,
+                    'is_required' => true,
+                ]);
+            }
+
+            $criteria = \App\Models\Leadership\LeadershipJuryEvaluationCriterion::where('campaign_id', $campaignId)
+                ->orderBy('sort_order', 'asc')
+                ->get();
+        }
 
         return $this->success($criteria, 'Evaluation criteria fetched successfully.');
     }

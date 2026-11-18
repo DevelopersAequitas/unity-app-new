@@ -478,11 +478,16 @@
                             <input type="hidden" id="currentAssignmentId">
                             
                             <div class="bg-white p-4 rounded-4 border shadow-xs mb-4">
-                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Criteria Evaluation (Scoring)</h6>
+                                <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+                                    <h6 class="fw-bold text-dark mb-0">Criteria Evaluation (Scoring)</h6>
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-1 fw-semibold" onclick="showAddCustomCriterionPrompt()">
+                                        <i class="fa-solid fa-plus me-1"></i> Add Custom Criterion
+                                    </button>
+                                </div>
                                 
                                 <div id="criteriaList">
                                     @foreach($criteria as $crit)
-                                        <div class="score-slider-box">
+                                        <div class="score-slider-box" id="crit-box-{{ $crit->id }}">
                                             <div class="d-flex align-items-center justify-content-between mb-2">
                                                 <div>
                                                     <span class="fw-bold text-dark">{{ $crit->name }}</span>
@@ -501,6 +506,7 @@
                                                 step="0.5" 
                                                 value="8" 
                                                 data-criterion-id="{{ $crit->id }}"
+                                                data-criterion-name="{{ $crit->name }}"
                                                 id="range-{{ $crit->id }}"
                                                 oninput="updateScoreDisplay('{{ $crit->id }}', this.value)"
                                             >
@@ -553,6 +559,32 @@
                                         <label class="form-label small fw-bold text-dark">Key Concerns or Limitations *</label>
                                         <textarea id="evalConcerns" class="form-control" rows="3" placeholder="Note potential operational bottlenecks, bandwidth risks, or reservations..." required></textarea>
                                     </div>
+                                    <div class="col-12">
+                                        <div class="p-3 rounded-3 border bg-light-subtle">
+                                            <label class="form-label small fw-bold text-dark d-flex align-items-center gap-1.5 mb-2">
+                                                <i class="fa-solid fa-shield-halved text-primary"></i>
+                                                Juror Conflict of Interest Check *
+                                            </label>
+                                            <div class="d-flex flex-column gap-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="juror_conflict_check" id="conflictNone" value="none" checked onchange="toggleConflictDetails(false)">
+                                                    <label class="form-check-label small text-dark fw-medium" for="conflictNone">
+                                                        I confirm that I have <strong>no personal, business, or competitive conflict of interest</strong> with this candidate.
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="juror_conflict_check" id="conflictExists" value="exists" onchange="toggleConflictDetails(true)">
+                                                    <label class="form-check-label small text-danger fw-medium" for="conflictExists">
+                                                        I disclose a potential conflict of interest or close commercial/personal tie with this candidate.
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div id="conflictDetailsBox" class="mt-2" style="display: none;">
+                                                <textarea id="evalConflictDetails" class="form-control form-control-sm" rows="2" placeholder="Describe nature of the conflict of interest..."></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="col-12">
                                         <label class="form-label small fw-semibold text-muted">Final Remarks & Recommendation Summary</label>
                                         <textarea id="evalRemarks" class="form-control" rows="2" placeholder="Optional notes for the Final Decision Board..."></textarea>
@@ -999,6 +1031,19 @@ function applyReviewFormState(existing, isViewOnly) {
     if (elConcerns) elConcerns.value = existing?.concerns || '';
     if (elRemarks) elRemarks.value = existing?.final_remarks || '';
 
+    // Conflict of Interest
+    if (existing?.conflict_of_interest) {
+        const confRadio = document.getElementById('conflictExists');
+        if (confRadio) confRadio.checked = true;
+        toggleConflictDetails(true);
+        const confBox = document.getElementById('evalConflictDetails');
+        if (confBox) confBox.value = existing.conflict_details || '';
+    } else {
+        const confRadio = document.getElementById('conflictNone');
+        if (confRadio) confRadio.checked = true;
+        toggleConflictDetails(false);
+    }
+
     // Scores
     if (existing?.scores && Array.isArray(existing.scores)) {
         existing.scores.forEach(s => {
@@ -1047,6 +1092,50 @@ function applyReviewFormState(existing, isViewOnly) {
     }
 }
 
+function toggleConflictDetails(show) {
+    const box = document.getElementById('conflictDetailsBox');
+    if (box) box.style.display = show ? 'block' : 'none';
+}
+
+function showAddCustomCriterionPrompt() {
+    const name = prompt('Enter the name of your custom evaluation criterion (e.g. "Startup Mentorship Track Record"):');
+    if (!name || !name.trim()) return;
+
+    const customId = 'custom_' + Date.now();
+    const criteriaList = document.getElementById('criteriaList');
+    if (!criteriaList) return;
+
+    const newBox = document.createElement('div');
+    newBox.className = 'score-slider-box border border-primary-subtle bg-primary-subtle bg-opacity-10';
+    newBox.id = 'crit-box-' + customId;
+    newBox.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div>
+                <span class="fw-bold text-dark">${name.trim()}</span>
+                <span class="badge bg-primary text-white border ms-2" style="font-size: 11px;">Custom Juror Metric</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-primary fs-5" id="score-val-${customId}">8</span>
+                <span class="text-muted small">/ 10 pts</span>
+            </div>
+        </div>
+        <input 
+            type="range" 
+            class="form-range" 
+            min="0" 
+            max="10" 
+            step="0.5" 
+            value="8" 
+            data-criterion-id="${customId}"
+            data-criterion-name="${name.trim()}"
+            id="range-${customId}"
+            oninput="updateScoreDisplay('${customId}', this.value)"
+        >
+        <p class="text-muted small mb-0 mt-1" style="font-size: 12px;">Dynamic criterion added by evaluation juror.</p>
+    `;
+    criteriaList.appendChild(newBox);
+}
+
 // Handle Review Submission
 async function handleReviewSubmit(e) {
     e.preventDefault();
@@ -1060,12 +1149,29 @@ async function handleReviewSubmit(e) {
     const recInput = document.querySelector('input[name="overall_recommendation"]:checked');
     const recommendation = recInput ? recInput.value : 'recommend';
 
-    // Collect scores
+    if (!strengths) {
+        alert('Strengths are mandatory. Please provide candidate strengths.');
+        document.getElementById('evalStrengths').focus();
+        return;
+    }
+
+    if (!concerns) {
+        alert('Concerns are mandatory. Please provide candidate concerns or limitations.');
+        document.getElementById('evalConcerns').focus();
+        return;
+    }
+
+    const conflictRadio = document.querySelector('input[name="juror_conflict_check"]:checked');
+    const conflictExists = conflictRadio && conflictRadio.value === 'exists';
+    const conflictDetails = conflictExists ? (document.getElementById('evalConflictDetails')?.value.trim() || 'Conflict disclosed') : null;
+
+    // Collect scores (standard and dynamic custom criteria)
     const scoreInputs = document.querySelectorAll('input[type="range"][data-criterion-id]');
     const scores = [];
     scoreInputs.forEach(input => {
         scores.push({
             criterion_id: input.getAttribute('data-criterion-id'),
+            criterion_name: input.getAttribute('data-criterion-name') || '',
             score: parseFloat(input.value)
         });
     });
@@ -1087,6 +1193,8 @@ async function handleReviewSubmit(e) {
                 overall_recommendation: recommendation,
                 strengths: strengths,
                 concerns: concerns,
+                conflict_of_interest: conflictExists,
+                conflict_details: conflictDetails,
                 final_remarks: remarks,
                 scores: scores
             })

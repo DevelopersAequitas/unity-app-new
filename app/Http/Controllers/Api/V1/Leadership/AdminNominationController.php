@@ -242,6 +242,21 @@ class AdminNominationController extends LeadershipBaseController
     }
 
     /**
+     * F10b. Generate or regenerate official candidate announcement creative.
+     */
+    public function generateCreative(string $id): JsonResponse
+    {
+        try {
+            $nomination = LeadershipNomination::findOrFail($id);
+            $result = app(\App\Services\Leadership\LeadershipNominationCreativeService::class)->generate($nomination);
+
+            return $this->success($result, 'Official candidate announcement creative generated successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
      * F11. Proceed selected nominee to Jury (shortlist and send Form 2 link).
      */
     public function proceedToJury(Request $request, string $id): JsonResponse

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Leadership;
 
+use App\Mail\Leadership\LeadershipNominationApprovedMail;
+use App\Mail\Leadership\LeadershipShortlistedJuryMail;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
@@ -324,6 +326,48 @@ class AdminNominationService
             $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
         }
 
+        // Load detailed jury evaluation assignments, juror details, criteria scores, and report
+        $nomination->loadMissing([
+            'juryAssignments.juror',
+            'juryAssignments.report',
+            'juryAssignments.scores.criterion',
+        ]);
+
+        // If parent/child -F2 relationship, merge jury assignments if current record has none
+        if ($nomination->juryAssignments->isEmpty()) {
+            $altAppNum = str_ends_with((string) $nomination->application_number, '-F2')
+                ? substr((string) $nomination->application_number, 0, -3)
+                : $nomination->application_number.'-F2';
+            $altNom = LeadershipNomination::where('application_number', $altAppNum)->first();
+            if ($altNom) {
+                $altNom->loadMissing([
+                    'juryAssignments.juror',
+                    'juryAssignments.report',
+                    'juryAssignments.scores.criterion',
+                ]);
+                if ($altNom->juryAssignments->isNotEmpty()) {
+                    $nomination->setRelation('juryAssignments', $altNom->juryAssignments);
+                }
+            }
+        }
+
+        // Fetch detailed votes and voter breakdown for this nominee
+        try {
+            $votingService = app(VotingService::class);
+            $votesResult = $votingService->getDetailedVotes(
+                $nomination->campaign_id,
+                $nomination->id,
+                null,
+                1,
+                100
+            );
+            $nomination->setAttribute('detailed_votes', $votesResult['data'] ?? []);
+            $nomination->setAttribute('votes_count', $votesResult['total'] ?? $nomination->votes()->count());
+        } catch (\Throwable $e) {
+            $nomination->setAttribute('detailed_votes', []);
+            $nomination->setAttribute('votes_count', $nomination->votes()->count());
+        }
+
         return $nomination;
     }
 
@@ -602,9 +646,20 @@ class AdminNominationService
         $phone = $nomination->mobile;
         $candidateName = $nomination->full_name ?: 'Candidate';
         $campaignName = $nomination->campaign?->name ?? 'Leadership Campaign';
-        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+        $roleName = $nomination->applied_role_name ?? $nomination->campaign?->role?->name ?? 'Leadership Role';
         $appNumber = $nomination->application_number;
         $votingLink = $nomination->voting_link;
+
+        // 0. Automatically generate official announcement creative
+        $creativeUrl = null;
+        $creativePath = null;
+        try {
+            $creativeResult = app(LeadershipNominationCreativeService::class)->generate($nomination);
+            $creativeUrl = $creativeResult['url'] ?? null;
+            $creativePath = $creativeResult['file_path'] ?? null;
+        } catch (\Throwable $e) {
+            Log::warning('Generating nomination announcement creative failed: '.$e->getMessage());
+        }
 
         // 1. Dispatch WhatsApp message
         if ($phone) {
@@ -617,6 +672,7 @@ class AdminNominationService
                     'application_number' => $appNumber,
                     'status' => 'Approved',
                     'voting_link' => $votingLink,
+                    'creative_url' => $creativeUrl,
                     'message' => "Congratulations {$candidateName}! Your nomination application ({$appNumber}) for {$roleName} in {$campaignName} has been officially APPROVED. Share your official voting link with peers to cast votes: {$votingLink}",
                 ];
 
@@ -631,50 +687,12 @@ class AdminNominationService
             }
         }
 
-        // 2. Dispatch Email with Shareable Voting Link
+        // 2. Dispatch Email with Shareable Voting Link & Official Creative Attachment
         if ($nomination->email) {
             try {
-                Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber, $votingLink) {
-                    $html = "
-                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;'>
-                        <div style='text-align: center; margin-bottom: 24px;'>
-                            <h2 style='color: #0f172a; margin-bottom: 4px;'>Nomination Application Approved</h2>
-                            <p style='color: #64748b; font-size: 14px;'>Peers Global Leadership Selection 2026</p>
-                        </div>
-                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
-                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
-                            We are pleased to inform you that your candidate nomination request for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong> has been officially <strong>APPROVED</strong> by the Scrutiny and Election Governance Committee.
-                        </p>
-                        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 20px 0;'>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Application Number:</strong> {$appNumber}</p>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Role:</strong> {$roleName}</p>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Status:</strong> <span style='color: #16a34a; font-weight: bold;'>Approved</span></p>
-                        </div>
-                        
-                        <div style='background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin: 20px 0; text-align: center;'>
-                            <h3 style='margin: 0 0 8px 0; color: #1e40af; font-size: 16px;'>Your Official Shareable Voting Link</h3>
-                            <p style='color: #475569; font-size: 13px; margin-bottom: 12px;'>Share this link with your network and fellow peers to receive votes:</p>
-                            <a href='{$votingLink}' target='_blank' style='display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 22px; border-radius: 6px; font-weight: bold; font-size: 14px;'>Cast / View Voting Booth</a>
-                            <p style='margin-top: 10px; font-size: 12px; color: #64748b; word-break: break-all;'>{$votingLink}</p>
-                        </div>
-
-                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
-                            Your profile has been advanced to the voter roster and jury assessment phase. You will receive further updates regarding voter interaction and ballot schedules.
-                        </p>
-                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
-                        <p style='color: #94a3b8; font-size: 12px; text-align: center;'>
-                            Peers Global Unity Platform &bull; Election Governance Committee
-                        </p>
-                    </div>";
-
-                    $fromAddr = (string) config('mail.from.address', 'support@peersglobal.com');
-                    $fromName = (string) config('mail.from.name', 'Peers Global Unity');
-
-                    $message->to($nomination->email)
-                        ->from($fromAddr, $fromName)
-                        ->subject("Your Nomination Request is Approved - Peers Global ({$appNumber})")
-                        ->html($html);
-                });
+                Mail::to($nomination->email)->send(
+                    new LeadershipNominationApprovedMail($nomination, $votingLink, $creativeUrl, $creativePath)
+                );
             } catch (\Throwable $e) {
                 Log::warning('Email nomination approval failed: '.$e->getMessage());
             }
@@ -684,7 +702,7 @@ class AdminNominationService
     /**
      * Manually trigger sending approval email and WhatsApp notification to candidate.
      *
-     * @return array{nomination_id: string, application_number: string, candidate_name: string, email: string|null, mobile: string|null, voting_link: string, sent_at: string}
+     * @return array{nomination_id: string, application_number: string, candidate_name: string, email: string|null, mobile: string|null, voting_link: string, creative_url: string|null, sent_at: string}
      */
     public function sendManualApprovalEmail(string $nominationId): array
     {
@@ -710,6 +728,7 @@ class AdminNominationService
             'email' => $nomination->email,
             'mobile' => $nomination->mobile,
             'voting_link' => $votingLink,
+            'creative_url' => $nomination->creative_url,
             'sent_at' => Carbon::now()->toIso8601String(),
         ];
     }
@@ -917,57 +936,7 @@ class AdminNominationService
         // 2. Email notification
         if ($nomination->email) {
             try {
-                Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber, $form2Link): void {
-                    $html = "
-                    <div style='font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;'>
-                        <div style='text-align: center; margin-bottom: 24px;'>
-                            <h2 style='color: #0f172a; margin-bottom: 4px; font-size: 22px;'>Shortlisted for Jury Evaluation</h2>
-                            <p style='color: #64748b; font-size: 14px; margin-top: 0;'>Peers Global Leadership Selection 2026</p>
-                        </div>
-                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
-                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
-                            Congratulations! Your candidacy for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong> has been <strong>SHORTLISTED</strong> by the Scrutiny and Governance Committee to proceed directly to the <strong>Jury Evaluation & Interview Phase</strong>.
-                        </p>
-                        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;'>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Application Number:</strong> {$appNumber}</p>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Position:</strong> {$roleName}</p>
-                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Status:</strong> <span style='color: #2563eb; font-weight: bold;'>Shortlisted for Jury</span></p>
-                        </div>
-                        
-                        <div style='background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px; margin: 24px 0; text-align: center;'>
-                            <h3 style='margin: 0 0 8px 0; color: #1e3a8a; font-size: 17px;'>Action Required: Complete Form 2 (Jury Evaluation Data)</h3>
-                            <p style='color: #475569; font-size: 13.5px; margin-bottom: 16px; line-height: 1.5;'>
-                                The Jury Panel requires detailed operational and bench data (business credibility, track record, leadership bench, and 12-month vision) to score your candidacy.
-                            </p>
-                            <a href='{$form2Link}' target='_blank' style='display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);'>Open Form 2: Jury Evaluation Form &rarr;</a>
-                            <p style='margin-top: 14px; font-size: 12px; color: #64748b;'>
-                                Or open directly in browser: <br/><a href='{$form2Link}' style='color: #2563eb; word-break: break-all;'>{$form2Link}</a>
-                            </p>
-                        </div>
-
-                        <div style='background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 14px; margin: 20px 0;'>
-                            <p style='margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;'>
-                                <strong>Important Security Note:</strong> When you open the form, you will be prompted to enter your registered email address (<code>{$nomination->email}</code>) to verify your identity and prevent application mismatch.
-                            </p>
-                        </div>
-
-                        <p style='color: #334155; font-size: 14.5px; line-height: 1.6;'>
-                            Please complete Form 2 at your earliest convenience so your file can be scheduled for Jury Board review.
-                        </p>
-                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
-                        <p style='color: #94a3b8; font-size: 12px; text-align: center; margin: 0;'>
-                            Peers Global Unity Platform &bull; Scrutiny & Election Governance Committee
-                        </p>
-                    </div>";
-
-                    $fromAddr = (string) config('mail.from.address', 'support@peersglobal.com');
-                    $fromName = (string) config('mail.from.name', 'Peers Global Unity');
-
-                    $message->to($nomination->email)
-                        ->from($fromAddr, $fromName)
-                        ->subject("Shortlisted: Please Complete Form 2 (Jury Evaluation Data) - Peers Global ({$appNumber})")
-                        ->html($html);
-                });
+                Mail::to($nomination->email)->send(new LeadershipShortlistedJuryMail($nomination, $form2Link));
             } catch (\Throwable $e) {
                 Log::warning('Email Form 2 dispatch failed: '.$e->getMessage());
             }

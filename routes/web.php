@@ -319,6 +319,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [JuryWebController::class, 'dashboard'])->name('dashboard');
         Route::get('/nomination/{id}/details', [JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
         Route::post('/review/{id}', [JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/criterion', [JuryWebController::class, 'addCriterion'])->name('criterion.add');
         Route::post('/logout', [JuryWebController::class, 'logout'])->name('logout');
         Route::get('/logout', [JuryWebController::class, 'logout'])->name('logout.get');
     });
