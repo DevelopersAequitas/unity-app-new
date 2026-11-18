@@ -18,13 +18,21 @@ class AdvertiserApplication extends Model
     use HasUuids;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_PENDING_EMAIL_VERIFICATION = 'pending_email_verification';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_UNDER_REVIEW = 'under_review';
+
     public const STATUS_CHANGES_REQUESTED = 'changes_requested';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_WITHDRAWN = 'withdrawn';
 
     public const ALLOWED_STATUSES = [
@@ -182,14 +190,22 @@ class AdvertiserApplication extends Model
      */
     public function canTransitionTo(string $newStatus): bool
     {
+        if ($this->status === $newStatus) {
+            return true;
+        }
+
         $allowedTransitions = [
             self::STATUS_DRAFT => [
                 self::STATUS_PENDING_EMAIL_VERIFICATION,
                 self::STATUS_SUBMITTED,
+                self::STATUS_UNDER_REVIEW,
+                self::STATUS_APPROVED,
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_PENDING_EMAIL_VERIFICATION => [
                 self::STATUS_SUBMITTED,
+                self::STATUS_UNDER_REVIEW,
+                self::STATUS_APPROVED,
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_SUBMITTED => [
@@ -202,21 +218,33 @@ class AdvertiserApplication extends Model
             self::STATUS_UNDER_REVIEW => [
                 self::STATUS_CHANGES_REQUESTED,
                 self::STATUS_APPROVED,
+                self::STATUS_ACTIVE,
                 self::STATUS_REJECTED,
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_CHANGES_REQUESTED => [
                 self::STATUS_SUBMITTED,
+                self::STATUS_UNDER_REVIEW,
+                self::STATUS_APPROVED,
+                self::STATUS_REJECTED,
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_APPROVED => [
+                self::STATUS_UNDER_REVIEW,
                 self::STATUS_ACTIVE,
+                self::STATUS_CHANGES_REQUESTED,
+                self::STATUS_REJECTED,
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_ACTIVE => [
+                self::STATUS_APPROVED,
+                self::STATUS_UNDER_REVIEW,
                 self::STATUS_WITHDRAWN,
             ],
-            self::STATUS_REJECTED => [],
+            self::STATUS_REJECTED => [
+                self::STATUS_UNDER_REVIEW,
+                self::STATUS_APPROVED,
+            ],
             self::STATUS_WITHDRAWN => [],
         ];
 

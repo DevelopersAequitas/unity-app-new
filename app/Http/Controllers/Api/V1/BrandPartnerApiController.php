@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\BrandPartners\SubmitBrandPartnerCallbackRequest;
 use App\Jobs\SendBulkPartnerNotificationJob;
+use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
 use App\Models\BrandPartnerClick;
+use App\Models\BrandPartnerInquiry;
 use App\Models\BrandPartnerSaved;
 use App\Models\BrandPartnerView;
+use App\Services\Advertiser\AdvertiserNotificationService;
 use App\Services\BrandPartners\BrandPartnerAnalyticsService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -29,8 +34,27 @@ class BrandPartnerApiController extends BaseApiController
     {
         $search = trim((string) $request->query('q', ''));
         $categoryId = $request->query('category_id');
+        $statusFilter = $request->query('status');
+        $includeScheduled = $request->boolean('include_scheduled') || $request->boolean('admin');
+        $now = now();
 
-        $query = BrandPartner::where('is_active', true);
+        $query = BrandPartner::query();
+
+        if ($includeScheduled) {
+            if ($statusFilter === 'active') {
+                $query->where('is_active', true);
+            } elseif ($statusFilter === 'inactive') {
+                $query->where('is_active', false);
+            }
+        } else {
+            $query->where('is_active', true)
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+                });
+        }
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);
@@ -53,6 +77,7 @@ class BrandPartnerApiController extends BaseApiController
 
     public function home(Request $request): JsonResponse
     {
+        $now = now();
         $categories = BrandPartnerCategory::where('status', 'active')
             ->orderBy('sort_order')
             ->limit(8)
@@ -60,6 +85,12 @@ class BrandPartnerApiController extends BaseApiController
 
         $featured = BrandPartner::where('is_active', true)
             ->where('is_featured', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -67,6 +98,12 @@ class BrandPartnerApiController extends BaseApiController
 
         $sponsored = BrandPartner::where('is_active', true)
             ->where('is_sponsored', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -157,7 +194,7 @@ class BrandPartnerApiController extends BaseApiController
         }
 
         $clickType = $request->input('click_type', 'website');
-        $validTypes = ['visit', 'redeem', 'share', 'call', 'email', 'website'];
+        $validTypes = ['visit', 'redeem', 'share', 'call', 'email', 'website', 'whatsapp', 'callback'];
 
         if (! in_array($clickType, $validTypes, true)) {
             return $this->error('Invalid click type. Allowed types: '.implode(', ', $validTypes), 422);
@@ -206,6 +243,104 @@ class BrandPartnerApiController extends BaseApiController
         }
 
         return $this->success(null, 'Click event logged successfully.');
+    }
+
+    /**
+     * Submit a callback request for a Brand Partner and notify the Brand Partner's contact_email.
+     * POST /api/v1/brand-partners/{id}/callback-request
+     */
+    public function submitCallbackRequest(SubmitBrandPartnerCallbackRequest $request, string $id): JsonResponse
+    {
+        BrandPartnerInquiry::ensureTableExists();
+
+        $partner = BrandPartner::find($id);
+        if (! $partner) {
+            return $this->error('Brand partner not found.', 404);
+        }
+
+        $validated = $request->validated();
+        $user = $request->user() ?? auth('sanctum')->user();
+
+        $inquiry = BrandPartnerInquiry::create([
+            'brand_partner_id' => (string) $partner->id,
+            'user_id' => $user ? (string) $user->id : null,
+            'name' => $validated['name'],
+            'phone' => $validated['phone'],
+            'email' => $validated['email'],
+            'message' => $validated['message'],
+            'status' => 'new',
+            'email_sent' => false,
+        ]);
+
+        /** @var AdvertiserNotificationService $notificationService */
+        $notificationService = app(AdvertiserNotificationService::class);
+        $resolvedRecipient = $notificationService->resolveBrandPartnerRecipient($partner);
+        $recipientEmail = $resolvedRecipient['email'];
+
+        $emailSent = $notificationService->sendCallbackRequestNotification($partner, $inquiry, $recipientEmail);
+        if ($emailSent) {
+            $inquiry->update(['email_sent' => true]);
+        }
+
+        $totalCallbacks = BrandPartnerInquiry::where('brand_partner_id', $partner->id)->count();
+        $notificationPayload = $notificationService->sendCallbackRequestPushAndInAppNotification(
+            $partner,
+            $inquiry,
+            $totalCallbacks
+        );
+
+        return $this->success([
+            'inquiry_id' => (string) $inquiry->id,
+            'brand_partner_id' => (string) $partner->id,
+            'email_sent' => $emailSent,
+            'callback_requests' => $totalCallbacks,
+            'callback_requests_count' => $totalCallbacks,
+            'notification' => $notificationPayload,
+        ], 'Callback request submitted successfully. The brand partner has been notified.');
+    }
+
+    /**
+     * List callback requests for a Brand Partner (or authenticated advertiser's Brand Partners).
+     * GET /api/v1/brand-partners/{id}/callback-requests
+     * GET /api/v1/advertiser/callback-requests
+     */
+    public function callbackRequests(Request $request, ?string $id = null): JsonResponse
+    {
+        BrandPartnerInquiry::ensureTableExists();
+
+        $query = BrandPartnerInquiry::with('brandPartner')->orderByDesc('created_at');
+
+        if ($id !== null && $id !== '') {
+            $query->where('brand_partner_id', $id);
+        } elseif ($request->filled('brand_partner_id')) {
+            $query->where('brand_partner_id', (string) $request->query('brand_partner_id'));
+        } else {
+            $user = $request->user() ?? auth('sanctum')->user();
+            if ($user) {
+                $partnerIds = AdvertiserSubscription::where('user_id', $user->id)
+                    ->whereNotNull('brand_partner_id')
+                    ->pluck('brand_partner_id')
+                    ->merge(
+                        AdvertiserApplication::where('user_id', $user->id)
+                            ->whereNotNull('brand_partner_id')
+                            ->pluck('brand_partner_id')
+                    )
+                    ->merge(
+                        BrandPartner::whereRaw('LOWER(TRIM(contact_email)) = ?', [strtolower(trim((string) $user->email))])
+                            ->pluck('id')
+                    )
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $query->whereIn('brand_partner_id', $partnerIds);
+            }
+        }
+
+        $perPage = (int) $request->query('per_page', 20);
+        $inquiries = $query->paginate($perPage);
+
+        return $this->success($inquiries, 'Callback requests retrieved successfully.');
     }
 
     public function save(Request $request, string $id): JsonResponse
@@ -259,8 +394,15 @@ class BrandPartnerApiController extends BaseApiController
 
     public function featured(): JsonResponse
     {
+        $now = now();
         $featured = BrandPartner::where('is_active', true)
             ->where('is_featured', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->get();
@@ -272,8 +414,15 @@ class BrandPartnerApiController extends BaseApiController
     {
         $q = trim((string) $request->query('q', ''));
         $categoryId = $request->query('category_id');
+        $now = now();
 
-        $query = BrandPartner::where('is_active', true);
+        $query = BrandPartner::where('is_active', true)
+            ->where(function ($sub) use ($now) {
+                $sub->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($sub) use ($now) {
+                $sub->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            });
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);

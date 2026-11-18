@@ -234,7 +234,9 @@ class AdminStoreConfigWebController extends Controller
         }
         $lowStockAlertCount = $lowStockQuery->count();
 
-        $pendingAdjustmentsCount = WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count();
+        $pendingAdjustmentsCount = Schema::hasTable('wallet_adjustment_requests')
+            ? WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count()
+            : 0;
         $unresolvedTicketsCount = StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count();
 
         $health = [

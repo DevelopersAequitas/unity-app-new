@@ -111,6 +111,7 @@ Route::prefix('store')->name('store.')->group(function () {
         Route::get('/', [AdminStoreWalletWebController::class, 'index'])->name('index');
         Route::get('/economy', [AdminStoreWalletWebController::class, 'economy'])->name('economy');
         Route::get('/adjustments', [AdminStoreWalletWebController::class, 'adjustments'])->name('adjustments');
+        Route::get('/adjustments/request', fn () => redirect()->route('admin.store.wallet.adjustments'));
         Route::post('/adjustments/request', [AdminStoreWalletWebController::class, 'storeAdjustmentRequest'])->name('adjustments.request');
         Route::post('/adjustments/{id}/approve', [AdminStoreWalletWebController::class, 'approveAdjustment'])->name('adjustments.approve');
         Route::post('/adjustments/{id}/reject', [AdminStoreWalletWebController::class, 'rejectAdjustment'])->name('adjustments.reject');

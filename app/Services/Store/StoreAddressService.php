@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Store;
 
 use App\Constants\StoreErrorCodes;
@@ -31,9 +33,11 @@ class StoreAddressService
         }
 
         // Map request fields to PostgreSQL table columns
+        $nameVal = (string) ($data['full_name'] ?? ($data['name'] ?? ''));
         $payload = [
             'user_id' => $user->id,
-            'name' => $data['name'] ?? ($data['full_name'] ?? ''),
+            'name' => $nameVal,
+            'full_name' => $nameVal,
             'phone' => $data['phone'] ?? '',
             'line1' => $data['line1'] ?? '',
             'line2' => $data['line2'] ?? null,
@@ -70,7 +74,9 @@ class StoreAddressService
 
         $payload = [];
         if (isset($data['name']) || isset($data['full_name'])) {
-            $payload['name'] = $data['name'] ?? $data['full_name'];
+            $nameVal = (string) ($data['full_name'] ?? $data['name']);
+            $payload['name'] = $nameVal;
+            $payload['full_name'] = $nameVal;
         }
         if (isset($data['phone'])) {
             $payload['phone'] = $data['phone'];

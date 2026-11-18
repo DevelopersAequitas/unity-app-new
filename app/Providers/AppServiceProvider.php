@@ -48,6 +48,8 @@ class AppServiceProvider extends ServiceProvider
             'Models/UserTag.php',
             'Models/UserTagAssignment.php',
             'Models/ActivityReminderSetting.php',
+            'Models/BrandPartnerInquiry.php',
+            'Http/Requests/BrandPartners/SubmitBrandPartnerCallbackRequest.php',
         ] as $file) {
             $path = app_path($file);
             if (file_exists($path)) {

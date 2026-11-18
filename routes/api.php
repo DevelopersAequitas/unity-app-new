@@ -22,7 +22,9 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\UserActivityLogWebController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\EventPassWhatsappAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
@@ -892,6 +894,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/app-notifications/delivery-logs', [AppNotificationAdminController::class, 'deliveryLogs']);
 
             // Brand Partners Admin APIs
+            Route::get('/brand-partners', [BrandPartnerApiController::class, 'index']);
             Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
             Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
             Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
@@ -924,6 +927,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/message-logs/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('message_logs.show');
                 Route::post('/messages/{id}/simulate-status', [MetaWhatsAppAdminController::class, 'simulateStatus'])->name('messages.simulate_status');
                 Route::post('/messages/mark-all-read', [MetaWhatsAppAdminController::class, 'markAllDeliveredAsRead'])->name('messages.mark_all_read');
+                Route::get('/webhook-logs', [MetaWhatsAppAdminController::class, 'webhookLogs'])->name('webhook_logs');
+                Route::get('/webhook_logs', [MetaWhatsAppAdminController::class, 'webhookLogs']);
 
                 // Referral Contact Invitations
                 Route::get('/contact-invitations', [AdminContactInvitationController::class, 'index'])->name('contact_invitations.index');
@@ -931,6 +936,18 @@ Route::prefix('v1')->group(function () {
                 Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact_invitations.bulk_resend');
                 Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact_invitations.resend');
                 Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact_invitations.show');
+
+                // Meta WhatsApp Event QR Passes
+                Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');
+                Route::get('/event_passes', [EventPassWhatsappAdminController::class, 'index']);
+                Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event_passes.export');
+                Route::get('/event_passes/export', [EventPassWhatsappAdminController::class, 'export']);
+                Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id')->name('event_passes.show');
+                Route::get('/event_passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+                Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id')->name('event_passes.resend');
+                Route::post('/event_passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+                Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend'])->name('event_passes.bulk_resend');
+                Route::post('/event_passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
             });
 
             // Referral Contact Invitations (Admin Root Alias)
@@ -939,6 +956,18 @@ Route::prefix('v1')->group(function () {
             Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact-invitations.bulk-resend');
             Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact-invitations.resend');
             Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact-invitations.show');
+
+            // Event QR Passes (Admin Root Alias)
+            Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event-passes.index');
+            Route::get('/event_passes', [EventPassWhatsappAdminController::class, 'index']);
+            Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event-passes.export');
+            Route::get('/event_passes/export', [EventPassWhatsappAdminController::class, 'export']);
+            Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+            Route::get('/event_passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+            Route::post('/event_passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+            Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
+            Route::post('/event_passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
 
             // AI Chatbot Admin API
             Route::get('/ai-chatbot', [AiChatbotAdminController::class, 'index']);
@@ -995,6 +1024,14 @@ Route::prefix('v1')->group(function () {
             Route::get('/user-circle-requests/{id}/recommended-peers', [UserCircleRequestAdminController::class, 'recommendedPeers'])->whereUuid('id');
             Route::get('/user-circle-requests/{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
             Route::put('/user-circle-requests/config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
+
+            // User Activity & Security Logs
+            Route::get('/user-activity-logs', [UserActivityLogWebController::class, 'index']);
+            Route::get('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'userActivity']);
+            Route::delete('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs']);
+            Route::get('/user-activity-logs/export/csv', [UserActivityLogWebController::class, 'export']);
+            Route::get('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'show']);
+            Route::delete('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'destroy']);
 
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
@@ -1644,6 +1681,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/applications/{id}/link-account', [AdvertiserMemberApiController::class, 'linkAccount'])->whereUuid('id');
             Route::get('/dashboard', [AdvertiserMemberApiController::class, 'dashboard']);
             Route::get('/analytics', [AdvertiserMemberApiController::class, 'analytics']);
+            Route::get('/callback-requests', [BrandPartnerApiController::class, 'callbackRequests']);
             Route::get('/subscriptions', [AdvertiserMemberApiController::class, 'subscriptions']);
             Route::get('/subscriptions/{id}', [AdvertiserMemberApiController::class, 'subscriptionDetails'])->whereUuid('id');
 
@@ -1714,6 +1752,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
+    Route::post('/brand-partners/{id}/callback-request', [BrandPartnerApiController::class, 'submitCallbackRequest'])->whereUuid('id');
+    Route::get('/brand-partners/{id}/callback-requests', [BrandPartnerApiController::class, 'callbackRequests'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
 
     // Public Advertiser & Brand Partner Onboarding APIs
@@ -1751,8 +1791,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/start-review', [AdvertiserAdminApiController::class, 'startReview'])->whereUuid('id');
         Route::post('/applications/{id}/request-corrections', [AdvertiserAdminApiController::class, 'requestCorrections'])->whereUuid('id');
         Route::post('/applications/{id}/approve', [AdvertiserAdminApiController::class, 'approve'])->whereUuid('id');
+        Route::post('/applications/{id}/publish', [AdvertiserAdminApiController::class, 'publishApplication'])->whereUuid('id');
         Route::post('/applications/{id}/reject', [AdvertiserAdminApiController::class, 'reject'])->whereUuid('id');
-        Route::patch('/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
+        Route::match(['post', 'patch', 'put'], '/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
         Route::get('/applications/{id}/history', [AdvertiserAdminApiController::class, 'history'])->whereUuid('id');
         Route::get('/applications/{id}/advertiser-details', [AdvertiserAdminApiController::class, 'advertiserDetails'])->whereUuid('id');
 
@@ -2409,4 +2450,18 @@ foreach (['v1/admin/commissions', 'admin/commissions', 'v1/commissions'] as $com
 foreach (['v1/user-activity-logs', 'user-activity-logs'] as $activityLogPrefix) {
     Route::post($activityLogPrefix, [UserActivityLogController::class, 'store']);
     Route::middleware('auth:sanctum')->get($activityLogPrefix, [UserActivityLogController::class, 'index']);
+}
+
+// =========================================================================
+// USER ACTIVITY & SECURITY LOGS ADMIN APIs (Dual Aliases)
+// =========================================================================
+foreach (['v1/admin/user-activity-logs', 'admin/user-activity-logs', 'v1/user-activity-logs/admin', 'v1/admin/user_activity_logs', 'admin/user_activity_logs', 'v1/user_activity_logs/admin'] as $ualAdminPrefix) {
+    Route::prefix($ualAdminPrefix)->group(function (): void {
+        Route::get('', [UserActivityLogWebController::class, 'index']);
+        Route::get('user/{userId}', [UserActivityLogWebController::class, 'userActivity']);
+        Route::delete('user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs']);
+        Route::get('export/csv', [UserActivityLogWebController::class, 'export']);
+        Route::get('{id}', [UserActivityLogWebController::class, 'show']);
+        Route::delete('{id}', [UserActivityLogWebController::class, 'destroy']);
+    });
 }

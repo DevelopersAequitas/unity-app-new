@@ -7,6 +7,7 @@ namespace App\Services\BrandPartners;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
 use App\Models\BrandPartnerClick;
+use App\Models\BrandPartnerInquiry;
 use App\Models\BrandPartnerSaved;
 use App\Models\BrandPartnerView;
 use Illuminate\Support\Carbon;
@@ -287,6 +288,9 @@ class BrandPartnerAnalyticsService
         }
 
         $saves = $hasSavedTable ? BrandPartnerSaved::where('brand_partner_id', $partnerId)->count() : 0;
+        $callbackRequests = $this->hasTable('brand_partner_inquiries')
+            ? BrandPartnerInquiry::where('brand_partner_id', $partnerId)->count()
+            : 0;
 
         // Unique CTR Safety Validation
         $ctr = 0;
@@ -321,6 +325,8 @@ class BrandPartnerAnalyticsService
             'calls' => $calls,
             'emails' => $emails,
             'saves' => $saves,
+            'callback_requests' => $callbackRequests,
+            'callback_requests_count' => $callbackRequests,
             'ctr' => $ctr,
             'conversion_rate' => $conversionRate,
         ];

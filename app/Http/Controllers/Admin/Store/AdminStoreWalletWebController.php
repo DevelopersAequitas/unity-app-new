@@ -7,8 +7,10 @@ use App\Models\Store\WalletAdjustmentRequest;
 use App\Models\User;
 use App\Services\Store\StoreWalletService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AdminStoreWalletWebController extends Controller
 {
@@ -74,10 +76,12 @@ class AdminStoreWalletWebController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(25);
 
-        $pendingAdjustments = WalletAdjustmentRequest::with(['requester'])
-            ->where('user_id', $user->id)
-            ->whereIn('status', ['PENDING', 'pending'])
-            ->get();
+        $pendingAdjustments = Schema::hasTable('wallet_adjustment_requests')
+            ? WalletAdjustmentRequest::with(['requester'])
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['PENDING', 'pending'])
+                ->get()
+            : collect();
 
         return view('admin.store.wallet.show', compact('user', 'ledgers', 'pendingAdjustments', 'earnedBalance', 'bonusBalance', 'totalBalance'));
     }
@@ -95,15 +99,23 @@ class AdminStoreWalletWebController extends Controller
 
     public function adjustments(Request $request)
     {
-        $pendingAdjustments = WalletAdjustmentRequest::with(['user', 'requester'])
-            ->whereIn('status', ['PENDING', 'pending'])
-            ->orderBy('requested_at', 'desc')
-            ->get();
+        if (Schema::hasTable('wallet_adjustment_requests')) {
+            $pendingAdjustments = WalletAdjustmentRequest::with(['user', 'requester'])
+                ->whereIn('status', ['PENDING', 'pending'])
+                ->orderBy('requested_at', 'desc')
+                ->get();
 
-        $historicalAdjustments = WalletAdjustmentRequest::with(['user', 'requester', 'approver'])
-            ->whereNotIn('status', ['PENDING', 'pending'])
-            ->orderBy('requested_at', 'desc')
-            ->paginate(20);
+            $historicalAdjustments = WalletAdjustmentRequest::with(['user', 'requester', 'approver'])
+                ->whereNotIn('status', ['PENDING', 'pending'])
+                ->orderBy('requested_at', 'desc')
+                ->paginate(20);
+        } else {
+            $pendingAdjustments = collect();
+            $historicalAdjustments = new LengthAwarePaginator([], 0, 20, 1, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]);
+        }
 
         return view('admin.store.wallet.adjustments', compact('pendingAdjustments', 'historicalAdjustments'));
     }
@@ -118,20 +130,30 @@ class AdminStoreWalletWebController extends Controller
             'reason' => 'required|string|min:5|max:500',
         ]);
 
-        $adminId = Auth::guard('admin')->id() ?? '00000000-0000-0000-0000-000000000000';
+        if (! Schema::hasTable('wallet_adjustment_requests')) {
+            return back()->with('error', 'Table "wallet_adjustment_requests" does not exist in the database. Please execute the provided SQL setup script.');
+        }
 
-        WalletAdjustmentRequest::create([
-            'user_id' => $validated['user_id'],
-            'requested_by' => $adminId,
-            'adjustment_type' => $validated['action'] === 'credit' ? 'ADJUST_CREDIT' : 'ADJUST_DEBIT',
-            'bucket' => strtoupper($validated['coin_type']),
-            'coins' => (int) $validated['amount'],
-            'reason' => $validated['reason'],
-            'status' => 'PENDING',
-            'requested_at' => now(),
-        ]);
+        try {
+            $adminId = Auth::guard('admin')->id() ?? '00000000-0000-0000-0000-000000000000';
 
-        return back()->with('success', 'Adjustment request submitted to Maker-Checker queue.');
+            WalletAdjustmentRequest::create([
+                'user_id' => $validated['user_id'],
+                'requested_by' => $adminId,
+                'adjustment_type' => $validated['action'] === 'credit' ? 'ADJUST_CREDIT' : 'ADJUST_DEBIT',
+                'bucket' => strtoupper($validated['coin_type']),
+                'coins' => (int) $validated['amount'],
+                'reason' => $validated['reason'],
+                'status' => 'PENDING',
+                'requested_at' => now(),
+            ]);
+
+            return back()->with('success', 'Adjustment request submitted to Maker-Checker queue.');
+        } catch (\Throwable $e) {
+            \Log::error('Wallet adjustment request creation error: '.$e->getMessage());
+
+            return back()->with('error', 'Failed to create adjustment request: '.$e->getMessage());
+        }
     }
 
     public function approveAdjustment(Request $request, string $id)

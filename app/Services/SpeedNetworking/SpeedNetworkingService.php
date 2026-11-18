@@ -69,6 +69,18 @@ class SpeedNetworkingService
                     if (! Schema::hasColumn('speed_networking_matches', 'call_started_at')) {
                         $table->timestamp('call_started_at')->nullable();
                     }
+                    if (! Schema::hasColumn('speed_networking_matches', 'duration_seconds')) {
+                        $table->integer('duration_seconds')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'user_a_notes')) {
+                        $table->text('user_a_notes')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'user_b_notes')) {
+                        $table->text('user_b_notes')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'meeting_notes')) {
+                        $table->text('meeting_notes')->nullable();
+                    }
                 });
             }
 
@@ -1601,10 +1613,21 @@ class SpeedNetworkingService
                     }
 
                     // User is completing/leaving the active call
+                    $endedAt = $activeMatch->ended_at ?? Carbon::now();
+                    $durationSeconds = $activeMatch->duration_seconds !== null && (int) $activeMatch->duration_seconds > 0
+                        ? (int) $activeMatch->duration_seconds
+                        : ($callStart
+                            ? min(
+                                max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                                max(1, (int) $lockedEvent->round_duration_seconds)
+                            )
+                            : 0);
+
                     $activeMatch->update([
                         'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                         'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                        'ended_at' => Carbon::now(),
+                        'ended_at' => $endedAt,
+                        'duration_seconds' => $durationSeconds,
                     ]);
                 }
             }
@@ -1898,10 +1921,22 @@ class SpeedNetworkingService
             $partnerId = (string) ((string) $match->user_a_id === (string) $user->id ? $match->user_b_id : $match->user_a_id);
 
             if ($match->match_status === SpeedNetworkingMatch::MATCH_STATUS_IN_CALL) {
+                $endedAt = $match->ended_at ?? Carbon::now();
+                $callStart = $match->call_started_at ?? $match->started_at;
+                $durationSeconds = $match->duration_seconds !== null && (int) $match->duration_seconds > 0
+                    ? (int) $match->duration_seconds
+                    : ($callStart
+                        ? min(
+                            max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                            max(1, (int) $event->round_duration_seconds)
+                        )
+                        : 0);
+
                 $match->update([
                     'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                     'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                    'ended_at' => Carbon::now(),
+                    'ended_at' => $endedAt,
+                    'duration_seconds' => $durationSeconds,
                 ]);
             } else {
                 $match->update([
@@ -2023,21 +2058,11 @@ class SpeedNetworkingService
             $agoraToken = 'demo_rtc_token_'.md5($channelId.$userId);
         }
 
-        $name = $peerUser->display_name ?: trim(($peerUser->first_name ?? '').' '.($peerUser->last_name ?? '')) ?: $peerUser->name ?: 'Peer Member';
-
         return [
             'channel_id' => $channelId,
             'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => $agoraToken,
-            'peer' => [
-                'id' => (string) $peerUser->id,
-                'name' => $name,
-                'designation' => (string) ($peerUser->designation ?? 'Member'),
-                'company' => (string) ($peerUser->company_name ?? 'Peers Global'),
-                'avatar_url' => $peerUser->profile_photo_url ?? null,
-                'city' => (string) ($peerUser->city ?? 'Peers Global'),
-                'bio' => (string) ($peerUser->bio ?? $peerUser->about ?? 'Active networking peer'),
-            ],
+            'peer' => $this->buildPeerCardPayload($peerUser, $userId, $event, 1),
         ];
     }
 
@@ -2418,10 +2443,21 @@ class SpeedNetworkingService
                         return $this->formatMatchResponse($event, $existingMatch, $userId);
                     }
 
+                    $endedAt = $existingMatch->ended_at ?? Carbon::now();
+                    $durationSeconds = $existingMatch->duration_seconds !== null && (int) $existingMatch->duration_seconds > 0
+                        ? (int) $existingMatch->duration_seconds
+                        : ($callStart
+                            ? min(
+                                max(0, (int) $callStart->diffInSeconds($endedAt, false)),
+                                max(1, (int) $event->round_duration_seconds)
+                            )
+                            : 0);
+
                     $existingMatch->update([
                         'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                         'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                        'ended_at' => Carbon::now(),
+                        'ended_at' => $endedAt,
+                        'duration_seconds' => $durationSeconds,
                     ]);
                 }
             }
@@ -2742,6 +2778,175 @@ class SpeedNetworkingService
     }
 
     /**
+     * Build the complete PeerCard payload for live call overlay, match preview, and heartbeat responses.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildPeerCardPayload(
+        User $peer,
+        string $currentUserId,
+        ?SpeedNetworkingEvent $event = null,
+        int $round = 1
+    ): array {
+        $resolveString = static function (mixed $value): string {
+            if (is_null($value)) {
+                return '';
+            }
+            if (is_array($value)) {
+                return implode(', ', array_filter(array_map('strval', $value)));
+            }
+
+            return trim((string) $value);
+        };
+
+        $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+        if (empty($peerName)) {
+            $peerName = (string) ($peer->getRawOriginal('display_name') ?? $peer->getAttributes()['display_name'] ?? '');
+        }
+        if (empty($peerName)) {
+            $peerName = (string) ($peer->name ?? 'Peer');
+        }
+
+        $avatarUrl = (string) ($peer->profile_photo_url ?? '');
+
+        // Connection status check
+        $connection = null;
+        if (Schema::hasTable('connections')) {
+            try {
+                $connection = Connection::where(function ($q) use ($currentUserId, $peer): void {
+                    $q->where('requester_id', $currentUserId)->where('addressee_id', $peer->id);
+                })->orWhere(function ($q) use ($currentUserId, $peer): void {
+                    $q->where('requester_id', $peer->id)->where('addressee_id', $currentUserId);
+                })->first();
+            } catch (\Throwable) {
+                $connection = null;
+            }
+        }
+
+        $connectionStatus = 'none';
+        $isConnected = false;
+        $isRequested = false;
+        $canSendConnectionRequest = true;
+
+        if ($connection) {
+            $isConnected = (bool) ($connection->is_approved ?? false);
+            if (isset($connection->status) && in_array($connection->status, ['connected', 'pending', 'none'], true)) {
+                $connectionStatus = (string) $connection->status;
+            } else {
+                $connectionStatus = $isConnected ? 'connected' : 'pending';
+            }
+            $isRequested = ! $isConnected && (string) $connection->requester_id === $currentUserId;
+            $canSendConnectionRequest = ! $isConnected && ! $isRequested;
+        }
+
+        // Follow status check
+        $isFollowing = false;
+        if (Schema::hasTable('user_follows')) {
+            try {
+                $isFollowing = DB::table('user_follows')
+                    ->where('follower_id', $currentUserId)
+                    ->where('following_id', (string) $peer->id)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->exists();
+            } catch (\Throwable) {
+                $isFollowing = false;
+            }
+        }
+
+        $skills = [];
+        if (! empty($peer->skills)) {
+            if (is_array($peer->skills)) {
+                $skills = array_values(array_filter(array_map(function ($s): string {
+                    return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
+                }, $peer->skills)));
+            } elseif (is_string($peer->skills)) {
+                $decoded = json_decode($peer->skills, true);
+                if (is_array($decoded)) {
+                    $skills = array_values(array_filter(array_map('strval', $decoded)));
+                } else {
+                    $skills = [trim($peer->skills)];
+                }
+            }
+        }
+
+        $bio = $resolveString($peer->short_bio);
+        if ($bio === '') {
+            $bio = $resolveString($peer->experience_summary);
+        }
+        if ($bio === '') {
+            $bio = $resolveString($peer->superpower);
+        }
+        if ($bio === '') {
+            $bio = $resolveString($peer->i_can_help_with);
+        }
+
+        $category = $resolveString($peer->level4_category ?? $peer->business_category ?? '');
+        $industry = $resolveString($peer->business_sub_category);
+        if ($industry === '') {
+            $industry = $resolveString($peer->company_type);
+        }
+        if ($industry === '') {
+            $industry = $category !== '' ? $category : ($skills[0] ?? 'Business & Entrepreneurship');
+        }
+        if ($category === '') {
+            $category = $skills[0] ?? $industry;
+        }
+
+        $company = $resolveString($peer->company_name ?? $peer->company ?? '');
+        $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
+        $isVerified = (bool) ($peer->is_verified ?? false);
+
+        $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
+
+        return [
+            'id' => (string) $peer->id,
+            'peer_id' => (string) ($peer->peer_id ?? $peer->id),
+            'name' => $peerName,
+            'display_name' => $peerName,
+            'full_name' => $peerName,
+            'first_name' => $resolveString($peer->first_name ?? ''),
+            'last_name' => $resolveString($peer->last_name ?? ''),
+            'designation' => $resolveString($peer->designation ?? ''),
+            'company' => $company,
+            'company_name' => $company,
+            'avatar_url' => $avatarUrl,
+            'profile_photo_url' => $avatarUrl,
+            'profile_image_url' => $avatarUrl,
+            'profile_photo_image' => $avatarUrl,
+            'city' => $resolveString($peer->city ?? ''),
+            'bio' => $bio,
+            'industry' => $industry,
+            'category' => $category,
+            'business_category' => $category,
+            'business_category_name' => $category,
+            'level4_category' => $category,
+            'skills' => $skills,
+            'is_verified' => $isVerified,
+            'is_pro' => $isPro,
+            'is_online' => (bool) ($peer->is_online ?? true),
+            'connection_status' => $connectionStatus,
+            'is_connected' => $isConnected,
+            'is_requested' => $isRequested,
+            'can_send_connection_request' => $canSendConnectionRequest,
+            'is_following' => $isFollowing,
+            'round' => $round,
+            'score' => $peerLifeImpact,
+            'peer_score' => $peerLifeImpact,
+            'impact_score' => $peerLifeImpact,
+            'life_impacted_count' => $peerLifeImpact,
+            'life_impact_count' => $peerLifeImpact,
+            'life_impact' => $peerLifeImpact,
+            'life_impacted' => $peerLifeImpact,
+            'lives_impacted' => $peerLifeImpact,
+            'lives_impacted_count' => $peerLifeImpact,
+            'life_impact_score' => $peerLifeImpact,
+            'total_life_impact' => $peerLifeImpact,
+            'total_life_impacted' => $peerLifeImpact,
+            'mutual_connections_count' => $peerLifeImpact,
+        ];
+    }
+
+    /**
      * Format a match into the canonical JSON response.
      *
      * @return array<string, mixed>
@@ -2767,111 +2972,12 @@ class SpeedNetworkingService
 
         $peerData = null;
         if ($peer) {
-            $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
-            if (empty($peerName)) {
-                $peerName = $peer->name ?? 'Peer';
-            }
-
-            $avatarUrl = $peer->profile_photo_url ?? '';
-
-            // Connection status check
-            $connection = null;
-            if (Schema::hasTable('connections')) {
-                $connection = Connection::where(function ($q) use ($currentUserId, $peer): void {
-                    $q->where('requester_id', $currentUserId)->where('addressee_id', $peer->id);
-                })->orWhere(function ($q) use ($currentUserId, $peer): void {
-                    $q->where('requester_id', $peer->id)->where('addressee_id', $currentUserId);
-                })->first();
-            }
-
-            $connectionStatus = 'none';
-            if ($connection) {
-                $connectionStatus = $connection->is_approved ? 'connected' : 'pending';
-            }
-
-            $resolveString = static function (mixed $value): string {
-                if (is_null($value)) {
-                    return '';
-                }
-                if (is_array($value)) {
-                    return implode(', ', array_filter(array_map('strval', $value)));
-                }
-
-                return trim((string) $value);
-            };
-
-            $skills = [];
-            if (! empty($peer->skills)) {
-                if (is_array($peer->skills)) {
-                    $skills = array_values(array_filter(array_map(function ($s): string {
-                        return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
-                    }, $peer->skills)));
-                } elseif (is_string($peer->skills)) {
-                    $decoded = json_decode($peer->skills, true);
-                    if (is_array($decoded)) {
-                        $skills = array_values(array_filter(array_map('strval', $decoded)));
-                    } else {
-                        $skills = [trim($peer->skills)];
-                    }
-                }
-            }
-
-            $bio = $resolveString($peer->short_bio);
-            if ($bio === '') {
-                $bio = $resolveString($peer->experience_summary);
-            }
-            if ($bio === '') {
-                $bio = $resolveString($peer->superpower);
-            }
-            if ($bio === '') {
-                $bio = $resolveString($peer->i_can_help_with);
-            }
-
-            $industry = $resolveString($peer->business_sub_category);
-            if ($industry === '') {
-                $industry = $resolveString($peer->company_type);
-            }
-            if ($industry === '') {
-                $industry = 'Business & Entrepreneurship';
-            }
-
-            $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
-            if ($peerLifeImpact <= 0) {
-                $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
-                $peerLifeImpact = $impactPerMeeting > 0 ? $impactPerMeeting : 5;
-            }
-
-            $peerData = [
-                'id' => (string) $peer->id,
-                'name' => $peerName,
-                'display_name' => $peerName,
-                'designation' => $resolveString($peer->designation ?? ''),
-                'company' => $resolveString($peer->company_name ?? ''),
-                'company_name' => $resolveString($peer->company_name ?? ''),
-                'avatar_url' => $avatarUrl,
-                'profile_photo_url' => $avatarUrl,
-                'profile_image_url' => $avatarUrl,
-                'profile_photo_image' => $avatarUrl,
-                'city' => $resolveString($peer->city ?? ''),
-                'bio' => $bio,
-                'industry' => $industry,
-                'category' => $industry,
-                'skills' => $skills,
-                'connection_status' => $connectionStatus,
-                'round' => (int) ($match->round_number ?: 1),
-                'score' => $peerLifeImpact,
-                'peer_score' => $peerLifeImpact,
-                'impact_score' => $peerLifeImpact,
-                'life_impacted_count' => $peerLifeImpact,
-                'life_impact_count' => $peerLifeImpact,
-                'life_impact' => $peerLifeImpact,
-                'life_impacted' => $peerLifeImpact,
-                'lives_impacted' => $peerLifeImpact,
-                'lives_impacted_count' => $peerLifeImpact,
-                'life_impact_score' => $peerLifeImpact,
-                'total_life_impacted' => $peerLifeImpact,
-                'mutual_connections_count' => $peerLifeImpact,
-            ];
+            $peerData = $this->buildPeerCardPayload(
+                $peer,
+                $currentUserId,
+                $event,
+                (int) ($match->round_number ?: 1)
+            );
         }
 
         $isUserA = ((string) $match->user_a_id === $currentUserId);
@@ -2980,10 +3086,16 @@ class SpeedNetworkingService
             $callStart = $activeMatch->call_started_at ?? $activeMatch->started_at;
             $elapsed = $callStart ? Carbon::now()->diffInSeconds($callStart) : 0;
             if ($elapsed >= $event->round_duration_seconds) {
+                $endedAt = $activeMatch->ended_at ?? Carbon::now();
+                $durationSeconds = $activeMatch->duration_seconds !== null && (int) $activeMatch->duration_seconds > 0
+                    ? (int) $activeMatch->duration_seconds
+                    : min(max(0, (int) $elapsed), max(1, (int) $event->round_duration_seconds));
+
                 $activeMatch->update([
                     'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                     'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
-                    'ended_at' => Carbon::now(),
+                    'ended_at' => $endedAt,
+                    'duration_seconds' => $durationSeconds,
                 ]);
 
                 SpeedNetworkingParticipant::where('event_id', $event->id)
@@ -3305,62 +3417,61 @@ class SpeedNetworkingService
                 $bio = (string) ($peer->i_can_help_with ?? '');
             }
 
-            // Calculate duration in seconds
-            $duration = 0;
-            if ($match->started_at && $match->ended_at) {
-                $duration = max(0, (int) $match->ended_at->diffInSeconds($match->started_at));
-            } elseif ($match->started_at) {
-                $duration = max(0, (int) Carbon::now()->diffInSeconds($match->started_at));
-            }
+            // Calculate actual 1-on-1 call duration in seconds (strictly from call_started_at)
+            $duration = $match->resolveCallDurationSeconds((int) $event->round_duration_seconds);
+            $qualifiesForP2p = $duration >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS;
 
-            if ($duration === 0 && (int) $event->round_duration_seconds > 0) {
-                $duration = (int) $event->round_duration_seconds;
-            }
-
-            // Automatically process P2P meeting and creative for this match
+            // Only process P2P meeting, creative, Life Impact (+1), and Coins (+3,000) if duration >= 120s
             $p2pMeeting = null;
             $creativeUrl = null;
-            try {
-                $p2pMeeting = $this->p2pService->completeMatchAsP2pMeeting($match, $event);
-                if ($p2pMeeting) {
-                    $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
+            if ($qualifiesForP2p) {
+                try {
+                    $p2pMeeting = $this->p2pService->completeMatchAsP2pMeeting($match, $event);
+                    if ($p2pMeeting) {
+                        $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
+                    }
+                } catch (\Throwable $p2pEx) {
+                    Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
                 }
-            } catch (\Throwable $p2pEx) {
-                Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
             }
 
             // Refresh peer after completing P2P meeting so life impact & profile details are fresh
             $peer = $peer->fresh() ?? $peer;
-            $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+            $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
             if ($impactPerMeeting <= 0) {
-                $impactPerMeeting = 5;
+                $impactPerMeeting = 1;
             }
 
             $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
-            if ($peerLifeImpact <= 0) {
-                $peerLifeImpact = $impactPerMeeting;
-            }
 
             $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
             $companyName = ! empty($peer->company_name) ? (string) $peer->company_name : (! empty($peer->company) ? (string) $peer->company : null);
+            $skillsList = is_array($peer->skills) ? array_values(array_filter(array_map('strval', $peer->skills))) : (is_string($peer->skills) ? (json_decode($peer->skills, true) ?: [trim($peer->skills)]) : []);
             $businessCategory = $peer->level4_category ?? $peer->business_category ?? null;
+            $resolvedIndustry = $businessCategory ?: ($peer->business_sub_category ?: ($peer->company_type ?: ($skillsList[0] ?? 'Business & Entrepreneurship')));
+            $resolvedCategory = $businessCategory ?: ($skillsList[0] ?? $resolvedIndustry);
+
+            $savedMatchNotes = $match->getNotesForUser($userId);
+            $cleanP2pRemarks = trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? '');
+            $resolvedNotes = $savedMatchNotes !== '' ? $savedMatchNotes : $cleanP2pRemarks;
 
             $interactedPeers[] = [
                 'id' => (string) $peer->id,
                 'peer_id' => (string) ($peer->peer_id ?? $peer->id),
                 'name' => (string) $peerName,
                 'display_name' => (string) $peerName,
+                'full_name' => (string) $peerName,
                 'first_name' => (string) ($peer->first_name ?? ''),
                 'last_name' => (string) ($peer->last_name ?? ''),
                 'company' => $companyName,
                 'company_name' => $companyName,
                 'designation' => ! empty($peer->designation) ? (string) $peer->designation : null,
-                'business_category' => $businessCategory,
-                'business_category_name' => $businessCategory,
-                'level4_category' => $businessCategory,
-                'industry' => $businessCategory ?: ($peer->company_type ?: 'Business & Entrepreneurship'),
-                'category' => $businessCategory ?: ($peer->company_type ?: 'Business & Entrepreneurship'),
-                'skills' => is_array($peer->skills) ? array_values(array_filter(array_map('strval', $peer->skills))) : (is_string($peer->skills) ? (json_decode($peer->skills, true) ?: [trim($peer->skills)]) : []),
+                'business_category' => $resolvedCategory,
+                'business_category_name' => $resolvedCategory,
+                'level4_category' => $resolvedCategory,
+                'industry' => $resolvedIndustry,
+                'category' => $resolvedCategory,
+                'skills' => $skillsList,
                 'avatar_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_photo_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_image_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
@@ -3396,6 +3507,7 @@ class SpeedNetworkingService
                 'lives_impacted' => $peerLifeImpact,
                 'lives_impacted_count' => $peerLifeImpact,
                 'life_impact_score' => $peerLifeImpact,
+                'total_life_impact' => $peerLifeImpact,
                 'total_life_impacted' => $peerLifeImpact,
                 'impact_score' => $peerLifeImpact,
                 'impact_count' => $peerLifeImpact,
@@ -3403,17 +3515,23 @@ class SpeedNetworkingService
                 'peer_life_impact' => $peerLifeImpact,
                 'peer_life_impacted_count' => $peerLifeImpact,
 
-                'p2p_meeting_id' => $p2pMeeting?->id ? (string) $p2pMeeting->id : null,
-                'creative_url' => $creativeUrl,
-                'p2p_logged' => $p2pMeeting !== null,
-                'meeting_notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
-                'notes' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
-                'remarks' => trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? ''),
+                'p2p_meeting_id' => ($qualifiesForP2p && $p2pMeeting?->id) ? (string) $p2pMeeting->id : null,
+                'creative_url' => $qualifiesForP2p ? $creativeUrl : null,
+                'p2p_logged' => $qualifiesForP2p && $p2pMeeting !== null,
+                'meeting_notes' => $resolvedNotes,
+                'notes' => $resolvedNotes,
+                'remarks' => $resolvedNotes,
             ];
         }
 
         $roundsCompleted = (int) $matches->pluck('round_number')->unique()->count();
         $hasMetAllPeers = $this->hasMetAllActivePeers($event, $userId);
+
+        $qualifyingPeersCount = count(array_filter(
+            $interactedPeers,
+            static fn (array $peerItem): bool => ($peerItem['p2p_logged'] ?? false) === true
+                && ((int) ($peerItem['interaction_duration_seconds'] ?? 0)) >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS
+        ));
 
         $freshUser = $user->fresh() ?? $user;
         $userCoins = (int) ($freshUser->coins_balance ?? 0);
@@ -3421,8 +3539,8 @@ class SpeedNetworkingService
         if ($impactPerMeeting <= 0) {
             $impactPerMeeting = 1;
         }
-        $lifeImpactEarned = count($interactedPeers) * $impactPerMeeting;
-        $coinsEarned = count($interactedPeers) * 3000;
+        $lifeImpactEarned = $qualifyingPeersCount * $impactPerMeeting;
+        $coinsEarned = $qualifyingPeersCount * 3000;
 
         $userLifeImpact = $this->resolveUserLifeImpact($freshUser, $event);
         if ($userLifeImpact < $lifeImpactEarned) {
@@ -3440,6 +3558,7 @@ class SpeedNetworkingService
             'total_rounds' => (int) $event->total_rounds,
             'rounds_completed' => $roundsCompleted,
             'total_interactions_count' => count($interactedPeers),
+            'qualifying_peers_count' => $qualifyingPeersCount,
             'life_impact' => [
                 'earned' => $lifeImpactEarned,
                 'total' => $userLifeImpact,
@@ -3558,9 +3677,9 @@ class SpeedNetworkingService
         }
 
         // 5. Table p2p_meetings
-        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
+        $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 1);
         if ($impactPerMeeting <= 0) {
-            $impactPerMeeting = 5;
+            $impactPerMeeting = 1;
         }
 
         if (Schema::hasTable('p2p_meetings')) {
@@ -3581,10 +3700,10 @@ class SpeedNetworkingService
             }
         }
 
-        // 6. Current Speed Networking Event matches (only actual in_call / completed rounds)
+        // 6. Current Speed Networking Event matches (only actual in_call / completed rounds lasting >= 120s)
         if ($event && Schema::hasTable('speed_networking_matches')) {
             try {
-                $eventMatchesCount = SpeedNetworkingMatch::where('event_id', $event->id)
+                $eventMatches = SpeedNetworkingMatch::where('event_id', $event->id)
                     ->where(function ($q) use ($userId): void {
                         $q->where('user_a_id', $userId)
                             ->orWhere('user_b_id', $userId);
@@ -3595,10 +3714,14 @@ class SpeedNetworkingService
                         SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
                     ])
                     ->where('status', '!=', SpeedNetworkingMatch::STATUS_SKIPPED)
-                    ->count();
+                    ->get();
 
-                if ($eventMatchesCount > 0) {
-                    $total = max($total, $eventMatchesCount * $impactPerMeeting);
+                $qualifyingEventMatchesCount = $eventMatches->filter(
+                    static fn (SpeedNetworkingMatch $m): bool => $m->qualifiesForP2pRewards((int) $event->round_duration_seconds)
+                )->count();
+
+                if ($qualifyingEventMatchesCount > 0) {
+                    $total = max($total, $qualifyingEventMatchesCount * $impactPerMeeting);
                 }
             } catch (\Throwable) {
                 // ignore
@@ -3689,8 +3812,9 @@ class SpeedNetworkingService
                     'participants_count' => $totalJoined,
                     'rounds_completed' => (int) ($summary['rounds_completed'] ?? $peersMetCount),
                     'peers_met_count' => $peersMetCount,
-                    'life_impact_earned' => $peersMetCount * 1,
-                    'coins_earned' => $peersMetCount * 3000,
+                    'qualifying_peers_count' => (int) ($summary['qualifying_peers_count'] ?? 0),
+                    'life_impact_earned' => (int) ($summary['life_impact_earned'] ?? 0),
+                    'coins_earned' => (int) ($summary['coins_earned'] ?? 0),
                     'peers_met' => $summary['interacted_peers'] ?? [],
                     'ticket_price' => (float) $event->ticket_price,
                     'is_paid' => (bool) $event->is_paid,

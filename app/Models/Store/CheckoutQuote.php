@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models\Store;
 
 use App\Models\User;
@@ -7,12 +9,16 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class CheckoutQuote extends Model
 {
     use HasUuids;
 
     protected $table = 'checkout_quotes';
+
+    protected static ?array $existingColumns = null;
 
     protected $fillable = [
         'user_id',
@@ -54,6 +60,41 @@ class CheckoutQuote extends Model
         'snapshot' => 'array',
         'expires_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $quote): void {
+            if (static::$existingColumns === null) {
+                try {
+                    if (Schema::hasTable('checkout_quotes')) {
+                        static::$existingColumns = Schema::getColumnListing('checkout_quotes');
+                    } else {
+                        static::$existingColumns = [];
+                    }
+                } catch (\Throwable) {
+                    static::$existingColumns = null;
+                }
+            }
+
+            if (is_array(static::$existingColumns) && ! empty(static::$existingColumns)) {
+                foreach (array_keys($quote->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($quote->attributes[$attr]);
+                    }
+                }
+            }
+        });
+    }
+
+    public function getQuoteNoAttribute(): ?string
+    {
+        return $this->attributes['quote_no'] ?? ('QUO-'.strtoupper(substr((string) ($this->id ?? Str::random(8)), 0, 8)));
+    }
+
+    public function getStatusAttribute(): string
+    {
+        return isset($this->attributes['status']) ? strtoupper((string) $this->attributes['status']) : 'ACTIVE';
+    }
 
     public function user(): BelongsTo
     {

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\P2pMeeting;
 use App\Models\SpeedNetworking\SpeedNetworkingBlockedPeer;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Models\SpeedNetworking\SpeedNetworkingEventSkip;
+use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -112,8 +114,60 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
                 $table->timestamp('preview_expires_at')->nullable();
                 $table->timestamp('call_started_at')->nullable();
                 $table->integer('duration_seconds')->nullable();
+                $table->text('user_a_notes')->nullable();
+                $table->text('user_b_notes')->nullable();
+                $table->text('meeting_notes')->nullable();
                 $table->timestamp('started_at')->nullable();
                 $table->timestamp('ended_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('p2p_meetings')) {
+            Schema::create('p2p_meetings', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('initiator_user_id')->index();
+                $table->uuid('peer_user_id')->index();
+                $table->string('meeting_date')->nullable();
+                $table->string('meeting_place')->nullable();
+                $table->text('remarks')->nullable();
+                $table->json('media')->nullable();
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+
+        if (! Schema::hasTable('coins_ledgers')) {
+            Schema::create('coins_ledgers', function (Blueprint $table): void {
+                $table->uuid('transaction_id')->primary();
+                $table->uuid('user_id')->index();
+                $table->integer('amount')->default(0);
+                $table->integer('balance_after')->default(0);
+                $table->string('activity_type')->nullable();
+                $table->string('reference')->nullable();
+                $table->string('reference_type')->nullable();
+                $table->string('reference_id')->nullable();
+                $table->uuid('created_by')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('life_impact_histories')) {
+            Schema::create('life_impact_histories', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->index();
+                $table->uuid('triggered_by_user_id')->nullable();
+                $table->string('activity_type')->nullable();
+                $table->string('source_type')->nullable();
+                $table->string('source_id')->nullable();
+                $table->integer('impact_value')->default(1);
+                $table->integer('life_impacted')->default(1);
+                $table->string('action')->nullable();
+                $table->text('description')->nullable();
+                $table->string('status')->default('approved');
+                $table->boolean('counted_in_total')->default(true);
+                $table->json('meta')->nullable();
                 $table->timestamps();
             });
         }
@@ -172,7 +226,29 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.my_decision', 'pending')
             ->assertJsonPath('data.peer_decision', 'pending')
             ->assertJsonPath('data.both_accepted', false)
-            ->assertJsonPath('data.peer.id', (string) $userA->id);
+            ->assertJsonPath('data.peer.id', (string) $userA->id)
+            ->assertJsonStructure([
+                'data' => [
+                    'peer' => [
+                        'id',
+                        'name',
+                        'avatar_url',
+                        'city',
+                        'designation',
+                        'company',
+                        'industry',
+                        'category',
+                        'skills',
+                        'life_impacted_count',
+                        'is_verified',
+                        'is_pro',
+                        'connection_status',
+                        'is_following',
+                        'bio',
+                        'round',
+                    ],
+                ],
+            ]);
 
         $matchId = (string) $joinB->json('data.match_id');
         $channelId = (string) $joinB->json('data.channel_id');
@@ -235,7 +311,29 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.match_status', 'in_call')
             ->assertJsonPath('data.my_decision', 'accepted')
             ->assertJsonPath('data.peer_decision', 'accepted')
-            ->assertJsonPath('data.both_accepted', true);
+            ->assertJsonPath('data.both_accepted', true)
+            ->assertJsonStructure([
+                'data' => [
+                    'peer' => [
+                        'id',
+                        'name',
+                        'avatar_url',
+                        'city',
+                        'designation',
+                        'company',
+                        'industry',
+                        'category',
+                        'skills',
+                        'life_impacted_count',
+                        'is_verified',
+                        'is_pro',
+                        'connection_status',
+                        'is_following',
+                        'bio',
+                        'round',
+                    ],
+                ],
+            ]);
 
         // 8. Summary now includes the connected peer
         $summaryAfterConnect = $this->getJson("/api/v1/speed-networking/events/{$event->id}/summary");
@@ -341,5 +439,99 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.is_waiting', false)
             ->assertJsonPath('data.match_status', 'preview')
             ->assertJsonPath('data.peer.id', (string) $userB->id);
+    }
+
+    public function test_minimum_two_minute_connection_threshold_for_p2p_life_impact_and_coins(): void
+    {
+        $event = $this->createLiveEvent('Threshold Speed Collaboration');
+        $userA = $this->createTestUser('Main Peer');
+        $shortPeer = $this->createTestUser('Short Call Peer');
+        $qualifiedPeer = $this->createTestUser('Qualified Call Peer');
+
+        // Round 1: Short 1-on-1 call lasting 45 seconds (< 120s threshold)
+        $shortMatch = SpeedNetworkingMatch::create([
+            'event_id' => $event->id,
+            'round_number' => 1,
+            'table_number' => 1,
+            'channel_id' => 'sn_short_call_1',
+            'user_a_id' => $userA->id,
+            'user_b_id' => $shortPeer->id,
+            'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
+            'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
+            'user_a_decision' => SpeedNetworkingMatch::DECISION_ACCEPTED,
+            'user_b_decision' => SpeedNetworkingMatch::DECISION_ACCEPTED,
+            'call_started_at' => now()->subSeconds(200),
+            'started_at' => now()->subSeconds(200),
+            'ended_at' => now()->subSeconds(155),
+            'duration_seconds' => 45,
+        ]);
+
+        // Round 2: Qualified 1-on-1 call lasting 180 seconds (>= 120s threshold)
+        SpeedNetworkingMatch::create([
+            'event_id' => $event->id,
+            'round_number' => 2,
+            'table_number' => 2,
+            'channel_id' => 'sn_qualified_call_2',
+            'user_a_id' => $userA->id,
+            'user_b_id' => $qualifiedPeer->id,
+            'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
+            'match_status' => SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
+            'user_a_decision' => SpeedNetworkingMatch::DECISION_ACCEPTED,
+            'user_b_decision' => SpeedNetworkingMatch::DECISION_ACCEPTED,
+            'call_started_at' => now()->subSeconds(180),
+            'started_at' => now()->subSeconds(180),
+            'ended_at' => now(),
+            'duration_seconds' => 180,
+        ]);
+
+        Sanctum::actingAs($userA);
+
+        // Save personal meeting notes on the short (< 120s) interaction via /complete-p2p
+        $shortCompleteRes = $this->postJson("/api/v1/speed-networking/events/{$event->id}/complete-p2p", [
+            'peer_id' => (string) $shortPeer->id,
+            'notes' => 'Brief intro - follow up next week',
+            'remarks' => 'Brief intro - follow up next week',
+            'meeting_notes' => 'Brief intro - follow up next week',
+            'interaction_duration_seconds' => 45,
+            'log_p2p' => false,
+        ]);
+
+        $shortCompleteRes->assertOk()
+            ->assertJsonPath('data.p2p_logged', false)
+            ->assertJsonPath('data.p2p_meeting_id', null)
+            ->assertJsonPath('data.life_impact_earned', 0)
+            ->assertJsonPath('data.coins_earned', 0)
+            ->assertJsonPath('data.meeting_notes', 'Brief intro - follow up next week');
+
+        // Verify NO P2P meeting was created for the 45s match
+        $this->assertSame(
+            0,
+            P2pMeeting::where('remarks', 'like', "%[sn_match:{$shortMatch->id}]%")->count()
+        );
+
+        // Fetch session summary
+        $summaryRes = $this->getJson("/api/v1/speed-networking/events/{$event->id}/summary");
+        $summaryRes->assertOk()
+            ->assertJsonPath('data.peers_met_count', 2)
+            ->assertJsonPath('data.rounds_completed', 2)
+            ->assertJsonPath('data.qualifying_peers_count', 1)
+            ->assertJsonPath('data.life_impact_earned', 1)
+            ->assertJsonPath('data.coins_earned', 3000)
+            ->assertJsonCount(2, 'data.interacted_peers');
+
+        // Peer 0 (45s < 120s): appears in interacted_peers with notes preserved, but p2p_logged = false
+        $summaryRes->assertJsonPath('data.interacted_peers.0.id', (string) $shortPeer->id)
+            ->assertJsonPath('data.interacted_peers.0.interaction_duration_seconds', 45)
+            ->assertJsonPath('data.interacted_peers.0.p2p_logged', false)
+            ->assertJsonPath('data.interacted_peers.0.p2p_meeting_id', null)
+            ->assertJsonPath('data.interacted_peers.0.meeting_notes', 'Brief intro - follow up next week');
+
+        // Peer 1 (180s >= 120s): p2p_logged = true and P2P meeting created
+        $summaryRes->assertJsonPath('data.interacted_peers.1.id', (string) $qualifiedPeer->id)
+            ->assertJsonPath('data.interacted_peers.1.interaction_duration_seconds', 180)
+            ->assertJsonPath('data.interacted_peers.1.p2p_logged', true);
+
+        $this->assertNotNull($summaryRes->json('data.interacted_peers.1.p2p_meeting_id'));
+        $this->assertSame(1, P2pMeeting::count());
     }
 }
