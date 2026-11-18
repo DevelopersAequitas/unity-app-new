@@ -9,12 +9,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Schema;
 
 class Order extends Model
 {
     use HasUuids;
 
     protected $table = 'orders';
+
+    protected static ?array $existingColumns = null;
 
     protected $fillable = [
         'order_no',
@@ -55,6 +58,31 @@ class Order extends Model
         'pickup_ready_at' => 'datetime',
         'pickup_expires_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $order): void {
+            if (static::$existingColumns === null) {
+                try {
+                    if (Schema::hasTable('orders')) {
+                        static::$existingColumns = Schema::getColumnListing('orders');
+                    } else {
+                        static::$existingColumns = [];
+                    }
+                } catch (\Throwable) {
+                    static::$existingColumns = null;
+                }
+            }
+
+            if (is_array(static::$existingColumns) && ! empty(static::$existingColumns)) {
+                foreach (array_keys($order->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($order->attributes[$attr]);
+                    }
+                }
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {

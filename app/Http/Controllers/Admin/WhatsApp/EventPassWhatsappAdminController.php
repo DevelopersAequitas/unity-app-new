@@ -28,7 +28,7 @@ class EventPassWhatsappAdminController extends Controller
     /**
      * Display listing of Event WhatsApp QR Passes and delivery metrics.
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $filters = $request->only([
             'search',
@@ -115,6 +115,28 @@ class EventPassWhatsappAdminController extends Controller
         $eventsQuery = Event::query()->orderBy('title');
         AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
         $events = $eventsQuery->get(['id', 'title', 'start_at']);
+
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'registrations' => $registrations,
+                'filters' => $filters,
+                'presets' => $presets,
+                'activePreset' => $activePreset,
+                'activeStatus' => $filters['status'] ?? '',
+                'events' => $events,
+                'eventBreakdown' => $eventBreakdown,
+                'stats' => [
+                    'total_passes' => $totalPasses,
+                    'total_delivered' => $totalDelivered,
+                    'total_read' => $totalRead,
+                    'total_sent' => $totalSent,
+                    'total_failed' => $totalFailed,
+                    'total_pending' => $totalPending,
+                    'delivery_rate' => $deliveryRate,
+                ],
+            ]);
+        }
 
         return view('admin.whatsapp.event_passes.index', [
             'registrations' => $registrations,

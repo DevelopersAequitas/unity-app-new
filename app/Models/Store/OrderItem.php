@@ -5,6 +5,7 @@ namespace App\Models\Store;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class OrderItem extends Model
 {
@@ -14,6 +15,8 @@ class OrderItem extends Model
 
     public $timestamps = false;
 
+    protected static ?array $existingColumns = null;
+
     protected $fillable = [
         'order_id',
         'product_id',
@@ -21,7 +24,9 @@ class OrderItem extends Model
         'product_snapshot',
         'quantity',
         'unit_coin_price',
+        'unit_price_coins',
         'total_coin_price',
+        'total_price_coins',
         'status',
         'created_at',
         'updated_at',
@@ -31,10 +36,53 @@ class OrderItem extends Model
         'product_snapshot' => 'array',
         'quantity' => 'integer',
         'unit_coin_price' => 'integer',
+        'unit_price_coins' => 'integer',
         'total_coin_price' => 'integer',
+        'total_price_coins' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $item): void {
+            if (static::$existingColumns === null) {
+                try {
+                    if (Schema::hasTable('order_items')) {
+                        static::$existingColumns = Schema::getColumnListing('order_items');
+                    } else {
+                        static::$existingColumns = [];
+                    }
+                } catch (\Throwable) {
+                    static::$existingColumns = null;
+                }
+            }
+
+            $unitPrice = $item->attributes['unit_price_coins'] ?? ($item->attributes['unit_coin_price'] ?? 0);
+            $totalPrice = $item->attributes['total_price_coins'] ?? ($item->attributes['total_coin_price'] ?? 0);
+
+            if (is_array(static::$existingColumns) && ! empty(static::$existingColumns)) {
+                if (in_array('unit_coin_price', static::$existingColumns, true)) {
+                    $item->attributes['unit_coin_price'] = $unitPrice;
+                }
+                if (in_array('unit_price_coins', static::$existingColumns, true)) {
+                    $item->attributes['unit_price_coins'] = $unitPrice;
+                }
+                if (in_array('total_coin_price', static::$existingColumns, true)) {
+                    $item->attributes['total_coin_price'] = $totalPrice;
+                }
+                if (in_array('total_price_coins', static::$existingColumns, true)) {
+                    $item->attributes['total_price_coins'] = $totalPrice;
+                }
+
+                foreach (array_keys($item->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($item->attributes[$attr]);
+                    }
+                }
+            }
+        });
+    }
 
     public function order(): BelongsTo
     {

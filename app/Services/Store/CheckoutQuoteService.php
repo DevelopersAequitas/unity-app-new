@@ -158,7 +158,7 @@ class CheckoutQuoteService
         // Validate Minimum Total Coin Value Requirement for Orders
         $minOrderCoins = (int) (StoreConfig::getValue('min_order_total_coins') ?? StoreConfig::getValue('min_order_coins', 0));
         if ($minOrderCoins > 0 && $subtotalCoins < $minOrderCoins) {
-            throw new Exception("Your order must contain products worth at least " . number_format($minOrderCoins) . " coins. Please add more products to continue.", 422);
+            throw new Exception('Your order must contain products worth at least '.number_format($minOrderCoins).' coins. Please add more products to continue.', 422);
         }
 
         $deliveryCoins = 0;
@@ -220,16 +220,24 @@ class CheckoutQuoteService
                 'expires_at' => $expiresAt,
             ]);
 
-            foreach ($quoteItems as $item) {
-                CheckoutQuoteItem::create([
-                    'quote_id' => $quoteRecord->id,
-                    'product_id' => $item['product_id'],
-                    'variant_id' => $item['variant_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price_coins' => $item['unit_price_coins'],
-                    'total_price_coins' => $item['total_price_coins'],
-                    'created_at' => now(),
-                ]);
+            if (Schema::hasTable('checkout_quote_items')) {
+                foreach ($quoteItems as $item) {
+                    try {
+                        CheckoutQuoteItem::create([
+                            'quote_id' => $quoteRecord->id,
+                            'product_id' => $item['product_id'],
+                            'variant_id' => $item['variant_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price_coins' => $item['unit_price_coins'],
+                            'unit_coin_price' => $item['unit_price_coins'],
+                            'total_price_coins' => $item['total_price_coins'],
+                            'total_coin_price' => $item['total_price_coins'],
+                            'created_at' => now(),
+                        ]);
+                    } catch (\Throwable) {
+                        // Non-blocking fallback
+                    }
+                }
             }
 
             return $quoteRecord;

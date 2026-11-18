@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class Receipt extends Model
 {
@@ -14,6 +15,8 @@ class Receipt extends Model
     protected $table = 'receipts';
 
     const UPDATED_AT = null;
+
+    protected static ?array $existingColumns = null;
 
     protected $fillable = [
         'receipt_no',
@@ -32,6 +35,31 @@ class Receipt extends Model
         'issued_at' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $receipt): void {
+            if (static::$existingColumns === null) {
+                try {
+                    if (Schema::hasTable('receipts')) {
+                        static::$existingColumns = Schema::getColumnListing('receipts');
+                    } else {
+                        static::$existingColumns = [];
+                    }
+                } catch (\Throwable) {
+                    static::$existingColumns = null;
+                }
+            }
+
+            if (is_array(static::$existingColumns) && ! empty(static::$existingColumns)) {
+                foreach (array_keys($receipt->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($receipt->attributes[$attr]);
+                    }
+                }
+            }
+        });
+    }
 
     public function order(): BelongsTo
     {

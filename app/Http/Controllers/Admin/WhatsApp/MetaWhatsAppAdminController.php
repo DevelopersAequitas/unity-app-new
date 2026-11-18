@@ -1045,19 +1045,49 @@ class MetaWhatsAppAdminController extends Controller
      */
     public function webhookLogs(Request $request): View|JsonResponse
     {
-        $events = WhatsappWebhookEvent::orderByDesc('created_at')
-            ->paginate(30)
+        $query = WhatsappWebhookEvent::query();
+
+        if ($request->filled('event_type') && $request->input('event_type') !== 'all') {
+            $query->where('event_type', $request->input('event_type'));
+        }
+
+        if ($request->filled('processing_status') && $request->input('processing_status') !== 'all') {
+            $query->where('processing_status', $request->input('processing_status'));
+        }
+
+        if ($request->filled('search')) {
+            $s = trim((string) $request->input('search'));
+            $query->where(function ($q) use ($s) {
+                $q->where('event_type', 'like', "%{$s}%")
+                    ->orWhere('meta_message_id', 'like', "%{$s}%")
+                    ->orWhere('waba_id', 'like', "%{$s}%")
+                    ->orWhere('payload_hash', 'like', "%{$s}%")
+                    ->orWhere('error_message', 'like', "%{$s}%");
+            });
+        }
+
+        $perPage = (int) $request->input('per_page', 30);
+        $events = $query->orderByDesc('created_at')
+            ->paginate($perPage)
             ->withQueryString();
 
-        if ($request->wantsJson()) {
+        $stats = [
+            'total_events' => WhatsappWebhookEvent::count(),
+            'processed_count' => WhatsappWebhookEvent::where('processing_status', 'processed')->count(),
+            'failed_count' => WhatsappWebhookEvent::where('processing_status', 'failed')->count(),
+        ];
+
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
             return response()->json([
                 'success' => true,
                 'events' => $events,
+                'stats' => $stats,
             ]);
         }
 
         return view('admin.whatsapp.webhook_logs', [
             'events' => $events,
+            'stats' => $stats,
         ]);
     }
 

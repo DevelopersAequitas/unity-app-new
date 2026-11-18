@@ -1042,6 +1042,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/messages/mark-all-read', [MetaWhatsAppAdminController::class, 'markAllDeliveredAsRead'])->name('messages.mark_all_read');
 
             Route::get('/webhook-logs', [MetaWhatsAppAdminController::class, 'webhookLogs'])->name('webhook_logs');
+            Route::get('/webhook_logs', [MetaWhatsAppAdminController::class, 'webhookLogs']);
             Route::get('/settings', [MetaWhatsAppAdminController::class, 'settings'])->name('settings');
             Route::get('/test-connection', [MetaWhatsAppAdminController::class, 'testConnection'])->name('test_connection');
 
@@ -1079,10 +1080,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             // Event QR Passes WhatsApp Delivery Management
             Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');
+            Route::get('/event_passes', [EventPassWhatsappAdminController::class, 'index']);
             Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event_passes.export');
+            Route::get('/event_passes/export', [EventPassWhatsappAdminController::class, 'export']);
             Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id')->name('event_passes.show');
+            Route::get('/event_passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
             Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id')->name('event_passes.resend');
+            Route::post('/event_passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
             Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend'])->name('event_passes.bulk_resend');
+            Route::post('/event_passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
         });
 
         // App Notifications & Mobile Navigation Showcase Module

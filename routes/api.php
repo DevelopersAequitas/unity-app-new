@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\EventPassWhatsappAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
@@ -925,6 +926,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/message-logs/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('message_logs.show');
                 Route::post('/messages/{id}/simulate-status', [MetaWhatsAppAdminController::class, 'simulateStatus'])->name('messages.simulate_status');
                 Route::post('/messages/mark-all-read', [MetaWhatsAppAdminController::class, 'markAllDeliveredAsRead'])->name('messages.mark_all_read');
+                Route::get('/webhook-logs', [MetaWhatsAppAdminController::class, 'webhookLogs'])->name('webhook_logs');
+                Route::get('/webhook_logs', [MetaWhatsAppAdminController::class, 'webhookLogs']);
 
                 // Referral Contact Invitations
                 Route::get('/contact-invitations', [AdminContactInvitationController::class, 'index'])->name('contact_invitations.index');
@@ -932,6 +935,18 @@ Route::prefix('v1')->group(function () {
                 Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact_invitations.bulk_resend');
                 Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact_invitations.resend');
                 Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact_invitations.show');
+
+                // Meta WhatsApp Event QR Passes
+                Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');
+                Route::get('/event_passes', [EventPassWhatsappAdminController::class, 'index']);
+                Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event_passes.export');
+                Route::get('/event_passes/export', [EventPassWhatsappAdminController::class, 'export']);
+                Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id')->name('event_passes.show');
+                Route::get('/event_passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+                Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id')->name('event_passes.resend');
+                Route::post('/event_passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+                Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend'])->name('event_passes.bulk_resend');
+                Route::post('/event_passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
             });
 
             // Referral Contact Invitations (Admin Root Alias)
@@ -940,6 +955,18 @@ Route::prefix('v1')->group(function () {
             Route::post('/contact-invitations/bulk-resend', [AdminContactInvitationController::class, 'bulkResend'])->name('contact-invitations.bulk-resend');
             Route::post('/contact-invitations/{id}/resend', [AdminContactInvitationController::class, 'resend'])->name('contact-invitations.resend');
             Route::get('/contact-invitations/{id}', [AdminContactInvitationController::class, 'show'])->name('contact-invitations.show');
+
+            // Event QR Passes (Admin Root Alias)
+            Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event-passes.index');
+            Route::get('/event_passes', [EventPassWhatsappAdminController::class, 'index']);
+            Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event-passes.export');
+            Route::get('/event_passes/export', [EventPassWhatsappAdminController::class, 'export']);
+            Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+            Route::get('/event_passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+            Route::post('/event_passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id');
+            Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
+            Route::post('/event_passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend']);
 
             // AI Chatbot Admin API
             Route::get('/ai-chatbot', [AiChatbotAdminController::class, 'index']);
