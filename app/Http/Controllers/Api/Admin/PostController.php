@@ -246,11 +246,29 @@ class PostController extends BaseApiController
             ? asset('storage/'.ltrim((string) $post->video_path, '/'))
             : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
 
+        // Fallback: check post->image and post->media array if mediaUrl is missing or points to dead ngrok
+        if (empty($mediaUrl) || str_contains((string) $mediaUrl, 'ngrok-free.dev')) {
+            if (! empty($post->image)) {
+                $mediaUrl = $post->image;
+            } elseif (! empty($post->media) && is_array($post->media)) {
+                $first = reset($post->media);
+                $mediaUrl = $first['url'] ?? (! empty($first['id']) ? url("/api/v1/files/{$first['id']}") : null);
+            }
+        }
+
+        // Normalize dead ngrok host to clean relative file path
+        if (! empty($mediaUrl) && str_contains((string) $mediaUrl, 'ngrok-free.dev')) {
+            $parsedPath = parse_url((string) $mediaUrl, PHP_URL_PATH);
+            $mediaUrl = $parsedPath ?: $mediaUrl;
+        }
+
         $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
             ? 'video'
             : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
 
         $data['media_url'] = $mediaUrl;
+        $data['mediaUrls'] = $mediaUrl ? [$mediaUrl] : [];
+        $data['image'] = $mediaUrl;
         $data['media_type'] = $mediaType;
         $data['aspect_ratio'] = '4:5';
 
@@ -283,10 +301,11 @@ class PostController extends BaseApiController
             $data['user']['display_name'] = $data['user']['display_name'] ?? $authorName;
         }
 
-        // Check if this is a recognition / system-generated bot post
+        // Check if this is a recognition / celebration / system-generated bot post
         $currentAuthorName = (string) ($post->user?->display_name ?? $post->user?->name ?? '');
         $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
-            || ($post->source_type ?? null) === 'life_impact'
+            || in_array($post->post_type ?? '', ['birthday', 'anniversary', 'birthday_celebration', 'anniversary_celebration'], true)
+            || in_array($post->source_type ?? '', ['birthday', 'anniversary', 'life_impact'], true)
             || str_contains(strtolower($currentAuthorName), 'genie')
             || str_contains(strtolower($currentAuthorName), 'peers global');
 
@@ -297,9 +316,11 @@ class PostController extends BaseApiController
                     $recognizedPeer = User::find($post->source_id);
                 }
                 if (! $recognizedPeer && ! empty($post->id) && Str::isUuid((string) $post->id)) {
-                    $mention = PostMention::where('post_id', $post->id)->first();
-                    if ($mention && $mention->peer_id && Str::isUuid((string) $mention->peer_id)) {
-                        $recognizedPeer = User::find($mention->peer_id);
+                    if (Schema::hasTable('post_mentions')) {
+                        $mention = PostMention::where('post_id', $post->id)->first();
+                        if ($mention && $mention->peer_id && Str::isUuid((string) $mention->peer_id)) {
+                            $recognizedPeer = User::find($mention->peer_id);
+                        }
                     }
                 }
                 if (! $recognizedPeer && ! empty($post->tags) && is_array($post->tags)) {
@@ -315,6 +336,16 @@ class PostController extends BaseApiController
                 if (! $recognizedPeer && (! empty($post->content_text) || ! empty($post->title))) {
                     $text = $post->content_text ?: $post->title;
                     if (preg_match('/Congratulations to\s+([^on\n\r!]+?)\s+on becoming/i', $text, $m)) {
+                        $cName = trim($m[1]);
+                        $recognizedPeer = User::where('display_name', $cName)
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                            ->first();
+                    } elseif (preg_match('/Wishing\s+([^!]+?)\s+a very Happy Birthday/i', $text, $m)) {
+                        $cName = trim($m[1]);
+                        $recognizedPeer = User::where('display_name', $cName)
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])
+                            ->first();
+                    } elseif (preg_match('/Happy Birthday,\s*([^!]+)/i', $text, $m)) {
                         $cName = trim($m[1]);
                         $recognizedPeer = User::where('display_name', $cName)
                             ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$cName])

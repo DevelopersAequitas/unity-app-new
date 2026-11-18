@@ -34,7 +34,7 @@ class StoreCatalogService
     {
         $query = Product::query()
             ->active()
-            ->with(['primaryImage', 'category', 'variants' => function ($q) {
+            ->with(['primaryImage', 'images', 'category', 'variants' => function ($q) {
                 $q->active();
             }]);
 
@@ -88,6 +88,9 @@ class StoreCatalogService
                     }
                 }
             }
+
+            $product->setAttribute('product_id', $product->id);
+            $product->setAttribute('image_url', $product->image_url);
         });
 
         return $products;
@@ -99,6 +102,7 @@ class StoreCatalogService
             ->active()
             ->with([
                 'category',
+                'primaryImage',
                 'images',
                 'variants' => function ($q) {
                     $q->active();
@@ -119,6 +123,9 @@ class StoreCatalogService
                     }
                 }
             }
+
+            $product->setAttribute('product_id', $product->id);
+            $product->setAttribute('image_url', $product->image_url);
         }
 
         return $product;
@@ -126,12 +133,19 @@ class StoreCatalogService
 
     public function getFeaturedProducts(int $limit = 10): Collection
     {
-        return Product::query()
+        $products = Product::query()
             ->active()
             ->featured()
-            ->with(['primaryImage', 'category'])
+            ->with(['primaryImage', 'images', 'category'])
             ->orderBy('sort_order', 'asc')
             ->limit($limit)
             ->get();
+
+        $products->each(function ($product) {
+            $product->setAttribute('product_id', $product->id);
+            $product->setAttribute('image_url', $product->image_url);
+        });
+
+        return $products;
     }
 }

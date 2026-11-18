@@ -90,18 +90,20 @@ class WalletAdjustmentRequest extends Model
             // Sync adjustment_type <-> action
             $action = $request->attributes['action'] ?? null;
             $type = $request->attributes['adjustment_type'] ?? null;
-            if (! $type && $action) {
-                $type = (strtolower($action) === 'credit') ? 'ADJUST_CREDIT' : 'ADJUST_DEBIT';
+            if ($type) {
+                $type = str_contains(strtoupper((string) $type), 'CREDIT') ? 'CREDIT' : 'DEBIT';
+            } elseif ($action) {
+                $type = (strtolower((string) $action) === 'credit') ? 'CREDIT' : 'DEBIT';
+            } else {
+                $type = 'CREDIT';
             }
-            if (! $action && $type) {
-                $action = str_contains(strtoupper((string) $type), 'CREDIT') ? 'credit' : 'debit';
-            }
+            $action = ($type === 'CREDIT') ? 'credit' : 'debit';
 
             if (in_array('adjustment_type', static::$existingColumns, true)) {
-                $request->attributes['adjustment_type'] = $type ?? 'ADJUST_CREDIT';
+                $request->attributes['adjustment_type'] = $type;
             }
             if (in_array('action', static::$existingColumns, true)) {
-                $request->attributes['action'] = $action ?? 'credit';
+                $request->attributes['action'] = $action;
             }
 
             foreach (array_keys($request->attributes) as $attr) {
