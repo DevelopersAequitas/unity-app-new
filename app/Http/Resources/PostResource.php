@@ -81,13 +81,28 @@ class PostResource extends JsonResource
         ];
 
         $image = $this->image;
+        if (empty($image) && ! empty($this->media) && is_array($this->media)) {
+            $first = reset($this->media);
+            $image = $first['url'] ?? (! empty($first['id']) ? url("/api/v1/files/{$first['id']}") : null);
+        }
+        if (! empty($image) && str_contains((string) $image, 'ngrok-free.dev')) {
+            $parsedPath = parse_url((string) $image, PHP_URL_PATH);
+            $image = $parsedPath ?: $image;
+        }
+
+        $mediaUrl = $this->media_url ?: $image;
+        if (! empty($mediaUrl) && str_contains((string) $mediaUrl, 'ngrok-free.dev')) {
+            $parsedPath = parse_url((string) $mediaUrl, PHP_URL_PATH);
+            $mediaUrl = $parsedPath ?: $mediaUrl;
+        }
+
         $baseUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
         if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
             $baseUrl = 'https://peersunity.com';
         }
 
-        if ($isAnniversary && $this->image) {
-            $path = parse_url($this->image, PHP_URL_PATH);
+        if ($isAnniversary && $image) {
+            $path = parse_url($image, PHP_URL_PATH);
             $fileId = basename($path);
             if (Str::isUuid($fileId)) {
                 $fileModel = File::find($fileId);
@@ -108,7 +123,7 @@ class PostResource extends JsonResource
             'description' => $this->description ?? $this->content_text,
             'image' => $image,
             'status' => $this->status ?? ($this->active ? 'active' : 'inactive'),
-            'media_url' => $this->media_url,
+            'media_url' => $mediaUrl,
             'media_type' => $this->media_type,
             'media' => $this->media
                 ? collect($this->media)->map(function ($item) use ($isAnniversary, $baseUrl) {

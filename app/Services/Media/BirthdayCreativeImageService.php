@@ -291,8 +291,16 @@ class BirthdayCreativeImageService
 
         // Draw initial if avatar failed or is missing
         if (! $drawnSuccessfully) {
-            $displayName = $user->display_name ?: $user->first_name ?: 'User';
-            $initial = strtoupper(substr($displayName, 0, 1));
+            $firstName = trim((string) ($user->first_name ?? ''));
+            $lastName = trim((string) ($user->last_name ?? ''));
+            if ($firstName !== '' && $lastName !== '') {
+                $initial = strtoupper(mb_substr($firstName, 0, 1).mb_substr($lastName, 0, 1));
+            } else {
+                $parts = preg_split('/\s+/', trim((string) ($user->display_name ?: $firstName ?: 'User'))) ?: [];
+                $first = $parts[0] ?? 'U';
+                $last = count($parts) > 1 ? end($parts) : '';
+                $initial = strtoupper(mb_substr($first, 0, 1).($last !== '' ? mb_substr($last, 0, 1) : ''));
+            }
 
             $avatarImg = imagecreatetruecolor($avatarSize, $avatarSize);
             imagealphablending($avatarImg, false);
@@ -300,19 +308,28 @@ class BirthdayCreativeImageService
             $transparent = imagecolorallocatealpha($avatarImg, 0, 0, 0, 127);
             imagefill($avatarImg, 0, 0, $transparent);
 
-            // Fill the avatar circle with gold based on custom template
-            $avatarBgColor = $isCustomTemplate ? imagecolorallocate($avatarImg, 193, 154, 88) : imagecolorallocate($avatarImg, 0, 35, 140);
-            $avatarRadius = $avatarSize / 2;
-            imagefilledellipse($avatarImg, (int) $avatarRadius, (int) $avatarRadius, $avatarSize, $avatarSize, $avatarBgColor);
+            // Fill avatar with elegant gradient circle design
+            $startHex = $isCustomTemplate ? '#C19A58' : '#8E2DE2';
+            $endHex = $isCustomTemplate ? '#78541E' : '#4A00E0';
+            $startRgb = $this->hexToRgb($startHex);
+            $endRgb = $this->hexToRgb($endHex);
+            for ($y = 0; $y < $avatarSize; $y++) {
+                $r = (int) ($startRgb['r'] + ($endRgb['r'] - $startRgb['r']) * ($y / $avatarSize));
+                $g = (int) ($startRgb['g'] + ($endRgb['g'] - $startRgb['g']) * ($y / $avatarSize));
+                $b = (int) ($startRgb['b'] + ($endRgb['b'] - $startRgb['b']) * ($y / $avatarSize));
+                $lineColor = imagecolorallocate($avatarImg, $r, $g, $b);
+                imageline($avatarImg, 0, $y, $avatarSize, $y, $lineColor);
+            }
 
             // Draw initial letter
+            $avatarRadius = $avatarSize / 2;
             $fontPath = $this->getFontPath('bold');
             $whiteColor = imagecolorallocate($avatarImg, 255, 255, 255);
-            $fontSizeInit = (int) ($avatarSize * 0.42);
+            $fontSizeInit = strlen($initial) > 1 ? (int) ($avatarSize * 0.35) : (int) ($avatarSize * 0.42);
             if (file_exists($fontPath)) {
                 $this->drawCenteredBoldText($avatarImg, $fontSizeInit, $avatarRadius, $avatarRadius, $whiteColor, $fontPath, $initial);
             } else {
-                imagestring($avatarImg, 5, (int) ($avatarRadius - 10), (int) ($avatarRadius - 10), $initial, $whiteColor);
+                imagestring($avatarImg, 5, (int) ($avatarRadius - (strlen($initial) * 8)), (int) ($avatarRadius - 10), $initial, $whiteColor);
             }
 
             $circularAvatar = $this->createCircularPhoto($avatarImg, $avatarSize);

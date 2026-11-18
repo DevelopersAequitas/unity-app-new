@@ -7,8 +7,10 @@ use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
+use App\Services\Notifications\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Schema;
 use Log;
 
 class GenerateBirthdayCreatives extends Command
@@ -30,7 +32,7 @@ class GenerateBirthdayCreatives extends Command
     /**
      * Execute the console command.
      */
-    public function handle(BirthdayCreativeImageService $imageService)
+    public function handle(BirthdayCreativeImageService $imageService, NotificationService $notificationService)
     {
         $this->info('Starting Birthday Creative generation process...');
 
@@ -43,7 +45,7 @@ class GenerateBirthdayCreatives extends Command
 
         // 1. Auto-deactivate posts from previous days
         $this->info('Deactivating expired birthday posts...');
-        $todayStart = Carbon::today();
+        $todayStart = Carbon::today('Asia/Kolkata');
         $deactivatedCount = Post::query()
             ->where('post_type', 'birthday')
             ->where('active', true)
@@ -71,11 +73,11 @@ class GenerateBirthdayCreatives extends Command
         foreach ($users as $user) {
             try {
                 if (! $testUserId) {
-                    $timezone = $user->timezone ?: config('app.timezone', 'UTC');
+                    $timezone = $user->timezone ?: 'Asia/Kolkata';
                     try {
                         $localTime = Carbon::now($timezone);
                     } catch (\Throwable $tzError) {
-                        $localTime = Carbon::now('UTC');
+                        $localTime = Carbon::now('Asia/Kolkata');
                     }
 
                     // Check if today is the user's birthday in their local timezone
@@ -83,65 +85,111 @@ class GenerateBirthdayCreatives extends Command
                     if ($localTime->format('m-d') !== $dobLocal->format('m-d')) {
                         continue;
                     }
-
-                    // Check if current local time is exactly between 12:00 AM and 12:59 AM (hour is 0)
-                    /*if ($localTime->hour !== 0) {
-                        continue;
-                    }*/
                 }
 
-                // Check if a birthday post was already created for this user recently (last 20 hours)
+                // Check if a birthday post was already created for this user this year
                 $alreadyExists = Post::query()
                     ->where(function ($q) use ($user) {
                         $q->where('source_id', $user->id)
                             ->orWhere('user_id', $user->id);
                     })
-                    ->where('post_type', 'birthday')
-                    ->where('created_at', '>=', Carbon::now()->subHours(20))
+                    ->where(function ($q) {
+                        $q->where('post_type', 'birthday')
+                            ->orWhere('source_type', 'birthday');
+                    })
+                    ->where('created_at', '>=', Carbon::now('Asia/Kolkata')->startOfYear())
                     ->exists();
 
                 if ($alreadyExists && ! $testUserId) {
-                    $this->line("Birthday post already exists for user: {$user->display_name} today. Skipping.");
+                    $this->line("Birthday post already exists for user: {$user->display_name} this year. Skipping.");
 
                     continue;
                 }
 
                 $this->info("Generating creative for user: {$user->display_name} ({$user->id})...");
 
-                // Generate image using Intervention Image
+                // Generate image using BirthdayCreativeImageService
                 $fileModel = $imageService->generate($user);
 
                 // Retrieve system account (Peers Global Genie) to own the automated post
                 $systemUser = User::getSystemUser();
-                $authorUserId = $systemUser->id;
+                $authorUserId = $systemUser ? $systemUser->id : $user->id;
+
+                // Calculate turning age
+                $dobCarbon = Carbon::parse($user->dob);
+                $todayKolkata = Carbon::today('Asia/Kolkata');
+                $turningAge = (int) round($dobCarbon->diffInYears($todayKolkata));
+                if ($turningAge <= 0 && $dobCarbon->year < $todayKolkata->year) {
+                    $turningAge = $todayKolkata->year - $dobCarbon->year;
+                }
+                $milestoneStr = $turningAge > 0 ? "Celebrating {$turningAge} wonderful years!" : "";
+
+                $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+                $contentText = "Wishing {$displayName} a very Happy Birthday! 🎂" . ($milestoneStr ? " {$milestoneStr}" : "");
+                $fileUrl = "/api/v1/files/{$fileModel->id}";
 
                 // Create Timeline post
-                $displayName = $user->display_name ?: ($user->first_name.' '.$user->last_name);
                 $post = Post::create([
                     'user_id' => $authorUserId,
-                    'content_text' => "Wishing {$displayName} a very Happy Birthday! 🎂",
+                    'content_text' => $contentText,
+                    'title' => "🎂 Birthday Celebration: {$displayName}",
+                    'description' => "{$displayName} is celebrating their birthday!" . ($milestoneStr ? " ({$turningAge} Years)" : ""),
                     'post_type' => 'birthday',
                     'active' => true,
+                    'status' => 'active',
                     'visibility' => 'public',
                     'moderation_status' => 'approved',
                     'source_type' => 'birthday',
                     'source_id' => $user->id,
                     'source_event' => 'birthday',
+                    'image' => $fileUrl,
                     'media' => [
                         [
-                            'id' => $fileModel->id,
+                            'id' => (string) $fileModel->id,
                             'type' => 'image',
-                            'url' => url("/api/v1/files/{$fileModel->id}"),
+                            'url' => $fileUrl,
                         ],
                     ],
+                    'tags' => ['#Birthday', '#Celebration', '#PeersGlobal'],
                 ]);
 
-                PostMention::firstOrCreate([
-                    'post_id' => $post->id,
-                    'peer_id' => $user->id,
-                ]);
+                if (Schema::hasTable('post_mentions')) {
+                    PostMention::firstOrCreate([
+                        'post_id' => $post->id,
+                        'peer_id' => $user->id,
+                    ]);
+                }
 
-                $this->info("Post created successfully for user: {$user->display_name}. Post ID: {$post->id}");
+                $this->info("Post created successfully for user: {$displayName}. Post ID: {$post->id}");
+
+                // Dispatch in-app notification to member
+                try {
+                    $notificationService->sendToUser(
+                        $user,
+                        'birthday_anniversary',
+                        "Happy Birthday, {$displayName}! 🎂",
+                        "A special birthday celebration creative honour has been published to your community timeline at 7:00 AM IST. Celebrating {$turningAge} wonderful years! Have a wonderful celebration! 🎉",
+                        [
+                            'screen' => 'timeline',
+                            'tap_destination' => 'timeline',
+                            'post_id' => (string) $post->id,
+                            'user_id' => (string) $user->id,
+                            'reference_type' => 'post',
+                            'reference_id' => (string) $post->id,
+                        ],
+                        [
+                            'channel' => 'in_app',
+                            'reference_type' => 'post',
+                            'reference_id' => (string) $post->id,
+                            'dedupe_key' => 'birthday:'.$user->id.':'.$todayKolkata->toDateString(),
+                            'bypass_daily_limit' => true,
+                        ]
+                    );
+                    $this->info("In-app notification dispatched to user: {$displayName}");
+                } catch (\Throwable $notifEx) {
+                    Log::warning("Could not send birthday notification for user {$user->id}: ".$notifEx->getMessage());
+                }
+
                 $postsCreated++;
             } catch (\Throwable $e) {
                 $this->error("Failed to generate birthday creative for user {$user->id}: ".$e->getMessage());
