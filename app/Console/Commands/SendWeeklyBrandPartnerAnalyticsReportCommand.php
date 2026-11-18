@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\AdvertiserApplication;
-use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerClick;
 use App\Models\BrandPartnerInquiry;
@@ -51,24 +49,9 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
         $sentCount = 0;
 
         foreach ($activePartners as $partner) {
-            $recipientEmail = trim((string) ($partner->contact_email ?? ''));
-            $recipientName = trim((string) ($partner->name ?: 'Brand Partner')).' Team';
-
-            if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-                $linkedApp = AdvertiserApplication::where('brand_partner_id', $partner->id)->latest()->first();
-                $recipientEmail = trim((string) ($linkedApp?->company_email ?: ($linkedApp?->applicant_email ?? '')));
-                if (! empty($linkedApp?->applicant_name)) {
-                    $recipientName = (string) $linkedApp->applicant_name;
-                }
-            }
-
-            if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-                $linkedSub = AdvertiserSubscription::with('user')->where('brand_partner_id', $partner->id)->latest()->first();
-                $recipientEmail = trim((string) ($linkedSub?->user?->email ?? ''));
-                if (! empty($linkedSub?->user?->display_name)) {
-                    $recipientName = (string) $linkedSub->user->display_name;
-                }
-            }
+            $resolved = $this->notificationService->resolveBrandPartnerRecipient($partner);
+            $recipientEmail = $resolved['email'];
+            $recipientName = $resolved['name'];
 
             if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
                 continue;

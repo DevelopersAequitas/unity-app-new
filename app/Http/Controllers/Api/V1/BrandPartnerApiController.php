@@ -272,35 +272,75 @@ class BrandPartnerApiController extends BaseApiController
             'email_sent' => false,
         ]);
 
-        // Resolve the Brand Partner's registered contact email (with fallback to linked AdvertiserApplication / Subscription user)
-        $recipientEmail = trim((string) ($partner->contact_email ?? ''));
-        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-            $linkedApp = AdvertiserApplication::where('brand_partner_id', $partner->id)->latest()->first();
-            $recipientEmail = trim((string) ($linkedApp?->company_email ?: ($linkedApp?->applicant_email ?? '')));
-        }
-        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-            $linkedSub = AdvertiserSubscription::with('user')->where('brand_partner_id', $partner->id)->latest()->first();
-            $recipientEmail = trim((string) ($linkedSub?->user?->email ?? ''));
-        }
+        /** @var AdvertiserNotificationService $notificationService */
+        $notificationService = app(AdvertiserNotificationService::class);
+        $resolvedRecipient = $notificationService->resolveBrandPartnerRecipient($partner);
+        $recipientEmail = $resolvedRecipient['email'];
 
-        $emailSent = false;
-        if ($recipientEmail !== '' && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-            /** @var AdvertiserNotificationService $notificationService */
-            $notificationService = app(AdvertiserNotificationService::class);
-            $emailSent = $notificationService->sendCallbackRequestNotification($partner, $inquiry, $recipientEmail);
-            if ($emailSent) {
-                $inquiry->update(['email_sent' => true]);
-            }
+        $emailSent = $notificationService->sendCallbackRequestNotification($partner, $inquiry, $recipientEmail);
+        if ($emailSent) {
+            $inquiry->update(['email_sent' => true]);
         }
 
         $totalCallbacks = BrandPartnerInquiry::where('brand_partner_id', $partner->id)->count();
+        $notificationPayload = $notificationService->sendCallbackRequestPushAndInAppNotification(
+            $partner,
+            $inquiry,
+            $totalCallbacks
+        );
 
         return $this->success([
             'inquiry_id' => (string) $inquiry->id,
             'brand_partner_id' => (string) $partner->id,
             'email_sent' => $emailSent,
             'callback_requests' => $totalCallbacks,
+            'callback_requests_count' => $totalCallbacks,
+            'notification' => $notificationPayload,
         ], 'Callback request submitted successfully. The brand partner has been notified.');
+    }
+
+    /**
+     * List callback requests for a Brand Partner (or authenticated advertiser's Brand Partners).
+     * GET /api/v1/brand-partners/{id}/callback-requests
+     * GET /api/v1/advertiser/callback-requests
+     */
+    public function callbackRequests(Request $request, ?string $id = null): JsonResponse
+    {
+        BrandPartnerInquiry::ensureTableExists();
+
+        $query = BrandPartnerInquiry::with('brandPartner')->orderByDesc('created_at');
+
+        if ($id !== null && $id !== '') {
+            $query->where('brand_partner_id', $id);
+        } elseif ($request->filled('brand_partner_id')) {
+            $query->where('brand_partner_id', (string) $request->query('brand_partner_id'));
+        } else {
+            $user = $request->user() ?? auth('sanctum')->user();
+            if ($user) {
+                $partnerIds = AdvertiserSubscription::where('user_id', $user->id)
+                    ->whereNotNull('brand_partner_id')
+                    ->pluck('brand_partner_id')
+                    ->merge(
+                        AdvertiserApplication::where('user_id', $user->id)
+                            ->whereNotNull('brand_partner_id')
+                            ->pluck('brand_partner_id')
+                    )
+                    ->merge(
+                        BrandPartner::whereRaw('LOWER(TRIM(contact_email)) = ?', [strtolower(trim((string) $user->email))])
+                            ->pluck('id')
+                    )
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $query->whereIn('brand_partner_id', $partnerIds);
+            }
+        }
+
+        $perPage = (int) $request->query('per_page', 20);
+        $inquiries = $query->paginate($perPage);
+
+        return $this->success($inquiries, 'Callback requests retrieved successfully.');
     }
 
     public function save(Request $request, string $id): JsonResponse

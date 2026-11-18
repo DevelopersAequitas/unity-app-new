@@ -148,6 +148,27 @@ class AdvertiserAnalyticsService
             ];
         }
 
+        $recentCallbacks = [];
+        if ($primaryPartner && Schema::hasTable('brand_partner_inquiries')) {
+            $recentCallbacks = BrandPartnerInquiry::where('brand_partner_id', $primaryPartner['brand_partner_id'])
+                ->orderByDesc('created_at')
+                ->limit(20)
+                ->get()
+                ->map(fn (BrandPartnerInquiry $inq): array => [
+                    'id' => (string) $inq->id,
+                    'inquiry_id' => (string) $inq->id,
+                    'brand_partner_id' => (string) $inq->brand_partner_id,
+                    'user_id' => $inq->user_id ? (string) $inq->user_id : null,
+                    'name' => $inq->name,
+                    'phone' => $inq->phone,
+                    'email' => $inq->email,
+                    'message' => $inq->message,
+                    'status' => $inq->status,
+                    'created_at' => $inq->created_at?->toIso8601String(),
+                ])
+                ->all();
+        }
+
         return [
             'company_name' => $currentCampaign['company_name'] ?? null,
             'brand_name' => $currentCampaign['brand_name'] ?? null,
@@ -156,6 +177,8 @@ class AdvertiserAnalyticsService
             'valid_to' => $currentCampaign['valid_to'] ?? null,
             'current_campaign' => $currentCampaign,
             'metrics' => $currentMetrics,
+            'callback_requests_list' => $recentCallbacks,
+            'recent_callback_requests' => $recentCallbacks,
             'application_summary' => $appSummary,
             'active_partners' => $activePartnersCount,
             'pending_payments' => $pendingPayments,

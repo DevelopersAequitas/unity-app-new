@@ -1654,6 +1654,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/applications/{id}/link-account', [AdvertiserMemberApiController::class, 'linkAccount'])->whereUuid('id');
             Route::get('/dashboard', [AdvertiserMemberApiController::class, 'dashboard']);
             Route::get('/analytics', [AdvertiserMemberApiController::class, 'analytics']);
+            Route::get('/callback-requests', [BrandPartnerApiController::class, 'callbackRequests']);
             Route::get('/subscriptions', [AdvertiserMemberApiController::class, 'subscriptions']);
             Route::get('/subscriptions/{id}', [AdvertiserMemberApiController::class, 'subscriptionDetails'])->whereUuid('id');
 
@@ -1725,6 +1726,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
     Route::post('/brand-partners/{id}/callback-request', [BrandPartnerApiController::class, 'submitCallbackRequest'])->whereUuid('id');
+    Route::get('/brand-partners/{id}/callback-requests', [BrandPartnerApiController::class, 'callbackRequests'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
 
     // Public Advertiser & Brand Partner Onboarding APIs

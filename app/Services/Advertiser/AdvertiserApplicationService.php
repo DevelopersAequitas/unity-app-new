@@ -99,7 +99,7 @@ class AdvertiserApplicationService
             ?? null;
 
         try {
-            $parsedStartDate = ! empty($rawStartDate)
+            $parsedStartDate = !empty($rawStartDate)
                 ? Carbon::parse((string) $rawStartDate)->startOfDay()
                 : now()->startOfDay();
         } catch (\Throwable) {
@@ -109,24 +109,7 @@ class AdvertiserApplicationService
         $durationMonths = max(1, (int) ($package->duration_months ?: 1));
         $parsedEndDate = $parsedStartDate->copy()->addMonths($durationMonths)->endOfDay();
 
-        return DB::transaction(function () use (
-            $package,
-            $company,
-            $campaign,
-            $consents,
-            $data,
-            $source,
-            $applicantName,
-            $applicantEmail,
-            $applicantPhone,
-            $userId,
-            $emailVerified,
-            $initialStatus,
-            $idempotencyKey,
-            $parsedStartDate,
-            $parsedEndDate,
-            $durationMonths
-        ): AdvertiserApplication {
+        return DB::transaction(function () use ($package, $company, $campaign, $consents, $data, $source, $applicantName, $applicantEmail, $applicantPhone, $userId, $emailVerified, $initialStatus, $idempotencyKey, $parsedStartDate, $parsedEndDate, $durationMonths): AdvertiserApplication {
             $applicationNumber = $this->generateApplicationNumber();
 
             $application = AdvertiserApplication::create([
@@ -417,8 +400,17 @@ class AdvertiserApplicationService
             $oldStatus = $application->status;
             $application->status = $newStatus;
 
+            // reviewed_by and changed_by reference users(id), whereas Admin Panel users live in admin_users(id)
+            $validUserActorId = (! empty($actorId) && User::where('id', $actorId)->exists())
+                ? $actorId
+                : null;
+
+            if (! empty($actorId) && $validUserActorId === null) {
+                $metadata['admin_actor_id'] = $actorId;
+            }
+
             if ($actorType === 'admin') {
-                $application->reviewed_by = $actorId;
+                $application->reviewed_by = $validUserActorId;
                 $application->reviewed_at = now();
             }
 
@@ -445,7 +437,7 @@ class AdvertiserApplicationService
                 'application_id' => $application->id,
                 'old_status' => $oldStatus,
                 'new_status' => $newStatus,
-                'changed_by' => $actorId,
+                'changed_by' => $validUserActorId,
                 'actor_type' => $actorType,
                 'notes' => $notes,
                 'metadata' => $metadata,

@@ -13,6 +13,7 @@ use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartnerClick;
 use App\Models\BrandPartnerView;
+use App\Models\User;
 use App\Services\Advertiser\AdvertiserAnalyticsService;
 use App\Services\Advertiser\AdvertiserApplicationService;
 use App\Services\Advertiser\AdvertiserCampaignService;
@@ -82,6 +83,9 @@ class AdvertiserAdminApiController extends BaseApiController
             $counter++;
         }
 
+        $actorId = auth()->id();
+        $validUserActorId = (! empty($actorId) && User::where('id', $actorId)->exists()) ? $actorId : null;
+
         $package = AdvertiserPackage::create([
             'name' => $validated['name'],
             'slug' => $slug,
@@ -94,8 +98,8 @@ class AdvertiserAdminApiController extends BaseApiController
             'max_banner_assets' => (int) ($validated['max_banner_assets'] ?? 5),
             'is_active' => (bool) ($validated['is_active'] ?? true),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
-            'created_by' => auth()->id(),
-            'updated_by' => auth()->id(),
+            'created_by' => $validUserActorId,
+            'updated_by' => $validUserActorId,
         ]);
 
         return $this->success($package, 'Package created successfully.', 201);
@@ -162,7 +166,8 @@ class AdvertiserAdminApiController extends BaseApiController
             $package->sort_order = (int) $validated['sort_order'];
         }
 
-        $package->updated_by = auth()->id();
+        $actorId = auth()->id();
+        $package->updated_by = ($actorId && User::where('id', $actorId)->exists()) ? $actorId : null;
         $package->save();
 
         return $this->success($package, 'Package updated successfully.');
@@ -182,7 +187,8 @@ class AdvertiserAdminApiController extends BaseApiController
             $package->is_active = ! $package->is_active;
         }
 
-        $package->updated_by = auth()->id();
+        $actorId = auth()->id();
+        $package->updated_by = ($actorId && User::where('id', $actorId)->exists()) ? $actorId : null;
         $package->save();
 
         return $this->success([
@@ -775,11 +781,12 @@ class AdvertiserAdminApiController extends BaseApiController
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $actor = $request->user();
         $updated = $this->campaignService->reviewCampaign(
             $campaign,
             $validated['decision'],
             $validated['notes'] ?? null,
-            $request->user()
+            $actor instanceof User ? $actor : null
         );
 
         return $this->success([
@@ -796,7 +803,8 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
-        $ad = $this->publicationService->publishCampaignAd($campaign, $request->user());
+        $actor = $request->user();
+        $ad = $this->publicationService->publishCampaignAd($campaign, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,
@@ -812,8 +820,9 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
+        $actor = $request->user();
         $reason = $request->input('reason', 'Paused by admin');
-        $this->campaignService->pauseCampaign($campaign, $reason, $request->user());
+        $this->campaignService->pauseCampaign($campaign, $reason, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,
@@ -828,7 +837,8 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Campaign not found.', 404);
         }
 
-        $this->campaignService->resumeCampaign($campaign, $request->user());
+        $actor = $request->user();
+        $this->campaignService->resumeCampaign($campaign, $actor instanceof User ? $actor : null);
 
         return $this->success([
             'campaign_id' => $campaign->id,
