@@ -46,7 +46,7 @@ class UserActivityLogService
             }
         }
 
-        return UserActivityLog::create([
+        $createdLog = UserActivityLog::create([
             'user_id' => $userId ? (string) $userId : null,
             'activity_type' => (string) ($data['activity_type'] ?? 'general'),
             'action' => isset($data['action']) ? (string) $data['action'] : null,
@@ -62,6 +62,20 @@ class UserActivityLogService
             'app_version' => isset($data['app_version']) ? (string) $data['app_version'] : null,
             'properties' => $properties,
         ]);
+
+        if ($userId) {
+            try {
+                User::where('id', $userId)->update([
+                    'last_app_opened_at' => now(),
+                    'last_seen_at' => now(),
+                    'is_online' => true,
+                ]);
+            } catch (\Throwable) {
+                // Silently ignore if columns are unavailable
+            }
+        }
+
+        return $createdLog;
     }
 
     /**
@@ -129,31 +143,20 @@ class UserActivityLogService
                 ->when($dateTo, fn ($q) => $q->where('created_at', '<=', $dateTo.' 23:59:59'))
                 ->groupBy('user_id');
 
-            $query->leftJoinSub($sub, 'agg', function ($join): void {
+            $query->joinSub($sub, 'agg', function ($join): void {
                 $join->on('users.id', '=', 'agg.user_id');
             });
 
             $query->addSelect([
-                DB::raw('COALESCE(agg.total_activities, 0) as total_activities'),
-                DB::raw('COALESCE(agg.today_activities, 0) as today_activities'),
-                DB::raw('COALESCE(agg.alert_activities, 0) as alert_activities'),
+                'agg.total_activities',
+                'agg.today_activities',
+                'agg.alert_activities',
                 'agg.last_active_at',
             ]);
 
-            // If user explicitly filtered by platform, module, or date range, only show users who have activity matching the filter
-            if (($platform !== 'all' && $platform !== '') || ($module !== 'all' && $module !== '') || $dateFrom || $dateTo) {
-                $query->whereNotNull('agg.last_active_at');
-            }
-
-            $query->orderByRaw('agg.last_active_at DESC NULLS LAST, users.created_at DESC');
+            $query->orderBy('agg.last_active_at', 'desc');
         } else {
-            $query->addSelect([
-                DB::raw('0 as total_activities'),
-                DB::raw('0 as today_activities'),
-                DB::raw('0 as alert_activities'),
-                DB::raw('NULL as last_active_at'),
-            ]);
-            $query->orderBy('users.created_at', 'desc');
+            return new LengthAwarePaginator([], 0, $perPage);
         }
 
         if ($search !== '') {

@@ -104,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
     <div class="d-flex border-bottom mb-2 gap-2">
         <a href="{{ route('admin.user-activity-logs.index', array_merge(request()->query(), ['view' => 'users'])) }}" 
            class="btn btn-sm pb-2 fw-semibold border-0 rounded-0 {{ $viewMode === 'users' ? 'border-bottom border-primary border-3 text-primary' : 'text-muted' }}">
-            <i class="bi bi-people me-1"></i> All Peers (Click User to View Activity)
+            <i class="bi bi-people me-1"></i> Peers with Activity (Click User to View)
         </a>
         <a href="{{ route('admin.user-activity-logs.index', array_merge(request()->query(), ['view' => 'logs'])) }}" 
            class="btn btn-sm pb-2 fw-semibold border-0 rounded-0 {{ $viewMode === 'logs' ? 'border-bottom border-primary border-3 text-primary' : 'text-muted' }}">
@@ -187,9 +187,9 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
             <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-people-fill text-primary"></i>
-                    All Peers &amp; User Activity
+                    Peers with Recorded Activities
                 </h6>
-                <span class="badge bg-light text-muted border">Latest active users appear at top &bull; Click any peer to open their timeline</span>
+                <span class="badge bg-light text-muted border">Users who open the app appear here &bull; Latest active on top</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 text-sm">
@@ -340,8 +340,9 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                         @empty
                             <tr>
                                 <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-people fs-2 d-block mb-2 text-muted"></i>
-                                    No peers found with recorded activities.
+                                    <i class="bi bi-phone fs-2 d-block mb-2 text-muted"></i>
+                                    <strong>No active users recorded yet.</strong>
+                                    <div class="small text-muted mt-1">When peers open the app and perform activities, they will appear here in real-time.</div>
                                 </td>
                             </tr>
                         @endforelse

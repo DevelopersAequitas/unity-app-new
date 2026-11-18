@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Api\V1\StoreUserActivityLogRequest;
+use App\Models\User;
 use App\Services\UserActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,10 @@ class UserActivityLogController extends BaseApiController
     {
         $user = $request->user() ?: $request->user('sanctum') ?: auth('sanctum')->user();
         $validated = $request->validated();
+
+        if (! $user && ! empty($validated['user_id'])) {
+            $user = User::find($validated['user_id']);
+        }
 
         $log = $this->userActivityLogService->log($validated, $user, $request);
 
