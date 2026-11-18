@@ -12,6 +12,7 @@ use App\Services\Advertiser\AdvertiserApplicationService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AdvertiserPublicApiController extends BaseApiController
@@ -19,7 +20,8 @@ class AdvertiserPublicApiController extends BaseApiController
     public function __construct(
         protected AdvertiserApplicationService $applicationService,
         protected FileUploadService $fileUploadService
-    ) {}
+    ) {
+    }
 
     /**
      * API 1: Get active advertiser packages
@@ -46,7 +48,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function submit(Request $request): JsonResponse
     {
         // Normalize flat parameters into nested array if sent by client
-        if ($request->has('applicant_name') && ! $request->has('applicant.full_name')) {
+        if ($request->has('applicant_name') && !$request->has('applicant.full_name')) {
             $request->merge([
                 'applicant' => array_merge([
                     'full_name' => $request->input('applicant_name'),
@@ -55,7 +57,7 @@ class AdvertiserPublicApiController extends BaseApiController
                 ], (array) $request->input('applicant', [])),
             ]);
         }
-        if ($request->has('company_name') && ! $request->has('company.company_name')) {
+        if ($request->has('company_name') && !$request->has('company.company_name')) {
             $request->merge([
                 'company' => array_merge([
                     'company_name' => $request->input('company_name'),
@@ -65,14 +67,14 @@ class AdvertiserPublicApiController extends BaseApiController
                 ], (array) $request->input('company', [])),
             ]);
         }
-        if ($request->has('advertising_objective') && ! $request->has('campaign.advertising_objective')) {
+        if ($request->has('advertising_objective') && !$request->has('campaign.advertising_objective')) {
             $request->merge([
                 'campaign' => array_merge([
                     'advertising_objective' => $request->input('advertising_objective'),
                 ], (array) $request->input('campaign', [])),
             ]);
         }
-        if ($request->has('consent_to_terms') && ! $request->has('consents.terms_accepted')) {
+        if ($request->has('consent_to_terms') && !$request->has('consents.terms_accepted')) {
             $request->merge([
                 'consents' => array_merge([
                     'terms_accepted' => filter_var($request->input('consent_to_terms'), FILTER_VALIDATE_BOOLEAN),
@@ -139,7 +141,7 @@ class AdvertiserPublicApiController extends BaseApiController
                     'cover_image' => AdvertiserApplicationAsset::TYPE_COVER,
                     default => AdvertiserApplicationAsset::TYPE_CREATIVE,
                 };
-                $path = $fileObj->store('advertiser/'.$application->id, $disk);
+                $path = $fileObj->store('advertiser/' . $application->id, $disk);
                 AdvertiserApplicationAsset::create([
                     'application_id' => $application->id,
                     'asset_type' => $type,
@@ -184,7 +186,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function requestEmailVerification(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -210,7 +212,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function confirmEmailVerification(Request $request, string $id): JsonResponse
     {
         // Normalize 'otp' into 'verification_code' if client passes 'otp'
-        if ($request->has('otp') && ! $request->has('verification_code')) {
+        if ($request->has('otp') && !$request->has('verification_code')) {
             $request->merge(['verification_code' => $request->input('otp')]);
         }
 
@@ -219,7 +221,7 @@ class AdvertiserPublicApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -245,7 +247,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function resendEmailVerification(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -272,16 +274,16 @@ class AdvertiserPublicApiController extends BaseApiController
         ]);
 
         $application = AdvertiserApplication::find($id);
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
         $ext = pathinfo($request->input('file_name'), PATHINFO_EXTENSION);
-        $cleanExt = $ext ? '.'.strtolower($ext) : '.jpg';
-        $storageKey = 'advertiser/'.$application->id.'/'.(string) Str::uuid().$cleanExt;
+        $cleanExt = $ext ? '.' . strtolower($ext) : '.jpg';
+        $storageKey = 'advertiser/' . $application->id . '/' . (string) Str::uuid() . $cleanExt;
 
         $disk = config('filesystems.default', 'public');
-        $uploadUrl = url('/api/v1/advertiser/applications/'.$application->id.'/assets/direct-upload');
+        $uploadUrl = url('/api/v1/advertiser/applications/' . $application->id . '/assets/direct-upload');
 
         return $this->success([
             'upload_url' => $uploadUrl,
@@ -302,7 +304,7 @@ class AdvertiserPublicApiController extends BaseApiController
     public function confirmAsset(Request $request, string $id): JsonResponse
     {
         $application = AdvertiserApplication::find($id);
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -318,19 +320,18 @@ class AdvertiserPublicApiController extends BaseApiController
         if ($uploadedFile) {
             $assetType = $request->input('asset_type');
             if (empty($assetType)) {
-                if ($request->hasFile('logo')) {
+                if ($request->hasFile('logo'))
                     $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
-                } elseif ($request->hasFile('banner')) {
+                elseif ($request->hasFile('banner'))
                     $assetType = AdvertiserApplicationAsset::TYPE_BANNER;
-                } elseif ($request->hasFile('cover_image')) {
+                elseif ($request->hasFile('cover_image'))
                     $assetType = AdvertiserApplicationAsset::TYPE_COVER;
-                } else {
+                else
                     $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
-                }
             }
 
             $disk = config('filesystems.default', 'public');
-            $path = $uploadedFile->store('advertiser/'.$application->id, $disk);
+            $path = $uploadedFile->store('advertiser/' . $application->id, $disk);
 
             $asset = AdvertiserApplicationAsset::create([
                 'application_id' => $application->id,
@@ -394,7 +395,7 @@ class AdvertiserPublicApiController extends BaseApiController
 
         $application = AdvertiserApplication::findOrFail($request->input('application_id'));
 
-        if (! $application->applicant_email_verified) {
+        if (!$application->applicant_email_verified) {
             $nextAction = 'verify_email';
         } elseif ($application->user_id === null) {
             $nextAction = 'sign_in_or_create_account';
@@ -417,7 +418,7 @@ class AdvertiserPublicApiController extends BaseApiController
     {
         $application = AdvertiserApplication::with(['package', 'assets'])->find($id);
 
-        if (! $application) {
+        if (!$application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -442,7 +443,7 @@ class AdvertiserPublicApiController extends BaseApiController
                 'price' => $application->requested_package_price,
                 'currency' => $application->requested_currency,
             ],
-            'assets' => $application->assets->map(fn ($a) => [
+            'assets' => $application->assets->map(fn($a) => [
                 'asset_id' => $a->id,
                 'asset_type' => $a->asset_type,
                 'url' => $a->url,
