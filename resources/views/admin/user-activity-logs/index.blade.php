@@ -334,6 +334,10 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                         <a href="{{ route('admin.user-activity-logs.user', $u->user_id) }}" class="btn btn-outline-secondary btn-sm p-1" title="Open Full Page Activity">
                                             <i class="bi bi-box-arrow-up-right"></i>
                                         </a>
+                                        <button type="button" class="btn btn-outline-danger btn-sm p-1" title="Delete all activity logs for this user"
+                                                onclick="confirmDeleteUserLogs('{{ $u->user_id }}', '{{ addslashes($userName) }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -468,9 +472,14 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                     @endif
                                 </td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#rawLogModal{{ $loop->index }}">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
+                                    <div class="d-flex align-items-center justify-content-end gap-1">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#rawLogModal{{ $loop->index }}" title="Inspect details">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" title="Delete this log" onclick="confirmDeleteLog('{{ $log->id }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
 
                                     <!-- Details Modal -->
                                     <div class="modal fade text-start" id="rawLogModal{{ $loop->index }}" tabindex="-1" aria-hidden="true">
@@ -532,7 +541,10 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
                                                         </div>
                                                     @endif
                                                 </div>
-                                                <div class="modal-footer py-2">
+                                                <div class="modal-footer py-2 d-flex justify-content-between">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDeleteLog('{{ $log->id }}')">
+                                                        <i class="bi bi-trash me-1"></i> Delete Log
+                                                    </button>
                                                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
                                                 </div>
                                             </div>
@@ -581,6 +593,9 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_lo
             </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <button type="button" id="drawerClearLogsBtn" class="btn btn-outline-danger btn-sm px-2 py-1" title="Clear all logs for this user">
+                <i class="bi bi-trash me-1"></i> Clear User Logs
+            </button>
             <a href="#" id="drawerFullPageBtn" class="btn btn-outline-light btn-sm px-2 py-1" title="Open Full Page View">
                 <i class="bi bi-box-arrow-up-right me-1"></i> Full Page
             </a>
@@ -641,6 +656,10 @@ function openUserDrawer(userId, userName, userEmail) {
     document.getElementById('drawerUserEmail').innerText = userEmail || userId;
     document.getElementById('drawerAvatar').innerText = (userName ? userName.charAt(0) : 'U').toUpperCase();
     document.getElementById('drawerFullPageBtn').href = "{{ url('admin/user-activity-logs/user') }}/" + userId;
+    const clearBtn = document.getElementById('drawerClearLogsBtn');
+    if (clearBtn) {
+        clearBtn.onclick = () => confirmDeleteUserLogs(userId, userName);
+    }
 
     // Reset view to loading
     document.getElementById('drawerLoadingSpinner').style.display = 'block';
@@ -709,6 +728,9 @@ function openUserDrawer(userId, userName, userEmail) {
                             <span class="me-2"><i class="bi bi-phone me-1"></i>${log.platform || 'Unknown'} ${log.app_version ? 'v' + log.app_version : ''}</span>
                             <span><i class="bi bi-globe me-1"></i>${log.ip_address || '127.0.0.1'}</span>
                         </div>
+                        <button type="button" class="btn btn-link text-danger p-0" title="Delete this log" onclick="confirmDeleteLog('${log.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
                     </div>
                 </div>
             </div>`;
@@ -720,6 +742,52 @@ function openUserDrawer(userId, userName, userEmail) {
         document.getElementById('drawerLoadingSpinner').style.display = 'none';
         document.getElementById('drawerLogsList').innerHTML = '<div class="alert alert-danger small p-2">Error loading user activities.</div>';
     });
+}
+
+function confirmDeleteLog(logId) {
+    if (!confirm('Are you sure you want to permanently delete this user activity log?')) return;
+    
+    fetch("{{ url('admin/user-activity-logs') }}/" + logId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.success) {
+            alert('Log deleted successfully.');
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to delete log.');
+        }
+    })
+    .catch(() => alert('Network error while deleting log.'));
+}
+
+function confirmDeleteUserLogs(userId, userName) {
+    if (!confirm(`Are you sure you want to permanently delete all activity logs for ${userName || 'this user'}?`)) return;
+    
+    fetch("{{ url('admin/user-activity-logs/user') }}/" + userId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.success) {
+            alert('All logs for this user deleted successfully.');
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to delete user logs.');
+        }
+    })
+    .catch(() => alert('Network error while deleting user logs.'));
 }
 
 function escapeHtml(text) {

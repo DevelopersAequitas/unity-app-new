@@ -419,8 +419,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/user_activity_logs', [UserActivityLogWebController::class, 'index']);
         Route::get('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'userActivity'])->name('user-activity-logs.user')->whereUuid('userId');
         Route::get('/user_activity_logs/user/{userId}', [UserActivityLogWebController::class, 'userActivity'])->whereUuid('userId');
+        Route::delete('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs'])->name('user-activity-logs.destroy-user')->whereUuid('userId');
+        Route::delete('/user_activity_logs/user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs'])->whereUuid('userId');
         Route::get('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'show'])->name('user-activity-logs.show')->whereUuid('id');
         Route::get('/user_activity_logs/{id}', [UserActivityLogWebController::class, 'show'])->whereUuid('id');
+        Route::delete('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'destroy'])->name('user-activity-logs.destroy')->whereUuid('id');
+        Route::delete('/user_activity_logs/{id}', [UserActivityLogWebController::class, 'destroy'])->whereUuid('id');
         Route::get('/user-activity-logs/export/csv', [UserActivityLogWebController::class, 'export'])->name('user-activity-logs.export');
         Route::get('/user_activity_logs/export/csv', [UserActivityLogWebController::class, 'export']);
 

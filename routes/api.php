@@ -996,6 +996,14 @@ Route::prefix('v1')->group(function () {
             Route::get('/user-circle-requests/{id}/nominees', [UserCircleRequestAdminController::class, 'nominees'])->whereUuid('id');
             Route::put('/user-circle-requests/config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
 
+            // User Activity & Security Logs
+            Route::get('/user-activity-logs', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'index']);
+            Route::get('/user-activity-logs/user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'userActivity']);
+            Route::delete('/user-activity-logs/user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroyUserLogs']);
+            Route::get('/user-activity-logs/export/csv', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'export']);
+            Route::get('/user-activity-logs/{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'show']);
+            Route::delete('/user-activity-logs/{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroy']);
+
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
@@ -2410,3 +2418,18 @@ foreach (['v1/user-activity-logs', 'user-activity-logs'] as $activityLogPrefix) 
     Route::post($activityLogPrefix, [UserActivityLogController::class, 'store']);
     Route::middleware('auth:sanctum')->get($activityLogPrefix, [UserActivityLogController::class, 'index']);
 }
+
+// =========================================================================
+// USER ACTIVITY & SECURITY LOGS ADMIN APIs (Dual Aliases)
+// =========================================================================
+foreach (['v1/admin/user-activity-logs', 'admin/user-activity-logs', 'v1/user-activity-logs/admin', 'v1/admin/user_activity_logs', 'admin/user_activity_logs', 'v1/user_activity_logs/admin'] as $ualAdminPrefix) {
+    Route::prefix($ualAdminPrefix)->group(function (): void {
+        Route::get('', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'index']);
+        Route::get('user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'userActivity']);
+        Route::delete('user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroyUserLogs']);
+        Route::get('export/csv', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'export']);
+        Route::get('{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'show']);
+        Route::delete('{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroy']);
+    });
+}
+

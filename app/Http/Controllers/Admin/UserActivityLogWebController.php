@@ -24,7 +24,7 @@ class UserActivityLogWebController extends Controller
      * Display the user activity & security logs.
      * Default view: Grouped by User / Peer (click user to view all their activity).
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
         $viewMode = (string) $request->query('view', 'users'); // default to 'users'
@@ -53,6 +53,35 @@ class UserActivityLogWebController extends Controller
             $logs = null;
         }
 
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'viewMode' => $viewMode,
+                'stats' => $stats,
+                'options' => $options,
+                'filters' => $filters,
+                'tableMissing' => $tableMissing,
+                'users' => $users ? [
+                    'data' => $users->items(),
+                    'current_page' => $users->currentPage(),
+                    'last_page' => $users->lastPage(),
+                    'per_page' => $users->perPage(),
+                    'total' => $users->total(),
+                    'from' => $users->firstItem(),
+                    'to' => $users->lastItem(),
+                ] : null,
+                'logs' => $logs ? [
+                    'data' => $logs->items(),
+                    'current_page' => $logs->currentPage(),
+                    'last_page' => $logs->lastPage(),
+                    'per_page' => $logs->perPage(),
+                    'total' => $logs->total(),
+                    'from' => $logs->firstItem(),
+                    'to' => $logs->lastItem(),
+                ] : null,
+            ]);
+        }
+
         return view('admin.user-activity-logs.index', [
             'users' => $users,
             'logs' => $logs,
@@ -70,7 +99,7 @@ class UserActivityLogWebController extends Controller
     public function userActivity(Request $request, string $userId): View|JsonResponse
     {
         if (! Schema::hasTable('user_activity_logs')) {
-            if ($request->wantsJson() || $request->ajax()) {
+            if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Table user_activity_logs does not exist yet.',
@@ -96,7 +125,7 @@ class UserActivityLogWebController extends Controller
         $userStats = $this->userActivityLogService->getUserActivityStats($userId);
         $options = $this->userActivityLogService->getFilterOptions();
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
             return response()->json([
                 'success' => true,
                 'user' => [
@@ -105,6 +134,7 @@ class UserActivityLogWebController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'company' => $user->company_name,
+                    'designation' => $user->designation ?? null,
                     'avatar_url' => $user->profile_photo_url,
                 ],
                 'stats' => $userStats,
@@ -141,7 +171,7 @@ class UserActivityLogWebController extends Controller
 
         $log = UserActivityLog::with('user')->findOrFail($id);
 
-        if (request()->wantsJson() || request()->ajax()) {
+        if (request()->wantsJson() || request()->ajax() || request()->is('api/*')) {
             return response()->json([
                 'success' => true,
                 'data' => $log,
@@ -167,5 +197,65 @@ class UserActivityLogWebController extends Controller
         ];
 
         return $this->userActivityLogService->exportCsv($filters);
+    }
+
+    /**
+     * Delete a single activity log item.
+     */
+    public function destroy(Request $request, string $id): JsonResponse|\Illuminate\Http\RedirectResponse
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Table user_activity_logs does not exist.',
+                ], 404);
+            }
+            return redirect()->back()->with('error', 'Table user_activity_logs does not exist.');
+        }
+
+        $log = UserActivityLog::find($id);
+        if ($log) {
+            $log->delete();
+        }
+
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Activity log deleted successfully.',
+                'deleted_id' => $id,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Activity log deleted successfully.');
+    }
+
+    /**
+     * Delete all activity logs for a specific user.
+     */
+    public function destroyUserLogs(Request $request, string $userId): JsonResponse|\Illuminate\Http\RedirectResponse
+    {
+        if (! Schema::hasTable('user_activity_logs')) {
+            if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Table user_activity_logs does not exist.',
+                ], 404);
+            }
+            return redirect()->back()->with('error', 'Table user_activity_logs does not exist.');
+        }
+
+        $deletedCount = UserActivityLog::where('user_id', $userId)->delete();
+
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully deleted {$deletedCount} activity logs for this user.",
+                'deleted_count' => $deletedCount,
+                'user_id' => $userId,
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Successfully deleted {$deletedCount} activity logs for this user.");
     }
 }

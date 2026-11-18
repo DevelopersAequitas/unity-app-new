@@ -40,6 +40,7 @@ use App\Services\Media\FileUploadService;
 use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
+use App\Services\UserActivityLogService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Services\WhatsApp\MemberJourney30DayService;
 use Illuminate\Http\JsonResponse;
@@ -1340,6 +1341,21 @@ class AuthController extends BaseApiController
             ['email' => (string) $user->email, 'login_method' => 'password']
         );
 
+        try {
+            app(UserActivityLogService::class)->log([
+                'activity_type' => 'login',
+                'action' => 'user_login',
+                'description' => 'User logged into mobile app',
+                'module' => 'auth',
+                'platform' => (string) ($request->input('platform') ?? $request->input('device_type') ?? 'Android'),
+                'app_version' => (string) ($request->input('app_version') ?? 'v2.0.5'),
+                'device_info' => $request->input('device_info') ?? ['device_id' => $request->input('device_id')],
+                'status' => 'success',
+            ], $user, $request);
+        } catch (\Throwable) {
+            // Non-blocking
+        }
+
         // If you already have a UserResource, you can use it here instead of returning $user directly
         return response()->json([
             'success' => true,
@@ -1676,6 +1692,21 @@ class AuthController extends BaseApiController
             'ip' => $request->ip(),
             'user_agent' => substr((string) $request->userAgent(), 0, 1000),
         ]);
+
+        try {
+            app(UserActivityLogService::class)->log([
+                'activity_type' => 'login',
+                'action' => 'otp_login_success',
+                'description' => 'User verified OTP and logged into mobile app',
+                'module' => 'auth',
+                'platform' => (string) ($request->input('platform') ?? $request->input('device_type') ?? 'Android'),
+                'app_version' => (string) ($request->input('app_version') ?? 'v2.0.5'),
+                'device_info' => $request->input('device_info') ?? ['device_id' => $request->input('device_id')],
+                'status' => 'success',
+            ], $user, $request);
+        } catch (\Throwable) {
+            // Non-blocking
+        }
 
         return $this->success([
             'user' => new UserResource($user->load([

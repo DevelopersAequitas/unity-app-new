@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
 use App\Services\Notifications\WhatsappNotificationService;
+use App\Services\UserActivityLogService;
 use Illuminate\Support\Facades\Hash;
 
 class WhatsAppOtpAuthService
@@ -197,6 +198,21 @@ class WhatsAppOtpAuthService
             'ip' => $deviceMeta['ip'] ?? null,
             'user_agent' => isset($deviceMeta['user_agent']) ? substr((string) $deviceMeta['user_agent'], 0, 1000) : null,
         ]);
+
+        try {
+            app(UserActivityLogService::class)->log([
+                'activity_type' => 'login',
+                'action' => 'whatsapp_otp_login',
+                'description' => 'User logged in via WhatsApp OTP',
+                'module' => 'auth',
+                'platform' => (string) ($deviceMeta['platform'] ?? $deviceMeta['device_type'] ?? 'Android'),
+                'app_version' => (string) ($deviceMeta['app_version'] ?? 'v2.0.5'),
+                'device_info' => isset($deviceMeta['device_id']) ? ['device_id' => $deviceMeta['device_id']] : null,
+                'status' => 'success',
+            ], $user);
+        } catch (\Throwable) {
+            // Non-blocking
+        }
 
         return [
             'status' => 200,
