@@ -20,12 +20,20 @@ class AdvertiserNotificationMail extends Mailable
         public readonly string $mainMessage,
         public readonly ?string $actionUrl = null,
         public readonly ?string $actionText = null,
-        public readonly array $details = []
+        public readonly array $details = [],
+        public readonly ?string $replyToEmail = null,
+        public readonly ?string $replyToName = null
     ) {}
 
     public function build(): self
     {
-        return $this->subject($this->subjectLine)
+        $mail = $this->subject($this->subjectLine)
             ->view('emails.advertiser_notification');
+
+        if (! empty($this->replyToEmail) && filter_var($this->replyToEmail, FILTER_VALIDATE_EMAIL)) {
+            $mail->replyTo($this->replyToEmail, $this->replyToName ?: null);
+        }
+
+        return $mail;
     }
 }

@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\BrandPartners\SubmitBrandPartnerCallbackRequest;
 use App\Jobs\SendBulkPartnerNotificationJob;
+use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
 use App\Models\BrandPartnerClick;
+use App\Models\BrandPartnerInquiry;
 use App\Models\BrandPartnerSaved;
 use App\Models\BrandPartnerView;
+use App\Services\Advertiser\AdvertiserNotificationService;
 use App\Services\BrandPartners\BrandPartnerAnalyticsService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -189,7 +194,7 @@ class BrandPartnerApiController extends BaseApiController
         }
 
         $clickType = $request->input('click_type', 'website');
-        $validTypes = ['visit', 'redeem', 'share', 'call', 'email', 'website'];
+        $validTypes = ['visit', 'redeem', 'share', 'call', 'email', 'website', 'whatsapp', 'callback'];
 
         if (! in_array($clickType, $validTypes, true)) {
             return $this->error('Invalid click type. Allowed types: '.implode(', ', $validTypes), 422);
@@ -238,6 +243,64 @@ class BrandPartnerApiController extends BaseApiController
         }
 
         return $this->success(null, 'Click event logged successfully.');
+    }
+
+    /**
+     * Submit a callback request for a Brand Partner and notify the Brand Partner's contact_email.
+     * POST /api/v1/brand-partners/{id}/callback-request
+     */
+    public function submitCallbackRequest(SubmitBrandPartnerCallbackRequest $request, string $id): JsonResponse
+    {
+        BrandPartnerInquiry::ensureTableExists();
+
+        $partner = BrandPartner::find($id);
+        if (! $partner) {
+            return $this->error('Brand partner not found.', 404);
+        }
+
+        $validated = $request->validated();
+        $user = $request->user() ?? auth('sanctum')->user();
+
+        $inquiry = BrandPartnerInquiry::create([
+            'brand_partner_id' => (string) $partner->id,
+            'user_id' => $user ? (string) $user->id : null,
+            'name' => $validated['name'],
+            'phone' => $validated['phone'],
+            'email' => $validated['email'],
+            'message' => $validated['message'],
+            'status' => 'new',
+            'email_sent' => false,
+        ]);
+
+        // Resolve the Brand Partner's registered contact email (with fallback to linked AdvertiserApplication / Subscription user)
+        $recipientEmail = trim((string) ($partner->contact_email ?? ''));
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $linkedApp = AdvertiserApplication::where('brand_partner_id', $partner->id)->latest()->first();
+            $recipientEmail = trim((string) ($linkedApp?->company_email ?: ($linkedApp?->applicant_email ?? '')));
+        }
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $linkedSub = AdvertiserSubscription::with('user')->where('brand_partner_id', $partner->id)->latest()->first();
+            $recipientEmail = trim((string) ($linkedSub?->user?->email ?? ''));
+        }
+
+        $emailSent = false;
+        if ($recipientEmail !== '' && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            /** @var AdvertiserNotificationService $notificationService */
+            $notificationService = app(AdvertiserNotificationService::class);
+            $emailSent = $notificationService->sendCallbackRequestNotification($partner, $inquiry, $recipientEmail);
+            if ($emailSent) {
+                $inquiry->update(['email_sent' => true]);
+            }
+        }
+
+        $totalCallbacks = BrandPartnerInquiry::where('brand_partner_id', $partner->id)->count();
+
+        return $this->success([
+            'inquiry_id' => (string) $inquiry->id,
+            'brand_partner_id' => (string) $partner->id,
+            'email_sent' => $emailSent,
+            'callback_requests' => $totalCallbacks,
+        ], 'Callback request submitted successfully. The brand partner has been notified.');
     }
 
     public function save(Request $request, string $id): JsonResponse

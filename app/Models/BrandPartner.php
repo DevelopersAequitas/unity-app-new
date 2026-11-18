@@ -182,4 +182,9 @@ class BrandPartner extends Model
     {
         return $this->hasMany(AdvertiserSubscription::class, 'brand_partner_id');
     }
+
+    public function inquiries(): HasMany
+    {
+        return $this->hasMany(BrandPartnerInquiry::class, 'brand_partner_id');
+    }
 }

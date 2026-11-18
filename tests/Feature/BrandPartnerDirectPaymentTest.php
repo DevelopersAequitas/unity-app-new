@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Mail\AdvertiserNotificationMail;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserPayment;
@@ -13,6 +14,7 @@ use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -241,6 +243,27 @@ class BrandPartnerDirectPaymentTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+
+        Schema::create('brand_partner_views', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->nullable();
+            $table->uuid('brand_partner_id')->index();
+            $table->string('ip_address')->nullable();
+            $table->string('session_id')->nullable();
+            $table->timestamp('viewed_at')->nullable();
+        });
+
+        Schema::create('brand_partner_clicks', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->nullable();
+            $table->uuid('brand_partner_id')->index();
+            $table->string('click_type')->nullable();
+            $table->string('ip')->nullable();
+            $table->string('ip_address')->nullable();
+            $table->string('session_id')->nullable();
+            $table->string('device')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
     }
 
     public function test_submitting_brand_partner_application_immediately_enables_direct_payment_without_admin_approval(): void
@@ -387,5 +410,42 @@ class BrandPartnerDirectPaymentTest extends TestCase
         $this->assertNotNull($partner);
         $this->assertSame('2026-11-25', $partner->valid_from?->format('Y-m-d'));
         $this->assertSame('2027-02-25', $partner->valid_to?->format('Y-m-d'));
+
+        // 6. Test Callback Request submission (POST /api/v1/brand-partners/{id}/callback-request) + Email Dispatch + Dashboard Analytics
+        Mail::fake();
+
+        $callbackRes = $this->postJson("/api/v1/brand-partners/{$partner->id}/callback-request", [
+            'name' => 'Rohan Patel',
+            'phone' => '+919876543210',
+            'email' => 'rohan@example.com',
+            'message' => 'Interested in corporate pricing and partnership for our 50-member team.',
+        ]);
+
+        $callbackRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Callback request submitted successfully. The brand partner has been notified.')
+            ->assertJsonPath('data.callback_requests', 1);
+
+        Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
+            return $mail->subjectLine === '📞 New Callback Request: Rohan Patel on Peers Global Unity'
+                && $mail->replyToEmail === 'rohan@example.com';
+        });
+
+        // 7. Verify GET /api/v1/advertiser/dashboard includes callback_requests: 1
+        $dashboardRes = $this->getJson('/api/v1/advertiser/dashboard');
+        $dashboardRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.company_name', 'Acme Brand Pvt Ltd')
+            ->assertJsonPath('data.brand_name', 'Acme Brand Pvt Ltd')
+            ->assertJsonPath('data.publication_status', 'published')
+            ->assertJsonPath('data.metrics.callback_requests', 1);
+
+        // 8. Verify Weekly Brand Partner Report Command sends weekly performance summary email
+        $partner->update(['valid_from' => now()->subDays(2), 'valid_to' => now()->addMonths(3)]);
+        $this->artisan('PGU:brand-partner-weekly-report')->assertExitCode(0);
+
+        Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
+            return str_contains($mail->subjectLine, 'Weekly Brand Partner Performance Report');
+        });
     }
 }

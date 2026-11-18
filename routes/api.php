@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\UserActivityLogWebController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
@@ -998,12 +999,12 @@ Route::prefix('v1')->group(function () {
             Route::put('/user-circle-requests/config/minimum-nominees', [UserCircleRequestAdminController::class, 'updateConfig']);
 
             // User Activity & Security Logs
-            Route::get('/user-activity-logs', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'index']);
-            Route::get('/user-activity-logs/user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'userActivity']);
-            Route::delete('/user-activity-logs/user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroyUserLogs']);
-            Route::get('/user-activity-logs/export/csv', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'export']);
-            Route::get('/user-activity-logs/{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'show']);
-            Route::delete('/user-activity-logs/{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroy']);
+            Route::get('/user-activity-logs', [UserActivityLogWebController::class, 'index']);
+            Route::get('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'userActivity']);
+            Route::delete('/user-activity-logs/user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs']);
+            Route::get('/user-activity-logs/export/csv', [UserActivityLogWebController::class, 'export']);
+            Route::get('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'show']);
+            Route::delete('/user-activity-logs/{id}', [UserActivityLogWebController::class, 'destroy']);
 
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
@@ -1723,6 +1724,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
+    Route::post('/brand-partners/{id}/callback-request', [BrandPartnerApiController::class, 'submitCallbackRequest'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
 
     // Public Advertiser & Brand Partner Onboarding APIs
@@ -2426,12 +2428,11 @@ foreach (['v1/user-activity-logs', 'user-activity-logs'] as $activityLogPrefix) 
 // =========================================================================
 foreach (['v1/admin/user-activity-logs', 'admin/user-activity-logs', 'v1/user-activity-logs/admin', 'v1/admin/user_activity_logs', 'admin/user_activity_logs', 'v1/user_activity_logs/admin'] as $ualAdminPrefix) {
     Route::prefix($ualAdminPrefix)->group(function (): void {
-        Route::get('', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'index']);
-        Route::get('user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'userActivity']);
-        Route::delete('user/{userId}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroyUserLogs']);
-        Route::get('export/csv', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'export']);
-        Route::get('{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'show']);
-        Route::delete('{id}', [\App\Http\Controllers\Admin\UserActivityLogWebController::class, 'destroy']);
+        Route::get('', [UserActivityLogWebController::class, 'index']);
+        Route::get('user/{userId}', [UserActivityLogWebController::class, 'userActivity']);
+        Route::delete('user/{userId}', [UserActivityLogWebController::class, 'destroyUserLogs']);
+        Route::get('export/csv', [UserActivityLogWebController::class, 'export']);
+        Route::get('{id}', [UserActivityLogWebController::class, 'show']);
+        Route::delete('{id}', [UserActivityLogWebController::class, 'destroy']);
     });
 }
-

@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services\Advertiser;
 
-use App\Models\Ad;
 use App\Models\AdClick;
-use App\Models\AdView;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserCampaign;
 use App\Models\AdvertiserCampaignAd;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
-use App\Models\BrandPartner;
+use App\Models\AdView;
 use App\Models\BrandPartnerClick;
-use App\Models\BrandPartnerSaved;
+use App\Models\BrandPartnerInquiry;
 use App\Models\BrandPartnerView;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AdvertiserAnalyticsService
 {
@@ -51,7 +50,7 @@ class AdvertiserAnalyticsService
 
         foreach ($subscriptions as $sub) {
             $partner = $sub->brandPartner;
-            if (!$partner) {
+            if (! $partner) {
                 continue;
             }
 
@@ -78,6 +77,10 @@ class AdvertiserAnalyticsService
 
             $ctr = ($uniqueViews > 0) ? min(100, round(($uniqueClicks / $uniqueViews) * 100, 2)) : 0.0;
 
+            $callbackRequests = Schema::hasTable('brand_partner_inquiries')
+                ? BrandPartnerInquiry::where('brand_partner_id', $partner->id)->count()
+                : 0;
+
             $publicationStatus = $partner->is_active ? 'published' : 'unpublished';
 
             $partners[] = [
@@ -99,6 +102,8 @@ class AdvertiserAnalyticsService
                     'unique_clicks' => $uniqueClicks,
                     'ctr_percent' => $ctr,
                     'ctr_percentage' => $ctr,
+                    'callback_requests' => $callbackRequests,
+                    'callback_requests_count' => $callbackRequests,
                 ],
             ];
         }
@@ -120,6 +125,14 @@ class AdvertiserAnalyticsService
             ];
             $currentMetrics = $primaryPartner['metrics'];
         } else {
+            $latestApp = $userApplications->first();
+            $currentCampaign = $latestApp ? [
+                'company_name' => $latestApp->company_name,
+                'brand_name' => $latestApp->company_name,
+                'publication_status' => 'unpublished',
+                'valid_from' => $latestApp->requested_start_date?->format('Y-m-d'),
+                'valid_to' => null,
+            ] : null;
             $currentMetrics = [
                 'impressions' => 0,
                 'total_views' => 0,
@@ -130,10 +143,17 @@ class AdvertiserAnalyticsService
                 'unique_clicks' => 0,
                 'ctr_percentage' => 0.0,
                 'ctr_percent' => 0.0,
+                'callback_requests' => 0,
+                'callback_requests_count' => 0,
             ];
         }
 
         return [
+            'company_name' => $currentCampaign['company_name'] ?? null,
+            'brand_name' => $currentCampaign['brand_name'] ?? null,
+            'publication_status' => $currentCampaign['publication_status'] ?? 'unpublished',
+            'valid_from' => $currentCampaign['valid_from'] ?? null,
+            'valid_to' => $currentCampaign['valid_to'] ?? null,
             'current_campaign' => $currentCampaign,
             'metrics' => $currentMetrics,
             'application_summary' => $appSummary,
@@ -188,6 +208,11 @@ class AdvertiserAnalyticsService
         $whatsappClicks = (clone $clicksQuery)->where('click_type', 'whatsapp')->count();
         $shareClicks = (clone $clicksQuery)->where('click_type', 'share')->count();
         $couponRedemptions = (clone $clicksQuery)->where('click_type', 'redeem')->count();
+        $callbackRequests = Schema::hasTable('brand_partner_inquiries')
+            ? BrandPartnerInquiry::where('brand_partner_id', $partnerId)
+                ->whereBetween('created_at', [$start->utc(), $end->utc()])
+                ->count()
+            : 0;
 
         // Calculations
         $ctr = ($uniqueViews > 0) ? min(100, round(($uniqueClicks / $uniqueViews) * 100, 2)) : 0.0;
@@ -196,8 +221,8 @@ class AdvertiserAnalyticsService
         // 3. Daily Breakdown
         $dailyData = [];
         $isSqlite = DB::getDriverName() === 'sqlite';
-        $viewDateExpr = $isSqlite ? "date(viewed_at)" : "TO_CHAR(viewed_at AT TIME ZONE '{$tz}', 'YYYY-MM-DD')";
-        $clickDateExpr = $isSqlite ? "date(created_at)" : "TO_CHAR(created_at AT TIME ZONE '{$tz}', 'YYYY-MM-DD')";
+        $viewDateExpr = $isSqlite ? 'date(viewed_at)' : "TO_CHAR(viewed_at AT TIME ZONE '{$tz}', 'YYYY-MM-DD')";
+        $clickDateExpr = $isSqlite ? 'date(created_at)' : "TO_CHAR(created_at AT TIME ZONE '{$tz}', 'YYYY-MM-DD')";
 
         $dailyViews = (clone $viewsQuery)
             ->selectRaw("{$viewDateExpr} as date, COUNT(*) as count")
@@ -269,6 +294,8 @@ class AdvertiserAnalyticsService
                 'whatsapp_clicks' => $whatsappClicks,
                 'share_clicks' => $shareClicks,
                 'coupon_redemptions' => $couponRedemptions,
+                'callback_requests' => $callbackRequests,
+                'callback_requests_count' => $callbackRequests,
                 'ctr_percent' => $ctr,
                 'ctr_percentage' => $ctr,
                 'conversion_rate_percent' => $conversionRate,
@@ -389,7 +416,7 @@ class AdvertiserAnalyticsService
             $dayEnd = $cursor->copy()->endOfDay();
 
             $value = 0;
-            if (!empty($adIds)) {
+            if (! empty($adIds)) {
                 if ($metric === 'views' || $metric === 'impressions') {
                     $value = AdView::whereIn('ad_id', $adIds)->whereBetween('viewed_at', [$dayStart, $dayEnd])->count();
                 } else {
@@ -443,7 +470,7 @@ class AdvertiserAnalyticsService
         $totalClicks = 0;
         $uniqueClicks = 0;
 
-        if (!empty($allCampaignAdIds)) {
+        if (! empty($allCampaignAdIds)) {
             $vQuery = AdView::whereIn('ad_id', $allCampaignAdIds);
             $cQuery = AdClick::whereIn('ad_id', $allCampaignAdIds);
             if ($from && $to) {
