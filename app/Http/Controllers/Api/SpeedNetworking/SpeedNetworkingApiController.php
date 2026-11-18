@@ -10,6 +10,7 @@ use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
+use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\SpeedNetworking\AgoraTokenService;
@@ -1457,6 +1458,7 @@ class SpeedNetworkingApiController extends Controller
                 'total_rounds' => 0,
                 'rounds_completed' => 0,
                 'total_interactions_count' => 0,
+                'qualifying_peers_count' => 0,
                 'life_impact' => [
                     'earned' => 0,
                     'total' => $userLifeImpact,
@@ -1833,6 +1835,7 @@ class SpeedNetworkingApiController extends Controller
                 'total_rounds' => $totalRounds,
                 'rounds_completed' => 0,
                 'total_interactions_count' => 0,
+                'qualifying_peers_count' => 0,
                 'life_impact' => [
                     'earned' => 0,
                     'total' => $userLifeImpact,
@@ -1918,6 +1921,127 @@ class SpeedNetworkingApiController extends Controller
                     'meetings' => [],
                 ],
             ]);
+        }
+
+        $this->speedNetworkingService->ensureSpeedNetworkingSchema();
+
+        $userId = $user ? (string) $user->id : '';
+        $peerId = trim((string) ($request->input('peer_id') ?? ''));
+        $matchId = trim((string) ($request->input('match_id') ?? ''));
+        $p2pMeetingId = trim((string) ($request->input('p2p_meeting_id') ?? ''));
+        $notes = trim((string) ($request->input('meeting_notes') ?? $request->input('notes') ?? $request->input('remarks') ?? ''));
+        $clientDuration = $request->has('interaction_duration_seconds')
+            ? max(0, (int) $request->input('interaction_duration_seconds'))
+            : null;
+        $logP2p = $request->has('log_p2p') ? $request->boolean('log_p2p') : true;
+
+        if ($userId !== '' && ($peerId !== '' || $matchId !== '' || $p2pMeetingId !== '' || $notes !== '')) {
+            $matchQuery = SpeedNetworkingMatch::query()
+                ->where('event_id', $event->id)
+                ->where(function ($q) use ($userId): void {
+                    $q->where('user_a_id', $userId)
+                        ->orWhere('user_b_id', $userId);
+                })
+                ->whereNotNull('user_b_id')
+                ->whereIn('match_status', [
+                    SpeedNetworkingMatch::MATCH_STATUS_IN_CALL,
+                    SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
+                ])
+                ->where('status', '!=', SpeedNetworkingMatch::STATUS_SKIPPED);
+
+            if ($matchId !== '') {
+                $match = (clone $matchQuery)->where('id', $matchId)->latest('created_at')->first();
+            } elseif ($peerId !== '') {
+                $match = (clone $matchQuery)->where(function ($q) use ($peerId): void {
+                    $q->where('user_a_id', $peerId)
+                        ->orWhere('user_b_id', $peerId);
+                })->latest('created_at')->first();
+            } else {
+                $match = (clone $matchQuery)->latest('created_at')->first();
+            }
+
+            if ($match) {
+                $isUserA = ((string) $match->user_a_id === $userId);
+                $notesUpdates = [];
+                if ($notes !== '') {
+                    $notesUpdates[$isUserA ? 'user_a_notes' : 'user_b_notes'] = $notes;
+                    $notesUpdates['meeting_notes'] = $notes;
+                }
+
+                // Finalize call duration if not already persisted or if client sent interaction_duration_seconds
+                $serverDuration = $match->resolveCallDurationSeconds((int) $event->round_duration_seconds);
+                if ($match->duration_seconds === null) {
+                    $effectiveDuration = $serverDuration > 0 ? $serverDuration : ($clientDuration ?? 0);
+                    if ((int) $event->round_duration_seconds > 0) {
+                        $effectiveDuration = min($effectiveDuration, (int) $event->round_duration_seconds);
+                    }
+                    $notesUpdates['duration_seconds'] = $effectiveDuration;
+                    if ($match->ended_at === null && $clientDuration !== null) {
+                        $notesUpdates['ended_at'] = Carbon::now();
+                        $notesUpdates['status'] = SpeedNetworkingMatch::STATUS_COMPLETED;
+                        $notesUpdates['match_status'] = SpeedNetworkingMatch::MATCH_STATUS_COMPLETED;
+                    }
+                } else {
+                    $effectiveDuration = (int) $match->duration_seconds;
+                }
+
+                if (! empty($notesUpdates)) {
+                    $match->update($notesUpdates);
+                    $match = $match->fresh() ?? $match;
+                }
+
+                $qualifies = $effectiveDuration >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS && $logP2p;
+
+                if (! $qualifies) {
+                    return response()->json([
+                        'status' => 'success',
+                        'success' => true,
+                        'message' => 'Meeting notes saved. Call duration was under 2 minutes (120s), so P2P meeting and rewards were not logged.',
+                        'data' => [
+                            'match_id' => (string) $match->id,
+                            'peer_id' => $peerId !== '' ? $peerId : (string) ($isUserA ? $match->user_b_id : $match->user_a_id),
+                            'interaction_duration_seconds' => $effectiveDuration,
+                            'p2p_logged' => false,
+                            'p2p_meeting_id' => null,
+                            'meeting_notes' => $match->getNotesForUser($userId),
+                            'notes' => $match->getNotesForUser($userId),
+                            'remarks' => $match->getNotesForUser($userId),
+                            'life_impact_earned' => 0,
+                            'coins_earned' => 0,
+                            'created_meetings_count' => 0,
+                            'meetings' => [],
+                        ],
+                    ]);
+                }
+
+                $meeting = $this->speedNetworkingP2pService->completeMatchAsP2pMeeting($match, $event, $notes !== '' ? $notes : null);
+
+                return response()->json([
+                    'status' => 'success',
+                    'success' => true,
+                    'message' => 'P2P meeting and notes saved successfully.',
+                    'data' => [
+                        'match_id' => (string) $match->id,
+                        'peer_id' => $peerId !== '' ? $peerId : (string) ($isUserA ? $match->user_b_id : $match->user_a_id),
+                        'interaction_duration_seconds' => $effectiveDuration,
+                        'p2p_logged' => $meeting !== null,
+                        'p2p_meeting_id' => $meeting ? (string) $meeting->id : null,
+                        'meeting_notes' => $match->getNotesForUser($userId),
+                        'notes' => $match->getNotesForUser($userId),
+                        'remarks' => $match->getNotesForUser($userId),
+                        'life_impact_earned' => $meeting ? 1 : 0,
+                        'coins_earned' => $meeting ? 3000 : 0,
+                        'created_meetings_count' => $meeting ? 1 : 0,
+                        'meetings' => $meeting ? [[
+                            'id' => (string) $meeting->id,
+                            'initiator_user_id' => (string) $meeting->initiator_user_id,
+                            'peer_user_id' => (string) $meeting->peer_user_id,
+                            'meeting_date' => $meeting->meeting_date,
+                            'media' => $meeting->media,
+                        ]] : [],
+                    ],
+                ]);
+            }
         }
 
         $meetings = $this->speedNetworkingP2pService->completeAllMatchesForEvent($event, $user ? (string) $user->id : null);
