@@ -2058,21 +2058,11 @@ class SpeedNetworkingService
             $agoraToken = 'demo_rtc_token_'.md5($channelId.$userId);
         }
 
-        $name = $peerUser->display_name ?: trim(($peerUser->first_name ?? '').' '.($peerUser->last_name ?? '')) ?: $peerUser->name ?: 'Peer Member';
-
         return [
             'channel_id' => $channelId,
             'agora_app_id' => $this->getAgoraAppId(),
             'agora_token' => $agoraToken,
-            'peer' => [
-                'id' => (string) $peerUser->id,
-                'name' => $name,
-                'designation' => (string) ($peerUser->designation ?? 'Member'),
-                'company' => (string) ($peerUser->company_name ?? 'Peers Global'),
-                'avatar_url' => $peerUser->profile_photo_url ?? null,
-                'city' => (string) ($peerUser->city ?? 'Peers Global'),
-                'bio' => (string) ($peerUser->bio ?? $peerUser->about ?? 'Active networking peer'),
-            ],
+            'peer' => $this->buildPeerCardPayload($peerUser, $userId, $event, 1),
         ];
     }
 
@@ -2788,6 +2778,175 @@ class SpeedNetworkingService
     }
 
     /**
+     * Build the complete PeerCard payload for live call overlay, match preview, and heartbeat responses.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildPeerCardPayload(
+        User $peer,
+        string $currentUserId,
+        ?SpeedNetworkingEvent $event = null,
+        int $round = 1
+    ): array {
+        $resolveString = static function (mixed $value): string {
+            if (is_null($value)) {
+                return '';
+            }
+            if (is_array($value)) {
+                return implode(', ', array_filter(array_map('strval', $value)));
+            }
+
+            return trim((string) $value);
+        };
+
+        $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+        if (empty($peerName)) {
+            $peerName = (string) ($peer->getRawOriginal('display_name') ?? $peer->getAttributes()['display_name'] ?? '');
+        }
+        if (empty($peerName)) {
+            $peerName = (string) ($peer->name ?? 'Peer');
+        }
+
+        $avatarUrl = (string) ($peer->profile_photo_url ?? '');
+
+        // Connection status check
+        $connection = null;
+        if (Schema::hasTable('connections')) {
+            try {
+                $connection = Connection::where(function ($q) use ($currentUserId, $peer): void {
+                    $q->where('requester_id', $currentUserId)->where('addressee_id', $peer->id);
+                })->orWhere(function ($q) use ($currentUserId, $peer): void {
+                    $q->where('requester_id', $peer->id)->where('addressee_id', $currentUserId);
+                })->first();
+            } catch (\Throwable) {
+                $connection = null;
+            }
+        }
+
+        $connectionStatus = 'none';
+        $isConnected = false;
+        $isRequested = false;
+        $canSendConnectionRequest = true;
+
+        if ($connection) {
+            $isConnected = (bool) ($connection->is_approved ?? false);
+            if (isset($connection->status) && in_array($connection->status, ['connected', 'pending', 'none'], true)) {
+                $connectionStatus = (string) $connection->status;
+            } else {
+                $connectionStatus = $isConnected ? 'connected' : 'pending';
+            }
+            $isRequested = ! $isConnected && (string) $connection->requester_id === $currentUserId;
+            $canSendConnectionRequest = ! $isConnected && ! $isRequested;
+        }
+
+        // Follow status check
+        $isFollowing = false;
+        if (Schema::hasTable('user_follows')) {
+            try {
+                $isFollowing = DB::table('user_follows')
+                    ->where('follower_id', $currentUserId)
+                    ->where('following_id', (string) $peer->id)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->exists();
+            } catch (\Throwable) {
+                $isFollowing = false;
+            }
+        }
+
+        $skills = [];
+        if (! empty($peer->skills)) {
+            if (is_array($peer->skills)) {
+                $skills = array_values(array_filter(array_map(function ($s): string {
+                    return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
+                }, $peer->skills)));
+            } elseif (is_string($peer->skills)) {
+                $decoded = json_decode($peer->skills, true);
+                if (is_array($decoded)) {
+                    $skills = array_values(array_filter(array_map('strval', $decoded)));
+                } else {
+                    $skills = [trim($peer->skills)];
+                }
+            }
+        }
+
+        $bio = $resolveString($peer->short_bio);
+        if ($bio === '') {
+            $bio = $resolveString($peer->experience_summary);
+        }
+        if ($bio === '') {
+            $bio = $resolveString($peer->superpower);
+        }
+        if ($bio === '') {
+            $bio = $resolveString($peer->i_can_help_with);
+        }
+
+        $category = $resolveString($peer->level4_category ?? $peer->business_category ?? '');
+        $industry = $resolveString($peer->business_sub_category);
+        if ($industry === '') {
+            $industry = $resolveString($peer->company_type);
+        }
+        if ($industry === '') {
+            $industry = $category !== '' ? $category : ($skills[0] ?? 'Business & Entrepreneurship');
+        }
+        if ($category === '') {
+            $category = $skills[0] ?? $industry;
+        }
+
+        $company = $resolveString($peer->company_name ?? $peer->company ?? '');
+        $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
+        $isVerified = (bool) ($peer->is_verified ?? false);
+
+        $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
+
+        return [
+            'id' => (string) $peer->id,
+            'peer_id' => (string) ($peer->peer_id ?? $peer->id),
+            'name' => $peerName,
+            'display_name' => $peerName,
+            'full_name' => $peerName,
+            'first_name' => $resolveString($peer->first_name ?? ''),
+            'last_name' => $resolveString($peer->last_name ?? ''),
+            'designation' => $resolveString($peer->designation ?? ''),
+            'company' => $company,
+            'company_name' => $company,
+            'avatar_url' => $avatarUrl,
+            'profile_photo_url' => $avatarUrl,
+            'profile_image_url' => $avatarUrl,
+            'profile_photo_image' => $avatarUrl,
+            'city' => $resolveString($peer->city ?? ''),
+            'bio' => $bio,
+            'industry' => $industry,
+            'category' => $category,
+            'business_category' => $category,
+            'business_category_name' => $category,
+            'level4_category' => $category,
+            'skills' => $skills,
+            'is_verified' => $isVerified,
+            'is_pro' => $isPro,
+            'is_online' => (bool) ($peer->is_online ?? true),
+            'connection_status' => $connectionStatus,
+            'is_connected' => $isConnected,
+            'is_requested' => $isRequested,
+            'can_send_connection_request' => $canSendConnectionRequest,
+            'is_following' => $isFollowing,
+            'round' => $round,
+            'score' => $peerLifeImpact,
+            'peer_score' => $peerLifeImpact,
+            'impact_score' => $peerLifeImpact,
+            'life_impacted_count' => $peerLifeImpact,
+            'life_impact_count' => $peerLifeImpact,
+            'life_impact' => $peerLifeImpact,
+            'life_impacted' => $peerLifeImpact,
+            'lives_impacted' => $peerLifeImpact,
+            'lives_impacted_count' => $peerLifeImpact,
+            'life_impact_score' => $peerLifeImpact,
+            'total_life_impact' => $peerLifeImpact,
+            'total_life_impacted' => $peerLifeImpact,
+            'mutual_connections_count' => $peerLifeImpact,
+        ];
+    }
+
+    /**
      * Format a match into the canonical JSON response.
      *
      * @return array<string, mixed>
@@ -2813,111 +2972,12 @@ class SpeedNetworkingService
 
         $peerData = null;
         if ($peer) {
-            $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
-            if (empty($peerName)) {
-                $peerName = $peer->name ?? 'Peer';
-            }
-
-            $avatarUrl = $peer->profile_photo_url ?? '';
-
-            // Connection status check
-            $connection = null;
-            if (Schema::hasTable('connections')) {
-                $connection = Connection::where(function ($q) use ($currentUserId, $peer): void {
-                    $q->where('requester_id', $currentUserId)->where('addressee_id', $peer->id);
-                })->orWhere(function ($q) use ($currentUserId, $peer): void {
-                    $q->where('requester_id', $peer->id)->where('addressee_id', $currentUserId);
-                })->first();
-            }
-
-            $connectionStatus = 'none';
-            if ($connection) {
-                $connectionStatus = $connection->is_approved ? 'connected' : 'pending';
-            }
-
-            $resolveString = static function (mixed $value): string {
-                if (is_null($value)) {
-                    return '';
-                }
-                if (is_array($value)) {
-                    return implode(', ', array_filter(array_map('strval', $value)));
-                }
-
-                return trim((string) $value);
-            };
-
-            $skills = [];
-            if (! empty($peer->skills)) {
-                if (is_array($peer->skills)) {
-                    $skills = array_values(array_filter(array_map(function ($s): string {
-                        return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
-                    }, $peer->skills)));
-                } elseif (is_string($peer->skills)) {
-                    $decoded = json_decode($peer->skills, true);
-                    if (is_array($decoded)) {
-                        $skills = array_values(array_filter(array_map('strval', $decoded)));
-                    } else {
-                        $skills = [trim($peer->skills)];
-                    }
-                }
-            }
-
-            $bio = $resolveString($peer->short_bio);
-            if ($bio === '') {
-                $bio = $resolveString($peer->experience_summary);
-            }
-            if ($bio === '') {
-                $bio = $resolveString($peer->superpower);
-            }
-            if ($bio === '') {
-                $bio = $resolveString($peer->i_can_help_with);
-            }
-
-            $industry = $resolveString($peer->business_sub_category);
-            if ($industry === '') {
-                $industry = $resolveString($peer->company_type);
-            }
-            if ($industry === '') {
-                $industry = 'Business & Entrepreneurship';
-            }
-
-            $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
-            if ($peerLifeImpact <= 0) {
-                $impactPerMeeting = (int) (config('services.speed_networking.impact_per_round') ?? config('impact.activity_rewards.speed_networking') ?? 5);
-                $peerLifeImpact = $impactPerMeeting > 0 ? $impactPerMeeting : 5;
-            }
-
-            $peerData = [
-                'id' => (string) $peer->id,
-                'name' => $peerName,
-                'display_name' => $peerName,
-                'designation' => $resolveString($peer->designation ?? ''),
-                'company' => $resolveString($peer->company_name ?? ''),
-                'company_name' => $resolveString($peer->company_name ?? ''),
-                'avatar_url' => $avatarUrl,
-                'profile_photo_url' => $avatarUrl,
-                'profile_image_url' => $avatarUrl,
-                'profile_photo_image' => $avatarUrl,
-                'city' => $resolveString($peer->city ?? ''),
-                'bio' => $bio,
-                'industry' => $industry,
-                'category' => $industry,
-                'skills' => $skills,
-                'connection_status' => $connectionStatus,
-                'round' => (int) ($match->round_number ?: 1),
-                'score' => $peerLifeImpact,
-                'peer_score' => $peerLifeImpact,
-                'impact_score' => $peerLifeImpact,
-                'life_impacted_count' => $peerLifeImpact,
-                'life_impact_count' => $peerLifeImpact,
-                'life_impact' => $peerLifeImpact,
-                'life_impacted' => $peerLifeImpact,
-                'lives_impacted' => $peerLifeImpact,
-                'lives_impacted_count' => $peerLifeImpact,
-                'life_impact_score' => $peerLifeImpact,
-                'total_life_impacted' => $peerLifeImpact,
-                'mutual_connections_count' => $peerLifeImpact,
-            ];
+            $peerData = $this->buildPeerCardPayload(
+                $peer,
+                $currentUserId,
+                $event,
+                (int) ($match->round_number ?: 1)
+            );
         }
 
         $isUserA = ((string) $match->user_a_id === $currentUserId);
@@ -3386,7 +3446,10 @@ class SpeedNetworkingService
 
             $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
             $companyName = ! empty($peer->company_name) ? (string) $peer->company_name : (! empty($peer->company) ? (string) $peer->company : null);
+            $skillsList = is_array($peer->skills) ? array_values(array_filter(array_map('strval', $peer->skills))) : (is_string($peer->skills) ? (json_decode($peer->skills, true) ?: [trim($peer->skills)]) : []);
             $businessCategory = $peer->level4_category ?? $peer->business_category ?? null;
+            $resolvedIndustry = $businessCategory ?: ($peer->business_sub_category ?: ($peer->company_type ?: ($skillsList[0] ?? 'Business & Entrepreneurship')));
+            $resolvedCategory = $businessCategory ?: ($skillsList[0] ?? $resolvedIndustry);
 
             $savedMatchNotes = $match->getNotesForUser($userId);
             $cleanP2pRemarks = trim(preg_replace('/\[sn_[^\]]+\]/', '', (string) ($p2pMeeting?->remarks ?: ($p2pMeeting?->topic ?: ''))) ?? '');
@@ -3397,17 +3460,18 @@ class SpeedNetworkingService
                 'peer_id' => (string) ($peer->peer_id ?? $peer->id),
                 'name' => (string) $peerName,
                 'display_name' => (string) $peerName,
+                'full_name' => (string) $peerName,
                 'first_name' => (string) ($peer->first_name ?? ''),
                 'last_name' => (string) ($peer->last_name ?? ''),
                 'company' => $companyName,
                 'company_name' => $companyName,
                 'designation' => ! empty($peer->designation) ? (string) $peer->designation : null,
-                'business_category' => $businessCategory,
-                'business_category_name' => $businessCategory,
-                'level4_category' => $businessCategory,
-                'industry' => $businessCategory ?: ($peer->company_type ?: 'Business & Entrepreneurship'),
-                'category' => $businessCategory ?: ($peer->company_type ?: 'Business & Entrepreneurship'),
-                'skills' => is_array($peer->skills) ? array_values(array_filter(array_map('strval', $peer->skills))) : (is_string($peer->skills) ? (json_decode($peer->skills, true) ?: [trim($peer->skills)]) : []),
+                'business_category' => $resolvedCategory,
+                'business_category_name' => $resolvedCategory,
+                'level4_category' => $resolvedCategory,
+                'industry' => $resolvedIndustry,
+                'category' => $resolvedCategory,
+                'skills' => $skillsList,
                 'avatar_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_photo_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
                 'profile_image_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
@@ -3443,6 +3507,7 @@ class SpeedNetworkingService
                 'lives_impacted' => $peerLifeImpact,
                 'lives_impacted_count' => $peerLifeImpact,
                 'life_impact_score' => $peerLifeImpact,
+                'total_life_impact' => $peerLifeImpact,
                 'total_life_impacted' => $peerLifeImpact,
                 'impact_score' => $peerLifeImpact,
                 'impact_count' => $peerLifeImpact,
