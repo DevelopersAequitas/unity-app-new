@@ -56,6 +56,7 @@ class Product extends Model
         'sort_order',
         'published_at',
         'created_by',
+        'image_url',
     ];
 
     protected $casts = [
@@ -86,7 +87,76 @@ class Product extends Model
     protected $appends = [
         'coin_price',
         'price_coins',
+        'product_id',
+        'image_url',
     ];
+
+    public function getProductIdAttribute(): ?string
+    {
+        return $this->attributes['id'] ?? ($this->id ?? null);
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        // 1. Direct attribute on products table or in attributes
+        $direct = $this->attributes['image_url'] ?? ($this->attributes['image'] ?? null);
+        if (! empty($direct)) {
+            return $this->formatImageUrl((string) $direct);
+        }
+
+        // 2. Primary image relation if loaded
+        if ($this->relationLoaded('primaryImage') && $this->primaryImage && ! empty($this->primaryImage->image_url)) {
+            return $this->formatImageUrl((string) $this->primaryImage->image_url);
+        }
+
+        // 3. First image from images relation if loaded
+        if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
+            $first = $this->images->first();
+            if ($first && ! empty($first->image_url)) {
+                return $this->formatImageUrl((string) $first->image_url);
+            }
+        }
+
+        // 4. Fallback: Query relationships if not loaded
+        if (! $this->relationLoaded('primaryImage') && ! $this->relationLoaded('images')) {
+            try {
+                $img = $this->primaryImage ?? $this->images()->first();
+                if ($img && ! empty($img->image_url)) {
+                    return $this->formatImageUrl((string) $img->image_url);
+                }
+            } catch (\Throwable) {
+                // Return null if table does not exist or fails
+            }
+        }
+
+        return null;
+    }
+
+    public function formatImageUrl(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        if (str_starts_with($url, '//')) {
+            return 'https:'.$url;
+        }
+
+        $trimmed = ltrim($url, '/');
+        if (str_starts_with($trimmed, 'storage/')) {
+            return url('/'.$trimmed);
+        }
+
+        if (str_starts_with($trimmed, 'store/')) {
+            return url('/storage/'.$trimmed);
+        }
+
+        return url('/'.$trimmed);
+    }
 
     protected function coinPrice(): Attribute
     {
