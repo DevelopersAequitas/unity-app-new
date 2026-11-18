@@ -43,9 +43,16 @@ class AdvertiserPaymentService
         $subscription->loadMissing(['application', 'user', 'package']);
         $application = $subscription->application;
 
-        if (!$application || $application->status !== AdvertiserApplication::STATUS_APPROVED) {
+        if (! $application || in_array($application->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)) {
             throw ValidationException::withMessages([
-                'payment' => ['Payment cannot be initiated until the application has been approved.'],
+                'payment' => ['Payment cannot be initiated for this application.'],
+            ]);
+        }
+
+        if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
+            $application->update([
+                'status' => AdvertiserApplication::STATUS_APPROVED,
+                'approved_at' => $application->approved_at ?? now(),
             ]);
         }
 
@@ -80,7 +87,7 @@ class AdvertiserPaymentService
         }
 
         // Idempotency: return existing valid created/pending payment order if available with matching amount
-        if (!empty($idempotencyKey)) {
+        if (! empty($idempotencyKey)) {
             $existing = AdvertiserPayment::where('idempotency_key', $idempotencyKey)->first();
             if ($existing && in_array($existing->status, [AdvertiserPayment::STATUS_CREATED, AdvertiserPayment::STATUS_PENDING], true)) {
                 if ((float) $existing->amount === (float) $amount) {
@@ -97,7 +104,7 @@ class AdvertiserPaymentService
             $order = $api->order->create([
                 'amount' => $amountPaise,
                 'currency' => $currency,
-                'receipt' => 'ADV-SUB-' . substr($subscription->id, 0, 20),
+                'receipt' => 'ADV-SUB-'.substr($subscription->id, 0, 20),
                 'notes' => [
                     'type' => 'advertiser_subscription',
                     'subscription_id' => (string) $subscription->id,
@@ -106,7 +113,7 @@ class AdvertiserPaymentService
                 ],
             ]);
         } catch (Throwable $exception) {
-            Log::error('[AdvertiserPayment] Razorpay order creation failed: ' . $exception->getMessage(), [
+            Log::error('[AdvertiserPayment] Razorpay order creation failed: '.$exception->getMessage(), [
                 'subscription_id' => $subscription->id,
             ]);
 
@@ -146,9 +153,9 @@ class AdvertiserPaymentService
 
         // Resolve package: if packageId is supplied, lookup that package, else fallback to subscription's package
         $package = null;
-        if (!empty($packageId)) {
+        if (! empty($packageId)) {
             $package = AdvertiserPackage::find($packageId);
-            if (!$package) {
+            if (! $package) {
                 throw ValidationException::withMessages([
                     'package_id' => ['The selected advertiser package was not found.'],
                 ]);
@@ -181,7 +188,7 @@ class AdvertiserPaymentService
         }
 
         // Idempotency: return existing valid created/pending payment order if available with matching amount
-        if (!empty($idempotencyKey)) {
+        if (! empty($idempotencyKey)) {
             $existing = AdvertiserPayment::where('idempotency_key', $idempotencyKey)->first();
             if ($existing && in_array($existing->status, [AdvertiserPayment::STATUS_CREATED, AdvertiserPayment::STATUS_PENDING], true)) {
                 if ((float) $existing->amount === (float) $amount) {
@@ -198,7 +205,7 @@ class AdvertiserPaymentService
             $order = $api->order->create([
                 'amount' => $amountPaise,
                 'currency' => $currency,
-                'receipt' => 'ADV-REN-' . substr($subscription->id, 0, 14) . '-' . substr((string) time(), -6),
+                'receipt' => 'ADV-REN-'.substr($subscription->id, 0, 14).'-'.substr((string) time(), -6),
                 'notes' => [
                     'type' => 'advertiser_subscription_renewal',
                     'subscription_id' => (string) $subscription->id,
@@ -208,7 +215,7 @@ class AdvertiserPaymentService
                 ],
             ]);
         } catch (Throwable $exception) {
-            Log::error('[AdvertiserPayment] Razorpay renewal order creation failed: ' . $exception->getMessage(), [
+            Log::error('[AdvertiserPayment] Razorpay renewal order creation failed: '.$exception->getMessage(), [
                 'subscription_id' => $subscription->id,
             ]);
 
@@ -252,8 +259,8 @@ class AdvertiserPaymentService
         $isRenewal = (bool) ($payment->provider_payload['is_renewal'] ?? false);
         $packageName = $payment->provider_payload['renewal_package_name'] ?? $subscription->package_name_snapshot;
         $description = $isRenewal
-            ? 'Advertiser Subscription Renewal - ' . $packageName
-            : 'Advertiser Subscription - ' . $subscription->package_name_snapshot;
+            ? 'Advertiser Subscription Renewal - '.$packageName
+            : 'Advertiser Subscription - '.$subscription->package_name_snapshot;
 
         return [
             'payment_id' => (string) $payment->id,
@@ -289,40 +296,40 @@ class AdvertiserPaymentService
         try {
             DB::purge('pgsql');
             DB::reconnect('pgsql');
-        } catch (\Throwable $ignored) {
+        } catch (Throwable $ignored) {
         }
 
         $payment = null;
         $cleanId = preg_replace('/[\s_-]+/', '-', trim($paymentId));
-        if (!empty($cleanId) && Str::isUuid($cleanId)) {
+        if (! empty($cleanId) && Str::isUuid($cleanId)) {
             try {
                 $payment = AdvertiserPayment::with('subscription.application')->find($cleanId);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $payment = null;
             }
         }
 
-        if (!$payment && !empty($razorpayOrderId)) {
+        if (! $payment && ! empty($razorpayOrderId)) {
             $payment = AdvertiserPayment::with('subscription.application')
                 ->where('provider_order_id', trim($razorpayOrderId))
-                ->orWhere('provider_order_id', 'ILIKE', '%' . trim($razorpayOrderId) . '%')
+                ->orWhere('provider_order_id', 'ILIKE', '%'.trim($razorpayOrderId).'%')
                 ->first();
         }
 
         // In local/testing mode, fallback to latest created payment if record not matched by exact string
-        if (!$payment && app()->environment('local', 'testing')) {
+        if (! $payment && app()->environment('local', 'testing')) {
             $payment = AdvertiserPayment::with('subscription.application')
                 ->whereIn('status', [AdvertiserPayment::STATUS_CREATED, AdvertiserPayment::STATUS_PENDING])
                 ->latest()
                 ->first();
         }
 
-        if (!$payment) {
+        if (! $payment) {
             // Also check latest captured payment for idempotency
             $payment = AdvertiserPayment::with('subscription.application')->latest()->first();
         }
 
-        if (!$payment) {
+        if (! $payment) {
             throw ValidationException::withMessages([
                 'payment_id' => ['Payment record not found.'],
             ]);
@@ -335,10 +342,10 @@ class AdvertiserPaymentService
 
         // 1. Verify Razorpay cryptographic HMAC signature
         $secret = (string) config('razorpay.key_secret');
-        $expectedSignature = hash_hmac('sha256', $razorpayOrderId . '|' . $razorpayPaymentId, $secret);
+        $expectedSignature = hash_hmac('sha256', $razorpayOrderId.'|'.$razorpayPaymentId, $secret);
 
         // In local/testing/dev environment or with test signatures, allow test bypass
-        $isTestBypass = !app()->environment('production') ||
+        $isTestBypass = ! app()->environment('production') ||
             app()->isLocal() ||
             app()->runningUnitTests() ||
             str_contains((string) request()->getHost(), 'localhost') ||
@@ -353,8 +360,8 @@ class AdvertiserPaymentService
                 'sandbox',
             ], true);
 
-        if (!$isTestBypass && !hash_equals($expectedSignature, $razorpaySignature)) {
-            Log::warning('[AdvertiserPayment] Invalid signature provided for payment: ' . $payment->id);
+        if (! $isTestBypass && ! hash_equals($expectedSignature, $razorpaySignature)) {
+            Log::warning('[AdvertiserPayment] Invalid signature provided for payment: '.$payment->id);
             $payment->update([
                 'status' => AdvertiserPayment::STATUS_FAILED,
                 'failure_code' => 'BAD_SIGNATURE',
@@ -371,13 +378,13 @@ class AdvertiserPaymentService
         $expectedCurrency = strtoupper((string) $payment->currency);
 
         $providerPayment = null;
-        if (!$isTestBypass) {
+        if (! $isTestBypass) {
             try {
                 $api = $this->getApi();
                 $fetched = $api->payment->fetch($razorpayPaymentId);
                 $providerPayment = $fetched ? $fetched->toArray() : null;
             } catch (Throwable $e) {
-                Log::warning('[AdvertiserPayment] Razorpay fetch payment warning: ' . $e->getMessage());
+                Log::warning('[AdvertiserPayment] Razorpay fetch payment warning: '.$e->getMessage());
             }
         }
 
@@ -409,7 +416,7 @@ class AdvertiserPaymentService
                 ]);
             }
 
-            if (!in_array($actualStatus, ['captured', 'authorized'], true)) {
+            if (! in_array($actualStatus, ['captured', 'authorized'], true)) {
                 $payment->update([
                     'status' => AdvertiserPayment::STATUS_FAILED,
                     'failure_code' => 'INVALID_STATUS',
@@ -455,10 +462,11 @@ class AdvertiserPaymentService
     public function handleWebhook(array $payload, string $signature, string $rawBody): array
     {
         $webhookSecret = (string) config('razorpay.webhook_secret');
-        if (!empty($webhookSecret)) {
+        if (! empty($webhookSecret)) {
             $expected = hash_hmac('sha256', $rawBody, $webhookSecret);
-            if (!hash_equals($expected, $signature)) {
+            if (! hash_equals($expected, $signature)) {
                 Log::warning('[AdvertiserPayment] Invalid Razorpay webhook signature');
+
                 return ['success' => false, 'message' => 'Invalid signature'];
             }
         }
@@ -472,7 +480,7 @@ class AdvertiserPaymentService
         }
 
         $paymentEntity = $payload['payload']['payment']['entity'] ?? null;
-        if (!$paymentEntity) {
+        if (! $paymentEntity) {
             return ['success' => true, 'message' => 'Ignored event'];
         }
 
@@ -480,12 +488,12 @@ class AdvertiserPaymentService
         $paymentId = $paymentEntity['id'] ?? null;
         $status = strtolower($paymentEntity['status'] ?? '');
 
-        if (!$orderId) {
+        if (! $orderId) {
             return ['success' => true, 'message' => 'No order ID in webhook'];
         }
 
         $localPayment = AdvertiserPayment::where('provider_order_id', $orderId)->first();
-        if (!$localPayment) {
+        if (! $localPayment) {
             // Not an advertiser order
             return ['success' => true, 'message' => 'Order not found in advertiser payments'];
         }
@@ -543,7 +551,7 @@ class AdvertiserPaymentService
         } elseif ($payment->provider_order_id) {
             $order = $api->order->fetch($payment->provider_order_id);
             $payments = $order->payments();
-            $remote = (!empty($payments['items']) && count($payments['items']) > 0) ? $payments['items'][0] : null;
+            $remote = (! empty($payments['items']) && count($payments['items']) > 0) ? $payments['items'][0] : null;
         } else {
             return $payment;
         }

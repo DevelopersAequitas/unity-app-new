@@ -34,20 +34,27 @@ class AdvertiserPaymentApiController extends BaseApiController
         // Resolve subscription or application
         $subscription = AdvertiserSubscription::with('application')->find($id);
 
-        if (!$subscription) {
-            // Check if ID is an approved application ID
+        if (! $subscription) {
+            // Check if ID is an application ID (direct payment allowed immediately upon submission)
             $application = AdvertiserApplication::where('id', $id)->first();
             if ($application) {
-                if ($application->status !== AdvertiserApplication::STATUS_APPROVED) {
-                    return $this->error('Payment cannot be initiated until the application is approved.', 422);
+                if (in_array($application->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)) {
+                    return $this->error('Payment cannot be initiated for a rejected or withdrawn application.', 422);
+                }
+
+                if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
+                    $application->update([
+                        'status' => AdvertiserApplication::STATUS_APPROVED,
+                        'approved_at' => $application->approved_at ?? now(),
+                    ]);
                 }
 
                 // Check or create subscription for this application
                 $subscription = AdvertiserSubscription::where('application_id', $application->id)->first();
-                if (!$subscription) {
+                if (! $subscription) {
                     $subscription = AdvertiserSubscription::create([
                         'application_id' => $application->id,
-                        'user_id' => $user->id,
+                        'user_id' => $application->user_id ?? $user->id,
                         'brand_partner_id' => $application->brand_partner_id,
                         'package_id' => $application->package_id,
                         'package_name_snapshot' => $application->requested_package_name ?? 'Standard Package',
@@ -60,7 +67,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             }
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Subscription or approved application not found.', 404);
         }
 
@@ -92,7 +99,7 @@ class AdvertiserPaymentApiController extends BaseApiController
         $user = $request->user();
         $subscription = AdvertiserSubscription::with(['application', 'brandPartner'])->find($id);
 
-        if (!$subscription) {
+        if (! $subscription) {
             $partner = BrandPartner::find($id);
             if ($partner) {
                 $subscription = AdvertiserSubscription::where('brand_partner_id', $partner->id)
@@ -101,7 +108,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             }
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Subscription not found.', 404);
         }
 
@@ -142,7 +149,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             $subscription = AdvertiserSubscription::find($id);
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Active subscription or brand partner not found.', 404);
         }
 
@@ -233,7 +240,7 @@ class AdvertiserPaymentApiController extends BaseApiController
     {
         $payment = AdvertiserPayment::find($id);
 
-        if (!$payment) {
+        if (! $payment) {
             return $this->error('Payment record not found.', 404);
         }
 

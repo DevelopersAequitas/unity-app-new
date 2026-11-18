@@ -35,15 +35,31 @@ class AdvertiserMemberApiController extends BaseApiController
             ->with(['package', 'assets', 'subscriptions.payments'])
             ->orderByDesc('created_at');
 
-        if ($request->has('status') && !empty($request->query('status'))) {
+        if ($request->has('status') && ! empty($request->query('status'))) {
             $query->where('status', $request->query('status'));
         }
 
         $perPage = (int) $request->query('per_page', 20);
         $applications = $query->paginate($perPage);
 
-        $transformed = $applications->through(function ($app) {
+        $transformed = $applications->through(function ($app) use ($user) {
             $sub = $app->subscriptions->first();
+            if (! $sub && ! in_array($app->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)) {
+                $sub = AdvertiserSubscription::firstOrCreate(
+                    ['application_id' => $app->id],
+                    [
+                        'user_id' => $app->user_id ?? $user->id,
+                        'brand_partner_id' => $app->brand_partner_id,
+                        'package_id' => $app->package_id,
+                        'package_name_snapshot' => $app->requested_package_name ?? 'Standard Package',
+                        'duration_months' => $app->requested_duration_months ?: 1,
+                        'amount' => $app->requested_package_price ?? 0.0,
+                        'currency' => $app->requested_currency ?? 'INR',
+                        'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                    ]
+                );
+            }
+
             $latestPayment = $sub?->payments->first();
 
             $isPaid = false;
@@ -55,7 +71,16 @@ class AdvertiserMemberApiController extends BaseApiController
                 $isPaid = true;
             }
 
-            $effectiveStatus = $isPaid ? AdvertiserApplication::STATUS_ACTIVE : $app->status;
+            $isReadyForDirectPayment = ! $isPaid && in_array($app->status, [
+                AdvertiserApplication::STATUS_SUBMITTED,
+                AdvertiserApplication::STATUS_UNDER_REVIEW,
+                AdvertiserApplication::STATUS_APPROVED,
+                AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION,
+            ], true);
+
+            $effectiveStatus = $isPaid
+                ? AdvertiserApplication::STATUS_ACTIVE
+                : ($isReadyForDirectPayment ? AdvertiserApplication::STATUS_APPROVED : $app->status);
 
             $paymentStatus = $latestPayment?->status ?? (
                 $isPaid
@@ -64,11 +89,10 @@ class AdvertiserMemberApiController extends BaseApiController
             );
 
             $nextAction = match ($effectiveStatus) {
-                AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
                 AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
                 AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
-                AdvertiserApplication::STATUS_ACTIVE => null,
-                default => 'await_review',
+                AdvertiserApplication::STATUS_ACTIVE, AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN => null,
+                default => 'complete_payment',
             };
 
             return [
@@ -106,16 +130,32 @@ class AdvertiserMemberApiController extends BaseApiController
             'subscriptions.payments',
         ])->find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
         // Ownership check
-        if ($application->user_id !== $user->id && strtolower((string)$application->applicant_email) !== strtolower((string)$user->email)) {
+        if ($application->user_id !== $user->id && strtolower((string) $application->applicant_email) !== strtolower((string) $user->email)) {
             return $this->error('You are not authorized to view this application.', 403);
         }
 
         $sub = $application->subscriptions->first();
+        if (! $sub && ! in_array($application->status, [AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN], true)) {
+            $sub = AdvertiserSubscription::firstOrCreate(
+                ['application_id' => $application->id],
+                [
+                    'user_id' => $application->user_id ?? $user->id,
+                    'brand_partner_id' => $application->brand_partner_id,
+                    'package_id' => $application->package_id,
+                    'package_name_snapshot' => $application->requested_package_name ?? 'Standard Package',
+                    'duration_months' => $application->requested_duration_months ?: 1,
+                    'amount' => $application->requested_package_price ?? 0.0,
+                    'currency' => $application->requested_currency ?? 'INR',
+                    'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                ]
+            );
+        }
+
         $latestPayment = $sub?->payments->first();
 
         $isPaid = false;
@@ -127,7 +167,16 @@ class AdvertiserMemberApiController extends BaseApiController
             $isPaid = true;
         }
 
-        $effectiveStatus = $isPaid ? AdvertiserApplication::STATUS_ACTIVE : $application->status;
+        $isReadyForDirectPayment = ! $isPaid && in_array($application->status, [
+            AdvertiserApplication::STATUS_SUBMITTED,
+            AdvertiserApplication::STATUS_UNDER_REVIEW,
+            AdvertiserApplication::STATUS_APPROVED,
+            AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION,
+        ], true);
+
+        $effectiveStatus = $isPaid
+            ? AdvertiserApplication::STATUS_ACTIVE
+            : ($isReadyForDirectPayment ? AdvertiserApplication::STATUS_APPROVED : $application->status);
 
         $paymentStatus = $latestPayment?->status ?? (
             $isPaid
@@ -136,11 +185,10 @@ class AdvertiserMemberApiController extends BaseApiController
         );
 
         $nextAction = match ($effectiveStatus) {
-            AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
             AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
             AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
-            AdvertiserApplication::STATUS_ACTIVE => null,
-            default => 'await_review',
+            AdvertiserApplication::STATUS_ACTIVE, AdvertiserApplication::STATUS_REJECTED, AdvertiserApplication::STATUS_WITHDRAWN => null,
+            default => 'complete_payment',
         };
 
         return $this->success([
@@ -220,7 +268,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $application = AdvertiserApplication::find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -251,7 +299,7 @@ class AdvertiserMemberApiController extends BaseApiController
         return $this->success([
             'application_id' => $updated->id,
             'status' => $updated->status,
-            'next_action' => ($updated->status === AdvertiserApplication::STATUS_SUBMITTED) ? 'await_review' : 'update_corrections',
+            'next_action' => ($updated->status === AdvertiserApplication::STATUS_CHANGES_REQUESTED) ? 'update_corrections' : 'complete_payment',
         ], 'Application updated successfully.');
     }
 
@@ -264,7 +312,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $application = AdvertiserApplication::find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -293,7 +341,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $application = AdvertiserApplication::find($id);
 
-        if (!$application) {
+        if (! $application) {
             return $this->error('Application not found.', 404);
         }
 
@@ -327,7 +375,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $partnerId = $request->query('brand_partner_id');
 
-        if (!$partnerId) {
+        if (! $partnerId) {
             // Find first partner linked to this user
             $sub = AdvertiserSubscription::where('user_id', $user->id)
                 ->whereNotNull('brand_partner_id')
@@ -335,7 +383,7 @@ class AdvertiserMemberApiController extends BaseApiController
             $partnerId = $sub?->brand_partner_id;
         }
 
-        if (!$partnerId) {
+        if (! $partnerId) {
             return $this->error('No brand partner is currently associated with your account.', 404);
         }
 
@@ -346,7 +394,7 @@ class AdvertiserMemberApiController extends BaseApiController
             ->where('brand_partner_id', $partnerId)
             ->exists();
 
-        if (!$isOwner) {
+        if (! $isOwner) {
             return $this->error('Unauthorized access to this brand partner metrics.', 403);
         }
 
@@ -370,7 +418,7 @@ class AdvertiserMemberApiController extends BaseApiController
             ->with(['package', 'brandPartner'])
             ->orderByDesc('created_at');
 
-        if ($request->has('status') && !empty($request->query('status'))) {
+        if ($request->has('status') && ! empty($request->query('status'))) {
             $query->where('status', $request->query('status'));
         }
 
@@ -405,7 +453,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $subscription = AdvertiserSubscription::with(['payments', 'brandPartner'])->find($id);
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Subscription not found.', 404);
         }
 
@@ -512,7 +560,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $campaign = AdvertiserCampaign::with(['subscription', 'campaignAds.ad', 'application.assets'])
             ->find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -563,7 +611,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $campaign = AdvertiserCampaign::find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -600,7 +648,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $campaign = AdvertiserCampaign::find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -625,7 +673,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $campaign = AdvertiserCampaign::find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
@@ -650,7 +698,7 @@ class AdvertiserMemberApiController extends BaseApiController
         $user = $request->user();
         $campaign = AdvertiserCampaign::find($id);
 
-        if (!$campaign) {
+        if (! $campaign) {
             return $this->error('Campaign not found.', 404);
         }
 
