@@ -30,6 +30,10 @@
                 <i class="bi bi-download"></i>
                 Export User CSV
             </a>
+            <button type="button" class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1.5 fw-semibold" onclick="confirmDeleteAllUserLogs('{{ $user->id }}', '{{ addslashes($user->display_name ?: ($user->first_name ?: 'this user')) }}')">
+                <i class="bi bi-trash"></i>
+                Clear All Logs
+            </button>
         </div>
     </div>
 
@@ -154,7 +158,7 @@
                         <th style="width: 140px;">Platform / App</th>
                         <th style="width: 130px;">IP Address</th>
                         <th style="width: 90px;" class="text-center">Status</th>
-                        <th style="width: 70px;" class="text-end">Details</th>
+                        <th style="width: 90px;" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -225,9 +229,14 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#userLogDetailModal{{ $loop->index }}">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#userLogDetailModal{{ $loop->index }}" title="Inspect details">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="confirmDeleteSingleLog('{{ $log->id }}')" title="Delete log">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
 
                                 <!-- Details Modal -->
                                 <div class="modal fade text-start" id="userLogDetailModal{{ $loop->index }}" tabindex="-1" aria-hidden="true">
@@ -289,7 +298,10 @@
                                                     </div>
                                                 @endif
                                             </div>
-                                            <div class="modal-footer py-2">
+                                            <div class="modal-footer py-2 d-flex justify-content-between">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDeleteSingleLog('{{ $log->id }}')">
+                                                    <i class="bi bi-trash me-1"></i> Delete Log
+                                                </button>
                                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
                                             </div>
                                         </div>
@@ -321,4 +333,52 @@
         @endif
     </div>
 </div>
+
+<script>
+function confirmDeleteSingleLog(logId) {
+    if (!confirm('Are you sure you want to permanently delete this user activity log?')) return;
+    
+    fetch("{{ url('admin/user-activity-logs') }}/" + logId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.success) {
+            alert('Log deleted successfully.');
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to delete log.');
+        }
+    })
+    .catch(() => alert('Network error while deleting log.'));
+}
+
+function confirmDeleteAllUserLogs(userId, userName) {
+    if (!confirm(`Are you sure you want to permanently delete all activity logs for ${userName || 'this user'}?`)) return;
+    
+    fetch("{{ url('admin/user-activity-logs/user') }}/" + userId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.success) {
+            alert('All logs for this user deleted successfully.');
+            window.location.href = "{{ route('admin.user-activity-logs.index') }}";
+        } else {
+            alert(data.message || 'Failed to delete user logs.');
+        }
+    })
+    .catch(() => alert('Network error while deleting user logs.'));
+}
+</script>
 @endsection
