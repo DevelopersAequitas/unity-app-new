@@ -8,7 +8,6 @@ use App\Jobs\SendBulkPartnerNotificationJob;
 use App\Models\Ad;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserApplicationAsset;
-use App\Models\AdvertiserApplicationStatusHistory;
 use App\Models\AdvertiserCampaign;
 use App\Models\AdvertiserCampaignAd;
 use App\Models\AdvertiserPackage;
@@ -26,18 +25,19 @@ class AdvertiserPublicationService
 {
     public function __construct(
         protected AdvertiserNotificationService $notificationService
-    ) {
-    }
+    ) {}
 
     /**
      * Activate subscription and publish or update linked BrandPartner record.
      */
-    public function activateAndPublish(AdvertiserSubscription $subscription): BrandPartner
-    {
+    public function activateAndPublish(
+        AdvertiserSubscription $subscription,
+        ?string $overrideStartDate = null
+    ): BrandPartner {
         $subscription->loadMissing(['application.assets', 'user', 'package']);
         $application = $subscription->application;
 
-        if (!$application) {
+        if (! $application) {
             throw ValidationException::withMessages([
                 'subscription' => ['Linked application was not found.'],
             ]);
@@ -49,17 +49,10 @@ class AdvertiserPublicationService
             ]);
         }
 
-        if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
-            $application->update([
-                'status' => AdvertiserApplication::STATUS_APPROVED,
-                'approved_at' => $application->approved_at ?? now(),
-            ]);
-        }
-
-        return DB::transaction(function () use ($subscription, $application): BrandPartner {
+        return DB::transaction(function () use ($subscription, $application, $overrideStartDate): BrandPartner {
             // 1. Resolve or create BrandPartner
             $partner = null;
-            if (!empty($application->brand_partner_id)) {
+            if (! empty($application->brand_partner_id)) {
                 $partner = BrandPartner::find($application->brand_partner_id);
             }
 
@@ -71,7 +64,7 @@ class AdvertiserPublicationService
                     AdvertiserApplicationAsset::TYPE_COVER,
                     AdvertiserApplicationAsset::TYPE_CREATIVE,
                     'image',
-                    'other'
+                    'other',
                 ], true) || Str::startsWith((string) $a->mime_type, 'image/');
             })->values();
 
@@ -89,17 +82,42 @@ class AdvertiserPublicationService
             if (Str::isUuid($application->industry ?? '')) {
                 $categoryId = $application->industry;
             } else {
-                $cat = BrandPartnerCategory::where('name', 'ILIKE', '%' . ($application->industry ?? 'General') . '%')->first();
+                $cat = BrandPartnerCategory::where('name', 'ILIKE', '%'.($application->industry ?? 'General').'%')->first();
                 $categoryId = $cat?->id;
             }
 
-            $durationMonths = (int) ($subscription->duration_months ?: 1);
-            $startDate = now();
-            $endDate = now()->addMonths($durationMonths);
+            $durationMonths = max(
+                1,
+                (int) ($subscription->duration_months ?: $application->requested_duration_months ?: $subscription->package?->duration_months ?: 1)
+            );
+
+            $rawStartDate = ! empty($overrideStartDate)
+                ? $overrideStartDate
+                : ($application->requested_start_date ?? $subscription->starts_at ?? now());
+
+            try {
+                $startDate = Carbon::parse($rawStartDate)->startOfDay();
+            } catch (\Throwable) {
+                $startDate = now()->startOfDay();
+            }
+
+            $endDate = $startDate->copy()->addMonths($durationMonths)->endOfDay();
+
+            $rawStartDate = !empty($overrideStartDate)
+                ? $overrideStartDate
+                : ($application->requested_start_date ?? $subscription->starts_at ?? now());
+
+            try {
+                $startDate = Carbon::parse($rawStartDate)->startOfDay();
+            } catch (\Throwable) {
+                $startDate = now()->startOfDay();
+            }
+
+            $endDate = $startDate->copy()->addMonths($durationMonths)->endOfDay();
 
             // created_by and updated_by must reference admin_users(id) due to fk_brand_partners_created_by constraint
             $adminUserId = null;
-            if (!empty($subscription->user_id) && DB::table('admin_users')->where('id', $subscription->user_id)->exists()) {
+            if (! empty($subscription->user_id) && DB::table('admin_users')->where('id', $subscription->user_id)->exists()) {
                 $adminUserId = $subscription->user_id;
             } else {
                 $adminUserId = DB::table('admin_users')->value('id');
@@ -127,13 +145,16 @@ class AdvertiserPublicationService
                     'subscription_id' => $subscription->id,
                     'application_id' => $application->id,
                     'applicant_user_id' => $subscription->user_id,
+                    'start_date' => $startDate->toDateString(),
+                    'end_date' => $endDate->toDateString(),
+                    'duration_months' => $durationMonths,
                 ],
             ];
 
-            if ($logoAsset && !empty($logoAsset->storage_key)) {
+            if ($logoAsset && ! empty($logoAsset->storage_key)) {
                 $partnerData['logo'] = $logoAsset->storage_key;
             }
-            if ($bannerAsset && !empty($bannerAsset->storage_key)) {
+            if ($bannerAsset && ! empty($bannerAsset->storage_key)) {
                 $partnerData['cover_image'] = $bannerAsset->storage_key;
             }
 
@@ -145,23 +166,39 @@ class AdvertiserPublicationService
                 $slug = $baseSlug;
                 $counter = 1;
                 while (BrandPartner::where('slug', $slug)->exists()) {
-                    $slug = "{$baseSlug}-" . Str::lower(Str::random(4));
+                    $slug = "{$baseSlug}-".Str::lower(Str::random(4));
                     $counter++;
                 }
 
                 $partnerData['slug'] = $slug;
                 $partnerData['uuid'] = (string) Str::uuid();
                 $partner = BrandPartner::create($partnerData);
-
-                $application->brand_partner_id = $partner->id;
-                $application->save();
             }
+
+            $existingMeta = is_array($application->metadata) ? $application->metadata : [];
+            $application->brand_partner_id = $partner->id;
+            $application->requested_start_date = $startDate->toDateString();
+            $application->requested_duration_months = $durationMonths;
+            $application->status = AdvertiserApplication::STATUS_APPROVED;
+            $application->approved_at = $application->approved_at ?? now();
+            $application->reviewed_at = now();
+            $application->metadata = array_merge($existingMeta, [
+                'published' => true,
+                'published_at' => now()->toIso8601String(),
+                'pending_admin_publish' => false,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'expiry_date' => $endDate->toDateString(),
+                'brand_partner_id' => $partner->id,
+            ]);
+            $application->save();
 
             // 2. Activate Subscription
             $subscription->brand_partner_id = $partner->id;
             $subscription->status = AdvertiserSubscription::STATUS_ACTIVE;
             $subscription->starts_at = $startDate;
             $subscription->expires_at = $endDate;
+            $subscription->duration_months = $durationMonths;
             $subscription->activated_at = now();
             $subscription->save();
 
@@ -172,15 +209,15 @@ class AdvertiserPublicationService
         try {
             $this->notificationService->sendCampaignActivated($subscription);
         } catch (\Throwable $e) {
-            Log::warning('[AdvertiserPublication] Notification dispatch skipped: ' . $e->getMessage());
+            Log::warning('[AdvertiserPublication] Notification dispatch skipped: '.$e->getMessage());
         }
 
         // Avoid blocking local testing with synchronous bulk notification loop over all users
-        if (!app()->environment('local', 'testing')) {
+        if (! app()->environment('local', 'testing')) {
             try {
                 SendBulkPartnerNotificationJob::dispatch($partner, 'joined');
             } catch (\Throwable $e) {
-                Log::warning('[AdvertiserPublication] Bulk partner notification skipped: ' . $e->getMessage());
+                Log::warning('[AdvertiserPublication] Bulk partner notification skipped: '.$e->getMessage());
             }
         }
 
@@ -205,7 +242,7 @@ class AdvertiserPublicationService
             $newExpiresAt = $baseDate->copy()->addMonths($durationMonths);
 
             // If subscription was expired or had no start date, start from now
-            if (!$subscription->starts_at || ($subscription->expires_at && $subscription->expires_at->isPast())) {
+            if (! $subscription->starts_at || ($subscription->expires_at && $subscription->expires_at->isPast())) {
                 $subscription->starts_at = now();
             }
 
@@ -220,7 +257,7 @@ class AdvertiserPublicationService
 
             // Update Brand Partner
             $partner = $subscription->brandPartner;
-            if (!$partner && !empty($subscription->brand_partner_id)) {
+            if (! $partner && ! empty($subscription->brand_partner_id)) {
                 $partner = BrandPartner::find($subscription->brand_partner_id);
             }
 
@@ -230,13 +267,13 @@ class AdvertiserPublicationService
                     'is_sponsored' => true,
                     'valid_to' => $newExpiresAt,
                 ];
-                if (!$partner->valid_from || Carbon::parse($partner->valid_to)->isPast()) {
+                if (! $partner->valid_from || Carbon::parse($partner->valid_to)->isPast()) {
                     $partnerUpdate['valid_from'] = now();
                 }
                 $partner->update($partnerUpdate);
             }
 
-            return $partner ?? new BrandPartner();
+            return $partner ?? new BrandPartner;
         });
     }
 
@@ -277,7 +314,7 @@ class AdvertiserPublicationService
                 'description' => $campaign->description ?: ($application?->brand_description ?? ''),
                 'redirect_url' => $campaign->destination_url ?: ($application?->company_website ?? ''),
                 'button_text' => $campaign->cta_text ?: 'Learn More',
-                'placement' => is_array($campaign->requested_placements) && !empty($campaign->requested_placements) ? $campaign->requested_placements[0] : 'feed',
+                'placement' => is_array($campaign->requested_placements) && ! empty($campaign->requested_placements) ? $campaign->requested_placements[0] : 'feed',
                 'page_name' => 'feed',
                 'is_active' => true,
                 'starts_at' => $campaign->requested_starts_at ?: now(),
@@ -379,7 +416,7 @@ class AdvertiserPublicationService
                         ->where('expires_at', '>', now())
                         ->exists();
 
-                    if (!$hasOtherActive) {
+                    if (! $hasOtherActive) {
                         // Deactivate sponsored/featured placement without deleting data
                         $partner->update([
                             'is_sponsored' => false,
@@ -391,4 +428,3 @@ class AdvertiserPublicationService
         });
     }
 }
-

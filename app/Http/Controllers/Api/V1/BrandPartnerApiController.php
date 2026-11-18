@@ -29,8 +29,27 @@ class BrandPartnerApiController extends BaseApiController
     {
         $search = trim((string) $request->query('q', ''));
         $categoryId = $request->query('category_id');
+        $statusFilter = $request->query('status');
+        $includeScheduled = $request->boolean('include_scheduled') || $request->boolean('admin');
+        $now = now();
 
-        $query = BrandPartner::where('is_active', true);
+        $query = BrandPartner::query();
+
+        if ($includeScheduled) {
+            if ($statusFilter === 'active') {
+                $query->where('is_active', true);
+            } elseif ($statusFilter === 'inactive') {
+                $query->where('is_active', false);
+            }
+        } else {
+            $query->where('is_active', true)
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+                });
+        }
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);
@@ -53,6 +72,7 @@ class BrandPartnerApiController extends BaseApiController
 
     public function home(Request $request): JsonResponse
     {
+        $now = now();
         $categories = BrandPartnerCategory::where('status', 'active')
             ->orderBy('sort_order')
             ->limit(8)
@@ -60,6 +80,12 @@ class BrandPartnerApiController extends BaseApiController
 
         $featured = BrandPartner::where('is_active', true)
             ->where('is_featured', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -67,6 +93,12 @@ class BrandPartnerApiController extends BaseApiController
 
         $sponsored = BrandPartner::where('is_active', true)
             ->where('is_sponsored', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -259,8 +291,15 @@ class BrandPartnerApiController extends BaseApiController
 
     public function featured(): JsonResponse
     {
+        $now = now();
         $featured = BrandPartner::where('is_active', true)
             ->where('is_featured', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            })
             ->orderBy('priority')
             ->orderByDesc('created_at')
             ->get();
@@ -272,8 +311,15 @@ class BrandPartnerApiController extends BaseApiController
     {
         $q = trim((string) $request->query('q', ''));
         $categoryId = $request->query('category_id');
+        $now = now();
 
-        $query = BrandPartner::where('is_active', true);
+        $query = BrandPartner::where('is_active', true)
+            ->where(function ($sub) use ($now) {
+                $sub->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($sub) use ($now) {
+                $sub->whereNull('valid_to')->orWhere('valid_to', '>=', $now);
+            });
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);

@@ -892,6 +892,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/app-notifications/delivery-logs', [AppNotificationAdminController::class, 'deliveryLogs']);
 
             // Brand Partners Admin APIs
+            Route::get('/brand-partners', [BrandPartnerApiController::class, 'index']);
             Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
             Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
             Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
@@ -1751,6 +1752,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/start-review', [AdvertiserAdminApiController::class, 'startReview'])->whereUuid('id');
         Route::post('/applications/{id}/request-corrections', [AdvertiserAdminApiController::class, 'requestCorrections'])->whereUuid('id');
         Route::post('/applications/{id}/approve', [AdvertiserAdminApiController::class, 'approve'])->whereUuid('id');
+        Route::post('/applications/{id}/publish', [AdvertiserAdminApiController::class, 'publishApplication'])->whereUuid('id');
         Route::post('/applications/{id}/reject', [AdvertiserAdminApiController::class, 'reject'])->whereUuid('id');
         Route::patch('/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
         Route::get('/applications/{id}/history', [AdvertiserAdminApiController::class, 'history'])->whereUuid('id');

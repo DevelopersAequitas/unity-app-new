@@ -11,15 +11,18 @@ use App\Models\AdvertiserEmailVerification;
 use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserSubscription;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdvertiserApplicationService
 {
     public function __construct(
         protected AdvertiserNotificationService $notificationService
-    ) {}
+    ) {
+    }
 
     /**
      * Generate sequential application number. e.g. ADV-2026-00001
@@ -30,11 +33,11 @@ class AdvertiserApplicationService
         $prefix = "ADV-{$year}-";
 
         $count = AdvertiserApplication::where('application_number', 'LIKE', "{$prefix}%")->count() + 1;
-        $candidate = $prefix.str_pad((string) $count, 5, '0', STR_PAD_LEFT);
+        $candidate = $prefix . str_pad((string) $count, 5, '0', STR_PAD_LEFT);
 
         while (AdvertiserApplication::where('application_number', $candidate)->exists()) {
             $count++;
-            $candidate = $prefix.str_pad((string) $count, 5, '0', STR_PAD_LEFT);
+            $candidate = $prefix . str_pad((string) $count, 5, '0', STR_PAD_LEFT);
         }
 
         return $candidate;
@@ -47,7 +50,7 @@ class AdvertiserApplicationService
     {
         // 1. Check idempotency if provided
         $idempotencyKey = $data['idempotency_key'] ?? null;
-        if (! empty($idempotencyKey)) {
+        if (!empty($idempotencyKey)) {
             $existing = AdvertiserApplication::where('idempotency_key', $idempotencyKey)->first();
             if ($existing) {
                 return $existing->loadMissing(['package', 'assets', 'statusHistory']);
@@ -57,7 +60,7 @@ class AdvertiserApplicationService
         // 2. Validate package existence and active state
         $packageId = $data['package_id'] ?? null;
         $package = AdvertiserPackage::find($packageId);
-        if (! $package || ! $package->is_active) {
+        if (!$package || !$package->is_active) {
             throw ValidationException::withMessages([
                 'package_id' => ['The selected advertising package is currently not available.'],
             ]);
@@ -87,6 +90,25 @@ class AdvertiserApplicationService
         $emailVerified = true;
         $initialStatus = AdvertiserApplication::STATUS_APPROVED;
 
+        $rawStartDate = $data['start_date']
+            ?? $data['preferred_start_date']
+            ?? $data['requested_start_date']
+            ?? $campaign['preferred_start_date']
+            ?? $campaign['start_date']
+            ?? $company['start_date']
+            ?? null;
+
+        try {
+            $parsedStartDate = ! empty($rawStartDate)
+                ? Carbon::parse((string) $rawStartDate)->startOfDay()
+                : now()->startOfDay();
+        } catch (\Throwable) {
+            $parsedStartDate = now()->startOfDay();
+        }
+
+        $durationMonths = max(1, (int) ($package->duration_months ?: 1));
+        $parsedEndDate = $parsedStartDate->copy()->addMonths($durationMonths)->endOfDay();
+
         return DB::transaction(function () use (
             $package,
             $company,
@@ -100,7 +122,10 @@ class AdvertiserApplicationService
             $userId,
             $emailVerified,
             $initialStatus,
-            $idempotencyKey
+            $idempotencyKey,
+            $parsedStartDate,
+            $parsedEndDate,
+            $durationMonths
         ): AdvertiserApplication {
             $applicationNumber = $this->generateApplicationNumber();
 
@@ -118,7 +143,7 @@ class AdvertiserApplicationService
                 'company_type' => $company['business_type'] ?? ($company['company_type'] ?? null),
                 'industry' => $company['industry'] ?? ($company['category_id'] ?? 'General'),
                 'company_website' => $company['website'] ?? null,
-                'company_email' => ! empty($company['official_email']) ? strtolower(trim($company['official_email'])) : null,
+                'company_email' => !empty($company['official_email']) ? strtolower(trim($company['official_email'])) : null,
                 'company_phone' => $company['phone'] ?? null,
                 'whatsapp_number' => $company['whatsapp'] ?? ($company['whatsapp_number'] ?? null),
                 'address_line' => $company['address_line_1'] ?? ($company['address_line'] ?? null),
@@ -132,9 +157,9 @@ class AdvertiserApplicationService
                 'target_audience' => $campaign['target_audience'] ?? null,
                 'target_locations' => $campaign['target_locations'] ?? [],
                 'advertising_objective' => $campaign['advertising_objective'] ?? null,
-                'requested_start_date' => $campaign['preferred_start_date'] ?? null,
+                'requested_start_date' => $parsedStartDate->toDateString(),
                 'additional_requirements' => $campaign['additional_requirements'] ?? null,
-                'requested_duration_months' => $package->duration_months,
+                'requested_duration_months' => $durationMonths,
                 'requested_package_name' => $package->name,
                 'requested_package_price' => $package->price,
                 'requested_currency' => $package->currency ?? 'INR',
@@ -145,11 +170,19 @@ class AdvertiserApplicationService
                 'consent_to_privacy' => (bool) ($consents['privacy_notice_accepted'] ?? false),
                 'marketing_consent' => (bool) ($consents['marketing_consent'] ?? false),
                 'consented_at' => now(),
+                'metadata' => [
+                    'start_date' => $parsedStartDate->toDateString(),
+                    'end_date' => $parsedEndDate->toDateString(),
+                    'expiry_date' => $parsedEndDate->toDateString(),
+                    'payment_completed' => false,
+                    'pending_admin_publish' => false,
+                    'published' => false,
+                ],
                 'submitted_at' => now(),
             ]);
 
             // Save initial assets if provided
-            if (! empty($data['assets']) && is_array($data['assets'])) {
+            if (!empty($data['assets']) && is_array($data['assets'])) {
                 foreach ($data['assets'] as $index => $assetData) {
                     if (empty($assetData['storage_key'])) {
                         continue;
@@ -158,7 +191,7 @@ class AdvertiserApplicationService
                     AdvertiserApplicationAsset::create([
                         'application_id' => $application->id,
                         'asset_type' => $assetData['asset_type'] ?? AdvertiserApplicationAsset::TYPE_CAMPAIGN_CREATIVE,
-                        'original_filename' => $assetData['original_file_name'] ?? ($assetData['file_name'] ?? 'asset_'.$index),
+                        'original_filename' => $assetData['original_file_name'] ?? ($assetData['file_name'] ?? 'asset_' . $index),
                         'storage_disk' => $assetData['storage_disk'] ?? 'public',
                         'storage_key' => $assetData['storage_key'],
                         'mime_type' => $assetData['mime_type'] ?? 'image/jpeg',
@@ -169,7 +202,7 @@ class AdvertiserApplicationService
                 }
             }
 
-            // Immediately initialize pending subscription so payment can be initiated directly
+            // Immediately initialize pending subscription with start & expiry dates so payment can be initiated directly
             AdvertiserSubscription::firstOrCreate(
                 ['application_id' => $application->id],
                 [
@@ -177,10 +210,12 @@ class AdvertiserApplicationService
                     'brand_partner_id' => $application->brand_partner_id,
                     'package_id' => $package->id,
                     'package_name_snapshot' => $package->name ?? 'Standard Package',
-                    'duration_months' => $package->duration_months ?: 1,
+                    'duration_months' => $durationMonths,
                     'amount' => $package->price ?? 0.0,
                     'currency' => $package->currency ?? 'INR',
                     'status' => AdvertiserSubscription::STATUS_PENDING_PAYMENT,
+                    'starts_at' => $parsedStartDate,
+                    'expires_at' => $parsedEndDate,
                 ]
             );
 
@@ -191,7 +226,7 @@ class AdvertiserApplicationService
                 'new_status' => $initialStatus,
                 'changed_by' => $userId,
                 'actor_type' => $userId ? 'applicant' : 'system',
-                'notes' => 'Application submitted through '.$source.' (ready for direct payment)',
+                'notes' => 'Application submitted through ' . $source . ' (ready for direct payment)',
                 'metadata' => [
                     'package_id' => $package->id,
                     'package_price' => $package->price,
@@ -211,7 +246,7 @@ class AdvertiserApplicationService
     public function createEmailVerificationChallenge(AdvertiserApplication $application): AdvertiserEmailVerification
     {
         // Rate-limit resends: check if a challenge was created in the last 45 seconds (bypass in local/testing)
-        if (! app()->environment('local', 'testing')) {
+        if (!app()->environment('local', 'testing')) {
             $recent = AdvertiserEmailVerification::where('application_id', $application->id)
                 ->where('created_at', '>=', now()->subSeconds(45))
                 ->first();
@@ -236,7 +271,7 @@ class AdvertiserApplicationService
         ));
 
         // In local/testing/dev/staging environments or dev domain hosts, support standard test OTP 123456
-        $plainOtp = (! app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost) ? '123456' : (string) random_int(100000, 999999);
+        $plainOtp = (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost) ? '123456' : (string) random_int(100000, 999999);
         $otpHash = hash('sha256', $plainOtp);
 
         Log::info("Advertiser verification OTP generated: {$plainOtp} for application: {$application->application_number} ({$application->applicant_email})");
@@ -275,7 +310,7 @@ class AdvertiserApplicationService
             str_contains(request()->getHost(), '127.0.0.1')
         ));
 
-        $isTestOtp = ($code === '123456') && (! app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost);
+        $isTestOtp = ($code === '123456') && (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost);
         $hashedInput = hash('sha256', $code);
 
         $verification = AdvertiserEmailVerification::where('application_id', $application->id)
@@ -285,19 +320,19 @@ class AdvertiserApplicationService
             ->first();
 
         // In local/testing, if verification expired/consumed but 123456 was used, fallback to latest verification or allow
-        if (! $verification && $isTestOtp) {
+        if (!$verification && $isTestOtp) {
             $verification = AdvertiserEmailVerification::where('application_id', $application->id)
                 ->latest('created_at')
                 ->first();
         }
 
-        if (! $verification && ! $isTestOtp) {
+        if (!$verification && !$isTestOtp) {
             throw ValidationException::withMessages([
                 'verification_code' => ['The verification code has expired or is invalid. Please request a new code.'],
             ]);
         }
 
-        if ($verification && $verification->attempts >= $verification->max_attempts && ! $isTestOtp) {
+        if ($verification && $verification->attempts >= $verification->max_attempts && !$isTestOtp) {
             $verification->update(['consumed_at' => now()]);
             throw ValidationException::withMessages([
                 'verification_code' => ['Maximum verification attempts exceeded. Please request a new code.'],
@@ -308,7 +343,7 @@ class AdvertiserApplicationService
             $verification->increment('attempts');
         }
 
-        if ($verification && ! hash_equals($verification->otp_hash, $hashedInput) && ! $isTestOtp) {
+        if ($verification && !hash_equals($verification->otp_hash, $hashedInput) && !$isTestOtp) {
             $remaining = max(0, $verification->max_attempts - $verification->attempts);
             throw ValidationException::withMessages([
                 'verification_code' => ["Invalid verification code. {$remaining} attempts remaining."],
@@ -372,7 +407,7 @@ class AdvertiserApplicationService
         ?string $notes = null,
         array $metadata = []
     ): AdvertiserApplication {
-        if (! $application->canTransitionTo($newStatus)) {
+        if (!$application->canTransitionTo($newStatus)) {
             throw ValidationException::withMessages([
                 'status' => ["Cannot transition application from '{$application->status}' to '{$newStatus}'."],
             ]);
@@ -391,7 +426,7 @@ class AdvertiserApplicationService
                 $application->approved_at = now();
             } elseif ($newStatus === AdvertiserApplication::STATUS_REJECTED) {
                 $application->rejected_at = now();
-                if (! empty($metadata['rejection_reason'])) {
+                if (!empty($metadata['rejection_reason'])) {
                     $application->rejection_reason = $metadata['rejection_reason'];
                 }
             }
@@ -443,12 +478,14 @@ class AdvertiserApplicationService
         bool $resubmit = false
     ): AdvertiserApplication {
         // Allow edits if in draft, changes_requested, submitted, or approved state
-        if (! in_array($application->status, [
-            AdvertiserApplication::STATUS_DRAFT,
-            AdvertiserApplication::STATUS_CHANGES_REQUESTED,
-            AdvertiserApplication::STATUS_SUBMITTED,
-            AdvertiserApplication::STATUS_APPROVED,
-        ], true)) {
+        if (
+            !in_array($application->status, [
+                AdvertiserApplication::STATUS_DRAFT,
+                AdvertiserApplication::STATUS_CHANGES_REQUESTED,
+                AdvertiserApplication::STATUS_SUBMITTED,
+                AdvertiserApplication::STATUS_APPROVED,
+            ], true)
+        ) {
             throw ValidationException::withMessages([
                 'application' => ['Application cannot be edited in its current status.'],
             ]);
@@ -458,7 +495,7 @@ class AdvertiserApplicationService
             $company = $data['company'] ?? [];
             $campaign = $data['campaign'] ?? [];
 
-            if (! empty($company['company_name'])) {
+            if (!empty($company['company_name'])) {
                 $application->company_name = trim($company['company_name']);
             }
             if (isset($company['website'])) {
@@ -480,7 +517,7 @@ class AdvertiserApplicationService
                 $application->additional_requirements = $campaign['additional_requirements'];
             }
 
-            if (! empty($data['applicant_response'])) {
+            if (!empty($data['applicant_response'])) {
                 $application->applicant_response = $data['applicant_response'];
             }
 
@@ -529,7 +566,7 @@ class AdvertiserApplicationService
         $userEmail = strtolower(trim((string) $user->email));
         $appEmail = strtolower(trim($application->applicant_email));
 
-        if ($userEmail !== $appEmail && ! $application->applicant_email_verified) {
+        if ($userEmail !== $appEmail && !$application->applicant_email_verified) {
             throw ValidationException::withMessages([
                 'claim' => ['The application email must be verified before linking.'],
             ]);
@@ -545,7 +582,7 @@ class AdvertiserApplicationService
             'new_status' => $application->status,
             'changed_by' => $user->id,
             'actor_type' => 'applicant',
-            'notes' => 'Application linked to Peer user '.$user->display_name,
+            'notes' => 'Application linked to Peer user ' . $user->display_name,
             'created_at' => now(),
         ]);
 

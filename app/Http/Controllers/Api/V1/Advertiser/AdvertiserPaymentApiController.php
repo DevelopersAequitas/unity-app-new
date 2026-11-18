@@ -19,8 +19,7 @@ class AdvertiserPaymentApiController extends BaseApiController
 {
     public function __construct(
         protected AdvertiserPaymentService $paymentService
-    ) {
-    }
+    ) {}
 
     /**
      * API 16: Create Razorpay payment order
@@ -35,7 +34,7 @@ class AdvertiserPaymentApiController extends BaseApiController
         // Resolve subscription or application
         $subscription = AdvertiserSubscription::with('application')->find($id);
 
-        if (!$subscription) {
+        if (! $subscription) {
             // Check if ID is an application ID (direct payment allowed immediately upon submission)
             $application = AdvertiserApplication::where('id', $id)->first();
             if ($application) {
@@ -52,7 +51,7 @@ class AdvertiserPaymentApiController extends BaseApiController
 
                 // Check or create subscription for this application
                 $subscription = AdvertiserSubscription::where('application_id', $application->id)->first();
-                if (!$subscription) {
+                if (! $subscription) {
                     $subscription = AdvertiserSubscription::create([
                         'application_id' => $application->id,
                         'user_id' => $application->user_id ?? $user->id,
@@ -68,7 +67,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             }
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Subscription or approved application not found.', 404);
         }
 
@@ -100,7 +99,7 @@ class AdvertiserPaymentApiController extends BaseApiController
         $user = $request->user();
         $subscription = AdvertiserSubscription::with(['application', 'brandPartner'])->find($id);
 
-        if (!$subscription) {
+        if (! $subscription) {
             $partner = BrandPartner::find($id);
             if ($partner) {
                 $subscription = AdvertiserSubscription::where('brand_partner_id', $partner->id)
@@ -109,7 +108,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             }
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Subscription not found.', 404);
         }
 
@@ -150,7 +149,7 @@ class AdvertiserPaymentApiController extends BaseApiController
             $subscription = AdvertiserSubscription::find($id);
         }
 
-        if (!$subscription) {
+        if (! $subscription) {
             return $this->error('Active subscription or brand partner not found.', 404);
         }
 
@@ -203,15 +202,30 @@ class AdvertiserPaymentApiController extends BaseApiController
         );
 
         $subscription = $payment->subscription;
+        $application = $subscription?->application;
+        $isPublished = ! empty($subscription?->brand_partner_id) && ($subscription?->brandPartner?->is_active ?? false);
+        $startDateStr = $application?->requested_start_date?->format('Y-m-d')
+            ?? $subscription?->starts_at?->format('Y-m-d')
+            ?? now()->toDateString();
+        $endDateStr = $subscription?->expires_at?->format('Y-m-d');
 
         return $this->success([
             'payment_id' => $payment->id,
             'payment_status' => $payment->status,
+            'is_paid' => $payment->status === AdvertiserPayment::STATUS_CAPTURED,
             'subscription_id' => $subscription?->id,
-            'subscription_status' => $subscription?->status ?? 'active',
-            'publication_status' => ($subscription?->brandPartner?->is_active ?? false) ? 'published' : 'pending_activation',
-            'next_action' => 'view_dashboard',
-        ], 'Payment verified successfully.');
+            'subscription_status' => $isPublished ? 'active' : 'pending_publish',
+            'publication_status' => $isPublished ? 'published' : 'pending_admin_approval',
+            'is_published' => $isPublished,
+            'start_date' => $startDateStr,
+            'end_date' => $endDateStr,
+            'expiry_date' => $endDateStr,
+            'valid_from' => $subscription?->starts_at?->toIso8601String(),
+            'valid_to' => $subscription?->expires_at?->toIso8601String(),
+            'next_action' => $isPublished ? 'view_dashboard' : 'awaiting_admin_approval',
+        ], $isPublished
+            ? 'Payment verified and campaign published successfully.'
+            : 'Payment completed successfully! Your Brand Partner application is now pending admin approval to publish.');
     }
 
     /**
@@ -241,7 +255,7 @@ class AdvertiserPaymentApiController extends BaseApiController
     {
         $payment = AdvertiserPayment::find($id);
 
-        if (!$payment) {
+        if (! $payment) {
             return $this->error('Payment record not found.', 404);
         }
 
