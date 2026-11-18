@@ -531,11 +531,6 @@ class AdvertiserAdminApiController extends BaseApiController
 
     public function reviewAsset(Request $request, string $applicationId, string $assetId): JsonResponse
     {
-        $validated = $request->validate([
-            'review_status' => ['required', 'string', 'in:pending,approved,rejected'],
-            'feedback' => ['nullable', 'string', 'max:500'],
-        ]);
-
         $asset = AdvertiserApplicationAsset::where('application_id', $applicationId)
             ->where('id', $assetId)
             ->first();
@@ -544,11 +539,75 @@ class AdvertiserAdminApiController extends BaseApiController
             return $this->error('Asset not found.', 404);
         }
 
+        $uploadedFile = $request->file('file')
+            ?? $request->file('image')
+            ?? $request->file('asset')
+            ?? collect($request->allFiles())->first();
+
+        if ($uploadedFile) {
+            $request->validate([
+                'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+                'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+            ]);
+
+            $disk = $asset->storage_disk ?: config('filesystems.default', 'public');
+            $path = $uploadedFile->store('advertiser/'.$applicationId, $disk);
+
+            $asset->original_filename = $uploadedFile->getClientOriginalName();
+            $asset->storage_disk = $disk;
+            $asset->storage_key = $path;
+            $asset->mime_type = $uploadedFile->getClientMimeType() ?: 'image/jpeg';
+            $asset->file_size_bytes = (int) $uploadedFile->getSize();
+            $asset->review_status = AdvertiserApplicationAsset::STATUS_APPROVED;
+            $asset->save();
+
+            $application = AdvertiserApplication::find($applicationId);
+            if ($application && ! empty($application->brand_partner_id)) {
+                $partner = BrandPartner::find($application->brand_partner_id);
+                if ($partner) {
+                    if ($asset->asset_type === AdvertiserApplicationAsset::TYPE_LOGO) {
+                        $partner->update(['logo' => $asset->url]);
+                    } elseif (in_array($asset->asset_type, [
+                        AdvertiserApplicationAsset::TYPE_BANNER,
+                        AdvertiserApplicationAsset::TYPE_COVER,
+                        AdvertiserApplicationAsset::TYPE_CREATIVE,
+                    ], true)) {
+                        $partner->update(['cover_image' => $asset->url]);
+                    }
+                }
+            }
+
+            return $this->success([
+                'id' => $asset->id,
+                'asset_id' => $asset->id,
+                'application_id' => $asset->application_id,
+                'asset_type' => $asset->asset_type,
+                'original_filename' => $asset->original_filename,
+                'storage_disk' => $asset->storage_disk,
+                'storage_key' => $asset->storage_key,
+                'mime_type' => $asset->mime_type,
+                'file_size_bytes' => $asset->file_size_bytes,
+                'url' => $asset->url,
+                'review_status' => $asset->review_status,
+            ], 'Creative image updated successfully.');
+        }
+
+        if ($request->has('status') && ! $request->has('review_status')) {
+            $request->merge(['review_status' => $request->input('status')]);
+        }
+
+        $validated = $request->validate([
+            'review_status' => ['required', 'string', 'in:pending,approved,rejected'],
+            'feedback' => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
         $asset->review_status = $validated['review_status'];
-        $asset->review_notes = $validated['feedback'] ?? null;
+        $asset->review_notes = $validated['feedback'] ?? $validated['notes'] ?? null;
         $asset->save();
 
         return $this->success([
+            'id' => $asset->id,
             'asset_id' => $asset->id,
             'review_status' => $asset->review_status,
             'feedback' => $asset->review_notes,

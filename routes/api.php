@@ -1766,7 +1766,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/approve', [AdvertiserAdminApiController::class, 'approve'])->whereUuid('id');
         Route::post('/applications/{id}/publish', [AdvertiserAdminApiController::class, 'publishApplication'])->whereUuid('id');
         Route::post('/applications/{id}/reject', [AdvertiserAdminApiController::class, 'reject'])->whereUuid('id');
-        Route::patch('/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
+        Route::match(['post', 'patch', 'put'], '/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
         Route::get('/applications/{id}/history', [AdvertiserAdminApiController::class, 'history'])->whereUuid('id');
         Route::get('/applications/{id}/advertiser-details', [AdvertiserAdminApiController::class, 'advertiserDetails'])->whereUuid('id');
 
