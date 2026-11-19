@@ -104,24 +104,28 @@ class EventAdminController extends BaseApiController
                 $event->metadata = $meta;
                 $event->save();
 
+                $snPayload = [
+                    'title' => $event->title,
+                    'description' => $event->description,
+                    'banner_url' => $event->banner_url,
+                    'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
+                    'round_duration_seconds' => $roundDuration,
+                    'break_duration_seconds' => $breakDuration,
+                    'total_rounds' => $totalRounds,
+                    'current_round' => 0,
+                    'scheduled_start_time' => $event->start_at,
+                    'scheduled_end_time' => $scheduledEnd,
+                ];
+                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                    $snPayload['metadata'] = [
+                        'duration_seconds' => $durSeconds,
+                        'duration_minutes' => (int) ceil($durSeconds / 60),
+                    ];
+                }
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
-                    [
-                        'title' => $event->title,
-                        'description' => $event->description,
-                        'banner_url' => $event->banner_url,
-                        'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                        'round_duration_seconds' => $roundDuration,
-                        'break_duration_seconds' => $breakDuration,
-                        'total_rounds' => $totalRounds,
-                        'current_round' => 0,
-                        'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $scheduledEnd,
-                        'metadata' => [
-                            'duration_seconds' => $durSeconds,
-                            'duration_minutes' => (int) ceil($durSeconds / 60),
-                        ],
-                    ]
+                    $snPayload
                 );
             } catch (\Throwable $e) {
                 // Ignore
@@ -183,22 +187,26 @@ class EventAdminController extends BaseApiController
                 $event->metadata = $meta;
                 $event->save();
 
+                $snUpdatePayload = [
+                    'title' => $event->title,
+                    'description' => $event->description,
+                    'banner_url' => $event->banner_url,
+                    'round_duration_seconds' => $roundDuration,
+                    'break_duration_seconds' => $breakDuration,
+                    'total_rounds' => $totalRounds,
+                    'scheduled_start_time' => $event->start_at,
+                    'scheduled_end_time' => $scheduledEnd,
+                ];
+                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                    $snUpdatePayload['metadata'] = [
+                        'duration_seconds' => $durSeconds,
+                        'duration_minutes' => (int) ceil($durSeconds / 60),
+                    ];
+                }
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
-                    [
-                        'title' => $event->title,
-                        'description' => $event->description,
-                        'banner_url' => $event->banner_url,
-                        'round_duration_seconds' => $roundDuration,
-                        'break_duration_seconds' => $breakDuration,
-                        'total_rounds' => $totalRounds,
-                        'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $scheduledEnd,
-                        'metadata' => [
-                            'duration_seconds' => $durSeconds,
-                            'duration_minutes' => (int) ceil($durSeconds / 60),
-                        ],
-                    ]
+                    $snUpdatePayload
                 );
             } catch (\Throwable $e) {
                 // Ignore
