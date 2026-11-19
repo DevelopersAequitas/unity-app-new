@@ -62,6 +62,7 @@ class UserManagementController extends BaseApiController
             'business_category_id' => ['nullable'],
             'gender' => ['nullable', 'string', 'max:50'],
             'dob' => ['nullable', 'string'],
+            'anniversary_date' => ['nullable', 'string'],
             'experience_years' => ['nullable'],
             'short_bio' => ['nullable', 'string'],
             'experience_summary' => ['nullable', 'string'],
@@ -187,6 +188,7 @@ class UserManagementController extends BaseApiController
             'long_bio_html' => ['sometimes', 'nullable', 'string'],
             'gender' => ['sometimes', 'nullable', 'string', 'max:50'],
             'dob' => ['sometimes', 'nullable', 'string'],
+            'anniversary_date' => ['sometimes', 'nullable', 'string'],
             'experience_years' => ['sometimes', 'nullable'],
             'city' => ['sometimes', 'nullable', 'string', 'max:255'],
             'state' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -247,6 +249,10 @@ class UserManagementController extends BaseApiController
             $validated['membership_ends_at'] = $validated['membership_expiry'];
         } elseif (array_key_exists('membership_ends_at', $validated) && Schema::hasColumn('users', 'membership_expiry')) {
             $validated['membership_expiry'] = $validated['membership_ends_at'];
+        }
+
+        if (array_key_exists('is_active', $validated)) {
+            $validated['status'] = $validated['is_active'] ? 'active' : 'inactive';
         }
 
         $old = $target->only(array_keys($validated));

@@ -29,7 +29,7 @@ class NotificationService
         $campaign = $options['campaign'] ?? null;
         $dedupe = $options['dedupe_key'] ?? ($data['dedupe_key'] ?? $this->dedupeKey($type, $actor, $user->id, $options['reference_type'] ?? ($data['reference_type'] ?? null), $options['reference_id'] ?? ($data['reference_id'] ?? null)));
 
-        if (! $this->shouldSendToUser($user, $type, $dedupe, $campaign)) {
+        if (! $this->shouldSendToUser($user, $type, $dedupe, $campaign, $options)) {
             return null;
         }
 
@@ -401,7 +401,7 @@ class NotificationService
         return strtr($template, $map);
     }
 
-    public function shouldSendToUser(User $user, string $type, ?string $dedupeKey, ?NotificationCampaign $campaign): bool
+    public function shouldSendToUser(User $user, string $type, ?string $dedupeKey, ?NotificationCampaign $campaign, array $options = []): bool
     {
         if ($campaign && ! $campaign->is_active) {
             return false;
@@ -409,8 +409,12 @@ class NotificationService
         if ($type === 'new_post') {
             return true;
         }
+        if ($dedupeKey && AppNotification::where('user_id', $user->id)->where('dedupe_key', $dedupeKey)->where('created_at', '>=', now()->subDay())->exists()) {
+            return false;
+        }
+        $forceInApp = ! empty($options['force_in_app']);
         $p = NotificationPreference::firstOrCreate(['user_id' => $user->id]);
-        if (! $p->push_enabled && ! $p->email_enabled) {
+        if (! $forceInApp && ! $p->push_enabled && ! $p->email_enabled) {
             return false;
         }
         if ($campaign && ! $p->campaign_enabled) {
@@ -419,8 +423,8 @@ class NotificationService
         if ($type === 'chat_message' && ! $p->chat_enabled) {
             return false;
         }
-        if ($dedupeKey && AppNotification::where('user_id', $user->id)->where('dedupe_key', $dedupeKey)->where('created_at', '>=', now()->subDay())->exists()) {
-            return false;
+        if (! empty($options['bypass_daily_limit'])) {
+            return true;
         }
         $priority = $campaign?->priority ?? 'medium';
         if ($priority === 'urgent') {
