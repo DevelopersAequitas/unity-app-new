@@ -770,5 +770,22 @@ class AutomatedCelebrationSystemTest extends TestCase
         $logsRes = $this->getJson('/api/v1/admin/celebrations/logs');
         $logsRes->assertOk();
         $this->assertNotEmpty($logsRes->json('data.items'));
+
+        // 6. Verify same-day peer added AFTER 7:00 AM IST is auto-published by POST /api/v1/admin/celebrations/process-due
+        Carbon::setTestNow(Carbon::create(2026, 11, 19, 12, 55, 0, 'Asia/Kolkata'));
+        $sameDayPeer = $this->createPeer([
+            'display_name' => 'Jay Kanjariya',
+            'dob' => '2000-11-19',
+        ]);
+        $procRes = $this->postJson('/api/v1/admin/celebrations/process-due');
+        $procRes->assertOk();
+        $procRes->assertJsonPath('data.published_count', 1);
+        $this->assertEquals(1, Post::where('source_id', $sameDayPeer->id)->where('post_type', 'birthday')->count());
+
+        // Calling process-due again MUST NOT duplicate
+        $procRes2 = $this->postJson('/api/v1/admin/celebrations/process-due');
+        $procRes2->assertOk();
+        $procRes2->assertJsonPath('data.published_count', 0);
+        $this->assertEquals(1, Post::where('source_id', $sameDayPeer->id)->where('post_type', 'birthday')->count());
     }
 }

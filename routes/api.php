@@ -1264,6 +1264,7 @@ Route::prefix('v1')->group(function () {
             // Section 21b: Automated Birthday & Wedding Anniversary Celebrations (NEW Admin Panel)
             Route::get('/celebrations/upcoming', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'upcoming']);
             Route::post('/celebrations/sync', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'sync']);
+            Route::post('/celebrations/process-due', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'processDue']);
             Route::post('/celebrations/publish', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'publish']);
             Route::post('/celebrations/schedule', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'schedule']);
             Route::post('/celebrations/{id}/cancel', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'cancel'])->whereUuid('id');

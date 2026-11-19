@@ -1377,7 +1377,21 @@ class PostController extends BaseApiController
             return [];
         }
 
-        return $this->decodeJsonColumn($row->media);
+        $mediaItems = $this->decodeJsonColumn($row->media);
+
+        return array_map(function ($item) {
+            if (! is_array($item)) {
+                return $item;
+            }
+            $itemUrl = $item['url'] ?? null;
+            if (! empty($item['id']) && (empty($itemUrl) || ! Str::startsWith((string) $itemUrl, ['http://', 'https://']))) {
+                $item['url'] = url('/api/v1/files/'.$item['id']);
+            } elseif (! empty($itemUrl) && ! Str::startsWith((string) $itemUrl, ['http://', 'https://'])) {
+                $item['url'] = url(ltrim((string) $itemUrl, '/'));
+            }
+
+            return $item;
+        }, $mediaItems);
     }
 
     private function isP2pMeetingPostRow(object $row): bool

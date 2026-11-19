@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Celebrations;
 
+use App\Models\ActivityCreative;
 use App\Models\CelebrationPublishLog;
 use App\Models\CelebrationSchedule;
 use App\Models\Post;
@@ -14,6 +15,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class CelebrationPublishingService
@@ -299,8 +301,18 @@ class CelebrationPublishingService
         $isBirthday = $schedule->event_type === CelebrationSchedule::TYPE_BIRTHDAY;
         $years = $schedule->milestone_years;
         $milestoneSuffix = ($years !== null && $years > 0) ? " ({$years} Years)" : '';
+        $absoluteUrl = Str::startsWith($fileUrl, ['http://', 'https://'])
+            ? $fileUrl
+            : url('/api/v1/files/'.$fileId);
 
-        $postAttributes = [
+        $title = $isBirthday
+            ? "🎂 Birthday Celebration: {$displayName}"
+            : "💍 Wedding Anniversary: {$displayName}";
+        $description = $isBirthday
+            ? "{$displayName} is celebrating their birthday!{$milestoneSuffix}"
+            : "{$displayName} is celebrating their wedding anniversary!{$milestoneSuffix}";
+
+        $candidateAttributes = [
             'user_id' => $authorUserId,
             'circle_id' => null,
             'content_text' => $caption,
@@ -308,12 +320,12 @@ class CelebrationPublishingService
                 [
                     'id' => $fileId,
                     'type' => 'image',
-                    'url' => $fileUrl,
+                    'url' => $absoluteUrl,
                 ],
             ],
             'tags' => $isBirthday
-                ? ['#Birthday', '#Celebration', '#PeersGlobal']
-                : ['#Anniversary', '#Celebration', '#PeersGlobal'],
+                ? ['birthday', '#Birthday', '#Celebration', '#PeersGlobal', (string) $user->id]
+                : ['anniversary', '#Anniversary', '#Celebration', '#PeersGlobal', (string) $user->id],
             'visibility' => 'public',
             'moderation_status' => 'approved',
             'sponsored' => false,
@@ -324,22 +336,56 @@ class CelebrationPublishingService
             'source_id' => (string) $user->id,
             'source_event' => $schedule->event_type,
             'post_type' => $schedule->event_type,
-            'title' => $isBirthday
-                ? "🎂 Birthday Celebration: {$displayName}"
-                : "💍 Wedding Anniversary: {$displayName}",
-            'description' => $isBirthday
-                ? "{$displayName} is celebrating their birthday!{$milestoneSuffix}"
-                : "{$displayName} is celebrating their wedding anniversary!{$milestoneSuffix}",
-            'image' => $fileUrl,
+            'title' => $title,
+            'description' => $description,
+            'image' => $absoluteUrl,
         ];
+
+        $postColumns = Schema::getColumnListing('posts');
+        $postAttributes = [];
+        foreach ($candidateAttributes as $col => $val) {
+            if (in_array($col, $postColumns, true)) {
+                $postAttributes[$col] = $val;
+            }
+        }
 
         $post = Post::create($postAttributes);
 
         if (Schema::hasTable('post_mentions')) {
-            PostMention::firstOrCreate([
-                'post_id' => $post->id,
-                'peer_id' => $user->id,
-            ]);
+            try {
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $user->id,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning("[CelebrationPublishingService] Could not create post_mention for post {$post->id}: {$e->getMessage()}");
+            }
+        }
+
+        // Register ActivityCreative so the mobile app Timeline renders the creative card consistently with Welcome/Recognition posts
+        if (Schema::hasTable('activity_creatives')) {
+            try {
+                ActivityCreative::create([
+                    'user_id' => $user->id,
+                    'post_id' => $post->id,
+                    'activity_type' => $schedule->event_type,
+                    'activity_id' => (string) $user->id,
+                    'title' => $title,
+                    'description' => $caption,
+                    'creative_file_id' => $fileId,
+                    'creative_url' => $absoluteUrl,
+                    'status' => 'active',
+                    'meta' => [
+                        'member_name' => $displayName,
+                        'event_type' => $schedule->event_type,
+                        'event_year' => (int) $schedule->event_year,
+                        'milestone_years' => $years,
+                    ],
+                    'created_by' => $authorUserId,
+                ]);
+            } catch (Throwable $acEx) {
+                Log::warning("[CelebrationPublishingService] Timeline post {$post->id} created, but ActivityCreative save failed: {$acEx->getMessage()}");
+            }
         }
 
         return $post;
@@ -441,6 +487,7 @@ class CelebrationPublishingService
                 $q->where('source_type', $eventType)
                     ->orWhere('post_type', $eventType);
             })
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$yearStart, $yearEnd])

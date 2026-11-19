@@ -223,6 +223,67 @@ class CelebrationAdminController extends BaseApiController
     }
 
     /**
+     * POST /api/v1/admin/celebrations/process-due
+     * Automatically processes all due birthday & anniversary schedules for today (at/after 7:00 AM IST).
+     * Strictly idempotent: already-published schedules are skipped.
+     */
+    public function processDue(Request $request): JsonResponse
+    {
+        $nowIst = $this->dateResolver->nowIst();
+        $todayIst = $nowIst->copy()->startOfDay();
+        $todayStr = $todayIst->format('Y-m-d');
+
+        $this->syncService->syncAllActiveUsers($todayIst, 'admin_auto_process_due');
+
+        if (! $request->boolean('force') && ! $this->dateResolver->isDueAt7AmIst($todayIst, $nowIst)) {
+            return $this->success([
+                'published_count' => 0,
+                'skipped_count' => 0,
+                'failed_count' => 0,
+                'due_now' => false,
+                'current_time_ist' => $nowIst->format('H:i'),
+            ], 'Waiting until 07:00 AM IST before publishing today\'s celebrations.');
+        }
+
+        $dueSchedules = CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $todayStr)
+            ->whereIn('status', [
+                CelebrationSchedule::STATUS_PENDING,
+                CelebrationSchedule::STATUS_FAILED,
+            ])
+            ->whereColumn('attempts', '<', 'max_attempts')
+            ->orderBy('created_at')
+            ->get();
+
+        $publishedCount = 0;
+        $skippedCount = 0;
+        $failedCount = 0;
+
+        foreach ($dueSchedules as $schedule) {
+            try {
+                $res = $this->publishingService->publishSchedule($schedule, null, false);
+                if ($res['status'] === 'published') {
+                    $publishedCount++;
+                } else {
+                    $skippedCount++;
+                }
+            } catch (Throwable) {
+                $failedCount++;
+            }
+        }
+
+        return $this->success([
+            'published_count' => $publishedCount,
+            'skipped_count' => $skippedCount,
+            'failed_count' => $failedCount,
+            'due_now' => true,
+            'date_ist' => $todayStr,
+        ], $publishedCount > 0
+            ? "Automatically published {$publishedCount} due celebration(s) to Timeline."
+            : 'All due celebrations for today are already processed.');
+    }
+
+    /**
      * POST /api/v1/admin/celebrations/publish
      * Publishes a peer's birthday or anniversary celebration immediately to Timeline + sends in-app notification.
      */

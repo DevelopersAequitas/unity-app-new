@@ -86,7 +86,7 @@ class CelebrationCreativeService
 
         return [
             'file' => $fileModel,
-            'url' => "/api/v1/files/{$fileModel->id}",
+            'url' => url("/api/v1/files/{$fileModel->id}"),
             'template_used' => $templateUsed,
             'used_initials' => $usedInitials,
         ];
@@ -178,7 +178,7 @@ class CelebrationCreativeService
 
         return [
             'file' => $fileModel,
-            'url' => "/api/v1/files/{$fileModel->id}",
+            'url' => url("/api/v1/files/{$fileModel->id}"),
             'template_used' => $templateUsed,
             'used_initials' => $usedInitials,
         ];
