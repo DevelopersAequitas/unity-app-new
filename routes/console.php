@@ -52,19 +52,18 @@ Schedule::command('celebrations:sync-schedules')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
-Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:00')
+Schedule::command('celebrations:sync-schedules')
+    ->dailyAt('06:55')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
-// Safety retry passes for any transient failure (idempotent: already-published celebrations are skipped)
+// Runs every minute; command internally enforces the 07:00 AM IST (Asia/Kolkata) gate:
+// - Before 07:00 AM IST: waits (publishes nothing)
+// - At 07:00 AM IST: publishes all birthdays & anniversaries automatically without admin login
+// - After 07:00 AM IST: skips already-published posts (strict dedup), auto-publishes same-day
+//   newly registered/edited peers, and retries any failed attempts
 Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:15')
-    ->timezone('Asia/Kolkata')
-    ->withoutOverlapping();
-
-Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:30')
+    ->everyMinute()
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
