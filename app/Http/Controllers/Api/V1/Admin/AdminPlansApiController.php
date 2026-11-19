@@ -84,6 +84,12 @@ class AdminPlansApiController extends BaseApiController
     {
         MembershipPlan::ensureMonthlyPriceColumn();
 
+        if (! $request->has('monthly_price') && ($request->has('display_monthly_price') || $request->has('monthly_amount'))) {
+            $request->merge([
+                'monthly_price' => $request->input('display_monthly_price', $request->input('monthly_amount')),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
@@ -157,6 +163,12 @@ class AdminPlansApiController extends BaseApiController
 
         if ($plan->isCirclePlan()) {
             return $this->error('Circle plans cannot be edited from Membership Plans.', 422);
+        }
+
+        if (! $request->has('monthly_price') && ($request->has('display_monthly_price') || $request->has('monthly_amount'))) {
+            $request->merge([
+                'monthly_price' => $request->input('display_monthly_price', $request->input('monthly_amount')),
+            ]);
         }
 
         $validated = $request->validate([
