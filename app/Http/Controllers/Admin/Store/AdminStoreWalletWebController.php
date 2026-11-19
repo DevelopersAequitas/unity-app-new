@@ -140,7 +140,7 @@ class AdminStoreWalletWebController extends Controller
             WalletAdjustmentRequest::create([
                 'user_id' => $validated['user_id'],
                 'requested_by' => $adminId,
-                'adjustment_type' => $validated['action'] === 'credit' ? 'ADJUST_CREDIT' : 'ADJUST_DEBIT',
+                'adjustment_type' => $validated['action'] === 'credit' ? 'CREDIT' : 'DEBIT',
                 'bucket' => strtoupper($validated['coin_type']),
                 'coins' => (int) $validated['amount'],
                 'reason' => $validated['reason'],
@@ -169,7 +169,7 @@ class AdminStoreWalletWebController extends Controller
 
         DB::transaction(function () use ($adj, $adminId) {
             $peer = $adj->user;
-            if ($adj->adjustment_type === 'ADJUST_CREDIT') {
+            if (str_contains(strtoupper((string) $adj->adjustment_type), 'CREDIT')) {
                 $this->walletService->creditCoins(
                     $peer,
                     $adj->coins,

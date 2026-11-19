@@ -757,9 +757,24 @@ class SpeedNetworkingApiController extends Controller
         $clientStatus = in_array($event->status, [SpeedNetworkingEvent::STATUS_IN_PROGRESS, 'live'], true) ? 'live' : $event->status;
 
         $durSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
-        $durMin = (int) ceil($durSec / 60);
         $schedStart = $event->scheduled_start_time ?? $event->actual_start_time ?? Carbon::now();
         $schedEnd = $event->scheduled_end_time ?? $schedStart->copy()->addSeconds($durSec);
+
+        // Self-heal from base Event start_at / end_at if speed_networking_events has stale/1-minute end time
+        $activeBaseEvent = $this->resolveBaseEvent($event);
+        if ($activeBaseEvent && $activeBaseEvent->start_at && $activeBaseEvent->end_at) {
+            $baseStart = Carbon::parse($activeBaseEvent->start_at);
+            $baseEnd = Carbon::parse($activeBaseEvent->end_at);
+            if ($baseEnd->greaterThan($baseStart)) {
+                $baseDurSec = max(60, (int) abs($baseStart->diffInSeconds($baseEnd, true)));
+                if ($schedEnd->ne($baseEnd) || $durSec !== $baseDurSec) {
+                    $schedStart = $baseStart;
+                    $schedEnd = $baseEnd;
+                    $durSec = $baseDurSec;
+                }
+            }
+        }
+        $durMin = (int) ceil($durSec / 60);
 
         return response()->json([
             'status' => true,
@@ -876,8 +891,20 @@ class SpeedNetworkingApiController extends Controller
 
         if ($event instanceof SpeedNetworkingEvent) {
             $durationSec = max(60, (int) ($event->duration_seconds ?: $event->calculateDurationSeconds()));
-            $durationMin = (int) ceil($durationSec / 60);
             $scheduledEnd = $event->scheduled_end_time ?? ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec));
+            if ($baseEvent && $baseEvent->start_at && $baseEvent->end_at) {
+                $baseStart = Carbon::parse($baseEvent->start_at);
+                $baseEnd = Carbon::parse($baseEvent->end_at);
+                if ($baseEnd->greaterThan($baseStart)) {
+                    $baseDurSec = max(60, (int) abs($baseStart->diffInSeconds($baseEnd, true)));
+                    if ($scheduledEnd->ne($baseEnd) || $durationSec !== $baseDurSec) {
+                        $startAt = $baseStart;
+                        $scheduledEnd = $baseEnd;
+                        $durationSec = $baseDurSec;
+                    }
+                }
+            }
+            $durationMin = (int) ceil($durationSec / 60);
             $actualStart = $event->actual_start_time;
             $actualEnd = $event->actual_end_time;
         } else {
