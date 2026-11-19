@@ -823,7 +823,7 @@ class SpeedNetworkingService
             $hasExplicitEndTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawEndStr);
             $scheduledEnd = ($hasExplicitEndTz ? Carbon::parse($rawEndStr) : Carbon::parse($rawEndStr, $timezone))->utc();
             if ($scheduledStart && $scheduledEnd->greaterThan($scheduledStart)) {
-                $durationSeconds = $scheduledEnd->diffInSeconds($scheduledStart);
+                $durationSeconds = max(60, (int) abs($scheduledStart->diffInSeconds($scheduledEnd, true)));
             }
         } else {
             $scheduledEnd = $scheduledStart ? $scheduledStart->copy()->addSeconds($durationSeconds) : null;
@@ -4062,6 +4062,28 @@ class SpeedNetworkingService
         }
 
         $now = Carbon::now();
+
+        // Auto-end any live/open Speed Networking events whose scheduled_end_time has been reached
+        $eventsToEnd = SpeedNetworkingEvent::query()
+            ->whereIn('status', [
+                SpeedNetworkingEvent::STATUS_IN_PROGRESS,
+                SpeedNetworkingEvent::STATUS_LOBBY_OPEN,
+                SpeedNetworkingEvent::STATUS_PAUSED,
+                'live',
+            ])
+            ->whereNotNull('scheduled_end_time')
+            ->where('scheduled_end_time', '<=', $now)
+            ->whereNull('actual_end_time')
+            ->get();
+
+        foreach ($eventsToEnd as $expiredEvent) {
+            try {
+                $this->endEvent($expiredEvent);
+                Log::info('[SpeedNetworkingService] Auto-ended expired event '.$expiredEvent->id.' at scheduled_end_time '.$expiredEvent->scheduled_end_time);
+            } catch (\Throwable $th) {
+                Log::error('[SpeedNetworkingService] Failed to auto-end event '.$expiredEvent->id.': '.$th->getMessage());
+            }
+        }
 
         $eventsToStart = SpeedNetworkingEvent::query()
             ->whereIn('status', [
