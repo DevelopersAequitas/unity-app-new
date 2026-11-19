@@ -472,7 +472,14 @@ class BrandPartnerDirectPaymentTest extends TestCase
 
         // Verify lead email was sent to Brand Partner (rohan@example.com) with Reply-To set to Rahul's email
         Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
-            return $mail->subjectLine === '📞 New Callback Request: Rahul Parmar on Peers Global Unity'
+            return $mail->subjectLine === 'New Callback Request from a Peer – Rahul Parmar'
+                && $mail->recipientName === 'Acme Brand Pvt Ltd Team'
+                && str_contains($mail->mainMessage, 'REQUIREMENT')
+                && str_contains($mail->mainMessage, 'PEER DETAILS')
+                && $mail->actionUrl === 'tel:+919265898194'
+                && $mail->actionText === 'Call Rahul Parmar'
+                && $mail->secondaryActionUrl === 'mailto:rp91883018@gmail.com'
+                && $mail->secondaryActionText === 'Reply by Email'
                 && $mail->replyToEmail === 'rp91883018@gmail.com';
         });
 
@@ -505,7 +512,12 @@ class BrandPartnerDirectPaymentTest extends TestCase
         $this->artisan('PGU:brand-partner-weekly-report')->assertExitCode(0);
 
         Mail::assertSent(AdvertiserNotificationMail::class, function (AdvertiserNotificationMail $mail): bool {
-            return str_contains($mail->subjectLine, 'Weekly Brand Partner Performance Report');
+            return str_contains($mail->subjectLine, 'Weekly Brand Partner Performance Report')
+                && $mail->recipientName === 'Acme Brand Pvt Ltd Team'
+                && str_contains($mail->mainMessage, 'THIS WEEK')
+                && str_contains($mail->mainMessage, 'SINCE YOU JOINED')
+                && str_contains($mail->mainMessage, 'Callback Rate:')
+                && $mail->actionText === 'View Callback Requests';
         });
     }
 }

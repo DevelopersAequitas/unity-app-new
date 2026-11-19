@@ -437,7 +437,10 @@ class AdvertiserNotificationService
         } catch (Throwable $firstException) {
             // Automatic fallback to 'pravin' SMTP mailer if configured and primary mailer failed
             try {
-                if (config('mail.mailers.pravin')) {
+                $pravinUser = (string) config('mail.mailers.pravin.username', 'pravin@peersunity.com');
+                $pravinPass = (string) config('mail.mailers.pravin.password', '');
+                if ($pravinPass !== '' && filter_var($pravinUser, FILTER_VALIDATE_EMAIL)) {
+                    $mailable->from($pravinUser, (string) config('mail.from.name', 'Peers Global Unity'));
                     Mail::mailer('pravin')->to($toEmail)->send($mailable);
                     $this->emailLogService->logMailableSent($mailable, $logData);
 
@@ -473,35 +476,48 @@ class AdvertiserNotificationService
         $ownerUser = $resolved['user'];
 
         $brandName = trim((string) ($partner->name ?: 'Brand Partner'));
-        $subjectLine = "📞 New Callback Request: {$inquiry->name} on Peers Global Unity";
-        $heading = 'New Callback Request from a Peers Global Member';
-        $mainMessage = "Hi {$brandName} Team,\n\n"
-            ."A member on the Peers Global Unity app has requested a callback.\n\n"
-            ."Member Details:\n"
-            ."• Name:  {$inquiry->name}\n"
-            ."• Phone: {$inquiry->phone}\n"
-            ."• Email: {$inquiry->email}\n\n"
-            ."Requirement / Message:\n\"{$inquiry->message}\"\n\n"
-            ."You can reply directly to this email or call the member at {$inquiry->phone}.";
+        $peerName = trim((string) ($inquiry->name ?: 'Peer'));
+        $phone = trim((string) ($inquiry->phone ?? ''));
+        $email = trim((string) ($inquiry->email ?? ''));
+        $bannerTitle = trim((string) ($partner->offer_title ?: ($partner->short_description ?: $brandName)));
+        $dateTimeIst = ($inquiry->created_at ?? now())->copy()->setTimezone('Asia/Kolkata')->format('d M Y, h:i A');
+
+        $subjectLine = "New Callback Request from a Peer – {$peerName}";
+        $heading = '';
+        $mainMessage = "A Peer from the Peers Global Unity App has requested a callback from you.\n\n"
+            ."REQUIREMENT\n"
+            ."\"{$inquiry->message}\"\n\n"
+            ."PEER DETAILS\n"
+            ."Name: {$peerName}\n"
+            ."Phone: {$phone}\n"
+            ."Email: {$email}\n"
+            ."Offer / Banner: {$bannerTitle}\n"
+            ."Requested on: {$dateTimeIst} IST\n\n"
+            .'Please contact the Peer within 24 hours. A quick, genuine response builds trust with our Peers and strengthens your presence in the community.';
 
         $details = [
-            'Member Name' => $inquiry->name,
-            'Phone' => $inquiry->phone,
-            'Email' => $inquiry->email,
-            'Brand Partner' => $brandName,
-            'Requested At' => ($inquiry->created_at ?? now())->toDayDateTimeString(),
+            'Name' => $peerName,
+            'Phone' => $phone,
+            'Email' => $email,
+            'Offer / Banner' => $bannerTitle,
+            'Requested on' => "{$dateTimeIst} IST",
         ];
+
+        $cleanTel = preg_replace('/\s+/', '', $phone) ?: $phone;
 
         $partnerMailable = new AdvertiserNotificationMail(
             subjectLine: $subjectLine,
             recipientName: "{$brandName} Team",
             heading: $heading,
             mainMessage: $mainMessage,
-            actionUrl: 'mailto:'.$inquiry->email,
-            actionText: 'Reply to '.$inquiry->name,
+            actionUrl: $cleanTel !== '' ? 'tel:'.$cleanTel : ('mailto:'.$email),
+            actionText: "Call {$peerName}",
             details: $details,
-            replyToEmail: $inquiry->email,
-            replyToName: $inquiry->name
+            replyToEmail: $email,
+            replyToName: $peerName,
+            secondaryActionUrl: $email !== '' ? 'mailto:'.$email : null,
+            secondaryActionText: $email !== '' ? 'Reply by Email' : null,
+            footerNote: 'This Peer has requested contact from you. Please use these details only to respond to this request.'
         );
 
         $partnerSent = false;
@@ -540,7 +556,7 @@ class AdvertiserNotificationService
                 recipientName: $inquiry->name,
                 heading: "Your Callback Request Has Been Sent to {$brandName}",
                 mainMessage: "Thank you for connecting with {$brandName} on Peers Global Unity. We have shared your contact details and requirement directly with the {$brandName} team so they can reach out to you shortly.\n\n"
-                    ."Your Submitted Message:\n\"{$inquiry->message}\"",
+                ."Your Submitted Message:\n\"{$inquiry->message}\"",
                 details: [
                     'Brand Partner' => $brandName,
                     'Your Name' => $inquiry->name,
@@ -725,28 +741,88 @@ class AdvertiserNotificationService
         }
 
         $brandName = trim((string) ($partner->name ?: 'Brand Partner'));
-        $targetName = $recipientName ?: ($resolved['name'] ?: "{$brandName} Team");
-        $subjectLine = "📊 Weekly Brand Partner Performance Report: {$brandName} — Peers Global Unity";
-        $heading = 'Your Weekly Brand Partner Performance Summary';
+        $targetName = "{$brandName} Team";
 
-        $periodFrom = (string) ($weeklyStats['from'] ?? now()->subDays(7)->toFormattedDateString());
-        $periodTo = (string) ($weeklyStats['to'] ?? now()->toFormattedDateString());
+        $periodFrom = (string) ($weeklyStats['from'] ?? now()->copy()->setTimezone('Asia/Kolkata')->subDays(7)->format('d M Y'));
+        $periodTo = (string) ($weeklyStats['to'] ?? now()->copy()->setTimezone('Asia/Kolkata')->format('d M Y'));
 
-        $mainMessage = "Here is your weekly performance and engagement summary for {$brandName} on Peers Global Unity ({$periodFrom} – {$periodTo}).\n\n"
-            .'Thank you for being a valued Brand Partner in the Peers Global ecosystem!';
+        $subjectLine = "Weekly Brand Partner Performance Report – {$brandName} ({$periodFrom} to {$periodTo})";
+        $heading = '';
+
+        $views = (int) ($weeklyStats['total_views'] ?? 0);
+        $uniquePeers = (int) ($weeklyStats['unique_reach'] ?? 0);
+        $clicks = (int) ($weeklyStats['total_clicks'] ?? 0);
+        $callbacks = (int) ($weeklyStats['callback_requests'] ?? 0);
+
+        $ctrValue = isset($weeklyStats['ctr_percent'])
+            ? (float) $weeklyStats['ctr_percent']
+            : ($views > 0 ? min(100.0, round(($clicks / $views) * 100, 2)) : 0.0);
+        $callbackRateValue = isset($weeklyStats['callback_rate_percent'])
+            ? (float) $weeklyStats['callback_rate_percent']
+            : ($clicks > 0 ? min(100.0, round(($callbacks / $clicks) * 100, 2)) : 0.0);
+
+        $ctrFormatted = number_format($ctrValue, 2);
+        $callbackRateFormatted = number_format($callbackRateValue, 2);
+
+        $viewsChange = (string) ($weeklyStats['views_change'] ?? '+0%');
+        $uniqueChange = (string) ($weeklyStats['unique_change'] ?? '+0% vs last week');
+        $clicksChange = (string) ($weeklyStats['clicks_change'] ?? '+0% vs last week');
+        $callbacksChange = (string) ($weeklyStats['callbacks_change'] ?? '+0 vs last week');
+
+        $lifetimeViews = (int) ($lifetimeStats['total_views'] ?? 0);
+        $lifetimeClicks = (int) ($lifetimeStats['total_clicks'] ?? 0);
+        $lifetimeCallbacks = (int) ($lifetimeStats['callback_requests'] ?? 0);
+
+        $packageStartDate = (string) ($weeklyStats['package_start_date']
+            ?? ($partner->valid_from
+                ? $partner->valid_from->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                : ($partner->created_at
+                    ? $partner->created_at->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                    : now()->copy()->setTimezone('Asia/Kolkata')->format('d M Y'))));
+
+        $expiryDate = (string) ($weeklyStats['expiry_date']
+            ?? ($partner->valid_to
+                ? $partner->valid_to->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                : 'Active'));
+
+        $daysLeft = isset($weeklyStats['days_left'])
+            ? (int) $weeklyStats['days_left']
+            : ($partner->valid_to
+                ? max(0, (int) now()->copy()->setTimezone('Asia/Kolkata')->startOfDay()->diffInDays($partner->valid_to->copy()->setTimezone('Asia/Kolkata')->startOfDay(), false))
+                : 30);
+
+        $dashboardLink = (string) ($weeklyStats['dashboard_link']
+            ?? (rtrim((string) config('app.public_url', config('app.url', 'https://peersunity.com')), '/').'/advertiser/dashboard'));
+
+        $mainMessage = "Here is how your brand performed on the Peers Global Unity App from {$periodFrom} to {$periodTo} (IST).\n\n"
+            ."THIS WEEK\n"
+            ."Views (Impressions):        {$views}   ({$viewsChange} vs last week)\n"
+            ."Unique Peers Reached:       {$uniquePeers}   ({$uniqueChange})\n"
+            ."Clicks:                     {$clicks}   ({$clicksChange})\n"
+            ."Click-Through Rate (CTR):   {$ctrFormatted}%\n"
+            ."Callback Requests:          {$callbacks}   ({$callbacksChange})\n"
+            ."Callback Rate:              {$callbackRateFormatted}%\n\n"
+            ."SINCE YOU JOINED ({$packageStartDate})\n"
+            ."Total Views:                {$lifetimeViews}\n"
+            ."Total Clicks:               {$lifetimeClicks}\n"
+            ."Total Callback Requests:    {$lifetimeCallbacks}\n\n"
+            ."Package active until:       {$expiryDate} ({$daysLeft} days left)\n\n"
+            ."How to read this:\n"
+            ."* CTR = Clicks ÷ Views\n"
+            ."* Callback Rate = Callback Requests ÷ Clicks\n\n"
+            .'Every callback request is a Peer asking to hear from you. Responding within 24 hours gives you the best chance of converting it.';
 
         $details = [
-            'Brand Partner' => $brandName,
-            'Report Period' => "{$periodFrom} – {$periodTo}",
-            'Views This Week (Impressions)' => (string) ((int) ($weeklyStats['total_views'] ?? 0)),
-            'Unique Peers Reached (This Week)' => (string) ((int) ($weeklyStats['unique_reach'] ?? 0)),
-            'Total Clicks (This Week)' => (string) ((int) ($weeklyStats['total_clicks'] ?? 0)),
-            'Click-Through Rate (CTR)' => number_format((float) ($weeklyStats['ctr_percent'] ?? 0), 2).'%',
-            'New Callback Requests (This Week)' => (string) ((int) ($weeklyStats['callback_requests'] ?? 0)),
-            'Lifetime Total Views' => (string) ((int) ($lifetimeStats['total_views'] ?? 0)),
-            'Lifetime Total Clicks' => (string) ((int) ($lifetimeStats['total_clicks'] ?? 0)),
-            'Lifetime Callback Requests' => (string) ((int) ($lifetimeStats['callback_requests'] ?? 0)),
-            'Active Until' => $partner->valid_to ? $partner->valid_to->toFormattedDateString() : 'Active',
+            'Views (Impressions)' => "{$views} ({$viewsChange} vs last week)",
+            'Unique Peers Reached' => "{$uniquePeers} ({$uniqueChange})",
+            'Clicks' => "{$clicks} ({$clicksChange})",
+            'Click-Through Rate (CTR)' => "{$ctrFormatted}%",
+            'Callback Requests' => "{$callbacks} ({$callbacksChange})",
+            'Callback Rate' => "{$callbackRateFormatted}%",
+            "Total Views (Since {$packageStartDate})" => (string) $lifetimeViews,
+            "Total Clicks (Since {$packageStartDate})" => (string) $lifetimeClicks,
+            "Total Callback Requests (Since {$packageStartDate})" => (string) $lifetimeCallbacks,
+            'Package active until' => "{$expiryDate} ({$daysLeft} days left)",
         ];
 
         $mailable = new AdvertiserNotificationMail(
@@ -754,7 +830,10 @@ class AdvertiserNotificationService
             recipientName: $targetName,
             heading: $heading,
             mainMessage: $mainMessage,
-            details: $details
+            actionUrl: $dashboardLink,
+            actionText: 'View Callback Requests',
+            details: $details,
+            footerNote: 'Thank you for being a valued Brand Partner in the Peers Global ecosystem.'
         );
 
         return $this->sendMailableWithLog($mailable, $targetEmail, [

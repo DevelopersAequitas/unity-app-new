@@ -111,7 +111,9 @@ class SpeedNetworkingEvent extends Model
                 || ! empty($model->attributes['duration']);
 
             if ($start && ($hasExplicitDuration || empty($model->attributes['scheduled_end_time']))) {
-                $model->attributes['scheduled_end_time'] = $start->copy()->addSeconds($model->calculateDurationSeconds());
+                $model->attributes['scheduled_end_time'] = $model->fromDateTime(
+                    $start->copy()->addSeconds($model->calculateDurationSeconds())
+                );
             }
         });
 
@@ -171,6 +173,17 @@ class SpeedNetworkingEvent extends Model
         }
         if (! empty($this->attributes['duration'])) {
             return (int) ($this->attributes['duration'] * 60);
+        }
+
+        if (! empty($this->attributes['scheduled_start_time']) && ! empty($this->attributes['scheduled_end_time'])) {
+            try {
+                $rawStart = Carbon::parse($this->attributes['scheduled_start_time']);
+                $rawEnd = Carbon::parse($this->attributes['scheduled_end_time']);
+                if ($rawEnd->greaterThan($rawStart)) {
+                    return max(60, (int) abs($rawStart->diffInSeconds($rawEnd, true)));
+                }
+            } catch (\Throwable) {
+            }
         }
 
         $rounds = (int) ($this->total_rounds ?: 0);
@@ -238,7 +251,7 @@ class SpeedNetworkingEvent extends Model
 
                 return Carbon::now()->addSeconds($durSeconds);
             },
-            set: fn ($value) => $value
+            set: fn ($value) => $value !== null ? $this->fromDateTime($value) : null
         );
     }
 

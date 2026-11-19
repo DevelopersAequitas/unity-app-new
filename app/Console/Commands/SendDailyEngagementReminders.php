@@ -32,6 +32,13 @@ class SendDailyEngagementReminders extends Command
 
     public function handle(): int
     {
+        if (! (bool) config('services.engagement_notifications.enabled', false)) {
+            Log::info('Daily engagement reminders skipped (currently disabled).');
+            $this->info('Daily engagement reminders are currently disabled.');
+
+            return self::SUCCESS;
+        }
+
         Log::info('Daily engagement reminders command started');
         $this->info('Daily engagement reminders command started.');
 

@@ -143,6 +143,10 @@ class AppServiceProvider extends ServiceProvider
                 'username' => env('MAIL_USERNAME_PRAVIN', 'pravin@peersunity.com'),
                 'password' => env('MAIL_PASSWORD_PRAVIN'),
                 'timeout' => null,
+                'from' => [
+                    'address' => env('MAIL_USERNAME_PRAVIN', 'pravin@peersunity.com'),
+                    'name' => $fromName,
+                ],
             ],
         ]);
 

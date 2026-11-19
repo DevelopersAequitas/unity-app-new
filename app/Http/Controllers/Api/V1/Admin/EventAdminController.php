@@ -77,21 +77,26 @@ class EventAdminController extends BaseApiController
                 $meta['speed_status'] = 'scheduled';
                 $meta['is_speed_networking'] = true;
 
-                $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
-                if (! empty($durMinutes) && (int) $durMinutes > 0) {
-                    $durSeconds = (int) $durMinutes * 60;
-                } elseif (! empty($request->input('duration_seconds'))) {
+                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
+                $endAt = $event->end_at ? Carbon::parse($event->end_at) : null;
+                $durMinutesRaw = $request->input('duration_minutes') ?? (is_numeric($request->input('duration')) ? $request->input('duration') : null);
+
+                if ($endAt && $endAt->greaterThan($startAt)) {
+                    $durSeconds = max(60, (int) abs($startAt->diffInSeconds($endAt, true)));
+                    $scheduledEnd = $endAt->copy();
+                } elseif (is_numeric($durMinutesRaw) && (int) $durMinutesRaw > 0) {
+                    $durSeconds = (int) $durMinutesRaw * 60;
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
+                } elseif (is_numeric($request->input('duration_seconds')) && (int) $request->input('duration_seconds') > 0) {
                     $durSeconds = (int) $request->input('duration_seconds');
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 } elseif ($totalRounds > 0) {
                     $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
-                } elseif ($event->start_at && $event->end_at) {
-                    $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 } else {
-                    $durSeconds = 30 * 60;
+                    $durSeconds = 60 * 60;
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 }
-
-                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
-                $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
 
                 $meta['duration_seconds'] = $durSeconds;
                 $meta['duration_minutes'] = (int) ceil($durSeconds / 60);
@@ -99,24 +104,28 @@ class EventAdminController extends BaseApiController
                 $event->metadata = $meta;
                 $event->save();
 
+                $snPayload = [
+                    'title' => $event->title,
+                    'description' => $event->description,
+                    'banner_url' => $event->banner_url,
+                    'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
+                    'round_duration_seconds' => $roundDuration,
+                    'break_duration_seconds' => $breakDuration,
+                    'total_rounds' => $totalRounds,
+                    'current_round' => 0,
+                    'scheduled_start_time' => $event->start_at,
+                    'scheduled_end_time' => $scheduledEnd,
+                ];
+                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                    $snPayload['metadata'] = [
+                        'duration_seconds' => $durSeconds,
+                        'duration_minutes' => (int) ceil($durSeconds / 60),
+                    ];
+                }
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
-                    [
-                        'title' => $event->title,
-                        'description' => $event->description,
-                        'banner_url' => $event->banner_url,
-                        'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                        'round_duration_seconds' => $roundDuration,
-                        'break_duration_seconds' => $breakDuration,
-                        'total_rounds' => $totalRounds,
-                        'current_round' => 0,
-                        'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $scheduledEnd,
-                        'metadata' => [
-                            'duration_seconds' => $durSeconds,
-                            'duration_minutes' => (int) ceil($durSeconds / 60),
-                        ],
-                    ]
+                    $snPayload
                 );
             } catch (\Throwable $e) {
                 // Ignore
@@ -151,21 +160,26 @@ class EventAdminController extends BaseApiController
                 $meta['break_duration_seconds'] = $breakDuration;
                 $meta['total_rounds'] = $totalRounds;
 
-                $durMinutes = $request->input('duration_minutes') ?: $request->input('duration');
-                if (! empty($durMinutes) && (int) $durMinutes > 0) {
-                    $durSeconds = (int) $durMinutes * 60;
-                } elseif (! empty($request->input('duration_seconds'))) {
+                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
+                $endAt = $event->end_at ? Carbon::parse($event->end_at) : null;
+                $durMinutesRaw = $request->input('duration_minutes') ?? (is_numeric($request->input('duration')) ? $request->input('duration') : null);
+
+                if ($endAt && $endAt->greaterThan($startAt)) {
+                    $durSeconds = max(60, (int) abs($startAt->diffInSeconds($endAt, true)));
+                    $scheduledEnd = $endAt->copy();
+                } elseif (is_numeric($durMinutesRaw) && (int) $durMinutesRaw > 0) {
+                    $durSeconds = (int) $durMinutesRaw * 60;
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
+                } elseif (is_numeric($request->input('duration_seconds')) && (int) $request->input('duration_seconds') > 0) {
                     $durSeconds = (int) $request->input('duration_seconds');
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 } elseif ($totalRounds > 0) {
                     $durSeconds = ($totalRounds * $roundDuration) + (max(0, $totalRounds - 1) * $breakDuration);
-                } elseif ($event->start_at && $event->end_at) {
-                    $durSeconds = max(60, Carbon::parse($event->end_at)->diffInSeconds(Carbon::parse($event->start_at)));
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 } else {
-                    $durSeconds = 30 * 60;
+                    $durSeconds = 60 * 60;
+                    $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
                 }
-
-                $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
-                $scheduledEnd = $startAt->copy()->addSeconds($durSeconds);
 
                 $meta['duration_seconds'] = $durSeconds;
                 $meta['duration_minutes'] = (int) ceil($durSeconds / 60);
@@ -173,22 +187,26 @@ class EventAdminController extends BaseApiController
                 $event->metadata = $meta;
                 $event->save();
 
+                $snUpdatePayload = [
+                    'title' => $event->title,
+                    'description' => $event->description,
+                    'banner_url' => $event->banner_url,
+                    'round_duration_seconds' => $roundDuration,
+                    'break_duration_seconds' => $breakDuration,
+                    'total_rounds' => $totalRounds,
+                    'scheduled_start_time' => $event->start_at,
+                    'scheduled_end_time' => $scheduledEnd,
+                ];
+                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                    $snUpdatePayload['metadata'] = [
+                        'duration_seconds' => $durSeconds,
+                        'duration_minutes' => (int) ceil($durSeconds / 60),
+                    ];
+                }
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
-                    [
-                        'title' => $event->title,
-                        'description' => $event->description,
-                        'banner_url' => $event->banner_url,
-                        'round_duration_seconds' => $roundDuration,
-                        'break_duration_seconds' => $breakDuration,
-                        'total_rounds' => $totalRounds,
-                        'scheduled_start_time' => $event->start_at,
-                        'scheduled_end_time' => $scheduledEnd,
-                        'metadata' => [
-                            'duration_seconds' => $durSeconds,
-                            'duration_minutes' => (int) ceil($durSeconds / 60),
-                        ],
-                    ]
+                    $snUpdatePayload
                 );
             } catch (\Throwable $e) {
                 // Ignore

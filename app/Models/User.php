@@ -520,6 +520,42 @@ class User extends Authenticatable
                     }
                 }
             }
+
+            if ($user->wasRecentlyCreated || $user->wasChanged(['dob', 'anniversary_date', 'status', 'is_active', 'deleted_at', 'gdpr_deleted_at'])) {
+                try {
+                    $trigger = $user->wasRecentlyCreated ? 'user_registered' : 'user_updated';
+                    app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($user, $trigger);
+                } catch (Throwable $e) {
+                    Log::warning('[User::saved] Failed syncing celebration schedules: '.$e->getMessage(), [
+                        'user_id' => $user->id,
+                    ]);
+                }
+            }
+        });
+
+        static::deleted(function (self $user): void {
+            try {
+                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->cancelPendingSchedulesForUser(
+                    (string) $user->id,
+                    null,
+                    'account_deleted',
+                    'user_deleted'
+                );
+            } catch (Throwable $e) {
+                Log::warning('[User::deleted] Failed cancelling celebration schedules: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
+            }
+        });
+
+        static::restored(function (self $user): void {
+            try {
+                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($user, 'user_restored');
+            } catch (Throwable $e) {
+                Log::warning('[User::restored] Failed re-syncing celebration schedules: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
+            }
         });
     }
 

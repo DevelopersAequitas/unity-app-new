@@ -1261,6 +1261,19 @@ Route::prefix('v1')->group(function () {
             Route::get('/posts/{id}/comments', [App\Http\Controllers\Api\Admin\PostController::class, 'getComments'])->whereUuid('id');
             Route::delete('/posts/{id}/comments/{commentId}', [App\Http\Controllers\Api\Admin\PostController::class, 'deleteComment'])->whereUuid('id')->whereUuid('commentId');
 
+            // Section 21b: Automated Birthday & Wedding Anniversary Celebrations (NEW Admin Panel)
+            Route::get('/celebrations/upcoming', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'upcoming']);
+            Route::post('/celebrations/sync', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'sync']);
+            Route::post('/celebrations/process-due', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'processDue']);
+            Route::post('/celebrations/publish', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'publish']);
+            Route::post('/celebrations/schedule', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'schedule']);
+            Route::post('/celebrations/{id}/cancel', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'cancel'])->whereUuid('id');
+            Route::post('/celebrations/{id}/retry', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'retry'])->whereUuid('id');
+            Route::get('/celebrations/logs', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'logs']);
+            Route::get('/celebrations/templates', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'templates']);
+            Route::post('/celebrations/templates/anniversary', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'uploadAnniversaryTemplate']);
+            Route::delete('/celebrations/templates/anniversary', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'resetAnniversaryTemplate']);
+
             // Post Reports
             Route::get('/post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
             Route::get('/post-reports/stats', [App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
