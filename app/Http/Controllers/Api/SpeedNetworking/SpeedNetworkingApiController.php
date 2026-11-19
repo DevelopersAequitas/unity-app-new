@@ -771,6 +771,19 @@ class SpeedNetworkingApiController extends Controller
                     $schedStart = $baseStart;
                     $schedEnd = $baseEnd;
                     $durSec = $baseDurSec;
+
+                    try {
+                        $meta = is_array($event->metadata) ? $event->metadata : [];
+                        $meta['duration_seconds'] = $baseDurSec;
+                        $meta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                        $event->scheduled_start_time = $baseStart;
+                        $event->scheduled_end_time = $baseEnd;
+                        if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                            $event->metadata = $meta;
+                        }
+                        $event->save();
+                    } catch (\Throwable) {
+                    }
                 }
             }
         }
@@ -907,6 +920,19 @@ class SpeedNetworkingApiController extends Controller
                         $startAt = $baseStart;
                         $scheduledEnd = $baseEnd;
                         $durationSec = $baseDurSec;
+
+                        try {
+                            $snMeta = is_array($event->metadata) ? $event->metadata : [];
+                            $snMeta['duration_seconds'] = $baseDurSec;
+                            $snMeta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                            $event->scheduled_start_time = $baseStart;
+                            $event->scheduled_end_time = $baseEnd;
+                            if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                                $event->metadata = $snMeta;
+                            }
+                            $event->save();
+                        } catch (\Throwable) {
+                        }
                     }
                 }
             }

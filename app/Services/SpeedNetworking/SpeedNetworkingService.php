@@ -4112,7 +4112,7 @@ class SpeedNetworkingService
 
         $now = Carbon::now();
 
-        // Auto-end any non-completed Speed Networking events whose scheduled_end_time has been reached
+        // Sync scheduled_start_time and scheduled_end_time from base events table if out of sync
         $openCandidates = SpeedNetworkingEvent::query()
             ->whereNotIn('status', [
                 SpeedNetworkingEvent::STATUS_COMPLETED,
@@ -4122,6 +4122,41 @@ class SpeedNetworkingService
             ])
             ->whereNull('actual_end_time')
             ->get();
+
+        if (Schema::hasTable('events') && $openCandidates->isNotEmpty()) {
+            foreach ($openCandidates as $candidate) {
+                try {
+                    $baseEvent = Event::find($candidate->id)
+                        ?: Event::where('title', $candidate->title)->latest()->first();
+                    if ($baseEvent && $baseEvent->start_at && $baseEvent->end_at) {
+                        $baseStart = Carbon::parse($baseEvent->start_at);
+                        $baseEnd = Carbon::parse($baseEvent->end_at);
+                        if ($baseEnd->greaterThan($baseStart)) {
+                            $baseDurSec = max(60, (int) abs($baseStart->diffInSeconds($baseEnd, true)));
+                            $needsSync = ! $candidate->scheduled_start_time
+                                || ! $candidate->scheduled_end_time
+                                || $candidate->scheduled_start_time->ne($baseStart)
+                                || $candidate->scheduled_end_time->ne($baseEnd);
+
+                            if ($needsSync) {
+                                $meta = is_array($candidate->metadata) ? $candidate->metadata : [];
+                                $meta['duration_seconds'] = $baseDurSec;
+                                $meta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                                $candidate->scheduled_start_time = $baseStart;
+                                $candidate->scheduled_end_time = $baseEnd;
+                                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                                    $candidate->metadata = $meta;
+                                }
+                                $candidate->save();
+                            }
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        // Auto-end any non-completed Speed Networking events whose scheduled_end_time has been reached
 
         foreach ($openCandidates as $candidate) {
             $schedEnd = $candidate->scheduled_end_time;

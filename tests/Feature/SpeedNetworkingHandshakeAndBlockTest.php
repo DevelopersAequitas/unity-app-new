@@ -10,6 +10,7 @@ use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Models\SpeedNetworking\SpeedNetworkingEventSkip;
 use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -537,15 +538,15 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
 
     public function test_event_strictly_starts_and_ends_based_on_scheduled_start_and_end_times(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-11-19 11:40:00', 'UTC'));
+        Carbon::setTestNow(Carbon::parse('2026-11-19 11:40:00'));
 
-        $scheduledStart = Carbon::parse('2026-11-19 12:00:00', 'UTC');
-        $scheduledEnd = Carbon::parse('2026-11-19 12:30:00', 'UTC');
+        $scheduledStart = Carbon::parse('2026-11-19 12:00:00');
+        $scheduledEnd = Carbon::parse('2026-11-19 12:30:00');
 
         $event = SpeedNetworkingEvent::create([
             'id' => (string) Str::uuid(),
             'title' => 'Exact Time Speed Collaboration',
-            'description' => 'Starts at 12:00 UTC, ends at 12:30 UTC',
+            'description' => 'Starts at 12:00, ends at 12:30',
             'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
             'round_duration_seconds' => 180,
             'break_duration_seconds' => 20,
@@ -562,17 +563,20 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
         $userA = $this->createTestUser('Peer Alpha');
         $userB = $this->createTestUser('Peer Beta');
 
-        // 1. BEFORE scheduled_start_time (11:40 UTC < 12:00 UTC):
+        $expectedStartIso = $scheduledStart->copy()->utc()->toISOString();
+        $expectedEndIso = $scheduledEnd->copy()->utc()->toISOString();
+
+        // 1. BEFORE scheduled_start_time (11:40 < 12:00):
         // Even if 2 peers join lobby / send heartbeats early, event MUST NOT start early!
         Sanctum::actingAs($userA);
         $activeBefore = $this->getJson('/api/v1/speed-networking/active-event');
         $activeBefore->assertOk()
             ->assertJsonPath('data.id', (string) $event->id)
             ->assertJsonPath('data.status', 'scheduled')
-            ->assertJsonPath('data.scheduled_start_time', $scheduledStart->toISOString())
-            ->assertJsonPath('data.scheduled_end_time', $scheduledEnd->toISOString())
-            ->assertJsonPath('data.end_time', $scheduledEnd->toISOString())
-            ->assertJsonPath('data.estimated_end_time', $scheduledEnd->toISOString());
+            ->assertJsonPath('data.scheduled_start_time', $expectedStartIso)
+            ->assertJsonPath('data.scheduled_end_time', $expectedEndIso)
+            ->assertJsonPath('data.end_time', $expectedEndIso)
+            ->assertJsonPath('data.estimated_end_time', $expectedEndIso);
 
         $joinBeforeA = $this->postJson("/api/v1/speed-networking/events/{$event->id}/join");
         $joinBeforeA->assertOk()
@@ -593,7 +597,7 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
 
         $this->assertNotSame(SpeedNetworkingEvent::STATUS_IN_PROGRESS, $event->fresh()->status);
 
-        // 2. AT scheduled_start_time (12:00:00 UTC):
+        // 2. AT scheduled_start_time (12:00:00):
         // Event MUST automatically transition to live / in_progress and start Round 1
         Carbon::setTestNow($scheduledStart);
 
@@ -602,21 +606,28 @@ class SpeedNetworkingHandshakeAndBlockTest extends TestCase
             ->assertJsonPath('data.id', (string) $event->id)
             ->assertJsonPath('data.status', 'live')
             ->assertJsonPath('data.current_round', 1)
-            ->assertJsonPath('data.scheduled_start_time', $scheduledStart->toISOString())
-            ->assertJsonPath('data.scheduled_end_time', $scheduledEnd->toISOString())
-            ->assertJsonPath('data.end_time', $scheduledEnd->toISOString())
-            ->assertJsonPath('data.estimated_end_time', $scheduledEnd->toISOString());
+            ->assertJsonPath('data.scheduled_start_time', $expectedStartIso)
+            ->assertJsonPath('data.scheduled_end_time', $expectedEndIso)
+            ->assertJsonPath('data.end_time', $expectedEndIso)
+            ->assertJsonPath('data.estimated_end_time', $expectedEndIso);
 
         $showAtStart = $this->getJson("/api/v1/speed-networking/events/{$event->id}");
         $showAtStart->assertOk()
             ->assertJsonPath('data.status', 'live')
-            ->assertJsonPath('data.scheduled_start_time', $scheduledStart->toISOString())
-            ->assertJsonPath('data.scheduled_end_time', $scheduledEnd->toISOString())
-            ->assertJsonPath('data.estimated_end_time', $scheduledEnd->toISOString());
+            ->assertJsonPath('data.scheduled_start_time', $expectedStartIso)
+            ->assertJsonPath('data.scheduled_end_time', $expectedEndIso)
+            ->assertJsonPath('data.estimated_end_time', $expectedEndIso);
 
         $this->assertSame(SpeedNetworkingEvent::STATUS_IN_PROGRESS, $event->fresh()->status);
 
-        // 3. AT scheduled_end_time (12:30:00 UTC):
+        // 3. AT 12:29:59 (1 second before scheduled_end_time): event is still live
+        Carbon::setTestNow($scheduledEnd->copy()->subSecond());
+        $activeOneSecBeforeEnd = $this->getJson('/api/v1/speed-networking/active-event');
+        $activeOneSecBeforeEnd->assertOk()
+            ->assertJsonPath('data.id', (string) $event->id)
+            ->assertJsonPath('data.status', 'live');
+
+        // 4. AT scheduled_end_time (12:30:00):
         // Event MUST automatically end and conclude active sessions
         Carbon::setTestNow($scheduledEnd);
 
