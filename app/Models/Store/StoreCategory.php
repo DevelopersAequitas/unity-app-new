@@ -46,6 +46,9 @@ class StoreCategory extends Model
     public function scopeActive($query)
     {
         return $query->where(function ($q) {
+            $q->where('is_active', true)
+                ->orWhereNull('is_active');
+        })->where(function ($q) {
             $q->where('status', 'ACTIVE')
                 ->orWhere('status', '1')
                 ->orWhereRaw("COALESCE(status, 'ACTIVE') = 'ACTIVE'");
