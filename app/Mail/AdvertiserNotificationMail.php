@@ -22,7 +22,10 @@ class AdvertiserNotificationMail extends Mailable
         public readonly ?string $actionText = null,
         public readonly array $details = [],
         public readonly ?string $replyToEmail = null,
-        public readonly ?string $replyToName = null
+        public readonly ?string $replyToName = null,
+        public readonly ?string $secondaryActionUrl = null,
+        public readonly ?string $secondaryActionText = null,
+        public readonly ?string $footerNote = null
     ) {}
 
     public function build(): self

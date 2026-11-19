@@ -7,11 +7,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Throwable;
 
 class MembershipPlan extends Model
 {
+    protected static bool $monthlyPriceColumnChecked = false;
+
     public const CIRCLE_SLUGS = [
         'circle_peer',
         'multi_circle_peer',
@@ -24,6 +28,24 @@ class MembershipPlan extends Model
     protected $keyType = 'string';
 
     public $incrementing = false;
+
+    public static function ensureMonthlyPriceColumn(): void
+    {
+        if (self::$monthlyPriceColumnChecked) {
+            return;
+        }
+
+        try {
+            if (Schema::hasTable('membership_plans') && ! Schema::hasColumn('membership_plans', 'monthly_price')) {
+                Schema::table('membership_plans', function (Blueprint $table): void {
+                    $table->decimal('monthly_price', 10, 2)->nullable()->after('price');
+                });
+            }
+            self::$monthlyPriceColumnChecked = true;
+        } catch (Throwable) {
+            // Ignored if read-only connection
+        }
+    }
 
     protected static function booted(): void
     {
@@ -39,6 +61,7 @@ class MembershipPlan extends Model
         'name',
         'slug',
         'price',
+        'monthly_price',
         'duration_days',
         'duration_months',
         'gst_percent',
@@ -50,6 +73,7 @@ class MembershipPlan extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'monthly_price' => 'decimal:2',
         'gst_percent' => 'decimal:2',
         'duration_days' => 'integer',
         'duration_months' => 'integer',
@@ -58,6 +82,28 @@ class MembershipPlan extends Model
         'sort_order' => 'integer',
         'coins' => 'integer',
     ];
+
+    /**
+     * Resolve the per-month display price for app plan cards (Hostinger-style pricing).
+     * Does not affect actual billing price, GST, or invoice calculations.
+     */
+    public function resolveMonthlyPrice(): float
+    {
+        if ($this->is_free) {
+            return 0.0;
+        }
+
+        if ($this->monthly_price !== null && (float) $this->monthly_price > 0) {
+            return round((float) $this->monthly_price, 2);
+        }
+
+        $months = (int) ($this->duration_months ?? 0);
+        if ($months > 1 && (float) $this->price > 0) {
+            return round((float) $this->price / $months, 2);
+        }
+
+        return round((float) $this->price, 2);
+    }
 
     public function payments(): HasMany
     {

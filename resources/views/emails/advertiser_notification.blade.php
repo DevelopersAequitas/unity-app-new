@@ -1,20 +1,22 @@
 @extends('emails.layouts.email')
 
-@section('title', $heading ?? 'Peers Global Advertiser Update')
+@section('title', !empty($heading) ? $heading : ($subjectLine ?? 'Peers Global Brand Partner Update'))
 
 @section('content')
 <p>Dear {{ $recipientName }},</p>
 
+@if(!empty($heading))
 <p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; line-height: 24px; color: #ffffff;">{{ $heading }}</p>
+@endif
 
-<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">{!! nl2br(e($mainMessage)) !!}</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9; white-space: pre-line;">{!! nl2br(e($mainMessage)) !!}</p>
 
 @if(!empty($details))
 <div style="background-color: #1e293b; border-radius: 8px; padding: 16px; margin: 20px 0; border: 1px solid #334155;">
     <table style="width: 100%; border-collapse: collapse;">
         @foreach($details as $label => $value)
         <tr>
-            <td style="padding: 6px 0; font-size: 14px; color: #94a3b8; font-weight: 500; width: 40%;">{{ $label }}:</td>
+            <td style="padding: 6px 0; font-size: 14px; color: #94a3b8; font-weight: 500; width: 45%;">{{ $label }}:</td>
             <td style="padding: 6px 0; font-size: 14px; color: #f8fafc; font-weight: 600;">{{ $value }}</td>
         </tr>
         @endforeach
@@ -22,10 +24,19 @@
 </div>
 @endif
 
-@if(!empty($actionUrl) && !empty($actionText))
+@if((!empty($actionUrl) && !empty($actionText)) || (!empty($secondaryActionUrl) && !empty($secondaryActionText)))
 <p style="margin: 24px 0 16px 0; text-align: center;">
-    <a href="{{ $actionUrl }}" style="display: inline-block; background-color: #6366f1; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px;">{{ $actionText }}</a>
+    @if(!empty($actionUrl) && !empty($actionText))
+    <a href="{{ $actionUrl }}" style="display: inline-block; background-color: #6366f1; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 4px 6px;">{{ $actionText }}</a>
+    @endif
+    @if(!empty($secondaryActionUrl) && !empty($secondaryActionText))
+    <a href="{{ $secondaryActionUrl }}" style="display: inline-block; background-color: #0f172a; color: #ffffff; border: 1px solid #475569; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 4px 6px;">{{ $secondaryActionText }}</a>
+    @endif
 </p>
+@endif
+
+@if(!empty($footerNote))
+<p style="margin: 16px 0; font-size: 14px; line-height: 20px; color: #94a3b8;">{!! nl2br(e($footerNote)) !!}</p>
 @endif
 
 <p style="margin: 24px 0 0 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">

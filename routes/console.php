@@ -36,9 +36,9 @@ Schedule::command('PGU:advertiser-subscription-expiry-check')->dailyAt('08:15')-
 // Weekly Brand Partner performance & callback leads report email (Every Monday at 09:00 AM)
 Schedule::command('PGU:brand-partner-weekly-report')->weeklyOn(1, '09:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
-// Engagement reminders (push + in-app)
-Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
-Schedule::command('app:send-inactivity-activity-reminders')->dailyAt('18:30')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+// Engagement reminders (push + in-app) — Temporarily stopped per admin request
+// Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
+// Schedule::command('app:send-inactivity-activity-reminders')->dailyAt('18:30')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Notification campaigns scheduler (mail + push + in-app campaigns)
 Schedule::command('campaigns:run')->everyMinute()->withoutOverlapping();
