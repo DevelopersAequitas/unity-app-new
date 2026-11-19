@@ -13,6 +13,8 @@ class MembershipPlanController extends Controller
 
     public function index(): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plans = MembershipPlan::query()
             ->membershipOnly()
             ->where('is_active', true)
@@ -22,12 +24,15 @@ class MembershipPlanController extends Controller
 
         $data = $plans->map(function (MembershipPlan $plan): array {
             $amounts = $this->membershipService->calculateAmounts($plan);
+            $monthlyPrice = $plan->resolveMonthlyPrice();
 
             return [
                 'id' => $plan->id,
                 'name' => $plan->name,
                 'slug' => $plan->slug,
                 'price' => (float) $plan->price,
+                'monthly_price' => $monthlyPrice,
+                'display_monthly_price' => $monthlyPrice,
                 'gst_percent' => (float) $plan->gst_percent,
                 'gst_amount' => $amounts['gst_amount'],
                 'total_amount' => $amounts['total_amount'],
@@ -45,6 +50,8 @@ class MembershipPlanController extends Controller
 
     public function circlePlans(): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plans = MembershipPlan::query()
             ->circleOnly()
             ->where('is_active', true)
@@ -54,12 +61,15 @@ class MembershipPlanController extends Controller
 
         $data = $plans->map(function (MembershipPlan $plan): array {
             $amounts = $this->membershipService->calculateAmounts($plan);
+            $monthlyPrice = $plan->resolveMonthlyPrice();
 
             return [
                 'id' => $plan->id,
                 'name' => $plan->name,
                 'slug' => $plan->slug,
                 'price' => (float) $plan->price,
+                'monthly_price' => $monthlyPrice,
+                'display_monthly_price' => $monthlyPrice,
                 'gst_percent' => (float) $plan->gst_percent,
                 'gst_amount' => $amounts['gst_amount'],
                 'total_amount' => $amounts['total_amount'],
