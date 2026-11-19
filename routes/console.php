@@ -46,9 +46,26 @@ Schedule::command('notifications:campaigns every-five-minutes')->everyFiveMinute
 Schedule::command('notifications:campaigns hourly')->hourly()->withoutOverlapping();
 Schedule::command('notifications:campaigns daily')->dailyAt('09:15')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 Schedule::command('notifications:campaigns weekly')->sundays()->at('18:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
-Schedule::command('app:send-anniversary-notifications')
-    ->dailyAt('09:00')
-    ->timezone(config('app.timezone', 'UTC'))
+// Automated Birthday & Wedding Anniversary Tracking & 07:00 AM IST Timeline Publishing
+Schedule::command('celebrations:sync-schedules')
+    ->dailyAt('00:15')
+    ->timezone('Asia/Kolkata')
+    ->withoutOverlapping();
+
+Schedule::command('celebrations:publish-due')
+    ->dailyAt('07:00')
+    ->timezone('Asia/Kolkata')
+    ->withoutOverlapping();
+
+// Safety retry passes for any transient failure (idempotent: already-published celebrations are skipped)
+Schedule::command('celebrations:publish-due')
+    ->dailyAt('07:15')
+    ->timezone('Asia/Kolkata')
+    ->withoutOverlapping();
+
+Schedule::command('celebrations:publish-due')
+    ->dailyAt('07:30')
+    ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
 // Profile completion reminders (WhatsApp 48-hour cycle)
