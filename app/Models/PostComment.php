@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class PostComment extends Model
@@ -20,11 +21,33 @@ class PostComment extends Model
 
     public $incrementing = false;
 
+    protected static ?array $existingColumns = null;
+
     protected static function booted(): void
     {
         static::creating(function (self $comment): void {
             if (empty($comment->id)) {
                 $comment->id = (string) Str::uuid();
+            }
+        });
+
+        static::saving(function (self $comment): void {
+            if (static::$existingColumns === null) {
+                try {
+                    static::$existingColumns = Schema::hasTable('post_comments')
+                        ? Schema::getColumnListing('post_comments')
+                        : [];
+                } catch (\Throwable) {
+                    static::$existingColumns = [];
+                }
+            }
+
+            if (! empty(static::$existingColumns)) {
+                foreach (array_keys($comment->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($comment->attributes[$attr]);
+                    }
+                }
             }
         });
     }
@@ -34,6 +57,13 @@ class PostComment extends Model
         'user_id',
         'parent_id',
         'content',
+        'mentions',
+        'tagged_peer_ids',
+    ];
+
+    protected $casts = [
+        'mentions' => 'array',
+        'tagged_peer_ids' => 'array',
     ];
 
     public function post(): BelongsTo

@@ -4,6 +4,7 @@ namespace App\Services\Store;
 
 use App\Constants\StoreErrorCodes;
 use App\Models\Store\Address;
+use App\Models\Store\CartItem;
 use App\Models\Store\CheckoutQuote;
 use App\Models\Store\CheckoutQuoteItem;
 use App\Models\Store\PickupPoint;
@@ -224,19 +225,21 @@ class CheckoutQuoteService
             if (Schema::hasTable('checkout_quote_items')) {
                 foreach ($quoteItems as $item) {
                     try {
-                        CheckoutQuoteItem::create([
-                            'quote_id' => $quoteRecord->id,
-                            'product_id' => $item['product_id'],
-                            'variant_id' => $item['variant_id'],
-                            'quantity' => $item['quantity'],
-                            'unit_price_coins' => $item['unit_price_coins'],
-                            'unit_coin_price' => $item['unit_price_coins'],
-                            'total_price_coins' => $item['total_price_coins'],
-                            'total_coin_price' => $item['total_price_coins'],
-                            'created_at' => now(),
-                        ]);
+                        DB::transaction(function () use ($quoteRecord, $item): void {
+                            CheckoutQuoteItem::create([
+                                'quote_id' => $quoteRecord->id,
+                                'product_id' => $item['product_id'],
+                                'variant_id' => $item['variant_id'],
+                                'quantity' => $item['quantity'],
+                                'unit_price_coins' => $item['unit_price_coins'],
+                                'unit_coin_price' => $item['unit_price_coins'],
+                                'total_price_coins' => $item['total_price_coins'],
+                                'total_coin_price' => $item['total_price_coins'],
+                                'created_at' => now(),
+                            ]);
+                        });
                     } catch (\Throwable) {
-                        // Non-blocking fallback
+                        // Non-blocking fallback (isolated via savepoint for PostgreSQL safety)
                     }
                 }
             }

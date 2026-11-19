@@ -51,16 +51,25 @@ class AdminStoreServiceabilityWebController extends Controller
             'delivery_available' => 'nullable|boolean',
             'pickup_available' => 'nullable|boolean',
             'courier_partner' => 'nullable|string|max:100',
-            'delivery_days' => 'nullable|integer|min:1',
+            'delivery_days' => 'nullable|integer|min:1|max:30',
+            'estimated_delivery_days' => 'nullable|integer|min:1|max:30',
             'is_active' => 'nullable|boolean',
         ]);
 
-        $validated['delivery_available'] = $request->has('delivery_available');
-        $validated['pickup_available'] = $request->has('pickup_available');
-        $validated['is_active'] = $request->has('is_active');
-        $validated['delivery_days'] = $validated['delivery_days'] ?? 4;
+        $isActive = $request->has('is_active');
+        $deliveryDays = (int) ($validated['delivery_days'] ?? $validated['estimated_delivery_days'] ?? 3);
 
-        ServiceablePincode::create($validated);
+        $data = [
+            'pincode' => trim($validated['pincode']),
+            'city' => trim($validated['city']),
+            'state' => trim($validated['state']),
+            'delivery_days' => $deliveryDays,
+            'is_active' => $isActive,
+            'serviceable' => $isActive,
+            'last_checked_at' => now(),
+        ];
+
+        ServiceablePincode::create($data);
 
         return back()->with('success', 'Pincode coverage added.');
     }
@@ -68,7 +77,11 @@ class AdminStoreServiceabilityWebController extends Controller
     public function togglePincode(string $id)
     {
         $p = ServiceablePincode::findOrFail($id);
-        $p->update(['is_active' => ! $p->is_active]);
+        $newState = ! $p->is_active;
+        $p->update([
+            'is_active' => $newState,
+            'serviceable' => $newState,
+        ]);
 
         return back()->with('success', "Pincode {$p->pincode} visibility updated.");
     }
@@ -149,13 +162,23 @@ class AdminStoreServiceabilityWebController extends Controller
         ]);
         $fullAddress = implode(', ', $addressParts);
 
+        $trimmedName = trim((string) $request->name);
+        $duplicate = PickupPoint::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($trimmedName)])
+            ->whereRaw('LOWER(TRIM(COALESCE(address, address_line1, \'\'))) = ?', [mb_strtolower(trim($fullAddress))])
+            ->first();
+
+        if ($duplicate) {
+            return back()->withInput()->with('error', "Pickup Hub \"{$trimmedName}\" with this address already exists.");
+        }
+
         $isActive = $request->has('is_active');
         $status = $isActive ? 'ACTIVE' : 'INACTIVE';
         $code = 'HUB-'.strtoupper(Str::random(6));
 
         PickupPoint::create([
             'code' => $code,
-            'name' => $request->name,
+            'name' => $trimmedName,
             'address' => $fullAddress,
             'address_line1' => $request->address_line1,
             'address_line2' => $request->address_line2,
@@ -167,6 +190,7 @@ class AdminStoreServiceabilityWebController extends Controller
             'contact_phone' => $request->contact_phone,
             'timings' => $request->operating_hours ?: '10:00 AM - 07:00 PM',
             'status' => $status,
+            'is_active' => $isActive,
         ]);
 
         return back()->with('success', 'Central Pickup Hub location created successfully.');
@@ -201,12 +225,18 @@ class AdminStoreServiceabilityWebController extends Controller
         $status = $isActive ? 'ACTIVE' : 'INACTIVE';
 
         $point->update([
-            'name' => $request->name,
+            'name' => trim((string) $request->name),
             'address' => $fullAddress,
+            'address_line1' => $request->address_line1,
+            'address_line2' => $request->address_line2,
+            'city' => $request->city,
+            'state' => $request->state,
+            'pincode' => $request->pincode,
             'contact_person' => $request->contact_person,
             'contact_phone' => $request->contact_phone,
             'timings' => $request->operating_hours ?: ($point->timings ?: '10:00 AM - 07:00 PM'),
             'status' => $status,
+            'is_active' => $isActive,
         ]);
 
         return back()->with('success', 'Pickup Hub location updated successfully.');
@@ -215,11 +245,12 @@ class AdminStoreServiceabilityWebController extends Controller
     public function togglePickupPoint(string $id)
     {
         $point = PickupPoint::findOrFail($id);
-        $currentActive = ($point->status === 'ACTIVE' || $point->status === '1');
-        $newStatus = $currentActive ? 'INACTIVE' : 'ACTIVE';
+        $currentActive = (bool) $point->is_active;
+        $newActive = ! $currentActive;
 
         $point->update([
-            'status' => $newStatus,
+            'status' => $newActive ? 'ACTIVE' : 'INACTIVE',
+            'is_active' => $newActive,
         ]);
 
         return back()->with('success', 'Pickup Hub status toggled.');
