@@ -443,6 +443,11 @@ class SpeedNetworkingService
      */
     public function listEvents(array $filters = [], int $perPage = 15): array
     {
+        try {
+            $this->checkAndAutoStartScheduledEvents();
+        } catch (\Throwable) {
+        }
+
         $hasSnTable = false;
         try {
             $hasSnTable = Schema::hasTable('speed_networking_events');
@@ -630,6 +635,12 @@ class SpeedNetworkingService
      */
     public function getEventDetails(SpeedNetworkingEvent $event): array
     {
+        try {
+            $this->checkAndAutoStartScheduledEvents();
+            $event->refresh();
+        } catch (\Throwable) {
+        }
+
         $event->loadMissing('circle');
         $totalParticipants = $event->participants()->count();
         $activeParticipants = $event->participants()
@@ -991,8 +1002,9 @@ class SpeedNetworkingService
                 $meta = $baseEvent->metadata ?? [];
                 $meta['speed_status'] = 'in_progress';
                 $meta['current_round'] = 1;
+                $meta['actual_start_time'] = ($event->actual_start_time ?? Carbon::now())->toIso8601String();
                 $baseEvent->metadata = $meta;
-                $baseEvent->start_at = Carbon::now();
+                $baseEvent->start_at = $event->scheduled_start_time ?? $baseEvent->start_at ?? Carbon::now();
                 $baseEvent->save();
             }
         } catch (\Throwable) {
@@ -1072,8 +1084,12 @@ class SpeedNetworkingService
                 if ($baseEvent) {
                     $meta = $baseEvent->metadata ?? [];
                     $meta['speed_status'] = 'completed';
+                    $meta['actual_end_time'] = ($event->actual_end_time ?? Carbon::now())->toIso8601String();
                     $baseEvent->metadata = $meta;
-                    $baseEvent->end_at = Carbon::now();
+                    $baseEvent->end_at = $event->scheduled_end_time ?? $baseEvent->end_at ?? Carbon::now();
+                    if (Schema::hasColumn('events', 'status')) {
+                        $baseEvent->status = 'completed';
+                    }
                     $baseEvent->save();
                 }
             } catch (\Throwable) {
@@ -1291,6 +1307,43 @@ class SpeedNetworkingService
         return DB::transaction(function () use ($event, $user): array {
             $lockedEvent = SpeedNetworkingEvent::where('id', $event->id)->lockForUpdate()->first() ?? $event;
 
+            // If event has already reached its scheduled end time or completed status, return concluded payload
+            if ($lockedEvent->isCompleted()) {
+                if ($lockedEvent->status !== SpeedNetworkingEvent::STATUS_COMPLETED) {
+                    $lockedEvent->status = SpeedNetworkingEvent::STATUS_COMPLETED;
+                    $lockedEvent->actual_end_time ??= Carbon::now();
+                    $lockedEvent->save();
+                }
+
+                $summary = $this->getSessionSummary($lockedEvent, $user);
+
+                return array_merge([
+                    'event_id' => (string) $lockedEvent->id,
+                    'title' => $lockedEvent->title,
+                    'event_title' => $lockedEvent->title,
+                    'round_duration_seconds' => (int) $lockedEvent->round_duration_seconds,
+                    'break_duration_seconds' => (int) $lockedEvent->break_duration_seconds,
+                    'remaining_seconds' => 0,
+                    'preview_duration_seconds' => 15,
+                    'current_round' => (int) $lockedEvent->current_round,
+                    'total_rounds' => (int) $lockedEvent->total_rounds,
+                    'channel_id' => '',
+                    'agora_app_id' => $this->getAgoraAppId(),
+                    'agora_token' => '',
+                    'status' => 'event_ended',
+                    'match_status' => 'event_ended',
+                    'my_decision' => 'pending',
+                    'peer_decision' => 'pending',
+                    'both_accepted' => false,
+                    'is_break_round' => false,
+                    'is_waiting' => false,
+                    'has_met_all_peers' => true,
+                    'completed' => true,
+                    'message' => 'Speed Collaboration has concluded.',
+                    'peer' => null,
+                ], $summary);
+            }
+
             $existingParticipant = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
                 ->where('user_id', $user->id)
                 ->first();
@@ -1316,15 +1369,11 @@ class SpeedNetworkingService
                 ]
             );
 
-            // Automatically activate event if scheduled time has arrived, not set, or 2+ participants are present
-            $activeCount = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
-                ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
-                ->count();
-
+            // Automatically activate event ONLY when scheduled_start_time has arrived (or is not set)
             if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED, SpeedNetworkingEvent::STATUS_LOBBY_OPEN], true)) {
-                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast() || $activeCount >= 2) {
+                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->lessThanOrEqualTo(Carbon::now())) {
                     $lockedEvent->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
-                    $lockedEvent->actual_start_time = Carbon::now();
+                    $lockedEvent->actual_start_time ??= Carbon::now();
                     if ($lockedEvent->current_round < 1) {
                         $lockedEvent->current_round = 1;
                     }
@@ -4063,25 +4112,61 @@ class SpeedNetworkingService
 
         $now = Carbon::now();
 
-        // Auto-end any live/open Speed Networking events whose scheduled_end_time has been reached
-        $eventsToEnd = SpeedNetworkingEvent::query()
-            ->whereIn('status', [
-                SpeedNetworkingEvent::STATUS_IN_PROGRESS,
-                SpeedNetworkingEvent::STATUS_LOBBY_OPEN,
-                SpeedNetworkingEvent::STATUS_PAUSED,
-                'live',
+        // Sync scheduled_start_time and scheduled_end_time from base events table if out of sync
+        $openCandidates = SpeedNetworkingEvent::query()
+            ->whereNotIn('status', [
+                SpeedNetworkingEvent::STATUS_COMPLETED,
+                'ended',
+                'cancelled',
+                'canceled',
             ])
-            ->whereNotNull('scheduled_end_time')
-            ->where('scheduled_end_time', '<=', $now)
             ->whereNull('actual_end_time')
             ->get();
 
-        foreach ($eventsToEnd as $expiredEvent) {
-            try {
-                $this->endEvent($expiredEvent);
-                Log::info('[SpeedNetworkingService] Auto-ended expired event '.$expiredEvent->id.' at scheduled_end_time '.$expiredEvent->scheduled_end_time);
-            } catch (\Throwable $th) {
-                Log::error('[SpeedNetworkingService] Failed to auto-end event '.$expiredEvent->id.': '.$th->getMessage());
+        if (Schema::hasTable('events') && $openCandidates->isNotEmpty()) {
+            foreach ($openCandidates as $candidate) {
+                try {
+                    $baseEvent = Event::find($candidate->id)
+                        ?: Event::where('title', $candidate->title)->latest()->first();
+                    if ($baseEvent && $baseEvent->start_at && $baseEvent->end_at) {
+                        $baseStart = Carbon::parse($baseEvent->start_at);
+                        $baseEnd = Carbon::parse($baseEvent->end_at);
+                        if ($baseEnd->greaterThan($baseStart)) {
+                            $baseDurSec = max(60, (int) abs($baseStart->diffInSeconds($baseEnd, true)));
+                            $needsSync = ! $candidate->scheduled_start_time
+                                || ! $candidate->scheduled_end_time
+                                || $candidate->scheduled_start_time->ne($baseStart)
+                                || $candidate->scheduled_end_time->ne($baseEnd);
+
+                            if ($needsSync) {
+                                $meta = is_array($candidate->metadata) ? $candidate->metadata : [];
+                                $meta['duration_seconds'] = $baseDurSec;
+                                $meta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                                $candidate->scheduled_start_time = $baseStart;
+                                $candidate->scheduled_end_time = $baseEnd;
+                                if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                                    $candidate->metadata = $meta;
+                                }
+                                $candidate->save();
+                            }
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        // Auto-end any non-completed Speed Networking events whose scheduled_end_time has been reached
+
+        foreach ($openCandidates as $candidate) {
+            $schedEnd = $candidate->scheduled_end_time;
+            if ($schedEnd && $now->greaterThanOrEqualTo($schedEnd)) {
+                try {
+                    $this->endEvent($candidate);
+                    Log::info('[SpeedNetworkingService] Auto-ended expired event '.$candidate->id.' at scheduled_end_time '.$schedEnd);
+                } catch (\Throwable $th) {
+                    Log::error('[SpeedNetworkingService] Failed to auto-end event '.$candidate->id.': '.$th->getMessage());
+                }
             }
         }
 
@@ -4089,18 +4174,19 @@ class SpeedNetworkingService
             ->whereIn('status', [
                 SpeedNetworkingEvent::STATUS_SCHEDULED,
                 SpeedNetworkingEvent::STATUS_LOBBY_OPEN,
+                SpeedNetworkingEvent::STATUS_DRAFT,
             ])
             ->whereNotNull('scheduled_start_time')
             ->where('scheduled_start_time', '<=', $now)
-            ->where(function ($q) use ($now): void {
-                $q->whereNull('scheduled_end_time')
-                    ->orWhere('scheduled_end_time', '>', $now);
-            })
             ->whereNull('actual_end_time')
             ->get();
 
         $started = [];
         foreach ($eventsToStart as $event) {
+            $schedEnd = $event->scheduled_end_time;
+            if ($schedEnd && $now->greaterThanOrEqualTo($schedEnd)) {
+                continue;
+            }
             try {
                 $startedEvent = $this->startEvent($event);
                 $started[] = $startedEvent;
