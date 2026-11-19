@@ -771,6 +771,19 @@ class SpeedNetworkingApiController extends Controller
                     $schedStart = $baseStart;
                     $schedEnd = $baseEnd;
                     $durSec = $baseDurSec;
+
+                    try {
+                        $meta = is_array($event->metadata) ? $event->metadata : [];
+                        $meta['duration_seconds'] = $baseDurSec;
+                        $meta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                        $event->scheduled_start_time = $baseStart;
+                        $event->scheduled_end_time = $baseEnd;
+                        if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                            $event->metadata = $meta;
+                        }
+                        $event->save();
+                    } catch (\Throwable) {
+                    }
                 }
             }
         }
@@ -800,7 +813,7 @@ class SpeedNetworkingApiController extends Controller
                 'end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $event->actual_start_time?->copy()->utc()->toISOString(),
                 'actual_end_time' => $event->actual_end_time?->copy()->utc()->toISOString(),
-                'estimated_end_time' => ($event->actual_start_time ? $event->actual_start_time->copy()->addSeconds($durSec)->utc()->toISOString() : $schedEnd->copy()->utc()->toISOString()),
+                'estimated_end_time' => $schedEnd->copy()->utc()->toISOString(),
                 'participants_count' => $event->participants()->count(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
@@ -847,6 +860,12 @@ class SpeedNetworkingApiController extends Controller
     public function show(Request $request, string $eventId): JsonResponse
     {
         $user = $request->user();
+
+        try {
+            $this->speedNetworkingService->checkAndAutoStartScheduledEvents();
+        } catch (\Throwable $e) {
+            Log::warning('[SpeedNetworkingApiController] show checkAndAutoStartScheduledEvents error: '.$e->getMessage());
+        }
 
         $event = null;
         if (Schema::hasTable('speed_networking_events')) {
@@ -901,6 +920,19 @@ class SpeedNetworkingApiController extends Controller
                         $startAt = $baseStart;
                         $scheduledEnd = $baseEnd;
                         $durationSec = $baseDurSec;
+
+                        try {
+                            $snMeta = is_array($event->metadata) ? $event->metadata : [];
+                            $snMeta['duration_seconds'] = $baseDurSec;
+                            $snMeta['duration_minutes'] = (int) ceil($baseDurSec / 60);
+                            $event->scheduled_start_time = $baseStart;
+                            $event->scheduled_end_time = $baseEnd;
+                            if (Schema::hasColumn('speed_networking_events', 'metadata')) {
+                                $event->metadata = $snMeta;
+                            }
+                            $event->save();
+                        } catch (\Throwable) {
+                        }
                     }
                 }
             }
@@ -928,7 +960,10 @@ class SpeedNetworkingApiController extends Controller
             ? $paymentInfo['has_paid']
             : ($reg !== null);
 
-        $actionButton = $this->resolveActionButton($event->status ?? ($meta['speed_status'] ?? 'scheduled'), $isRegistered, $paymentInfo, $circleAccess, $startAt);
+        $rawStatus = (string) ($event->status ?? ($meta['speed_status'] ?? 'scheduled'));
+        $clientStatus = in_array($rawStatus, [SpeedNetworkingEvent::STATUS_IN_PROGRESS, 'live'], true) ? 'live' : $rawStatus;
+
+        $actionButton = $this->resolveActionButton($rawStatus, $isRegistered, $paymentInfo, $circleAccess, $startAt);
 
         return response()->json([
             'status' => true,
@@ -942,7 +977,7 @@ class SpeedNetworkingApiController extends Controller
                 'agora_app_id' => $this->getAgoraAppId(),
                 'description' => $event->description,
                 'banner_url' => $event->banner_url,
-                'status' => $event->status ?? ($meta['speed_status'] ?? 'scheduled'),
+                'status' => $clientStatus,
                 'round_duration_seconds' => $roundDuration,
                 'break_duration_seconds' => $breakDuration,
                 'total_rounds' => $totalRounds,
@@ -955,7 +990,7 @@ class SpeedNetworkingApiController extends Controller
                 'end_time' => $scheduledEnd->copy()->utc()->toISOString(),
                 'actual_start_time' => $actualStart?->copy()->utc()->toISOString(),
                 'actual_end_time' => $actualEnd?->copy()->utc()->toISOString(),
-                'estimated_end_time' => ($actualStart ? $actualStart->copy()->addSeconds($durationSec)->utc()->toISOString() : $scheduledEnd?->copy()->utc()->toISOString()),
+                'estimated_end_time' => $scheduledEnd?->copy()->utc()->toISOString(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
                 'fee' => $paymentInfo['ticket_price'],
@@ -1004,6 +1039,12 @@ class SpeedNetworkingApiController extends Controller
     public function join(Request $request, string $eventId): JsonResponse
     {
         $user = $request->user();
+
+        try {
+            $this->speedNetworkingService->checkAndAutoStartScheduledEvents();
+        } catch (\Throwable $e) {
+            Log::warning('[SpeedNetworkingApiController] join checkAndAutoStartScheduledEvents error: '.$e->getMessage());
+        }
 
         // 1. Resolve event from speed_networking_events or events table
         $event = null;
@@ -1636,8 +1677,9 @@ class SpeedNetworkingApiController extends Controller
                 && in_array($activeMatch['match_status'] ?? '', ['skipped', 'blocked', 'expired'], true);
 
             if ($activeMatch === null && ! in_array($userStatus, ['on_break', 'break'], true)) {
-                // If 2+ active peers are present, ensure round 1 is started
-                if ($activeCount >= 2 && ($event->current_round < 1 || $event->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS)) {
+                $canStartNow = empty($event->scheduled_start_time) || $event->scheduled_start_time->lessThanOrEqualTo(Carbon::now());
+                // If scheduled time has arrived (or no schedule) and 2+ active peers are present, ensure round 1 is started
+                if ($canStartNow && $activeCount >= 2 && ($event->current_round < 1 || $event->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS)) {
                     $event->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
                     $event->actual_start_time ??= Carbon::now();
                     if ($event->current_round < 1) {
