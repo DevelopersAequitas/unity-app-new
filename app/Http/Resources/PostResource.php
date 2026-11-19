@@ -39,7 +39,10 @@ class PostResource extends JsonResource
             ? (int) $this->saves_count
             : ($this->relationLoaded('saves') ? $this->saves->count() : 0);
 
-        $isAnniversary = ($this->post_type === 'anniversary' || $this->source_type === 'anniversary');
+        $isAnniversary = in_array((string) ($this->post_type ?? ''), ['anniversary', 'genie_anniversary'], true)
+            || (string) ($this->source_type ?? '') === 'anniversary';
+        $isBirthday = in_array((string) ($this->post_type ?? ''), ['birthday', 'genie_birthday'], true)
+            || (string) ($this->source_type ?? '') === 'birthday';
         $isSystemPost = method_exists($this->resource, 'isSystemCreativePost')
             ? $this->resource->isSystemCreativePost()
             : Post::isSystemPostRow(
@@ -51,6 +54,25 @@ class PostResource extends JsonResource
                 $this->relationLoaded('author') ? $this->author?->email : null,
                 $this->relationLoaded('author') ? $this->author?->display_name : null
             );
+
+        $isWishedByMe = false;
+        if ($authUser) {
+            if (isset($this->is_wished_by_me)) {
+                $isWishedByMe = (bool) $this->is_wished_by_me;
+            } elseif (! empty($this->id) && ($isBirthday || $isAnniversary) && Schema::hasTable('post_comments')) {
+                $isWishedByMe = \App\Models\PostComment::query()
+                    ->where('post_id', $this->id)
+                    ->where('user_id', $authUser->id)
+                    ->exists();
+            }
+        }
+
+        $normalizedPostType = $this->post_type ?? 'standard';
+        if ($isSystemPost && $isBirthday) {
+            $normalizedPostType = 'genie_birthday';
+        } elseif ($isSystemPost && $isAnniversary) {
+            $normalizedPostType = 'genie_anniversary';
+        }
 
         $systemPhoto = (($this->relationLoaded('user') && $this->user?->isSystemUser() && $this->user?->profile_photo_url)
             ? $this->user->profile_photo_url
@@ -117,7 +139,7 @@ class PostResource extends JsonResource
 
             'content_text' => $this->content_text,
             'content' => $this->content_text,
-            'post_type' => $this->post_type ?? 'standard',
+            'post_type' => $normalizedPostType,
             'template_id' => $this->template_id ?? null,
             'title' => $this->title ?? null,
             'description' => $this->description ?? $this->content_text,
@@ -148,10 +170,35 @@ class PostResource extends JsonResource
                     ];
                 })->filter()->values()->all()
                 : null,
-            'tags' => $this->tags,
-            'mentions' => (function () {
+            'tags' => (function () use ($isSystemPost, $isBirthday, $isAnniversary) {
+                $tags = is_array($this->tags) ? $this->tags : (is_string($this->tags) ? (json_decode($this->tags, true) ?? []) : []);
+                if ($isSystemPost && $isBirthday && ! in_array('genie_birthday', $tags, true)) {
+                    array_unshift($tags, 'genie_birthday');
+                } elseif ($isSystemPost && $isAnniversary && ! in_array('genie_anniversary', $tags, true)) {
+                    array_unshift($tags, 'genie_anniversary');
+                }
+
+                return $tags;
+            })(),
+            'mentions' => (function () use ($isBirthday, $isAnniversary) {
                 $authorId = (string) ($this->user_id ?? '');
                 $mentions = [];
+
+                $resolveUsername = static function ($peer): ?string {
+                    if (! $peer) {
+                        return null;
+                    }
+                    $slug = trim((string) ($peer->public_profile_slug ?? ''));
+                    if ($slug !== '') {
+                        return $slug;
+                    }
+                    $email = trim((string) ($peer->email ?? ''));
+                    if ($email !== '' && str_contains($email, '@')) {
+                        return strstr($email, '@', true) ?: null;
+                    }
+
+                    return null;
+                };
 
                 if ($this->relationLoaded('postMentions') && $this->postMentions) {
                     foreach ($this->postMentions as $pm) {
@@ -161,9 +208,10 @@ class PostResource extends JsonResource
                             $mentions[] = [
                                 'id' => (string) $peer->id,
                                 'name' => $name !== '' ? $name : 'Peer Member',
+                                'username' => $resolveUsername($peer),
                                 'profile_photo_url' => $peer->profile_photo_file_id
                                     ? url('/api/v1/files/'.$peer->profile_photo_file_id)
-                                    : null,
+                                    : ($peer->profile_photo_url ?: null),
                                 'is_online' => (bool) ($peer->is_online ?? false),
                             ];
                         }
@@ -179,9 +227,10 @@ class PostResource extends JsonResource
                             $mentions[] = [
                                 'id' => (string) $peer->id,
                                 'name' => $name !== '' ? $name : 'Peer Member',
+                                'username' => $resolveUsername($peer),
                                 'profile_photo_url' => $peer->profile_photo_file_id
                                     ? url('/api/v1/files/'.$peer->profile_photo_file_id)
-                                    : null,
+                                    : ($peer->profile_photo_url ?: null),
                                 'is_online' => (bool) ($peer->is_online ?? false),
                             ];
                         }
@@ -197,7 +246,9 @@ class PostResource extends JsonResource
                     'milestone_badge',
                     'welcome',
                     'birthday',
+                    'genie_birthday',
                     'anniversary',
+                    'genie_anniversary',
                     'global_peer_certificate',
                     'introduction',
                     'life_impact_recognition',
@@ -390,6 +441,7 @@ class PostResource extends JsonResource
                         $mentions[] = [
                             'id' => (string) $peer->id,
                             'name' => $finalName,
+                            'username' => $resolveUsername($peer),
                             'profile_photo_url' => $peer->profile_photo_file_id
                                 ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                                 : ($peer->profile_photo_url ?: null),
@@ -398,7 +450,14 @@ class PostResource extends JsonResource
                     }
                 }
 
-                return array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
+                $mentions = array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
+
+                if (($isBirthday || $isAnniversary) && ! empty($this->source_id)) {
+                    $celebrantId = (string) $this->source_id;
+                    usort($mentions, static fn ($a, $b) => ((string) ($b['id'] ?? '') === $celebrantId ? 1 : 0) <=> ((string) ($a['id'] ?? '') === $celebrantId ? 1 : 0));
+                }
+
+                return $mentions;
             })(),
             'visibility' => $this->visibility,
             'is_system_announcement' => $isSystemPost || $isAnniversary,
@@ -449,6 +508,7 @@ class PostResource extends JsonResource
             'comments_count' => isset($this->comments_count) ? (int) $this->comments_count : 0,
 
             'is_liked_by_me' => (bool) ($this->is_liked_by_me ?? false),
+            'is_wished_by_me' => $isWishedByMe,
             'saves_count' => $savesCount,
             'is_saved' => $isSaved,
 

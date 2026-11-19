@@ -68,10 +68,10 @@ class CelebrationCreativeService
             imagedestroy($baseImg);
         }
 
-        // Exact circular frame coordinates matching the approved birthday_creative_template.jpg
-        $centerX = (int) round($width * 0.4989);
-        $centerY = (int) round($height * 0.5854);
-        $avatarDiameter = (int) round($width * 0.3634);
+        // Exact circular frame coordinates matching the approved birthday_creative_template.jpg (583x631)
+        $centerX = (int) round($width * 0.4940);
+        $centerY = (int) round($height * 0.5737);
+        $avatarDiameter = (int) round($width * 0.3560);
 
         $usedInitials = $this->drawProfilePhotoOrInitials(
             $canvas,
@@ -123,6 +123,19 @@ class CelebrationCreativeService
             }
         }
 
+        if (! $baseImg) {
+            $approvedAnniversaryPath = public_path('images/anniversary_creative_template.jpg');
+            if (file_exists($approvedAnniversaryPath)) {
+                $raw = @file_get_contents($approvedAnniversaryPath);
+                if ($raw !== false) {
+                    $baseImg = @imagecreatefromstring($raw);
+                    if ($baseImg) {
+                        $templateUsed = 'approved_anniversary_template';
+                    }
+                }
+            }
+        }
+
         if ($baseImg) {
             $width = imagesx($baseImg);
             $height = imagesy($baseImg);
@@ -131,10 +144,17 @@ class CelebrationCreativeService
             imagecopy($canvas, $baseImg, 0, 0, 0, 0, $width, $height);
             imagedestroy($baseImg);
 
-            // Standard circular frame center matching portrait / square templates
-            $centerX = (int) round($width * 0.4989);
-            $centerY = ($height > $width) ? (int) round($height * 0.5854) : (int) round($height * 0.48);
-            $avatarDiameter = (int) round($width * 0.3634);
+            if ($templateUsed === 'approved_anniversary_template') {
+                // Exact circular frame coordinates matching the approved anniversary_creative_template.jpg (935x1024)
+                $centerX = (int) round($width * 0.4973);
+                $centerY = (int) round($height * 0.5322);
+                $avatarDiameter = (int) round($width * 0.3480);
+            } else {
+                // Standard circular frame center matching custom uploaded portrait / square templates
+                $centerX = (int) round($width * 0.4989);
+                $centerY = ($height > $width) ? (int) round($height * 0.5854) : (int) round($height * 0.48);
+                $avatarDiameter = (int) round($width * 0.3634);
+            }
         } else {
             // Dedicated separate Peers Global Wedding Anniversary creative (gold & navy theme)
             $width = 952;

@@ -19,6 +19,8 @@ class PickupPoint extends Model
 
     protected static ?bool $hasAddressColumn = null;
 
+    protected static ?array $existingColumns = null;
+
     protected $fillable = [
         'code',
         'name',
@@ -31,8 +33,12 @@ class PickupPoint extends Model
         'country',
         'map_link',
         'timings',
+        'working_hours',
         'contact_person',
         'contact_phone',
+        'phone',
+        'manager_name',
+        'is_active',
         'status',
     ];
 
@@ -45,12 +51,18 @@ class PickupPoint extends Model
         });
 
         static::saving(function (self $point): void {
-            if (static::$hasAddressColumn === null) {
+            if (static::$existingColumns === null) {
                 try {
-                    static::$hasAddressColumn = Schema::hasTable('pickup_points') && Schema::hasColumn('pickup_points', 'address');
+                    static::$existingColumns = Schema::hasTable('pickup_points')
+                        ? Schema::getColumnListing('pickup_points')
+                        : [];
                 } catch (\Throwable) {
-                    static::$hasAddressColumn = false;
+                    static::$existingColumns = [];
                 }
+            }
+
+            if (static::$hasAddressColumn === null) {
+                static::$hasAddressColumn = in_array('address', static::$existingColumns, true);
             }
 
             if (static::$hasAddressColumn) {
@@ -64,8 +76,26 @@ class PickupPoint extends Model
                     ]);
                     $point->attributes['address'] = implode(', ', $parts);
                 }
-            } else {
-                unset($point->attributes['address']);
+            }
+
+            // Keep status and is_active synchronized when both columns exist
+            $hasStatus = in_array('status', static::$existingColumns, true);
+            $hasIsActive = in_array('is_active', static::$existingColumns, true);
+            if ($hasStatus && $hasIsActive) {
+                if (array_key_exists('status', $point->attributes) && $point->attributes['status'] !== null) {
+                    $point->attributes['is_active'] = in_array(strtoupper((string) $point->attributes['status']), ['ACTIVE', '1', 'TRUE'], true);
+                } elseif (array_key_exists('is_active', $point->attributes) && $point->attributes['is_active'] !== null) {
+                    $point->attributes['status'] = ((bool) $point->attributes['is_active']) ? 'ACTIVE' : 'INACTIVE';
+                }
+            }
+
+            // Strip any non-existent columns safely without requiring migrations
+            if (! empty(static::$existingColumns)) {
+                foreach (array_keys($point->attributes) as $attr) {
+                    if (! in_array($attr, static::$existingColumns, true)) {
+                        unset($point->attributes[$attr]);
+                    }
+                }
             }
         });
     }

@@ -323,7 +323,9 @@ class Post extends Model
             'introduction',
             'peer_introduction',
             'birthday',
+            'genie_birthday',
             'anniversary',
+            'genie_anniversary',
             'certification',
             'global_peer_certificate',
             'entrepreneur_certificate',
@@ -349,9 +351,11 @@ class Post extends Model
             'life_impact',
             'wedding_anniversary',
             'anniversary',
+            'genie_anniversary',
             'global_peer_certificate',
             'member_introduction',
             'birthday',
+            'genie_birthday',
         ];
 
         foreach ($systemTags as $st) {

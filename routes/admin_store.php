@@ -177,6 +177,7 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
         // Pincodes
         Route::get('pincodes', [AdminStoreServiceabilityController::class, 'pincodes']);
         Route::post('pincodes', [AdminStoreServiceabilityController::class, 'storePincode']);
+        Route::put('pincodes/{id}', [AdminStoreServiceabilityController::class, 'updatePincode'])->whereUuid('id');
         Route::post('pincodes/{id}/status', [AdminStoreServiceabilityController::class, 'togglePincode'])->whereUuid('id');
         Route::delete('pincodes/{id}', [AdminStoreServiceabilityController::class, 'deletePincode'])->whereUuid('id');
 

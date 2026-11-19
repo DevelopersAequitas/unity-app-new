@@ -143,6 +143,7 @@ class PostController extends BaseApiController
             ->selectRaw('(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id) as saves_count')
             ->selectRaw('EXISTS(SELECT 1 FROM post_likes WHERE post_likes.post_id = posts.id AND post_likes.user_id = ?) as is_liked_by_me', [$user->id])
             ->selectRaw('EXISTS(SELECT 1 FROM post_saves WHERE post_saves.post_id = posts.id AND post_saves.user_id = ?) as is_saved_by_me', [$user->id])
+            ->selectRaw('EXISTS(SELECT 1 FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.user_id = ? AND post_comments.deleted_at IS NULL) as is_wished_by_me', [$user->id])
             ->selectRaw('posts.created_at as created_at')
             ->selectRaw('posts.updated_at as updated_at')
             ->selectRaw('posts.created_at as sort_at')
@@ -260,6 +261,7 @@ class PostController extends BaseApiController
                 ->selectRaw('0 as saves_count')
                 ->selectRaw('false as is_liked_by_me')
                 ->selectRaw('false as is_saved_by_me')
+                ->selectRaw('false as is_wished_by_me')
                 ->selectRaw('impacts.created_at as created_at')
                 ->selectRaw('impacts.updated_at as updated_at')
                 ->selectRaw('impacts.timeline_posted_at as sort_at')
@@ -309,6 +311,7 @@ class PostController extends BaseApiController
                 ->selectRaw('0 as saves_count')
                 ->selectRaw('false as is_liked_by_me')
                 ->selectRaw('false as is_saved_by_me')
+                ->selectRaw('false as is_wished_by_me')
                 ->selectRaw('referrals.created_at as created_at')
                 ->selectRaw('referrals.updated_at as updated_at')
                 ->selectRaw('referrals.created_at as sort_at')
@@ -416,7 +419,9 @@ class PostController extends BaseApiController
             'milestone_badge',
             'welcome',
             'birthday',
+            'genie_birthday',
             'anniversary',
+            'genie_anniversary',
             'global_peer_certificate',
             'introduction',
         ];
@@ -426,7 +431,9 @@ class PostController extends BaseApiController
             'milestone_honour',
             'welcome',
             'birthday',
+            'genie_birthday',
             'anniversary',
+            'genie_anniversary',
             'global_peer_certificate',
             'introduction',
         ];
@@ -804,6 +811,8 @@ class PostController extends BaseApiController
                     'users.display_name',
                     'users.first_name',
                     'users.last_name',
+                    'users.email',
+                    'users.public_profile_slug',
                     'users.profile_photo_file_id',
                     'users.profile_photo_url',
                     'users.is_online',
@@ -975,6 +984,8 @@ class PostController extends BaseApiController
                     'display_name',
                     'first_name',
                     'last_name',
+                    'email',
+                    'public_profile_slug',
                     'profile_photo_file_id',
                     'profile_photo_url',
                     'is_online',
@@ -1009,6 +1020,19 @@ class PostController extends BaseApiController
             $mentions = [];
 
             // 1. Stored post mentions from post_mentions table (excluding author)
+            $resolveUsername = static function (?string $slug, ?string $email): ?string {
+                $cleanSlug = trim((string) ($slug ?? ''));
+                if ($cleanSlug !== '') {
+                    return $cleanSlug;
+                }
+                $cleanEmail = trim((string) ($email ?? ''));
+                if ($cleanEmail !== '' && str_contains($cleanEmail, '@')) {
+                    return strstr($cleanEmail, '@', true) ?: null;
+                }
+
+                return null;
+            };
+
             $dbMentions = $postMentionsByPostId->get((string) $row->id);
             if ($dbMentions && $dbMentions->isNotEmpty()) {
                 foreach ($dbMentions as $dm) {
@@ -1020,6 +1044,7 @@ class PostController extends BaseApiController
                     $mentions[] = [
                         'id' => $peerId,
                         'name' => $mName !== '' ? $mName : 'Peer Member',
+                        'username' => $resolveUsername($dm->public_profile_slug ?? null, $dm->email ?? null),
                         'profile_photo_url' => $dm->profile_photo_file_id
                             ? url('/api/v1/files/'.$dm->profile_photo_file_id)
                             : ($dm->profile_photo_url ?: null),
@@ -1103,6 +1128,7 @@ class PostController extends BaseApiController
                         $mentions[] = [
                             'id' => (string) $recPeer->id,
                             'name' => $finalName,
+                            'username' => $resolveUsername($recPeer->public_profile_slug ?? null, $recPeer->email ?? null),
                             'profile_photo_url' => $recPeer->profile_photo_file_id
                                 ? url('/api/v1/files/'.$recPeer->profile_photo_file_id)
                                 : ($recPeer->profile_photo_url ?: null),
@@ -1124,6 +1150,41 @@ class PostController extends BaseApiController
                 $author?->email ?? null,
                 $author?->display_name ?? null
             );
+
+            $rawPostType = isset($row->post_type) ? strtolower(trim((string) $row->post_type)) : '';
+            $rawSourceType = strtolower(trim((string) ($row->post_source_type ?? '')));
+            $isGenieBirthday = $isSystemCreative && (
+                in_array($rawPostType, ['birthday', 'genie_birthday'], true)
+                || $rawSourceType === 'birthday'
+                || in_array('genie_birthday', $decodedRowTags, true)
+            );
+            $isGenieAnniversary = $isSystemCreative && (
+                in_array($rawPostType, ['anniversary', 'genie_anniversary'], true)
+                || $rawSourceType === 'anniversary'
+                || in_array('genie_anniversary', $decodedRowTags, true)
+            );
+
+            // Ensure celebrant is ALWAYS mentions[0] for Genie birthday/anniversary posts
+            if ($isGenieBirthday || $isGenieAnniversary) {
+                $celebrantId = (string) ($row->post_source_id ?: ($activityCreative?->user_id ?? ''));
+                if ($celebrantId !== '') {
+                    usort($mentions, static fn ($a, $b) => ((string) ($b['id'] ?? '') === $celebrantId ? 1 : 0) <=> ((string) ($a['id'] ?? '') === $celebrantId ? 1 : 0));
+                }
+            }
+
+            $normalizedPostType = isset($row->post_type) ? (string) $row->post_type : null;
+            $normalizedTags = $decodedRowTags;
+            if ($isGenieBirthday) {
+                $normalizedPostType = 'genie_birthday';
+                if (! in_array('genie_birthday', $normalizedTags, true)) {
+                    array_unshift($normalizedTags, 'genie_birthday');
+                }
+            } elseif ($isGenieAnniversary) {
+                $normalizedPostType = 'genie_anniversary';
+                if (! in_array('genie_anniversary', $normalizedTags, true)) {
+                    array_unshift($normalizedTags, 'genie_anniversary');
+                }
+            }
 
             $authorPhoto = $author?->profile_photo_file_id
                 ? url('/api/v1/files/'.$author->profile_photo_file_id)
@@ -1155,10 +1216,10 @@ class PostController extends BaseApiController
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
-                'post_type' => isset($row->post_type) ? (string) $row->post_type : null,
+                'post_type' => $normalizedPostType,
                 'is_verified' => $isVerified,
                 'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
-                'tags' => $this->decodeJsonColumn($row->tags),
+                'tags' => $normalizedTags,
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
                 'is_system_announcement' => $isSystemCreative,
@@ -1198,6 +1259,7 @@ class PostController extends BaseApiController
                 'likes_count' => (int) $row->likes_count,
                 'comments_count' => (int) $row->comments_count,
                 'is_liked_by_me' => (bool) $row->is_liked_by_me,
+                'is_wished_by_me' => (bool) ($row->is_wished_by_me ?? false),
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
                 'created_at' => $this->formatToDefaultDateTime($row->created_at),
@@ -1745,6 +1807,7 @@ class PostController extends BaseApiController
             ->withExists([
                 'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
                 'saves as is_saved_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
+                'comments as is_wished_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
             ])
             ->where('id', $id)
             ->where('posts.status', 'active')
@@ -1792,11 +1855,38 @@ class PostController extends BaseApiController
             'is_online' => true,
         ];
 
+        $rawShowPostType = strtolower(trim((string) ($post->post_type ?? '')));
+        $rawShowSourceType = strtolower(trim((string) ($post->source_type ?? '')));
+        $showTags = is_array($post->tags) ? $post->tags : $this->decodeJsonColumn($post->tags ?? null);
+        $isShowGenieBirthday = $isSystemPost && (
+            in_array($rawShowPostType, ['birthday', 'genie_birthday'], true)
+            || $rawShowSourceType === 'birthday'
+            || in_array('genie_birthday', $showTags, true)
+        );
+        $isShowGenieAnniversary = $isSystemPost && (
+            in_array($rawShowPostType, ['anniversary', 'genie_anniversary'], true)
+            || $rawShowSourceType === 'anniversary'
+            || in_array('genie_anniversary', $showTags, true)
+        );
+        $normalizedShowPostType = $post->post_type;
+        if ($isShowGenieBirthday) {
+            $normalizedShowPostType = 'genie_birthday';
+            if (! in_array('genie_birthday', $showTags, true)) {
+                array_unshift($showTags, 'genie_birthday');
+            }
+        } elseif ($isShowGenieAnniversary) {
+            $normalizedShowPostType = 'genie_anniversary';
+            if (! in_array('genie_anniversary', $showTags, true)) {
+                array_unshift($showTags, 'genie_anniversary');
+            }
+        }
+
         $responseData = [
             'id' => $post->id,
             'content_text' => $post->content_text,
+            'post_type' => $normalizedShowPostType,
             'media' => $post->media ?? [],
-            'tags' => $post->tags ?? [],
+            'tags' => $showTags,
             'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
             'is_system_announcement' => $isSystemPost,
@@ -1835,6 +1925,7 @@ class PostController extends BaseApiController
             'likes_count' => isset($post->likes_count) ? (int) $post->likes_count : 0,
             'comments_count' => isset($post->comments_count) ? (int) $post->comments_count : 0,
             'is_liked_by_me' => (bool) ($post->is_liked_by_me ?? false),
+            'is_wished_by_me' => (bool) ($post->is_wished_by_me ?? false),
             'saves_count' => isset($post->saves_count) ? (int) $post->saves_count : 0,
             'is_saved' => (bool) ($post->is_saved_by_me ?? false),
             'created_at' => $post->created_at,
@@ -1958,17 +2049,53 @@ class PostController extends BaseApiController
         }
 
         $data = $request->validated();
+        $trimmedContent = trim((string) $data['content']);
+
+        // Idempotent guard against accidental double-tap on Auto-Wish or comment submit (within 10s)
+        $recentDuplicate = PostComment::query()
+            ->where('post_id', $post->id)
+            ->where('user_id', $authUser->id)
+            ->where('content', $trimmedContent)
+            ->where('created_at', '>=', now()->subSeconds(10))
+            ->latest('created_at')
+            ->first();
+
+        if ($recentDuplicate) {
+            $recentDuplicate->load('user.level4Category');
+
+            return $this->success(new PostCommentResource($recentDuplicate), 'Comment added', 200);
+        }
+
+        $mentionedPeerIds = $this->extractMentionedPeerIds($request, $trimmedContent);
+        $normalizedMentions = $this->buildCommentMentionsPayload($request, $mentionedPeerIds);
 
         $comment = new PostComment;
         $comment->post_id = $post->id;
         $comment->user_id = $authUser->id;
-        $comment->content = $data['content'];
+        $comment->content = $trimmedContent;
         $comment->parent_id = $data['parent_id'] ?? null;
+        if ($normalizedMentions !== []) {
+            $comment->mentions = $normalizedMentions;
+        }
+        if ($mentionedPeerIds !== []) {
+            $comment->tagged_peer_ids = $mentionedPeerIds;
+        }
         $comment->save();
 
-        $this->sendPostCommentNotification($post, $comment, $authUser, $notifications);
+        // Keep mentions/tagged_peer_ids attached on response even if optional DB columns are not yet present
+        if ($normalizedMentions !== [] && empty($comment->getAttribute('mentions'))) {
+            $comment->setAttribute('mentions', $normalizedMentions);
+        }
+        if ($mentionedPeerIds !== [] && empty($comment->getAttribute('tagged_peer_ids'))) {
+            $comment->setAttribute('tagged_peer_ids', $mentionedPeerIds);
+        }
 
-        $this->dispatchMentionNotifications($mentionNotifications, $post, $authUser, $comment->content, $comment);
+        $notifiedUserIds = $this->sendPostCommentNotification($post, $comment, $authUser, $notifications);
+
+        $this->dispatchMentionNotifications($mentionNotifications, $post, $authUser, $comment->content, $comment, $mentionedPeerIds);
+
+        // Send direct in-app + push mention notification to explicitly tagged/mentioned peers not already notified above
+        $this->sendCommentMentionNotifications($post, $comment, $authUser, $mentionedPeerIds, $notifiedUserIds, $notifications);
 
         $comment->load('user.level4Category');
 
@@ -2143,6 +2270,22 @@ class PostController extends BaseApiController
         $authorId = (string) ($post->user_id ?? '');
         $mentions = [];
 
+        $resolveUsername = static function (?User $peer): ?string {
+            if (! $peer) {
+                return null;
+            }
+            $slug = trim((string) ($peer->public_profile_slug ?? ''));
+            if ($slug !== '') {
+                return $slug;
+            }
+            $email = trim((string) ($peer->email ?? ''));
+            if ($email !== '' && str_contains($email, '@')) {
+                return strstr($email, '@', true) ?: null;
+            }
+
+            return null;
+        };
+
         // 1. Check post_mentions table (excluding author)
         $postMentions = PostMention::where('post_id', $post->id)->with('peer')->get();
         foreach ($postMentions as $pm) {
@@ -2152,6 +2295,7 @@ class PostController extends BaseApiController
                 $mentions[] = [
                     'id' => (string) $peer->id,
                     'name' => $name !== '' ? $name : 'Peer Member',
+                    'username' => $resolveUsername($peer),
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                         : ($peer->profile_photo_url ?: null),
@@ -2169,7 +2313,9 @@ class PostController extends BaseApiController
             'milestone_badge',
             'welcome',
             'birthday',
+            'genie_birthday',
             'anniversary',
+            'genie_anniversary',
             'global_peer_certificate',
             'introduction',
             'life_impact_recognition',
@@ -2361,6 +2507,7 @@ class PostController extends BaseApiController
                 $mentions[] = [
                     'id' => (string) $peer->id,
                     'name' => $finalName,
+                    'username' => $resolveUsername($peer),
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                         : ($peer->profile_photo_url ?: null),
@@ -2369,7 +2516,147 @@ class PostController extends BaseApiController
             }
         }
 
-        return array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
+        $mentions = array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
+
+        if (
+            in_array($postType, ['birthday', 'genie_birthday', 'anniversary', 'genie_anniversary'], true)
+            || in_array($sourceType, ['birthday', 'anniversary'], true)
+        ) {
+            $celebrantId = (string) ($post->source_id ?: ($activityCreative?->user_id ?? ''));
+            if ($celebrantId !== '') {
+                usort($mentions, static fn ($a, $b) => ((string) ($b['id'] ?? '') === $celebrantId ? 1 : 0) <=> ((string) ($a['id'] ?? '') === $celebrantId ? 1 : 0));
+            }
+        }
+
+        return $mentions;
+    }
+
+    /**
+     * Build a normalized comment mentions array from request payload + resolved peer IDs.
+     *
+     * @param  array<int, string>  $mentionedPeerIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCommentMentionsPayload(Request $request, array $mentionedPeerIds): array
+    {
+        if ($mentionedPeerIds === []) {
+            return [];
+        }
+
+        $inputNamesById = [];
+        $rawMentions = $request->input('mentions');
+        if (is_array($rawMentions)) {
+            foreach ($rawMentions as $item) {
+                if (is_array($item) && ! empty($item['id']) && ! empty($item['name'])) {
+                    $inputNamesById[(string) $item['id']] = trim((string) $item['name']);
+                }
+            }
+        }
+
+        $peersById = User::query()
+            ->whereIn('id', $mentionedPeerIds)
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'public_profile_slug', 'profile_photo_file_id', 'profile_photo_url'])
+            ->keyBy(fn (User $u) => (string) $u->id);
+
+        $mentions = [];
+        foreach ($mentionedPeerIds as $peerId) {
+            /** @var ?User $peer */
+            $peer = $peersById->get((string) $peerId);
+            if ($peer) {
+                $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                $slug = trim((string) ($peer->public_profile_slug ?? ''));
+                $username = $slug !== '' ? $slug : (str_contains((string) ($peer->email ?? ''), '@') ? (strstr((string) $peer->email, '@', true) ?: null) : null);
+                $mentions[] = [
+                    'id' => (string) $peer->id,
+                    'name' => $name !== '' ? $name : ($inputNamesById[(string) $peerId] ?? 'Peer Member'),
+                    'username' => $username,
+                    'profile_photo_url' => $peer->profile_photo_file_id
+                        ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                        : ($peer->profile_photo_url ?: null),
+                ];
+            } elseif (isset($inputNamesById[(string) $peerId])) {
+                $mentions[] = [
+                    'id' => (string) $peerId,
+                    'name' => $inputNamesById[(string) $peerId],
+                ];
+            }
+        }
+
+        return $mentions;
+    }
+
+    /**
+     * Send push & in-app mention notifications for explicitly tagged peers in a comment.
+     *
+     * @param  array<int, string>  $mentionedPeerIds
+     * @param  array<int, string>  $alreadyNotifiedUserIds
+     */
+    private function sendCommentMentionNotifications(
+        Post $post,
+        PostComment $comment,
+        User $authUser,
+        array $mentionedPeerIds,
+        array $alreadyNotifiedUserIds,
+        NotificationService $notifications
+    ): void {
+        $remainingIds = array_values(array_diff(
+            array_map('strval', $mentionedPeerIds),
+            array_merge([(string) $authUser->id], array_map('strval', $alreadyNotifiedUserIds))
+        ));
+
+        if ($remainingIds === []) {
+            return;
+        }
+
+        $senderName = $this->displayName($authUser);
+        $postType = strtolower(trim((string) ($post->post_type ?? '')));
+        $sourceType = strtolower(trim((string) ($post->source_type ?? '')));
+        $isBirthday = in_array($postType, ['birthday', 'genie_birthday'], true) || $sourceType === 'birthday';
+        $isAnniversary = in_array($postType, ['anniversary', 'genie_anniversary'], true) || $sourceType === 'anniversary';
+
+        $title = $isBirthday
+            ? 'New Birthday Wish'
+            : ($isAnniversary ? 'New Anniversary Wish' : 'You Were Mentioned in a Comment');
+        $body = $isBirthday
+            ? "{$senderName} mentioned you in a birthday wish comment"
+            : ($isAnniversary
+                ? "{$senderName} mentioned you in an anniversary wish comment"
+                : "{$senderName} mentioned you in a comment");
+
+        $recipients = User::query()->whereIn('id', $remainingIds)->get();
+        foreach ($recipients as $recipient) {
+            try {
+                $notifications->sendToUser(
+                    $recipient,
+                    'post_comment_mention',
+                    $title,
+                    $body,
+                    [
+                        'post_id' => (string) $post->id,
+                        'comment_id' => (string) $comment->id,
+                        'actor_id' => (string) $authUser->id,
+                        'screen' => 'post_detail',
+                        'tap_destination' => 'post_detail',
+                        'reference_type' => 'post_comment',
+                        'reference_id' => (string) $comment->id,
+                    ],
+                    [
+                        'actor_id' => (string) $authUser->id,
+                        'channel' => 'push',
+                        'reference_type' => 'post_comment',
+                        'reference_id' => (string) $comment->id,
+                        'dedupe_key' => 'post_comment_mention:'.$comment->id.':'.$recipient->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::warning('Comment mention notification failed', [
+                    'post_id' => (string) $post->id,
+                    'comment_id' => (string) $comment->id,
+                    'recipient_user_id' => (string) $recipient->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function postPreview(Post $post): string
@@ -2387,7 +2674,7 @@ class PostController extends BaseApiController
         $targets = [];
         $likerName = $this->displayName($authUser);
 
-        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+        if (in_array($post->post_type, ['introduction', 'birthday', 'genie_birthday', 'anniversary', 'genie_anniversary', 'global_peer_certificate'], true)) {
             $subjectUser = User::find($post->source_id);
             if ($subjectUser) {
                 $subjectName = $this->displayName($subjectUser);
@@ -2412,14 +2699,14 @@ class PostController extends BaseApiController
                 } else {
                     if ((string) $subjectUser->id !== (string) $authUser->id) {
                         $title = match ($post->post_type) {
-                            'birthday' => 'Birthday Wish Liked',
-                            'anniversary' => 'Anniversary Wish Liked',
+                            'birthday', 'genie_birthday' => 'Birthday Wish Liked',
+                            'anniversary', 'genie_anniversary' => 'Anniversary Wish Liked',
                             'global_peer_certificate' => 'Certificate Liked',
                             default => 'Post Liked',
                         };
                         $body = match ($post->post_type) {
-                            'birthday' => $likerName.' liked your birthday post',
-                            'anniversary' => $likerName.' liked your anniversary post',
+                            'birthday', 'genie_birthday' => $likerName.' liked your birthday post',
+                            'anniversary', 'genie_anniversary' => $likerName.' liked your anniversary post',
                             'global_peer_certificate' => $likerName.' liked your Global Peer Certificate post',
                             default => $likerName.' liked your post',
                         };
@@ -2479,13 +2766,17 @@ class PostController extends BaseApiController
         }
     }
 
-    private function sendPostCommentNotification(Post $post, PostComment $comment, User $authUser, NotificationService $notifications): void
+    /**
+     * @return array<int, string> Notified recipient user IDs
+     */
+    private function sendPostCommentNotification(Post $post, PostComment $comment, User $authUser, NotificationService $notifications): array
     {
         $targets = [];
+        $notifiedUserIds = [];
         $commenterName = $this->displayName($authUser);
         $preview = Str::limit(trim((string) $comment->content), 120);
 
-        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+        if (in_array($post->post_type, ['introduction', 'birthday', 'genie_birthday', 'anniversary', 'genie_anniversary', 'global_peer_certificate'], true)) {
             $subjectUser = User::find($post->source_id);
             if ($subjectUser) {
                 $subjectName = $this->displayName($subjectUser);
@@ -2510,14 +2801,14 @@ class PostController extends BaseApiController
                 } else {
                     if ((string) $subjectUser->id !== (string) $authUser->id) {
                         $title = match ($post->post_type) {
-                            'birthday' => 'New Birthday Comment',
-                            'anniversary' => 'New Anniversary Comment',
+                            'birthday', 'genie_birthday' => 'New Birthday Wish',
+                            'anniversary', 'genie_anniversary' => 'New Anniversary Wish',
                             'global_peer_certificate' => 'New Comment on Certificate',
                             default => 'New Comment on Post',
                         };
                         $body = match ($post->post_type) {
-                            'birthday' => $commenterName.' commented on your birthday post',
-                            'anniversary' => $commenterName.' commented on your anniversary post',
+                            'birthday', 'genie_birthday' => $commenterName.' mentioned you in a birthday wish comment',
+                            'anniversary', 'genie_anniversary' => $commenterName.' mentioned you in an anniversary wish comment',
                             'global_peer_certificate' => $commenterName.' commented on your Global Peer Certificate post',
                             default => $commenterName.' commented on your post',
                         };
@@ -2566,6 +2857,7 @@ class PostController extends BaseApiController
                         'dedupe_key' => 'post_comment:'.$comment->id.':'.$target['user']->id,
                     ]
                 );
+                $notifiedUserIds[] = (string) $target['user']->id;
             } catch (Throwable $e) {
                 Log::warning('Post comment notification failed', [
                     'post_id' => (string) $post->id,
@@ -2575,5 +2867,7 @@ class PostController extends BaseApiController
                 ]);
             }
         }
+
+        return $notifiedUserIds;
     }
 }

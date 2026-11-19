@@ -312,6 +312,8 @@ class CelebrationPublishingService
             ? "{$displayName} is celebrating their birthday!{$milestoneSuffix}"
             : "{$displayName} is celebrating their wedding anniversary!{$milestoneSuffix}";
 
+        $geniePostType = $isBirthday ? 'genie_birthday' : 'genie_anniversary';
+
         $candidateAttributes = [
             'user_id' => $authorUserId,
             'circle_id' => null,
@@ -324,8 +326,8 @@ class CelebrationPublishingService
                 ],
             ],
             'tags' => $isBirthday
-                ? ['birthday', '#Birthday', '#Celebration', '#PeersGlobal', (string) $user->id]
-                : ['anniversary', '#Anniversary', '#Celebration', '#PeersGlobal', (string) $user->id],
+                ? ['genie_birthday', 'birthday', '#Birthday', '#Celebration', '#PeersGlobal', (string) $user->id]
+                : ['genie_anniversary', 'anniversary', '#Anniversary', '#Celebration', '#PeersGlobal', (string) $user->id],
             'visibility' => 'public',
             'moderation_status' => 'approved',
             'sponsored' => false,
@@ -335,7 +337,7 @@ class CelebrationPublishingService
             'source_type' => $schedule->event_type,
             'source_id' => (string) $user->id,
             'source_event' => $schedule->event_type,
-            'post_type' => $schedule->event_type,
+            'post_type' => $geniePostType,
             'title' => $title,
             'description' => $description,
             'image' => $absoluteUrl,
@@ -481,11 +483,15 @@ class CelebrationPublishingService
         $yearEnd = Carbon::create($eventYear, 12, 31, 23, 59, 59, CelebrationDateResolver::TIMEZONE)
             ->setTimezone(config('app.timezone', 'UTC'));
 
+        $postTypes = $eventType === CelebrationSchedule::TYPE_ANNIVERSARY
+            ? ['anniversary', 'genie_anniversary']
+            : ['birthday', 'genie_birthday'];
+
         return Post::query()
             ->where('source_id', $user->id)
-            ->where(function ($q) use ($eventType): void {
+            ->where(function ($q) use ($eventType, $postTypes): void {
                 $q->where('source_type', $eventType)
-                    ->orWhere('post_type', $eventType);
+                    ->orWhereIn('post_type', $postTypes);
             })
             ->where('status', 'active')
             ->where('is_deleted', false)

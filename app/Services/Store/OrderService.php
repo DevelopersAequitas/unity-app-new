@@ -21,6 +21,7 @@ use App\Models\Store\StoreConfig;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -66,7 +67,7 @@ class OrderService
             throw new Exception(StoreErrorCodes::VALIDATION_ERROR, 422);
         }
 
-        return DB::transaction(function () use ($user, $quoteId, $data, $idempotencyKey) {
+        $order = DB::transaction(function () use ($user, $quoteId, $data, $idempotencyKey) {
             // Lock User Wallet
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
@@ -150,15 +151,16 @@ class OrderService
                 }
 
                 $variant = null;
-                $unitPrice = $product->coin_price;
+                $unitPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 0));
 
                 if (! empty($itemData['variant_id'])) {
                     $variant = ProductVariant::where('id', $itemData['variant_id'])->lockForUpdate()->first();
                     if (! $variant || ! $variant->is_active) {
                         throw new Exception(StoreErrorCodes::VARIANT_NOT_FOUND, 422);
                     }
-                    if ($variant->coin_price !== null && $variant->coin_price > 0) {
-                        $unitPrice = $variant->coin_price;
+                    $vPrice = (int) ($variant->coin_price ?: ($variant->price_coins ?: 0));
+                    if ($vPrice > 0) {
+                        $unitPrice = $vPrice;
                     }
                 }
 
@@ -225,8 +227,11 @@ class OrderService
                 "Store Order #{$orderNo} placement"
             );
 
-            // Fetch active policy page
-            $activePolicy = PolicyPage::where('key', 'store-terms')->where('status', 'PUBLISHED')->orderBy('version', 'desc')->first();
+            // Fetch active policy page (non-blocking if table missing)
+            $activePolicy = null;
+            if (Schema::hasTable('policy_pages')) {
+                $activePolicy = PolicyPage::where('key', 'store-terms')->where('status', 'PUBLISHED')->orderBy('version', 'desc')->first();
+            }
 
             // Address snapshot
             $addressSnapshot = null;
@@ -237,9 +242,8 @@ class OrderService
                 }
             }
 
-            // Create Order
-            $order = Order::create([
-                'id' => $orderId,
+            // Create Order with exact $orderId matching coins_ledger.reference_id
+            $order = new Order([
                 'order_no' => $orderNo,
                 'user_id' => $lockedUser->id,
                 'quote_id' => $quote->id,
@@ -256,6 +260,8 @@ class OrderService
                 'confirmed_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);
+            $order->id = $orderId;
+            $order->save();
 
             // Create Order Items & Update Inventory
             foreach ($itemsToCreate as $item) {
@@ -279,7 +285,9 @@ class OrderService
                     'product_snapshot' => $productSnapshot,
                     'quantity' => $qty,
                     'unit_coin_price' => $item['unit_price_coins'],
+                    'unit_price_coins' => $item['unit_price_coins'],
                     'total_coin_price' => $item['total_price_coins'],
+                    'total_price_coins' => $item['total_price_coins'],
                     'status' => 'ACTIVE',
                     'created_at' => now(),
                 ]);
@@ -289,140 +297,166 @@ class OrderService
                     if ($var) {
                         $var->decrement('stock_qty', $qty);
                         $qtyAfter = $var->fresh()->stock_qty;
-                        InventoryMovement::create([
-                            'variant_id' => $var->id,
-                            'quantity_change' => -$qty,
-                            'quantity_after' => $qtyAfter,
-                            'reason' => 'ORDER_PLACED',
-                            'reference_type' => 'ORDER',
-                            'reference_id' => $order->id,
-                            'actor_type' => 'USER',
-                            'actor_id' => $lockedUser->id,
-                            'note' => "Order #{$orderNo}",
-                            'created_at' => now(),
-                        ]);
+                        if (Schema::hasTable('inventory_movements')) {
+                            try {
+                                DB::transaction(function () use ($var, $qty, $qtyAfter, $order, $lockedUser, $orderNo): void {
+                                    InventoryMovement::create([
+                                        'variant_id' => $var->id,
+                                        'quantity_change' => -$qty,
+                                        'quantity_after' => $qtyAfter,
+                                        'reason' => 'ORDER_PLACED',
+                                        'reference_type' => 'ORDER',
+                                        'reference_id' => $order->id,
+                                        'actor_type' => 'USER',
+                                        'actor_id' => $lockedUser->id,
+                                        'note' => "Order #{$orderNo}",
+                                        'created_at' => now(),
+                                    ]);
+                                });
+                            } catch (\Throwable $e) {
+                                Log::warning('StoreOrderService: failed to create inventory movement: '.$e->getMessage());
+                            }
+                        }
                     } else {
                         $prod->decrement('stock_qty', $qty);
                     }
                 }
             }
 
-            // Create Order Payments records linking exact ledger entries
-            try {
-                if (Schema::hasTable('order_payments')) {
-                    foreach ($debitResult['ledger_entries'] as $ledgerRow) {
-                        OrderPayment::create([
+            // Create Order Payments records linking exact ledger entries (isolated via savepoint for PostgreSQL)
+            if (Schema::hasTable('order_payments')) {
+                try {
+                    DB::transaction(function () use ($debitResult, $order): void {
+                        foreach ($debitResult['ledger_entries'] ?? [] as $ledgerRow) {
+                            OrderPayment::create([
+                                'order_id' => $order->id,
+                                'bucket' => $ledgerRow->bucket ?? 'EARNED',
+                                'coins' => abs($ledgerRow->amount),
+                                'ledger_transaction_id' => $ledgerRow->transaction_id ?? null,
+                                'created_at' => now(),
+                            ]);
+                        }
+                    });
+                } catch (\Throwable $e) {
+                    Log::warning('StoreOrderService: failed to create order payment records: '.$e->getMessage());
+                }
+            }
+
+            // Create Order Status History (isolated via savepoint for PostgreSQL)
+            if (Schema::hasTable('order_status_history')) {
+                try {
+                    DB::transaction(function () use ($order, $lockedUser, $orderTotalCoins): void {
+                        OrderStatusHistory::create([
                             'order_id' => $order->id,
-                            'bucket' => $ledgerRow->bucket ?? 'EARNED',
-                            'coins' => abs($ledgerRow->amount),
-                            'ledger_transaction_id' => $ledgerRow->transaction_id ?? null,
+                            'from_status' => null,
+                            'to_status' => 'CONFIRMED',
+                            'changed_by' => $lockedUser->id,
+                            'reason' => 'Order placed successfully',
+                            'metadata' => ['total_coins' => $orderTotalCoins],
                             'created_at' => now(),
                         ]);
-                    }
+                    });
+                } catch (\Throwable $e) {
+                    Log::warning('StoreOrderService: failed to create order status history: '.$e->getMessage());
                 }
-            } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to create order payment records: '.$e->getMessage());
             }
 
-            // Create Order Status History
-            try {
-                if (Schema::hasTable('order_status_history')) {
-                    OrderStatusHistory::create([
-                        'order_id' => $order->id,
-                        'from_status' => null,
-                        'to_status' => 'CONFIRMED',
-                        'changed_by' => $lockedUser->id,
-                        'reason' => 'Order placed successfully',
-                        'metadata' => ['total_coins' => $orderTotalCoins],
-                        'created_at' => now(),
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to create order status history: '.$e->getMessage());
-            }
-
-            // Create Receipt
-            $receipt = null;
-            try {
-                if (Schema::hasTable('receipts')) {
-                    $receiptNo = 'REC-'.strtoupper(Str::random(10));
-                    $receipt = Receipt::create([
-                        'receipt_no' => $receiptNo,
-                        'order_id' => $order->id,
-                        'user_id' => $lockedUser->id,
-                        'coins_paid' => $orderTotalCoins,
-                        'receipt_data' => [
-                            'order_no' => $orderNo,
-                            'peer_name' => $lockedUser->display_name ?? ($lockedUser->first_name.' '.$lockedUser->last_name),
-                            'peer_phone' => $lockedUser->phone,
-                            'items' => $itemsToCreate,
-                            'bonus_coins' => $debitResult['bonus_coins'],
-                            'earned_coins' => $debitResult['earned_coins'],
-                            'total_coins' => $orderTotalCoins,
-                            'delivery_type' => $order->delivery_type,
-                            'shipping_address' => $addressSnapshot,
-                        ],
-                        'policy_version_id' => $activePolicy ? $activePolicy->id : null,
-                        'issued_at' => now(),
-                        'created_at' => now(),
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to create receipt: '.$e->getMessage());
-            }
-
-            // Mark Quote as USED and clean cart
-            try {
-                $quote->update(['status' => 'USED']);
-            } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to mark quote USED: '.$e->getMessage());
-            }
-
-            $cart = Cart::where('id', $quote->cart_id)->first();
-            if ($cart) {
-                CartItem::where('cart_id', $cart->id)->delete();
-                $cart->update(['status' => 'ACTIVE', 'last_changed_at' => now()]);
-            }
-
-            // Create Notification Event Outbox
-            try {
-                if (Schema::hasTable('notification_events')) {
-                    NotificationEvent::create([
-                        'event_key' => 'order.placed',
-                        'user_id' => $lockedUser->id,
-                        'reference_type' => 'ORDER',
-                        'reference_id' => $order->id,
-                        'payload' => [
-                            'order_no' => $orderNo,
-                            'total_coins' => $orderTotalCoins,
-                        ],
-                        'status' => 'PENDING',
-                        'available_at' => now(),
-                        'created_at' => now(),
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to create notification event: '.$e->getMessage());
-            }
-
-            $relationsToLoad = ['items.product.primaryImage'];
-            if (Schema::hasTable('order_payments')) {
-                $relationsToLoad[] = 'payments';
-            }
+            // Create Receipt (isolated via savepoint for PostgreSQL)
             if (Schema::hasTable('receipts')) {
-                $relationsToLoad[] = 'receipt';
+                try {
+                    DB::transaction(function () use ($order, $lockedUser, $orderTotalCoins, $orderNo, $itemsToCreate, $debitResult, $addressSnapshot, $activePolicy): void {
+                        $receiptNo = 'REC-'.strtoupper(Str::random(10));
+                        Receipt::create([
+                            'receipt_no' => $receiptNo,
+                            'order_id' => $order->id,
+                            'user_id' => $lockedUser->id,
+                            'coins_paid' => $orderTotalCoins,
+                            'receipt_data' => [
+                                'order_no' => $orderNo,
+                                'peer_name' => $lockedUser->display_name ?? trim(($lockedUser->first_name ?? '').' '.($lockedUser->last_name ?? '')),
+                                'peer_phone' => $lockedUser->phone,
+                                'items' => $itemsToCreate,
+                                'bonus_coins' => $debitResult['bonus_coins'],
+                                'earned_coins' => $debitResult['earned_coins'],
+                                'total_coins' => $orderTotalCoins,
+                                'delivery_type' => $order->delivery_type,
+                                'shipping_address' => $addressSnapshot,
+                            ],
+                            'policy_version_id' => $activePolicy ? $activePolicy->id : null,
+                            'issued_at' => now(),
+                            'created_at' => now(),
+                        ]);
+                    });
+                } catch (\Throwable $e) {
+                    Log::warning('StoreOrderService: failed to create receipt: '.$e->getMessage());
+                }
             }
 
+            // Mark Quote as USED and clean cart (isolated via savepoint for PostgreSQL)
             try {
-                $order->load($relationsToLoad);
+                DB::transaction(function () use ($quote): void {
+                    $quote->update(['status' => 'USED']);
+                });
             } catch (\Throwable $e) {
-                \Log::warning('StoreOrderService: failed to load relations: '.$e->getMessage());
+                Log::warning('StoreOrderService: failed to mark quote USED: '.$e->getMessage());
             }
 
-            return [
-                'order' => $order,
-                'is_idempotent' => false,
-            ];
+            if ($quote->cart_id) {
+                $cart = Cart::where('id', $quote->cart_id)->first();
+                if ($cart) {
+                    CartItem::where('cart_id', $cart->id)->delete();
+                    $cartUpdate = ['status' => 'ACTIVE'];
+                    if (Schema::hasColumn('carts', 'last_changed_at')) {
+                        $cartUpdate['last_changed_at'] = now();
+                    }
+                    $cart->update($cartUpdate);
+                }
+            }
+
+            // Create Notification Event Outbox (isolated via savepoint for PostgreSQL)
+            if (Schema::hasTable('notification_events')) {
+                try {
+                    DB::transaction(function () use ($lockedUser, $order, $orderNo, $orderTotalCoins): void {
+                        NotificationEvent::create([
+                            'event_key' => 'order.placed',
+                            'user_id' => $lockedUser->id,
+                            'reference_type' => 'ORDER',
+                            'reference_id' => $order->id,
+                            'payload' => [
+                                'order_no' => $orderNo,
+                                'total_coins' => $orderTotalCoins,
+                            ],
+                            'status' => 'PENDING',
+                            'available_at' => now(),
+                            'created_at' => now(),
+                        ]);
+                    });
+                } catch (\Throwable $e) {
+                    Log::warning('StoreOrderService: failed to create notification event: '.$e->getMessage());
+                }
+            }
+
+            return $order;
         });
+
+        // Load relations after transaction commit so any optional relation never aborts PostgreSQL
+        $relationsToLoad = ['items.product.primaryImage'];
+        if (Schema::hasTable('order_payments')) {
+            $relationsToLoad[] = 'payments';
+        }
+        if (Schema::hasTable('receipts')) {
+            $relationsToLoad[] = 'receipt';
+        }
+
+        try {
+            $order->load($relationsToLoad);
+        } catch (\Throwable $e) {
+            Log::warning('StoreOrderService: failed to load relations: '.$e->getMessage());
+        }
+
+        return [
+            'order' => $order,
+            'is_idempotent' => false,
+        ];
     }
 }
