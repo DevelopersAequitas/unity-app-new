@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class JuryWebController extends Controller
@@ -194,6 +195,21 @@ class JuryWebController extends Controller
                 'scores.criterion',
             ])
             ->where('juror_user_id', $jurorId)
+            ->whereHas('nomination', function ($q): void {
+                $q->where('application_number', '!=', 'PG-STANDING-POOL');
+            })
+            ->where(function ($q): void {
+                $q->where('status', 'completed')
+                    ->orWhereHas('nomination', function ($sub): void {
+                        $sub->where('profile_snapshot->form_2_status', 'submitted')
+                            ->orWhereNotNull('profile_snapshot->form_2')
+                            ->orWhereExists(function ($inner): void {
+                                $inner->selectRaw(1)
+                                    ->from('web_leadership_nominations as f2')
+                                    ->whereRaw("f2.application_number = CONCAT(web_leadership_nominations.application_number, '-F2')");
+                            });
+                    });
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
