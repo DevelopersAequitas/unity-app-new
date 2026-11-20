@@ -77,6 +77,25 @@ class PublishCelebrationsCommand extends Command
                 'last_error' => 'Recovered from interrupted processing state',
             ]);
 
+        // 2c. Recover any 'published' schedules for target date whose linked post is missing or inactive on Timeline
+        $publishedToday = CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $targetDateStr)
+            ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
+            ->when(in_array($type, [CelebrationSchedule::TYPE_BIRTHDAY, CelebrationSchedule::TYPE_ANNIVERSARY], true), fn ($q) => $q->where('event_type', $type))
+            ->when(! empty($userId), fn ($q) => $q->where('user_id', (string) $userId))
+            ->get();
+
+        foreach ($publishedToday as $pubSched) {
+            if (empty($pubSched->post_id) || ! $publishingService->findLivePostById((string) $pubSched->post_id)) {
+                $pubSched->update([
+                    'status' => CelebrationSchedule::STATUS_PENDING,
+                    'post_id' => null,
+                    'attempts' => 0,
+                    'last_error' => 'Recovered: linked post missing or inactive on Timeline',
+                ]);
+            }
+        }
+
         // 3. Query all due pending/retryable schedules for target date
         $query = CelebrationSchedule::query()
             ->whereDate('scheduled_date', $targetDateStr)

@@ -77,7 +77,18 @@ class CelebrationPublishingService
             $fresh = CelebrationSchedule::query()->whereKey($schedule->id)->lockForUpdate()->firstOrFail();
 
             if ($fresh->status === CelebrationSchedule::STATUS_PUBLISHED && ! empty($fresh->post_id)) {
-                return ['action' => 'already_published', 'schedule' => $fresh];
+                $livePost = $this->findLivePostById((string) $fresh->post_id);
+                if ($livePost) {
+                    return ['action' => 'already_published', 'schedule' => $fresh, 'post' => $livePost];
+                }
+
+                // Linked post was deleted, deactivated, or hidden — reset schedule so it re-publishes live to Timeline
+                $fresh->update([
+                    'status' => CelebrationSchedule::STATUS_PENDING,
+                    'post_id' => null,
+                    'last_error' => 'Previously linked post missing or inactive on Timeline; republishing.',
+                ]);
+                $fresh->refresh();
             }
 
             $user = User::withTrashed()->find($fresh->user_id);
@@ -474,7 +485,26 @@ class CelebrationPublishingService
     }
 
     /**
-     * Check if a non-deleted celebration post already exists in the `posts` table for this user, event type, and IST year.
+     * Verify a post ID actually exists and is live/visible on the mobile app Community Timeline.
+     */
+    public function findLivePostById(string $postId): ?Post
+    {
+        return Post::query()
+            ->whereKey($postId)
+            ->where('status', 'active')
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->whereRaw("CAST(visibility AS TEXT) = 'public'")
+            ->when(Schema::hasColumn('posts', 'active'), function ($q): void {
+                $q->where(function ($aq): void {
+                    $aq->whereNull('active')->orWhere('active', true);
+                });
+            })
+            ->first();
+    }
+
+    /**
+     * Check if a live, public, non-deleted celebration post already exists in the `posts` table for this user, event type, and IST year.
      */
     public function findExistingPostForYear(User $user, string $eventType, int $eventYear): ?Post
     {
@@ -496,6 +526,12 @@ class CelebrationPublishingService
             ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
+            ->whereRaw("CAST(visibility AS TEXT) = 'public'")
+            ->when(Schema::hasColumn('posts', 'active'), function ($q): void {
+                $q->where(function ($aq): void {
+                    $aq->whereNull('active')->orWhere('active', true);
+                });
+            })
             ->whereBetween('created_at', [$yearStart, $yearEnd])
             ->first();
     }

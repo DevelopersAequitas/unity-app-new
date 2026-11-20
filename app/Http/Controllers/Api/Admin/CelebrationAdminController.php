@@ -66,15 +66,51 @@ class CelebrationAdminController extends BaseApiController
 
         $peers = $peersQuery->get()->filter(fn (User $peer): bool => $this->syncService->isUserEligible($peer));
 
-        // Load existing celebration schedules for fast O(1) lookup
+        // Load existing celebration schedules for fast O(1) lookup, verifying that any 'published' post is still live on Timeline
         $schedulesByKey = [];
+        $livePostIds = [];
         if ($this->syncService->tablesReady()) {
             $schedules = CelebrationSchedule::query()
                 ->whereIn('user_id', $peers->pluck('id')->all())
                 ->whereIn('event_year', [$todayIst->year, $todayIst->year + 1])
                 ->get();
 
+            $publishedPostIds = $schedules
+                ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
+                ->pluck('post_id')
+                ->filter()
+                ->map(fn ($id): string => (string) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($publishedPostIds !== [] && Schema::hasTable('posts')) {
+                $livePostIds = \App\Models\Post::query()
+                    ->whereIn('id', $publishedPostIds)
+                    ->where('status', 'active')
+                    ->where('is_deleted', false)
+                    ->whereNull('deleted_at')
+                    ->whereRaw("CAST(visibility AS TEXT) = 'public'")
+                    ->when(Schema::hasColumn('posts', 'active'), function ($q): void {
+                        $q->where(function ($aq): void {
+                            $aq->whereNull('active')->orWhere('active', true);
+                        });
+                    })
+                    ->pluck('id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->all();
+                $livePostIds = array_flip($livePostIds);
+            }
+
             foreach ($schedules as $sched) {
+                if (
+                    $sched->status === CelebrationSchedule::STATUS_PUBLISHED
+                    && (empty($sched->post_id) || ! isset($livePostIds[(string) $sched->post_id]))
+                ) {
+                    // Self-heal orphaned schedule whose post was removed/deactivated so Admin Panel & auto-publish stay accurate
+                    $sched->status = CelebrationSchedule::STATUS_PENDING;
+                    $sched->post_id = null;
+                }
                 $schedulesByKey["{$sched->user_id}_{$sched->event_type}_{$sched->event_year}"] = $sched;
             }
         }
@@ -246,6 +282,38 @@ class CelebrationAdminController extends BaseApiController
                 'due_now' => false,
                 'current_time_ist' => $nowIst->format('H:i'),
             ], 'Waiting until 07:00 AM IST before publishing today\'s celebrations.');
+        }
+
+        // Recover stale processing schedules (older than 5 min, no post)
+        CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $todayStr)
+            ->where('status', CelebrationSchedule::STATUS_PROCESSING)
+            ->whereNull('post_id')
+            ->where(function ($q): void {
+                $q->whereNull('last_attempted_at')
+                    ->orWhere('last_attempted_at', '<=', now()->subMinutes(5));
+            })
+            ->whereColumn('attempts', '<', 'max_attempts')
+            ->update([
+                'status' => CelebrationSchedule::STATUS_PENDING,
+                'last_error' => 'Recovered from interrupted processing state',
+            ]);
+
+        // Recover any 'published' schedules for today whose linked post is missing or no longer live on Timeline
+        $todayPublished = CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $todayStr)
+            ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
+            ->get();
+
+        foreach ($todayPublished as $pubSched) {
+            if (empty($pubSched->post_id) || ! $this->publishingService->findLivePostById((string) $pubSched->post_id)) {
+                $pubSched->update([
+                    'status' => CelebrationSchedule::STATUS_PENDING,
+                    'post_id' => null,
+                    'attempts' => 0,
+                    'last_error' => 'Recovered: linked post was missing or inactive on Timeline',
+                ]);
+            }
         }
 
         $dueSchedules = CelebrationSchedule::query()

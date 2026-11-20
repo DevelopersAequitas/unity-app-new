@@ -162,6 +162,7 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
             ->selectRaw('posts.post_type as post_type')
+            ->selectRaw('posts.image as post_image')
             ->where(function ($q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
                 $visibilityCol = DB::raw('CAST(posts.visibility AS TEXT)');
 
@@ -234,14 +235,41 @@ class PostController extends BaseApiController
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
-            ->whereExists(function ($authorQuery): void {
-                $authorQuery->select(DB::raw(1))
-                    ->from('users as author_filter')
-                    ->whereColumn('author_filter.id', 'posts.user_id')
-                    ->where(function ($sq): void {
-                        $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
-                    })
-                    ->whereNull('author_filter.deleted_at');
+            ->where(function ($authorOrSystemQuery): void {
+                $authorOrSystemQuery->whereIn('posts.post_type', [
+                    'genie_birthday',
+                    'birthday',
+                    'genie_anniversary',
+                    'anniversary',
+                    'welcome',
+                    'life_impact_recognition',
+                    'growth_honour',
+                    'milestone_honour',
+                    'global_peer_certificate',
+                    'introduction',
+                ])
+                    ->orWhereIn('posts.source_type', [
+                        'birthday',
+                        'anniversary',
+                        'welcome',
+                        'life_impact',
+                        'recognition',
+                        'growth_honour',
+                        'milestone_honour',
+                        'global_peer_certificate',
+                        'introduction',
+                    ])
+                    ->orWhereExists(function ($authorQuery): void {
+                        $authorQuery->select(DB::raw(1))
+                            ->from('users as author_filter')
+                            ->whereColumn('author_filter.id', 'posts.user_id')
+                            ->where(function ($sq): void {
+                                $sq->whereNull('author_filter.status')
+                                    ->orWhereRaw("LOWER(CAST(author_filter.status AS TEXT)) = 'active'")
+                                    ->orWhereRaw("LOWER(COALESCE(author_filter.email, '')) = 'info@peersglobal.com'");
+                            })
+                            ->whereNull('author_filter.deleted_at');
+                    });
             });
 
         $union = $postRows;
@@ -280,6 +308,7 @@ class PostController extends BaseApiController
                 ->selectRaw('impacts.action as impact_action')
                 ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
                 ->selectRaw('NULL::text as post_type')
+                ->selectRaw('NULL::text as post_image')
                 ->where('impacts.status', 'approved')
                 ->whereNotNull('impacts.timeline_posted_at')
                 ->whereExists(function ($authorQuery): void {
@@ -330,6 +359,7 @@ class PostController extends BaseApiController
                 ->selectRaw('referrals.referral_of as impact_action')
                 ->selectRaw('1 as life_impacted')
                 ->selectRaw("'referral' as post_type")
+                ->selectRaw('NULL::text as post_image')
                 ->where('referrals.is_deleted', false)
                 ->whereNull('referrals.deleted_at')
                 ->whereNotExists(function ($q): void {
@@ -1212,13 +1242,27 @@ class PostController extends BaseApiController
                 'is_online' => true,
             ];
 
+            $feedMedia = $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreative);
+            $primaryImageUrl = null;
+            foreach ($feedMedia as $mItem) {
+                if (is_array($mItem) && ! empty($mItem['url'])) {
+                    $primaryImageUrl = (string) $mItem['url'];
+                    break;
+                }
+            }
+            if ($primaryImageUrl === null && ! empty($row->post_image)) {
+                $primaryImageUrl = $this->normalizeFeedAssetUrl((string) $row->post_image, $activityCreative?->creative_file_id);
+            }
+
             $item = [
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
                 'post_type' => $normalizedPostType,
                 'is_verified' => $isVerified,
-                'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
+                'media' => $feedMedia,
+                'image' => $primaryImageUrl,
+                'media_url' => $primaryImageUrl,
                 'tags' => $normalizedTags,
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
@@ -1401,8 +1445,39 @@ class PostController extends BaseApiController
             'title' => $creative->title,
             'description' => $creative->description,
             'creative_file_id' => $creative->creative_file_id,
-            'creative_url' => $creative->creative_url,
+            'creative_url' => $this->normalizeFeedAssetUrl($creative->creative_url, $creative->creative_file_id),
         ];
+    }
+
+    private function normalizeFeedAssetUrl(?string $rawUrl, ?string $fileId = null): ?string
+    {
+        $trimmed = trim((string) ($rawUrl ?? ''));
+        $isStaleLocalHost = $trimmed !== '' && (
+            str_contains($trimmed, '://localhost')
+            || str_contains($trimmed, '://127.0.0.1')
+            || str_contains($trimmed, 'ngrok-free.dev')
+        );
+
+        if (! empty($fileId) && ($trimmed === '' || $isStaleLocalHost || ! Str::startsWith($trimmed, ['http://', 'https://']))) {
+            return url('/api/v1/files/'.$fileId);
+        }
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if ($isStaleLocalHost) {
+            $path = parse_url($trimmed, PHP_URL_PATH);
+            if ($path) {
+                return url(ltrim($path, '/'));
+            }
+        }
+
+        if (! Str::startsWith($trimmed, ['http://', 'https://'])) {
+            return url(ltrim($trimmed, '/'));
+        }
+
+        return $trimmed;
     }
 
     private function formatToDefaultDateTime(mixed $value): ?string
@@ -1416,7 +1491,7 @@ class PostController extends BaseApiController
             ->format('Y-m-d H:i:s');
     }
 
-    private function buildFeedMedia(object $row, $p2pMeetingsById, array $fallbackP2pMeetingIdByPostId): array
+    private function buildFeedMedia(object $row, $p2pMeetingsById, array $fallbackP2pMeetingIdByPostId, ?ActivityCreative $activityCreative = null): array
     {
         $isP2pPost = (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row);
 
@@ -1441,19 +1516,35 @@ class PostController extends BaseApiController
 
         $mediaItems = $this->decodeJsonColumn($row->media);
 
-        return array_map(function ($item) {
+        $normalized = array_map(function ($item) {
             if (! is_array($item)) {
                 return $item;
             }
-            $itemUrl = $item['url'] ?? null;
-            if (! empty($item['id']) && (empty($itemUrl) || ! Str::startsWith((string) $itemUrl, ['http://', 'https://']))) {
-                $item['url'] = url('/api/v1/files/'.$item['id']);
-            } elseif (! empty($itemUrl) && ! Str::startsWith((string) $itemUrl, ['http://', 'https://'])) {
-                $item['url'] = url(ltrim((string) $itemUrl, '/'));
+            $fileId = ! empty($item['id']) ? (string) $item['id'] : null;
+            $itemUrl = isset($item['url']) ? (string) $item['url'] : null;
+            $resolvedUrl = $this->normalizeFeedAssetUrl($itemUrl, $fileId);
+            if ($resolvedUrl !== null) {
+                $item['url'] = $resolvedUrl;
             }
 
             return $item;
         }, $mediaItems);
+
+        if ($normalized === []) {
+            $fallbackUrl = $this->normalizeFeedAssetUrl(
+                ! empty($row->post_image) ? (string) $row->post_image : ($activityCreative?->creative_url ?? null),
+                $activityCreative?->creative_file_id
+            );
+            if ($fallbackUrl !== null) {
+                $normalized[] = [
+                    'id' => $activityCreative?->creative_file_id ? (string) $activityCreative->creative_file_id : null,
+                    'type' => 'image',
+                    'url' => $fallbackUrl,
+                ];
+            }
+        }
+
+        return $normalized;
     }
 
     private function isP2pMeetingPostRow(object $row): bool
