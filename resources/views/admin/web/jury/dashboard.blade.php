@@ -259,7 +259,14 @@
                                 $campName = $asg->campaign_name ?? $nom?->campaign?->name ?? 'Leadership Campaign';
                                 $isCompleted = $asg->status === 'completed';
                             @endphp
-                            <tr id="row-{{ $asg->id }}" data-nomination-id="{{ $nom?->id }}">
+                            <tr 
+                                id="row-{{ $asg->id }}" 
+                                data-nomination-id="{{ $nom?->id }}"
+                                onclick="openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', {{ $isCompleted ? 'true' : 'false' }})"
+                                style="cursor: pointer;"
+                                title="Click to view candidate dossier and submit evaluation"
+                                class="hover-bg-light"
+                            >
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="candidate-avatar">
@@ -630,52 +637,66 @@ function selectRecommendation(val, element) {
 
 // Open Review Modal
 async function openReviewModal(assignmentId, nominationId, isViewOnly) {
-    document.getElementById('currentAssignmentId').value = assignmentId;
-    
-    if (!nominationId) {
-        const row = document.getElementById('row-' + assignmentId);
-        if (row) nominationId = row.getAttribute('data-nomination-id');
-    }
-
-    // Switch to Form 1 tab by default
-    const tab1Btn = document.getElementById('tab-form1-btn');
-    if (tab1Btn) {
-        bootstrap.Tab.getOrCreateInstance(tab1Btn).show();
-    }
-
-    // Set submit button state
-    const submitBtn = document.getElementById('btnSubmitEvaluation');
-    if (isViewOnly) {
-        submitBtn.style.display = 'none';
-    } else {
-        submitBtn.style.display = 'inline-block';
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-check me-1.5"></i> Submit Final Review';
-    }
-
-    reviewModal.show();
-
-    // Reset Form 2 container with loading
-    const form2Container = document.getElementById('form2Container');
-    if (form2Container) {
-        form2Container.innerHTML = `
-            <div class="text-center py-5 text-muted bg-white rounded-4 border">
-                <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 operational dossier...
-            </div>
-        `;
-    }
-
-    // Fetch candidate details
     try {
-        const res = await fetch(`/admin/web/jury/nomination/${nominationId}/details?assignment_id=${assignmentId}`, {
-            headers: { 'Accept': 'application/json' }
-        });
-        const data = await res.json();
-        if (data.success) {
-            populateCandidateDetails(data.data, isViewOnly);
+        const inputAsg = document.getElementById('currentAssignmentId');
+        if (inputAsg) inputAsg.value = assignmentId;
+        
+        if (!nominationId) {
+            const row = document.getElementById('row-' + assignmentId);
+            if (row) nominationId = row.getAttribute('data-nomination-id');
+        }
+
+        // Set submit button state
+        const submitBtn = document.getElementById('btnSubmitEvaluation');
+        if (submitBtn) {
+            if (isViewOnly) {
+                submitBtn.style.display = 'none';
+            } else {
+                submitBtn.style.display = 'inline-block';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-check me-1.5"></i> Submit Final Review';
+            }
+        }
+
+        // Reset Form 2 container with loading
+        const form2Container = document.getElementById('form2Container');
+        if (form2Container) {
+            form2Container.innerHTML = `
+                <div class="text-center py-5 text-muted bg-white rounded-4 border">
+                    <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 operational dossier...
+                </div>
+            `;
+        }
+
+        // Show Modal immediately so user sees responsiveness
+        const modalEl = document.getElementById('reviewModal');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+
+        // Switch to Form 1 tab by default safely
+        try {
+            const tab1Btn = document.getElementById('tab-form1-btn');
+            if (tab1Btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                bootstrap.Tab.getOrCreateInstance(tab1Btn).show();
+            }
+        } catch (tabErr) {
+            console.warn('Tab switch warning', tabErr);
+        }
+
+        // Fetch candidate details
+        if (nominationId) {
+            const res = await fetch(`/admin/web/jury/nomination/${nominationId}/details?assignment_id=${assignmentId}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                populateCandidateDetails(data.data, isViewOnly);
+            }
         }
     } catch (err) {
-        console.error('Failed to load candidate details', err);
+        console.error('Failed to open candidate evaluation modal:', err);
     }
 }
 

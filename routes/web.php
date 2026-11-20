@@ -136,6 +136,7 @@ use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
+use App\Http\Controllers\LeadershipCandidateLedgerController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
@@ -297,6 +298,20 @@ Route::post('/leadership/form-2/{id}/submit', [LeadershipForm2Controller::class,
 Route::post('/leadership/form-2/{id}/upload', [LeadershipForm2Controller::class, 'upload'])
     ->whereUuid('id')
     ->name('leadership.form2.upload');
+
+// Private Candidate Live Voter Ledger Portal
+Route::get('/leadership/nomination/{id}/live-votes', [LeadershipCandidateLedgerController::class, 'show'])
+    ->whereUuid('id')
+    ->name('leadership.nomination.live-votes');
+Route::post('/leadership/nomination/{id}/live-votes/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])
+    ->whereUuid('id')
+    ->name('leadership.nomination.live-votes.send-otp');
+Route::post('/leadership/nomination/{id}/live-votes/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])
+    ->whereUuid('id')
+    ->name('leadership.nomination.live-votes.verify-otp');
+Route::get('/leadership/nomination/{id}/live-votes/data', [LeadershipCandidateLedgerController::class, 'fetchLedger'])
+    ->whereUuid('id')
+    ->name('leadership.nomination.live-votes.data');
 
 Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 

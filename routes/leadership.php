@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Leadership\PublicCampaignController;
 use App\Http\Controllers\Api\V1\Leadership\ReportController;
 use App\Http\Controllers\Api\V1\Leadership\VerificationController;
 use App\Http\Controllers\Api\V1\Leadership\VotingController;
+use App\Http\Controllers\LeadershipCandidateLedgerController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Modules\Leadership\Controllers\LeadershipActivitiesController;
 use App\Modules\Leadership\Controllers\LeadershipCirclesController;
@@ -83,6 +84,14 @@ Route::prefix('public')->group(function (): void {
     Route::post('public/nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
     Route::get('nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
     Route::get('public/nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
+
+    // Private Candidate Live Voter Ledger API Contracts
+    Route::post('nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+    Route::post('nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+    Route::get('nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
+    Route::get('public/nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
