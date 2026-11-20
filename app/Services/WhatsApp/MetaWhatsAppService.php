@@ -567,7 +567,9 @@ class MetaWhatsAppService
 
         $fileContents = file_get_contents($filePath);
         $fileName = basename($filePath);
-        $mimeType = mime_content_type($filePath) ?: 'image/png';
+        $mimeType = str_ends_with(strtolower($fileName), '.pdf')
+            ? 'application/pdf'
+            : (mime_content_type($filePath) ?: 'image/png');
 
         $response = Http::withToken($this->accessToken)
             ->attach('file', $fileContents, $fileName, ['Content-Type' => $mimeType])

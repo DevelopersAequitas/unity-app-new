@@ -4,6 +4,7 @@ namespace App\Services\Events;
 
 use App\Models\EventRegistration;
 use App\Models\User;
+use App\Services\Zoho\ZohoInvoicePdfStorageService;
 use App\Support\Zoho\ZohoBillingClient;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Support\Facades\Log;
@@ -203,9 +204,32 @@ class EventZohoInvoiceSyncService
                 'zoho_invoice_sync_error' => $syncError,
             ]))->save();
 
+            $finalInvoiceId = (string) data_get($finalInvoice, 'invoice_id', $registration->zoho_invoice_id);
+            $finalInvoiceNumber = (string) (data_get($finalInvoice, 'invoice_number') ?? $registration->zoho_invoice_number);
+            if ($resolvedInvoiceStatus === 'paid' && $finalInvoiceId !== '') {
+                $registration->loadMissing('user');
+                app(ZohoInvoicePdfStorageService::class)->fetchStoreAndSendWhatsApp(
+                    $finalInvoiceId,
+                    $registration->user,
+                    [
+                        'payment_type' => 'event_registration',
+                        'reference_id' => (string) $registration->id,
+                        'zoho_customer_id' => (string) ($registration->zoho_customer_id ?: data_get($finalInvoice, 'customer_id', '')),
+                        'zoho_invoice_number' => $finalInvoiceNumber ?: null,
+                        'zoho_invoice_url' => data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url') ?? $registration->zoho_invoice_url,
+                        'gst_number' => data_get($finalInvoice, 'gst_no'),
+                        'gst_treatment' => data_get($finalInvoice, 'gst_treatment'),
+                        'amount' => $finalTotal > 0 ? $finalTotal : (float) ($registration->payment_amount ?? $registration->amount ?? 0),
+                        'currency' => (string) (data_get($finalInvoice, 'currency_code') ?: $registration->currency ?: 'INR'),
+                        'recipient_name' => trim((string) ($registration->visitor_name ?: $registration->user?->display_name ?: '')),
+                        'recipient_phone' => trim((string) ($registration->visitor_phone ?: $registration->user?->phone ?: '')),
+                    ]
+                );
+            }
+
             return [
-                'invoice_id' => (string) data_get($finalInvoice, 'invoice_id', $registration->zoho_invoice_id),
-                'invoice_number' => (string) (data_get($finalInvoice, 'invoice_number') ?? $registration->zoho_invoice_number),
+                'invoice_id' => $finalInvoiceId,
+                'invoice_number' => $finalInvoiceNumber,
                 'status' => $resolvedInvoiceStatus,
                 'balance' => $finalBalance,
                 'total' => $finalTotal,

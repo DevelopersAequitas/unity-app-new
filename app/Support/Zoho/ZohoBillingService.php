@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Zoho\ZohoInvoicePdfStorageService;
 use App\Support\Membership\MembershipUpdater;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -630,17 +631,37 @@ class ZohoBillingService
             'gst_no' => data_get($finalInvoice, 'gst_no'),
         ]);
 
+        $finalInvoiceNumber = (string) (data_get($finalInvoice, 'invoice_number') ?? $invoiceNumber);
+        $finalInvoiceUrl = data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url');
+        $finalTotal = (float) data_get($finalInvoice, 'total', $amount);
+
+        app(ZohoInvoicePdfStorageService::class)->fetchStoreAndSendWhatsApp(
+            $invoiceId,
+            $user,
+            [
+                'payment_type' => (string) ($details['payment_type'] ?? 'app_payment'),
+                'reference_id' => (string) ($details['reference_id'] ?? $referenceNumber),
+                'zoho_customer_id' => $customerId,
+                'zoho_invoice_number' => $finalInvoiceNumber ?: null,
+                'zoho_invoice_url' => $finalInvoiceUrl,
+                'gst_number' => data_get($finalInvoice, 'gst_no'),
+                'gst_treatment' => data_get($finalInvoice, 'gst_treatment'),
+                'amount' => $finalTotal,
+                'currency' => $currency,
+            ]
+        );
+
         return [
             'synced' => true,
             'customer_id' => $customerId,
             'invoice_id' => $invoiceId,
-            'invoice_number' => (string) (data_get($finalInvoice, 'invoice_number') ?? $invoiceNumber),
-            'invoice_url' => data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url'),
+            'invoice_number' => $finalInvoiceNumber,
+            'invoice_url' => $finalInvoiceUrl,
             'invoice_pdf_url' => data_get($finalInvoice, 'invoice_pdf_url') ?? data_get($finalInvoice, 'pdf_url'),
             'status' => strtolower((string) data_get($finalInvoice, 'status', 'paid')),
             'gst_treatment' => data_get($finalInvoice, 'gst_treatment'),
             'gst_no' => data_get($finalInvoice, 'gst_no'),
-            'total' => (float) data_get($finalInvoice, 'total', $amount),
+            'total' => $finalTotal,
             'balance' => (float) data_get($finalInvoice, 'balance', 0),
         ];
     }
