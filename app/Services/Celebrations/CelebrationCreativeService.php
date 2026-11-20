@@ -38,6 +38,54 @@ class CelebrationCreativeService
         return $this->generateBirthdayCreative($user);
     }
 
+    /**
+     * Persist an exact rendered creative image (base64 data URL) submitted from the Admin Panel preview
+     * so Admin Preview and Mobile App Timeline display the exact same final creative image.
+     *
+     * @return array{file: FileModel, url: string, template_used: string, used_initials: bool}|null
+     */
+    public function storeRenderedCreativeDataUrl(User $user, string $eventType, string $dataUrl): ?array
+    {
+        $trimmed = trim($dataUrl);
+        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/is', $trimmed, $matches)) {
+            return null;
+        }
+
+        $binary = base64_decode(preg_replace('/\s+/', '', $matches[2]), true);
+        if ($binary === false || strlen($binary) < 1024) {
+            return null;
+        }
+
+        $img = @imagecreatefromstring($binary);
+        if (! $img) {
+            return null;
+        }
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+        if ($width < 200 || $height < 200) {
+            imagedestroy($img);
+
+            return null;
+        }
+
+        $canvas = imagecreatetruecolor($width, $height);
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        imagefill($canvas, 0, 0, $white);
+        imagealphablending($canvas, true);
+        imagecopy($canvas, $img, 0, 0, 0, 0, $width, $height);
+        imagedestroy($img);
+
+        $fileModel = $this->saveCanvasAsFile($canvas, $user, $eventType, $width, $height);
+
+        return [
+            'file' => $fileModel,
+            'url' => url("/api/v1/files/{$fileModel->id}"),
+            'template_used' => 'admin_rendered_preview',
+            'used_initials' => false,
+        ];
+    }
+
     public function generateBirthdayCreative(User $user): array
     {
         $approvedTemplatePath = public_path('images/birthday_creative_template.jpg');
@@ -454,14 +502,14 @@ class CelebrationCreativeService
     }
 
     /**
-     * Resolve member's real designation or business category from database fields (never dummy data).
+     * Resolve member's real category or designation from database fields (never dummy data).
+     * Prefers real Business Category over generic default designations like "Member" or "Peer".
      */
     public function resolvePeerDesignationOrCategory(User $user): ?string
     {
         $designation = trim((string) ($user->designation ?? ''));
-        if ($designation !== '' && $designation !== '—' && $designation !== '-') {
-            return $designation;
-        }
+        $isGenericDesignation = $designation === ''
+            || in_array(strtolower($designation), ['—', '-', 'member', 'peer', 'user', 'n/a', 'na'], true);
 
         try {
             $relations = [];
@@ -477,21 +525,35 @@ class CelebrationCreativeService
             // Non-blocking relation load
         }
 
-        $candidates = [
+        $categoryCandidates = [
             $user->businessCategory?->name ?? null,
             $user->level4Category?->name ?? null,
             $user->mainBusinessCategory?->name ?? null,
             $user->business_sub_category ?? null,
         ];
 
-        foreach ($candidates as $candidate) {
+        $resolvedCategory = null;
+        foreach ($categoryCandidates as $candidate) {
             $clean = trim((string) ($candidate ?? ''));
             if ($clean !== '' && $clean !== '—' && $clean !== '-') {
-                return $clean;
+                $resolvedCategory = $clean;
+                break;
             }
         }
 
-        return null;
+        if ($resolvedCategory !== null && $isGenericDesignation) {
+            return $resolvedCategory;
+        }
+
+        if (! $isGenericDesignation) {
+            return $designation;
+        }
+
+        if ($resolvedCategory !== null) {
+            return $resolvedCategory;
+        }
+
+        return ($designation !== '' && $designation !== '—' && $designation !== '-') ? $designation : null;
     }
 
     /**

@@ -69,8 +69,13 @@ class CelebrationPublishingService
      *   message: string
      * }
      */
-    public function publishSchedule(CelebrationSchedule $schedule, ?string $customMessageOverride = null, bool $forceManual = false): array
-    {
+    public function publishSchedule(
+        CelebrationSchedule $schedule,
+        ?string $customMessageOverride = null,
+        bool $forceManual = false,
+        ?string $renderedCreativeDataUrl = null,
+        bool $updateExistingCreative = false
+    ): array {
         // Lock the schedule row inside a short check to prevent concurrent double execution
         $locked = DB::transaction(function () use ($schedule, $customMessageOverride): array {
             /** @var CelebrationSchedule $fresh */
@@ -141,7 +146,11 @@ class CelebrationPublishingService
         });
 
         if ($locked['action'] === 'already_published') {
-            $post = ! empty($locked['schedule']->post_id) ? Post::withTrashed()->find($locked['schedule']->post_id) : null;
+            $post = $locked['post'] ?? (! empty($locked['schedule']->post_id) ? Post::withTrashed()->find($locked['schedule']->post_id) : null);
+
+            if ($updateExistingCreative && $post && ! $post->trashed()) {
+                return $this->refreshPublishedCreative($locked['schedule'], $renderedCreativeDataUrl, $customMessageOverride);
+            }
 
             return [
                 'status' => 'duplicate',
@@ -154,6 +163,10 @@ class CelebrationPublishingService
         }
 
         if ($locked['action'] === 'existing_post_found') {
+            if ($updateExistingCreative && ! empty($locked['post'])) {
+                return $this->refreshPublishedCreative($locked['schedule'], $renderedCreativeDataUrl, $customMessageOverride);
+            }
+
             return [
                 'status' => 'duplicate',
                 'duplicate' => true,
@@ -181,8 +194,19 @@ class CelebrationPublishingService
         $user = $locked['user'];
 
         try {
-            // 1. Generate creative image (birthday template OR separate anniversary template)
-            $creative = $this->creativeService->generate($user, $activeSchedule->event_type);
+            // 1. Use exact final rendered creative from Admin Panel preview when provided;
+            //    otherwise generate the identical HD creative dynamically on backend (Photo + Name + Category + Company)
+            $creative = null;
+            if (filled($renderedCreativeDataUrl)) {
+                $creative = $this->creativeService->storeRenderedCreativeDataUrl(
+                    $user,
+                    $activeSchedule->event_type,
+                    (string) $renderedCreativeDataUrl
+                );
+            }
+            if (! $creative) {
+                $creative = $this->creativeService->generate($user, $activeSchedule->event_type);
+            }
             $fileModel = $creative['file'];
             $fileUrl = $creative['url'];
 
@@ -275,8 +299,14 @@ class CelebrationPublishingService
     /**
      * Find or create a schedule for a specific peer and event type, then publish it immediately.
      */
-    public function publishForUser(User $user, string $eventType, ?string $customMessage = null, bool $forceManual = true): array
-    {
+    public function publishForUser(
+        User $user,
+        string $eventType,
+        ?string $customMessage = null,
+        bool $forceManual = true,
+        ?string $renderedCreativeDataUrl = null,
+        bool $updateExistingCreative = false
+    ): array {
         $this->syncService->syncForUser($user, $forceManual ? 'admin_manual_publish' : 'automated');
 
         $rawDate = $eventType === CelebrationSchedule::TYPE_ANNIVERSARY ? $user->anniversary_date : $user->dob;
@@ -292,7 +322,123 @@ class CelebrationPublishingService
             ->where('event_year', $occurrence['event_year'])
             ->firstOrFail();
 
-        return $this->publishSchedule($schedule, $customMessage, $forceManual);
+        return $this->publishSchedule($schedule, $customMessage, $forceManual, $renderedCreativeDataUrl, $updateExistingCreative);
+    }
+
+    /**
+     * Regenerate / replace the creative image on an ALREADY-PUBLISHED Timeline post in-place
+     * (ZERO duplicate posts; updates posts.media, posts.image, activity_creatives, and celebration_schedules).
+     *
+     * @return array{
+     *   status: string,
+     *   duplicate: bool,
+     *   schedule: CelebrationSchedule,
+     *   post: ?Post,
+     *   notification_id: ?string,
+     *   message: string
+     * }
+     */
+    public function refreshPublishedCreative(
+        CelebrationSchedule $schedule,
+        ?string $renderedCreativeDataUrl = null,
+        ?string $customMessageOverride = null
+    ): array {
+        $user = User::withTrashed()->findOrFail($schedule->user_id);
+        $post = ! empty($schedule->post_id) ? $this->findLivePostById((string) $schedule->post_id) : null;
+
+        if (! $post) {
+            // Post missing/inactive — fall back to full publish flow
+            return $this->publishSchedule($schedule, $customMessageOverride, true, $renderedCreativeDataUrl, false);
+        }
+
+        $creative = null;
+        if (filled($renderedCreativeDataUrl)) {
+            $creative = $this->creativeService->storeRenderedCreativeDataUrl(
+                $user,
+                $schedule->event_type,
+                (string) $renderedCreativeDataUrl
+            );
+        }
+        if (! $creative) {
+            $creative = $this->creativeService->generate($user, $schedule->event_type);
+        }
+
+        $fileModel = $creative['file'];
+        $fileId = (string) $fileModel->id;
+        $absoluteUrl = Str::startsWith((string) $creative['url'], ['http://', 'https://'])
+            ? (string) $creative['url']
+            : url('/api/v1/files/'.$fileId);
+
+        $displayName = $this->creativeService->resolvePeerDisplayName($user);
+        $newCaption = filled($customMessageOverride)
+            ? trim((string) $customMessageOverride)
+            : ($post->content_text ?: $this->buildPersonalizedMessage($user, $schedule->event_type, $schedule->milestone_years));
+
+        $postUpdates = [
+            'media' => [
+                [
+                    'id' => $fileId,
+                    'type' => 'image',
+                    'url' => $absoluteUrl,
+                ],
+            ],
+            'image' => $absoluteUrl,
+            'content_text' => $newCaption,
+        ];
+
+        $postColumns = Schema::getColumnListing('posts');
+        $filteredUpdates = [];
+        foreach ($postUpdates as $col => $val) {
+            if (in_array($col, $postColumns, true)) {
+                $filteredUpdates[$col] = $val;
+            }
+        }
+        $post->forceFill($filteredUpdates)->save();
+
+        if (Schema::hasTable('activity_creatives')) {
+            try {
+                ActivityCreative::query()
+                    ->where('post_id', $post->id)
+                    ->update([
+                        'creative_file_id' => $fileId,
+                        'creative_url' => $absoluteUrl,
+                        'description' => $newCaption,
+                        'updated_at' => now(),
+                    ]);
+            } catch (Throwable $e) {
+                Log::warning("[CelebrationPublishingService] Failed updating ActivityCreative for post {$post->id}: {$e->getMessage()}");
+            }
+        }
+
+        $schedule->update([
+            'creative_file_id' => $fileId,
+            'creative_url' => $absoluteUrl,
+            'custom_message' => filled($customMessageOverride) ? trim((string) $customMessageOverride) : $schedule->custom_message,
+            'meta' => array_merge($schedule->meta ?? [], [
+                'template_used' => $creative['template_used'],
+                'used_initials' => $creative['used_initials'],
+                'creative_refreshed_at' => now()->toIso8601String(),
+            ]),
+        ]);
+
+        $this->writeLog(
+            $schedule,
+            'creative_refreshed',
+            'success',
+            "Updated existing {$schedule->event_type} Timeline post {$post->id} with latest creative ({$creative['template_used']}).",
+            ['post_id' => (string) $post->id, 'creative_file_id' => $fileId],
+            postId: (string) $post->id,
+            creativeFileId: $fileId
+        );
+
+        return [
+            'status' => 'updated',
+            'duplicate' => false,
+            'schedule' => $schedule->fresh(),
+            'post' => $post->fresh(),
+            'notification_id' => $schedule->notification_id,
+            'message' => ucfirst($schedule->event_type)." creative updated on Timeline for {$displayName} (no duplicate created).",
+        ];
     }
 
     /**

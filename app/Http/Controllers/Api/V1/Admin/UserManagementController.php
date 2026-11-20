@@ -201,8 +201,8 @@ class UserManagementController extends BaseApiController
             'gst_number' => ['sometimes', 'nullable', 'string', 'max:50'],
             'business_website' => ['sometimes', 'nullable', 'string', 'max:500'],
             'superpower' => ['sometimes', 'nullable', 'string'],
-            'i_can_help_with' => ['sometimes', 'nullable', 'string'],
-            'i_am_looking_for' => ['sometimes', 'nullable', 'string'],
+            'i_can_help_with' => ['sometimes', 'nullable'],
+            'i_am_looking_for' => ['sometimes', 'nullable'],
             'business_keywords' => ['sometimes', 'nullable'],
             'products_services_offered' => ['sometimes', 'nullable'],
             'business_address' => ['sometimes', 'nullable', 'string'],
@@ -255,12 +255,28 @@ class UserManagementController extends BaseApiController
             $validated['status'] = $validated['is_active'] ? 'active' : 'inactive';
         }
 
+        if (array_key_exists('dob', $validated)) {
+            $rawDob = trim((string) ($validated['dob'] ?? ''));
+            $validated['dob'] = $rawDob !== '' ? \Illuminate\Support\Carbon::parse($rawDob)->format('Y-m-d') : null;
+        }
+        if (array_key_exists('anniversary_date', $validated)) {
+            $rawAnniv = trim((string) ($validated['anniversary_date'] ?? ''));
+            $validated['anniversary_date'] = $rawAnniv !== '' ? \Illuminate\Support\Carbon::parse($rawAnniv)->format('Y-m-d') : null;
+        }
+
         $old = $target->only(array_keys($validated));
         $target->fill($validated)->save();
 
         $this->audit->log($request->user(), 'admin.user.update', 'users', $target->id, $old, $validated, $request);
 
         $fresh = $target->fresh();
+        if ($fresh && (array_key_exists('dob', $validated) || array_key_exists('anniversary_date', $validated))) {
+            try {
+                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($fresh, 'admin_user_update');
+            } catch (\Throwable) {
+                // Non-blocking celebration schedule sync
+            }
+        }
         if ($fresh && $this->becameActiveMembership($oldStatus, (string) ($fresh->membership_status ?? ''))) {
             app(MembershipNotificationService::class)->sendMembershipWelcome($fresh, 'api_admin_membership_update', $attachments);
             app(MembershipWelcomeEmailService::class)->sendIfEligible($fresh, true, 'api_admin_membership_update', $attachments);
