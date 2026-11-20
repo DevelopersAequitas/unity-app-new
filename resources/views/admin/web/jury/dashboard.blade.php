@@ -259,7 +259,14 @@
                                 $campName = $asg->campaign_name ?? $nom?->campaign?->name ?? 'Leadership Campaign';
                                 $isCompleted = $asg->status === 'completed';
                             @endphp
-                            <tr id="row-{{ $asg->id }}" data-nomination-id="{{ $nom?->id }}">
+                            <tr 
+                                id="row-{{ $asg->id }}" 
+                                data-nomination-id="{{ $nom?->id }}"
+                                onclick="openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', {{ $isCompleted ? 'true' : 'false' }})"
+                                style="cursor: pointer;"
+                                title="Click to view candidate dossier and submit evaluation"
+                                class="hover-bg-light"
+                            >
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="candidate-avatar">
@@ -301,14 +308,14 @@
                                     @if($isCompleted)
                                         <button 
                                             class="btn btn-view-review"
-                                            onclick="openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', true)"
+                                            onclick="event.stopPropagation(); openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', true)"
                                         >
                                             <i class="fa-solid fa-eye me-1"></i> View My Review
                                         </button>
                                     @else
                                         <button 
                                             class="btn btn-review"
-                                            onclick="openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', false)"
+                                            onclick="event.stopPropagation(); openReviewModal('{{ $asg->id }}', '{{ $nom?->id }}', false)"
                                         >
                                             <i class="fa-solid fa-pen-to-square me-1"></i> Review Candidate
                                         </button>
@@ -538,10 +545,10 @@
                                         </div>
                                     </div>
                                     <div class="col-md-3">
-                                        <div class="recommendation-option" onclick="selectRecommendation('neutral', this)">
-                                            <input type="radio" name="overall_recommendation" value="neutral" class="d-none">
-                                            <div class="fw-bold text-warning mb-1"><i class="fa-solid fa-circle-question me-1"></i> Neutral</div>
-                                            <p class="text-muted mb-0" style="font-size: 11.5px;">Borderline; requires further committee scrutiny.</p>
+                                        <div class="recommendation-option" onclick="selectRecommendation('recommend_with_reservations', this)">
+                                            <input type="radio" name="overall_recommendation" value="recommend_with_reservations" class="d-none">
+                                            <div class="fw-bold text-warning mb-1"><i class="fa-solid fa-circle-question me-1"></i> Reservations</div>
+                                            <p class="text-muted mb-0" style="font-size: 11.5px;">Borderline; requires further committee scrutiny or conditions.</p>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
@@ -610,11 +617,102 @@
     </div>
 </div>
 
+<script id="assignmentsDataJson" type="application/json">
+    {!! json_encode($assignmentsData ?? []) !!}
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-const reviewModalEl = document.getElementById('reviewModal');
-const reviewModal = new bootstrap.Modal(reviewModalEl);
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+// Parse preloaded assignments data for instant (0ms) rendering
+let preloadedAssignments = {};
+try {
+    const rawDataEl = document.getElementById('assignmentsDataJson');
+    if (rawDataEl && rawDataEl.textContent) {
+        preloadedAssignments = JSON.parse(rawDataEl.textContent);
+    }
+} catch (e) {
+    console.warn('Could not parse preloaded assignments data', e);
+}
+
+// Resilient Modal Controller (Works with Bootstrap or Vanilla fallback)
+function showModalSafely(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+    try {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+            return;
+        }
+    } catch (e) {
+        console.warn('Bootstrap modal show failed, using fallback', e);
+    }
+
+    // Vanilla fallback
+    modalEl.classList.add('show');
+    modalEl.style.display = 'block';
+    modalEl.removeAttribute('aria-hidden');
+    modalEl.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+    if (!document.getElementById('custom-modal-backdrop')) {
+        const bd = document.createElement('div');
+        bd.id = 'custom-modal-backdrop';
+        bd.className = 'modal-backdrop fade show';
+        document.body.appendChild(bd);
+    }
+}
+
+function hideModalSafely(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+    try {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) {
+                modal.hide();
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('Bootstrap modal hide failed, using fallback', e);
+    }
+
+    // Vanilla fallback
+    modalEl.classList.remove('show');
+    modalEl.style.display = 'none';
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    const bd = document.getElementById('custom-modal-backdrop');
+    if (bd) bd.remove();
+}
+
+// Wire modal close buttons for guaranteed instant close
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#reviewModal [data-bs-dismiss="modal"], #reviewModal .btn-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            hideModalSafely('reviewModal');
+        });
+    });
+
+    // Wire evaluation tabs for instant switching even if bootstrap tab plugin hasn't initialized
+    document.querySelectorAll('#evaluationTabs button[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('#evaluationTabs .nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('#evaluationTabsContent .tab-pane').forEach(p => p.classList.remove('show', 'active'));
+            this.classList.add('active');
+            const targetSelector = this.getAttribute('data-bs-target');
+            const target = targetSelector ? document.querySelector(targetSelector) : null;
+            if (target) {
+                target.classList.add('show', 'active');
+            }
+        });
+    });
+});
 
 function updateScoreDisplay(id, val) {
     const el = document.getElementById('score-val-' + id);
@@ -628,54 +726,76 @@ function selectRecommendation(val, element) {
     if (radio) radio.checked = true;
 }
 
-// Open Review Modal
-async function openReviewModal(assignmentId, nominationId, isViewOnly) {
-    document.getElementById('currentAssignmentId').value = assignmentId;
-    
-    if (!nominationId) {
-        const row = document.getElementById('row-' + assignmentId);
-        if (row) nominationId = row.getAttribute('data-nomination-id');
-    }
-
-    // Switch to Form 1 tab by default
-    const tab1Btn = document.getElementById('tab-form1-btn');
-    if (tab1Btn) {
-        bootstrap.Tab.getOrCreateInstance(tab1Btn).show();
-    }
-
-    // Set submit button state
-    const submitBtn = document.getElementById('btnSubmitEvaluation');
-    if (isViewOnly) {
-        submitBtn.style.display = 'none';
-    } else {
-        submitBtn.style.display = 'inline-block';
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-check me-1.5"></i> Submit Final Review';
-    }
-
-    reviewModal.show();
-
-    // Reset Form 2 container with loading
-    const form2Container = document.getElementById('form2Container');
-    if (form2Container) {
-        form2Container.innerHTML = `
-            <div class="text-center py-5 text-muted bg-white rounded-4 border">
-                <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 operational dossier...
-            </div>
-        `;
-    }
-
-    // Fetch candidate details
+// Open Review Modal - Synchronous 0ms open with instant preloaded data
+function openReviewModal(assignmentId, nominationId, isViewOnly) {
     try {
-        const res = await fetch(`/admin/web/jury/nomination/${nominationId}/details?assignment_id=${assignmentId}`, {
-            headers: { 'Accept': 'application/json' }
-        });
-        const data = await res.json();
-        if (data.success) {
-            populateCandidateDetails(data.data, isViewOnly);
+        const inputAsg = document.getElementById('currentAssignmentId');
+        if (inputAsg) inputAsg.value = assignmentId;
+        
+        if (!nominationId) {
+            const row = document.getElementById('row-' + assignmentId);
+            if (row) nominationId = row.getAttribute('data-nomination-id');
+        }
+
+        // Set submit button state
+        const submitBtn = document.getElementById('btnSubmitEvaluation');
+        if (submitBtn) {
+            if (isViewOnly) {
+                submitBtn.style.display = 'none';
+            } else {
+                submitBtn.style.display = 'inline-block';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-check me-1.5"></i> Submit Final Review';
+            }
+        }
+
+        // Check preloaded memory cache first for INSTANT 0ms population
+        const cached = preloadedAssignments && preloadedAssignments[assignmentId];
+        if (cached) {
+            populateCandidateDetails(cached, isViewOnly);
+        } else {
+            // Reset Form 2 container with loading only if not cached
+            const form2Container = document.getElementById('form2Container');
+            if (form2Container) {
+                form2Container.innerHTML = `
+                    <div class="text-center py-5 text-muted bg-white rounded-4 border">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 operational dossier...
+                    </div>
+                `;
+            }
+        }
+
+        // Show Modal immediately (0ms latency)
+        showModalSafely('reviewModal');
+
+        // Switch to Form 1 tab by default
+        const tab1Btn = document.getElementById('tab-form1-btn');
+        if (tab1Btn) {
+            document.querySelectorAll('#evaluationTabs .nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('#evaluationTabsContent .tab-pane').forEach(p => p.classList.remove('show', 'active'));
+            tab1Btn.classList.add('active');
+            const targetPane = document.getElementById('tab-form1');
+            if (targetPane) targetPane.classList.add('show', 'active');
+        }
+
+        // Fetch background refresh if needed (updates seamlessly without blocking modal)
+        if (nominationId) {
+            fetch(`/admin/web/jury/nomination/${nominationId}/details?assignment_id=${assignmentId}`, {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success && data.data) {
+                    preloadedAssignments[assignmentId] = data.data;
+                    populateCandidateDetails(data.data, isViewOnly);
+                }
+            })
+            .catch(err => {
+                console.warn('Background sync note:', err);
+            });
         }
     } catch (err) {
-        console.error('Failed to load candidate details', err);
+        console.error('Failed to open candidate evaluation modal:', err);
     }
 }
 
@@ -1174,7 +1294,8 @@ function renderForm2Dossier(rawF2, docs) {
 
 function applyReviewFormState(existing, isViewOnly) {
     // Recommendation Radios
-    const targetRec = existing?.overall_recommendation || 'strongly_recommend';
+    let targetRec = existing?.overall_recommendation || 'strongly_recommend';
+    if (targetRec === 'neutral') targetRec = 'recommend_with_reservations';
     const matchingOption = document.querySelector(`.recommendation-option input[value="${targetRec}"]`);
     if (matchingOption) {
         selectRecommendation(targetRec, matchingOption.closest('.recommendation-option'));
@@ -1340,14 +1461,6 @@ async function handleReviewSubmit(e) {
             remarks: remEl ? remEl.value.trim() : null
         });
     });
-    const scores = [];
-    scoreInputs.forEach(input => {
-        scores.push({
-            criterion_id: input.getAttribute('data-criterion-id'),
-            criterion_name: input.getAttribute('data-criterion-name') || '',
-            score: parseFloat(input.value)
-        });
-    });
 
     const submitBtn = document.getElementById('btnSubmitEvaluation');
     const origText = submitBtn.innerHTML;
@@ -1389,7 +1502,7 @@ async function handleReviewSubmit(e) {
             const actionCol = document.getElementById('action-col-' + assignmentId);
             if (actionCol) {
                 actionCol.innerHTML = `
-                    <button class="btn btn-view-review" onclick="openReviewModal('${assignmentId}', '', true)">
+                    <button class="btn btn-view-review" onclick="event.stopPropagation(); openReviewModal('${assignmentId}', '', true)">
                         <i class="fa-solid fa-eye me-1"></i> View My Review
                     </button>
                 `;
@@ -1405,7 +1518,7 @@ async function handleReviewSubmit(e) {
                 completedEl.textContent = c + 1;
             }
 
-            reviewModal.hide();
+            hideModalSafely('reviewModal');
             alert('✓ Candidate evaluation and scores submitted successfully!');
         } else {
             alert(data.message || 'Failed to submit review.');

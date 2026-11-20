@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Leadership\PublicCampaignController;
 use App\Http\Controllers\Api\V1\Leadership\ReportController;
 use App\Http\Controllers\Api\V1\Leadership\VerificationController;
 use App\Http\Controllers\Api\V1\Leadership\VotingController;
+use App\Http\Controllers\LeadershipCandidateLedgerController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Modules\Leadership\Controllers\LeadershipActivitiesController;
 use App\Modules\Leadership\Controllers\LeadershipCirclesController;
@@ -84,6 +85,14 @@ Route::prefix('public')->group(function (): void {
     Route::get('nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
     Route::get('public/nomination/{slugOrId}', [NominationController::class, 'candidateBySlugOrId']);
 
+    // Private Candidate Live Voter Ledger API Contracts
+    Route::post('nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+    Route::post('nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+    Route::get('nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
+    Route::get('public/nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
+
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
     Route::get('campaigns/{id}/candidates/{candidateId}', [VotingController::class, 'candidateProfile'])->whereUuid('id')->whereUuid('candidateId');
@@ -102,6 +111,11 @@ Route::get('circles', [FinalDecisionController::class, 'circles']);
 Route::get('public/circles', [FinalDecisionController::class, 'circles']);
 Route::get('cities', [PublicCampaignController::class, 'cities']);
 Route::get('public/cities', [PublicCampaignController::class, 'cities']);
+
+// Direct aliases for Candidate Live Voter Ledger (matches /api/v1/leadership/nominations/{id}/voter-ledger/...)
+Route::post('nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+Route::post('nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+Route::get('nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
 
 // ==========================================
 // 2. JUROR ROUTES (Sanctum Authenticated)

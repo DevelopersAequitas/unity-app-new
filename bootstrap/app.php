@@ -64,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/whatsapp/webhook',
             'api/whatsapp/*',
             'api/*',
+            'leadership/nomination/*/live-votes/*',
         ]);
         $middleware->api(prepend: [
             NormalizeCrudTimestampsToUtc::class,

@@ -27,12 +27,10 @@ class LeadershipJuryScore extends Model
         'criterion_id',
         'score',
         'remarks',
-        'scored_at',
     ];
 
     protected $casts = [
         'score' => 'float',
-        'scored_at' => 'datetime',
     ];
 
     protected static function booted(): void
