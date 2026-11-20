@@ -27,7 +27,7 @@ class PeerCelebrationService
         $this->applySearchFilter($query, $search);
 
         $peers = $query->get();
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Kolkata');
 
         $todayBirthdays = [];
         $upcomingBirthdays = [];
@@ -126,7 +126,7 @@ class PeerCelebrationService
         $this->applySearchFilter($query, $search);
 
         $peers = $query->get();
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Kolkata');
 
         $todayAnniversaries = [];
         $upcomingAnniversaries = [];

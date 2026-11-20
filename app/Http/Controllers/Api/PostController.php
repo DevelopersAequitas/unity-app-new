@@ -398,6 +398,38 @@ class PostController extends BaseApiController
             ->values()
             ->all();
 
+        $celebrationSchedulesByPostId = (Schema::hasTable('celebration_schedules') && $postIds !== [])
+            ? \App\Models\CelebrationSchedule::query()
+                ->whereIn('post_id', $postIds)
+                ->where('status', \App\Models\CelebrationSchedule::STATUS_PUBLISHED)
+                ->get()
+                ->keyBy(fn ($sched): string => (string) $sched->post_id)
+            : collect();
+
+        // Ensure any published birthday post on this page that still points to a pre-update creative
+        // (missing Member Name / Category / Company Name) is upgraded in-place ONCE so Mobile Timeline
+        // displays the exact same personalized creative shown in the Admin Panel.
+        if ($celebrationSchedulesByPostId->isNotEmpty()) {
+            foreach ($celebrationSchedulesByPostId as $schedPostId => $sched) {
+                if ($sched->event_type !== \App\Models\CelebrationSchedule::TYPE_BIRTHDAY) {
+                    continue;
+                }
+                $meta = is_array($sched->meta) ? $sched->meta : [];
+                if (! empty($meta['has_member_details'])) {
+                    continue;
+                }
+                try {
+                    $refreshed = app(\App\Services\Celebrations\CelebrationPublishingService::class)
+                        ->refreshPublishedCreative($sched);
+                    if (! empty($refreshed['schedule'])) {
+                        $celebrationSchedulesByPostId->put((string) $schedPostId, $refreshed['schedule']);
+                    }
+                } catch (Throwable $e) {
+                    Log::warning("[PostController::feed] Could not auto-sync birthday creative for post {$schedPostId}: {$e->getMessage()}");
+                }
+            }
+        }
+
         $activityCreativesByPostId = (Schema::hasTable('activity_creatives') && $postIds !== [])
             ? ActivityCreative::query()
                 ->whereIn('post_id', $postIds)
@@ -1034,7 +1066,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -1242,7 +1274,31 @@ class PostController extends BaseApiController
                 'is_online' => true,
             ];
 
+            $celebrationSchedule = (string) ($row->source_type ?? '') === 'post'
+                ? $celebrationSchedulesByPostId->get((string) $row->id)
+                : null;
+
             $feedMedia = $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreative);
+
+            // Always serve the latest published creative from celebration_schedules when present
+            // so Admin Panel and Mobile App Timeline display the exact same creative image.
+            if ($celebrationSchedule && (! empty($celebrationSchedule->creative_file_id) || ! empty($celebrationSchedule->creative_url))) {
+                $schedFileId = $celebrationSchedule->creative_file_id ? (string) $celebrationSchedule->creative_file_id : null;
+                $schedCreativeUrl = $this->normalizeFeedAssetUrl(
+                    $celebrationSchedule->creative_url ? (string) $celebrationSchedule->creative_url : null,
+                    $schedFileId
+                );
+                if ($schedCreativeUrl !== null) {
+                    $feedMedia = [
+                        [
+                            'id' => $schedFileId,
+                            'type' => 'image',
+                            'url' => $schedCreativeUrl,
+                        ],
+                    ];
+                }
+            }
+
             $primaryImageUrl = null;
             foreach ($feedMedia as $mItem) {
                 if (is_array($mItem) && ! empty($mItem['url'])) {
@@ -1252,6 +1308,14 @@ class PostController extends BaseApiController
             }
             if ($primaryImageUrl === null && ! empty($row->post_image)) {
                 $primaryImageUrl = $this->normalizeFeedAssetUrl((string) $row->post_image, $activityCreative?->creative_file_id);
+            }
+
+            $formattedActivityCreative = $this->formatActivityCreative($activityCreative);
+            if ($formattedActivityCreative !== null && $primaryImageUrl !== null && $celebrationSchedule) {
+                $formattedActivityCreative['creative_url'] = $primaryImageUrl;
+                if (! empty($celebrationSchedule->creative_file_id)) {
+                    $formattedActivityCreative['creative_file_id'] = (string) $celebrationSchedule->creative_file_id;
+                }
             }
 
             $item = [
@@ -1267,7 +1331,7 @@ class PostController extends BaseApiController
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
                 'is_system_announcement' => $isSystemCreative,
-                'activity_creative' => $this->formatActivityCreative($activityCreative),
+                'activity_creative' => $formattedActivityCreative,
                 'author' => $isSystemCreative ? $systemAuthor : ($author ? [
                     'id' => (string) $author->id,
                     'display_name' => $author->display_name,

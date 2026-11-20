@@ -46,6 +46,20 @@ class CelebrationAdminController extends BaseApiController
         $todayIst = $this->dateResolver->todayIst();
         $hasAnniversaryCol = Schema::hasColumn('users', 'anniversary_date');
 
+        $withRelations = [
+            'cityRelation:id,name,state,country',
+            'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+        ];
+        if (Schema::hasTable('circle_categories')) {
+            $withRelations[] = 'mainBusinessCategory:id,name';
+        }
+        if (Schema::hasTable('business_categories')) {
+            $withRelations[] = 'businessCategory:id,name';
+        }
+        if (Schema::hasTable('circle_category_level4')) {
+            $withRelations[] = 'level4Category:id,name';
+        }
+
         // Fetch all active non-deleted peers with DOB or anniversary_date from the real DB
         $peersQuery = User::query()
             ->whereNull('deleted_at')
@@ -56,13 +70,7 @@ class CelebrationAdminController extends BaseApiController
                     $q->orWhereNotNull('anniversary_date');
                 }
             })
-            ->with([
-                'cityRelation:id,name,state,country',
-                'mainBusinessCategory:id,name',
-                'businessCategory:id,name',
-                'level4Category:id,name',
-                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
-            ]);
+            ->with($withRelations);
 
         $peers = $peersQuery->get()->filter(fn (User $peer): bool => $this->syncService->isUserEligible($peer));
 
@@ -364,6 +372,8 @@ class CelebrationAdminController extends BaseApiController
             'user_id' => ['required', 'uuid', 'exists:users,id'],
             'event_type' => ['required', 'in:birthday,anniversary'],
             'message' => ['nullable', 'string', 'max:2000'],
+            'creative_image' => ['nullable', 'string'],
+            'refresh_existing' => ['sometimes', 'boolean'],
         ]);
 
         $user = User::query()->findOrFail($validated['user_id']);
@@ -377,7 +387,9 @@ class CelebrationAdminController extends BaseApiController
                 $user,
                 $validated['event_type'],
                 $validated['message'] ?? null,
-                true
+                true,
+                $validated['creative_image'] ?? null,
+                (bool) ($validated['refresh_existing'] ?? false)
             );
 
             return $this->success([
@@ -385,12 +397,48 @@ class CelebrationAdminController extends BaseApiController
                 'status' => $result['status'],
                 'schedule' => $this->formatSchedule($result['schedule']),
                 'post_id' => $result['post']?->id,
+                'creative_file_id' => $result['schedule']?->creative_file_id,
+                'creative_url' => $result['schedule']?->creative_url,
                 'notification_id' => $result['notification_id'],
             ], $result['message']);
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (Throwable $e) {
             return $this->error('Failed to publish celebration post: '.$e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/v1/admin/celebrations/{id}/refresh-creative
+     * Updates an already-published celebration post's creative image in-place (zero duplicates).
+     */
+    public function refreshCreative(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'creative_image' => ['nullable', 'string'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $schedule = CelebrationSchedule::query()->findOrFail($id);
+
+        try {
+            $result = $this->publishingService->refreshPublishedCreative(
+                $schedule,
+                $validated['creative_image'] ?? null,
+                $validated['message'] ?? null
+            );
+
+            return $this->success([
+                'duplicate' => $result['duplicate'],
+                'status' => $result['status'],
+                'schedule' => $this->formatSchedule($result['schedule']),
+                'post_id' => $result['post']?->id,
+                'creative_file_id' => $result['schedule']?->creative_file_id,
+                'creative_url' => $result['schedule']?->creative_url,
+                'notification_id' => $result['notification_id'],
+            ], $result['message']);
+        } catch (Throwable $e) {
+            return $this->error('Failed to refresh celebration creative: '.$e->getMessage(), 500);
         }
     }
 
@@ -651,6 +699,8 @@ class CelebrationAdminController extends BaseApiController
         $milestoneYears = (int) $occ['milestone_years'];
 
         $designation = trim((string) ($peer->designation ?? ''));
+        $isGenericDesignation = $designation === ''
+            || in_array(strtolower($designation), ['—', '-', 'member', 'peer', 'user', 'n/a', 'na'], true);
         $businessCategory = trim((string) (
             $peer->businessCategory?->name
             ?? $peer->level4Category?->name
@@ -658,7 +708,9 @@ class CelebrationAdminController extends BaseApiController
             ?? $peer->business_sub_category
             ?? ''
         ));
-        $designationOrCategory = $designation !== '' ? $designation : ($businessCategory !== '' ? $businessCategory : null);
+        $designationOrCategory = ($businessCategory !== '' && $isGenericDesignation)
+            ? $businessCategory
+            : (! $isGenericDesignation ? $designation : ($businessCategory !== '' ? $businessCategory : ($designation !== '' ? $designation : null)));
 
         return [
             'id' => "evt-{$eventType}-{$peerId}-{$occ['scheduled_date']->format('Y-m-d')}",
