@@ -26,6 +26,7 @@ class LeadershipJuryEvaluationCriterion extends Model
         'id',
         'campaign_id',
         'criterion_key',
+        'title',
         'name',
         'description',
         'max_score',
@@ -63,6 +64,15 @@ class LeadershipJuryEvaluationCriterion extends Model
         static::creating(function (self $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+        });
+
+        static::saving(function (self $model): void {
+            if (empty($model->title)) {
+                $model->title = $model->name ?? 'Leadership Criterion';
+            }
+            if (empty($model->name) && ! empty($model->title)) {
+                $model->name = $model->title;
             }
         });
     }
