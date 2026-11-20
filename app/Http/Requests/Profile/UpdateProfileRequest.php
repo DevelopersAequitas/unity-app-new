@@ -12,6 +12,22 @@ class UpdateProfileRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        foreach (['dob', 'anniversary_date'] as $dateField) {
+            if ($this->has($dateField)) {
+                $rawDate = $this->input($dateField);
+                if (is_string($rawDate)) {
+                    $trimmed = trim($rawDate);
+                    if (
+                        $trimmed === ''
+                        || in_array(strtolower($trimmed), ['-', '--', 'n/a', 'na', 'none', 'null', '0000-00-00', '0000-00-00 00:00:00'], true)
+                        || str_starts_with($trimmed, '0000-')
+                    ) {
+                        $this->merge([$dateField => null]);
+                    }
+                }
+            }
+        }
+
         if ($this->has('contact_visibility')) {
             $this->merge([
                 'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),

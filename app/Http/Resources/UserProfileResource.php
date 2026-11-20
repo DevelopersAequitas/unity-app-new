@@ -108,19 +108,7 @@ class UserProfileResource extends MemberDetailResource
 
     private function formatCalendarDate(mixed $value): ?string
     {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format('Y-m-d');
-        }
-
-        try {
-            return Carbon::parse((string) $value)->format('Y-m-d');
-        } catch (Throwable) {
-            return null;
-        }
+        return $this->sanitizeCalendarDate($value);
     }
 
     /**
