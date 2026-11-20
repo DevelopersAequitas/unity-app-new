@@ -490,7 +490,6 @@ class JuryService
                     [
                         'score' => $s['score'],
                         'remarks' => $s['remarks'] ?? null,
-                        'scored_at' => Carbon::now(),
                     ]
                 );
 
