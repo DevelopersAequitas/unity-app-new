@@ -469,11 +469,23 @@ class JuryWebController extends Controller
                 $conflictBool = ($val === true || $val === 1 || $val === '1' || $val === 'true' || $val === 'yes');
             }
 
+            // Normalize recommendation to adhere strictly to database check constraint:
+            // ('strongly_recommend', 'recommend', 'recommend_with_reservations', 'do_not_recommend', 'abstain')
+            $recVal = strtolower(trim((string) $validated['overall_recommendation']));
+            $recommendation = match ($recVal) {
+                'strongly_recommend' => 'strongly_recommend',
+                'recommend' => 'recommend',
+                'recommend_with_reservations', 'neutral', 'reservations', 'borderline' => 'recommend_with_reservations',
+                'do_not_recommend', 'reject' => 'do_not_recommend',
+                'abstain' => 'abstain',
+                default => 'recommend',
+            };
+
             // 1. Create or update the final jury report
             $report = LeadershipJuryReport::updateOrCreate(
                 ['assignment_id' => $assignment->id],
                 [
-                    'overall_recommendation' => $validated['overall_recommendation'],
+                    'overall_recommendation' => $recommendation,
                     'strengths' => $validated['strengths'],
                     'concerns' => $validated['concerns'],
                     'conflict_of_interest' => $conflictBool,

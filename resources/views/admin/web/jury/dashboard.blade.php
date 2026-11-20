@@ -545,10 +545,10 @@
                                         </div>
                                     </div>
                                     <div class="col-md-3">
-                                        <div class="recommendation-option" onclick="selectRecommendation('neutral', this)">
-                                            <input type="radio" name="overall_recommendation" value="neutral" class="d-none">
-                                            <div class="fw-bold text-warning mb-1"><i class="fa-solid fa-circle-question me-1"></i> Neutral</div>
-                                            <p class="text-muted mb-0" style="font-size: 11.5px;">Borderline; requires further committee scrutiny.</p>
+                                        <div class="recommendation-option" onclick="selectRecommendation('recommend_with_reservations', this)">
+                                            <input type="radio" name="overall_recommendation" value="recommend_with_reservations" class="d-none">
+                                            <div class="fw-bold text-warning mb-1"><i class="fa-solid fa-circle-question me-1"></i> Reservations</div>
+                                            <p class="text-muted mb-0" style="font-size: 11.5px;">Borderline; requires further committee scrutiny or conditions.</p>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
@@ -1294,7 +1294,8 @@ function renderForm2Dossier(rawF2, docs) {
 
 function applyReviewFormState(existing, isViewOnly) {
     // Recommendation Radios
-    const targetRec = existing?.overall_recommendation || 'strongly_recommend';
+    let targetRec = existing?.overall_recommendation || 'strongly_recommend';
+    if (targetRec === 'neutral') targetRec = 'recommend_with_reservations';
     const matchingOption = document.querySelector(`.recommendation-option input[value="${targetRec}"]`);
     if (matchingOption) {
         selectRecommendation(targetRec, matchingOption.closest('.recommendation-option'));

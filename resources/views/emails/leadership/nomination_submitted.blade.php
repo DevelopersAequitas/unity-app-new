@@ -84,7 +84,7 @@
                             <!-- CTA Button -->
                             <div style="text-align:center; margin:28px 0 24px 0;">
                                 <a href="{{ $statusLink }}" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color:#ffffff; font-size:14.5px; font-weight:700; text-decoration:none; padding:13px 32px; border-radius:10px; box-shadow:0 8px 20px rgba(79, 70, 229, 0.4); letter-spacing:0.02em;">
-                                    [ Track Your Application ] &nbsp;&rarr;&nbsp; {{ $statusLink }}
+                                    Track Your Application &nbsp;&rarr;&nbsp; {{ $statusLink }}
                                 </a>
                             </div>
 
