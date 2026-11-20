@@ -229,7 +229,14 @@ class JuryWebController extends Controller
             ->orderBy('sort_order', 'asc')
             ->get();
 
-        return view('admin.web.jury.dashboard', compact('juror', 'assignments', 'criteria'));
+        $assignmentsData = [];
+        foreach ($assignments as $asg) {
+            if ($asg->nomination) {
+                $assignmentsData[$asg->id] = $this->formatNominationDetails($asg->nomination, $asg);
+            }
+        }
+
+        return view('admin.web.jury.dashboard', compact('juror', 'assignments', 'criteria', 'assignmentsData'));
     }
 
     /**
@@ -332,6 +339,64 @@ class JuryWebController extends Controller
     }
 
     /**
+     * Format candidate nomination details (Form 1 + Form 2 + Review).
+     */
+    public function formatNominationDetails(LeadershipNomination $nomination, ?LeadershipJuryAssignment $assignment = null): array
+    {
+        $rawF2 = $nomination->form_2_data
+            ?? $nomination->profile_snapshot['form_2']
+            ?? null;
+
+        if (! $rawF2) {
+            $form2Child = LeadershipNomination::where('application_number', $nomination->application_number.'-F2')
+                ->latest()
+                ->first();
+
+            if (! $form2Child && $nomination->campaign_id) {
+                $form2Child = LeadershipNomination::where('campaign_id', $nomination->campaign_id)
+                    ->where(function ($sub) use ($nomination) {
+                        $sub->where('profile_snapshot->parent_nomination_id', $nomination->id)
+                            ->orWhere('profile_snapshot->parent_application_number', $nomination->application_number);
+                    })
+                    ->latest()
+                    ->first();
+            }
+
+            $rawF2 = $form2Child?->profile_snapshot['form_2'] ?? $form2Child?->profile_snapshot ?? null;
+        }
+
+        $form2Data = (is_array($rawF2) && isset($rawF2['form_2'])) ? $rawF2['form_2'] : $rawF2;
+
+        $candidateName = $nomination->candidate_name ?: ($nomination->user?->name ?? 'Candidate');
+        $companyName = $nomination->company ?: ($nomination->user?->company_name ?: ($nomination->profile_snapshot['company_name'] ?? ($nomination->profile_snapshot['company'] ?? 'Not Specified')));
+        $designation = $nomination->designation ?: ($nomination->user?->designation ?: ($nomination->profile_snapshot['designation'] ?? ($nomination->campaign?->role?->name ?? 'Leader')));
+        $businessCategory = $nomination->user?->mainBusinessCategory?->name ?: ($nomination->user?->businessCategory?->name ?: ($nomination->profile_snapshot['business_category'] ?? ($nomination->profile_snapshot['business_type'] ?? 'General Business')));
+        $phone = $nomination->phone ?: ($nomination->user?->phone_number ?? 'Not Disclosed');
+        $email = $nomination->email ?: ($nomination->user?->email ?? 'Not Disclosed');
+
+        $nominationArray = $nomination->toArray();
+        $nominationArray['candidate_name'] = $candidateName;
+        $nominationArray['company'] = $companyName;
+        $nominationArray['designation'] = $designation;
+        $nominationArray['business_category'] = $businessCategory;
+        $nominationArray['phone'] = $phone;
+        $nominationArray['email'] = $email;
+
+        $existingReview = null;
+        if ($assignment && $assignment->report) {
+            $existingReview = $assignment->report->toArray();
+            $existingReview['scores'] = $assignment->scores->toArray();
+        }
+
+        return [
+            'nomination' => $nominationArray,
+            'form_2' => $form2Data,
+            'documents' => $nomination->documents,
+            'existing_review' => $existingReview,
+        ];
+    }
+
+    /**
      * Get candidate nomination details (Form 1 + Form 2).
      */
     public function nominationDetails(Request $request, string $nominationId): JsonResponse
@@ -352,55 +417,11 @@ class JuryWebController extends Controller
                 $assignment = LeadershipJuryAssignment::with(['report', 'scores.criterion'])->find($assignmentId);
             }
 
-            // Fetch Form 2 child if exists
-            $form2Child = LeadershipNomination::where('application_number', $nomination->application_number.'-F2')
-                ->orWhere(function ($q) use ($nomination) {
-                    $q->where('campaign_id', $nomination->campaign_id)
-                        ->where(function ($sub) use ($nomination) {
-                            $sub->where('profile_snapshot->parent_nomination_id', $nomination->id)
-                                ->orWhere('profile_snapshot->parent_application_number', $nomination->application_number);
-                        });
-                })
-                ->latest()
-                ->first();
-
-            $rawF2 = $nomination->form_2_data
-                ?? $nomination->profile_snapshot['form_2']
-                ?? $form2Child?->profile_snapshot['form_2']
-                ?? $form2Child?->profile_snapshot
-                ?? null;
-
-            $form2Data = (is_array($rawF2) && isset($rawF2['form_2'])) ? $rawF2['form_2'] : $rawF2;
-
-            $candidateName = $nomination->candidate_name ?: ($nomination->user?->name ?? 'Candidate');
-            $companyName = $nomination->company ?: ($nomination->user?->company_name ?: ($nomination->profile_snapshot['company_name'] ?? ($nomination->profile_snapshot['company'] ?? 'Not Specified')));
-            $designation = $nomination->designation ?: ($nomination->user?->designation ?: ($nomination->profile_snapshot['designation'] ?? ($nomination->campaign?->role?->name ?? 'Leader')));
-            $businessCategory = $nomination->user?->mainBusinessCategory?->name ?: ($nomination->user?->businessCategory?->name ?: ($nomination->profile_snapshot['business_category'] ?? ($nomination->profile_snapshot['business_type'] ?? 'General Business')));
-            $phone = $nomination->phone ?: ($nomination->user?->phone_number ?? 'Not Disclosed');
-            $email = $nomination->email ?: ($nomination->user?->email ?? 'Not Disclosed');
-
-            $nominationArray = $nomination->toArray();
-            $nominationArray['candidate_name'] = $candidateName;
-            $nominationArray['company'] = $companyName;
-            $nominationArray['designation'] = $designation;
-            $nominationArray['business_category'] = $businessCategory;
-            $nominationArray['phone'] = $phone;
-            $nominationArray['email'] = $email;
-
-            $existingReview = null;
-            if ($assignment && $assignment->report) {
-                $existingReview = $assignment->report->toArray();
-                $existingReview['scores'] = $assignment->scores->toArray();
-            }
+            $data = $this->formatNominationDetails($nomination, $assignment);
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'nomination' => $nominationArray,
-                    'form_2' => $form2Data,
-                    'documents' => $nomination->documents,
-                    'existing_review' => $existingReview,
-                ],
+                'data' => $data,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
