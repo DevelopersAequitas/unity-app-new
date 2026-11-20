@@ -704,6 +704,25 @@ class MembershipZohoInvoiceService
 
             $isPaid = in_array($status, ['paid', 'closed'], true) || $balance <= 0;
 
+            if ($isPaid) {
+                $invoiceTotal = (float) (data_get($invoice, 'total') ?? $fallbackAmount);
+                app(ZohoInvoicePdfStorageService::class)->fetchStoreAndSendWhatsApp(
+                    $invoiceId,
+                    $user,
+                    [
+                        'payment_type' => (string) ($payment->payment_type ?: 'membership'),
+                        'reference_id' => (string) $payment->id,
+                        'zoho_customer_id' => $customerId,
+                        'zoho_invoice_number' => $invoiceNumber ?: null,
+                        'zoho_invoice_url' => $invoiceUrl,
+                        'gst_number' => $gstNumber ?: null,
+                        'gst_treatment' => $gstNumber !== '' ? 'business_gst' : 'business_none',
+                        'amount' => $invoiceTotal > 0 ? $invoiceTotal : $fallbackAmount,
+                        'currency' => 'INR',
+                    ]
+                );
+            }
+
             return [
                 'invoice_id' => $invoiceId,
                 'invoice_number' => $invoiceNumber,
