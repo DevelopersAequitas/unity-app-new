@@ -223,6 +223,7 @@ class EventZohoInvoiceSyncService
                         'currency' => (string) (data_get($finalInvoice, 'currency_code') ?: $registration->currency ?: 'INR'),
                         'recipient_name' => trim((string) ($registration->visitor_name ?: $registration->user?->display_name ?: '')),
                         'recipient_phone' => trim((string) ($registration->visitor_phone ?: $registration->user?->phone ?: '')),
+                        'recipient_email' => trim((string) ($registration->visitor_email ?: $registration->user?->email ?: '')),
                     ]
                 );
             }

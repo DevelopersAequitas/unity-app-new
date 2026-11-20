@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services\Zoho;
 
+use App\Mail\PaymentInvoiceReceiptMail;
 use App\Models\User;
 use App\Models\ZohoInvoiceDocument;
 use App\Services\WhatsApp\MetaWhatsAppService;
 use App\Support\Zoho\ZohoBillingClient;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -142,7 +145,11 @@ class ZohoInvoicePdfStorageService
 
             $document = $this->fetchAndStore($zohoInvoiceId, $meta);
 
-            return $this->sendInvoiceWhatsApp($document, $user, $meta);
+            $document = $this->sendInvoiceWhatsApp($document, $user, $meta);
+
+            $this->sendInvoiceEmail($document, $user, $meta);
+
+            return $document;
         } catch (Throwable $e) {
             Log::warning('zoho_invoice_pdf_store_or_whatsapp_failed', [
                 'zoho_invoice_id' => $zohoInvoiceId,
@@ -299,6 +306,110 @@ class ZohoInvoicePdfStorageService
         }
 
         return $document->fresh() ?? $document;
+    }
+
+    /**
+     * Send an already-stored ZohoInvoiceDocument PDF via email with the PDF attached.
+     * Works across all payment flows (membership, circle, event, brand partner).
+     * Never throws so payment and WhatsApp flows are never disrupted.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function sendInvoiceEmail(ZohoInvoiceDocument $document, ?User $user = null, array $meta = []): bool
+    {
+        if (! $user && ! empty($document->user_id)) {
+            $user = User::query()->find($document->user_id);
+        }
+
+        $recipientEmail = trim((string) ($meta['recipient_email'] ?? $user?->email ?? ''));
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('zoho_invoice_email_skipped_invalid_email', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'user_id' => $document->user_id,
+            ]);
+
+            return false;
+        }
+
+        $forceEmail = (bool) ($meta['force_email'] ?? false);
+        $cacheKey = 'zoho_invoice_email_sent:'.$document->zoho_invoice_id.':'.strtolower($recipientEmail);
+        if (! $forceEmail && ! Cache::add($cacheKey, true, now()->addDays(30))) {
+            return true;
+        }
+
+        $disk = (string) ($document->pdf_disk ?: 'public');
+        $pdfPath = (string) ($document->pdf_path ?? '');
+        $absolutePath = $pdfPath !== '' ? Storage::disk($disk)->path($pdfPath) : '';
+
+        if ($absolutePath === '' || ! file_exists($absolutePath)) {
+            if (! $forceEmail) {
+                Cache::forget($cacheKey);
+            }
+            Log::warning('zoho_invoice_email_skipped_missing_pdf', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'pdf_path' => $pdfPath,
+            ]);
+
+            return false;
+        }
+
+        $recipientName = trim((string) ($meta['recipient_name'] ?? ''));
+        if ($recipientName === '' && $user) {
+            $recipientName = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
+            if ($recipientName === '') {
+                $recipientName = trim((string) ($user->company_name ?? ''));
+            }
+        }
+        if ($recipientName === '') {
+            $recipientName = 'Member';
+        }
+
+        $invoiceNumber = trim((string) ($document->zoho_invoice_number ?: $document->zoho_invoice_id));
+        $fileName = basename($pdfPath);
+        if ($fileName === '' || ! str_ends_with(strtolower($fileName), '.pdf')) {
+            $fileName = ($invoiceNumber !== '' ? $invoiceNumber : 'Invoice').'.pdf';
+        }
+
+        $formattedAmount = $this->formatAmount((float) $document->amount, (string) ($document->currency ?: 'INR'));
+        $invoiceDate = ($document->created_at ?? now())->timezone('Asia/Kolkata')->format('d M Y');
+
+        try {
+            Mail::to($recipientEmail)->send(new PaymentInvoiceReceiptMail(
+                recipientName: $recipientName,
+                formattedAmount: $formattedAmount,
+                invoiceNumber: $invoiceNumber,
+                pdfAbsolutePath: $absolutePath,
+                pdfFileName: $fileName,
+                invoiceDate: $invoiceDate,
+            ));
+
+            Log::info('zoho_invoice_email_sent', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'zoho_invoice_number' => $invoiceNumber,
+                'payment_type' => $document->payment_type,
+                'recipient_email' => $recipientEmail,
+                'pdf_file_name' => $fileName,
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            if (! $forceEmail) {
+                Cache::forget($cacheKey);
+            }
+
+            Log::error('zoho_invoice_email_send_failed', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'payment_type' => $document->payment_type,
+                'recipient_email' => $recipientEmail,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     private function formatAmount(float $amount, string $currency): string
