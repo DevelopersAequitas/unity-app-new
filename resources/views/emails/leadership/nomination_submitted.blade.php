@@ -27,48 +27,64 @@
                         <td style="padding:36px 32px; color:#cbd5e1; font-size:15px; line-height:1.65;">
                             
                             <p style="margin:0 0 16px 0; font-size:16px; color:#f1f5f9; font-weight:600;">
-                                Dear {{ $candidateName }},
+                                Dear {{ $fullName }},
                             </p>
 
                             <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#cbd5e1;">
-                                Thank you for stepping forward to lead. Your nomination has been successfully submitted.
+                                Thank you for stepping forward to lead. Your nomination has been submitted.
                             </p>
 
                             <!-- Submission Details Card -->
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#182234; border:1px solid #283548; border-radius:12px; margin:20px 0; border-collapse:collapse;">
                                 <tr>
-                                    <td style="padding:18px 22px; font-size:14.5px; line-height:1.8; color:#cbd5e1;">
-                                        <div style="margin-bottom:6px;">
-                                            <span style="color:#94a3b8;">&bull; Application No:</span> <strong style="color:#ffffff; font-family:'Courier New', monospace;">{{ $applicationNumber }}</strong>
+                                    <td style="padding:18px 22px; font-size:14px; line-height:1.8; color:#cbd5e1;">
+                                        <div style="font-weight:700; color:#38bdf8; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">
+                                            APPLICATION DETAILS
                                         </div>
                                         <div style="margin-bottom:6px;">
-                                            <span style="color:#94a3b8;">&bull; Applied Role:</span> <strong style="color:#38bdf8;">{{ $roleName }}</strong>
+                                            <span style="color:#94a3b8;">Application No:</span> &nbsp; <strong style="color:#ffffff; font-family:'Courier New', monospace;">{{ $applicationNumber }}</strong>
+                                        </div>
+                                        <div style="margin-bottom:6px;">
+                                            <span style="color:#94a3b8;">Applied Role:</span> &nbsp; <strong style="color:#ffffff;">{{ $roleName }} &ndash; {{ $region }}</strong>
+                                        </div>
+                                        <div style="margin-bottom:6px;">
+                                            <span style="color:#94a3b8;">Submitted on:</span> &nbsp; <strong style="color:#ffffff;">{{ $submittedDateTime }} IST</strong>
                                         </div>
                                         <div>
-                                            <span style="color:#94a3b8;">&bull; Status:</span> <strong style="color:#f59e0b;">Under Review</strong>
+                                            <span style="color:#94a3b8;">Status:</span> &nbsp; <strong style="color:#f59e0b;">Under Review</strong>
                                         </div>
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- Next Step Section -->
+                            <!-- What Happens Next Section -->
                             <div style="margin:24px 0 20px 0;">
-                                <div style="font-size:15px; font-weight:700; color:#ffffff; margin-bottom:8px;">
-                                    Next Step:
+                                <div style="font-size:14px; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">
+                                    WHAT HAPPENS NEXT
                                 </div>
-                                <p style="margin:0 0 18px 0; font-size:14.5px; line-height:1.6; color:#cbd5e1;">
-                                    Our Scrutiny Committee is reviewing your submission. Shortlisted candidates will be invited for the Jury Evaluation round.
-                                </p>
+                                <ol style="margin:0 0 16px 0; padding-left:20px; font-size:14.5px; line-height:1.7; color:#cbd5e1;">
+                                    <li style="margin-bottom:6px;">Our Scrutiny Committee reviews every submission.</li>
+                                    <li style="margin-bottom:6px;">Shortlisted candidates are informed by email and receive their public voting link.</li>
+                                    <li>Candidates then go through the Jury Evaluation round.</li>
+                                </ol>
                             </div>
 
-                            <p style="margin:0 0 24px 0; font-size:14px; line-height:1.6; color:#94a3b8;">
-                                We are a global network of entrepreneurs built on genuine collaboration, not competition. We look for leaders who build high-trust circles, mentor others, and drive real business impact.
+                            <p style="margin:0 0 18px 0; font-size:14px; line-height:1.6; color:#94a3b8;">
+                                Not every nomination will be shortlisted. We will email you at <strong style="color:#cbd5e1;">{{ $email }}</strong> once the review is complete. Please keep your Application No. for reference.
                             </p>
 
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#182234; border:1px solid #283548; border-radius:10px; margin:20px 0 24px 0; border-collapse:collapse;">
+                                <tr>
+                                    <td style="padding:16px 20px; font-size:13.5px; line-height:1.6; color:#cbd5e1;">
+                                        Peers Global is a Community of Collaboration. We look for leaders who build high-trust Circles, mentor others and create impact for others. Peers are Partners in Business and Friends in Life.
+                                    </td>
+                                </tr>
+                            </table>
+
                             <!-- CTA Button -->
-                            <div style="text-align:center; margin:30px 0 24px 0;">
-                                <a href="https://peersglobal.com/leadership" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color:#ffffff; font-size:14.5px; font-weight:700; text-decoration:none; padding:13px 32px; border-radius:10px; box-shadow:0 8px 20px rgba(79, 70, 229, 0.4); letter-spacing:0.02em;">
-                                    [ View Leadership Portal ] &rarr; https://peersglobal.com/leadership
+                            <div style="text-align:center; margin:28px 0 24px 0;">
+                                <a href="{{ $statusLink }}" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color:#ffffff; font-size:14.5px; font-weight:700; text-decoration:none; padding:13px 32px; border-radius:10px; box-shadow:0 8px 20px rgba(79, 70, 229, 0.4); letter-spacing:0.02em;">
+                                    [ Track Your Application ] &nbsp;&rarr;&nbsp; {{ $statusLink }}
                                 </a>
                             </div>
 

@@ -258,6 +258,7 @@ class CelebrationPublishingService
                 'meta' => array_merge($activeSchedule->meta ?? [], [
                     'template_used' => $creative['template_used'],
                     'used_initials' => $creative['used_initials'],
+                    'has_member_details' => true,
                     'published_via' => $forceManual ? 'admin_manual' : 'automated_scheduler',
                 ]),
             ]);
@@ -417,6 +418,7 @@ class CelebrationPublishingService
             'meta' => array_merge($schedule->meta ?? [], [
                 'template_used' => $creative['template_used'],
                 'used_initials' => $creative['used_initials'],
+                'has_member_details' => true,
                 'creative_refreshed_at' => now()->toIso8601String(),
             ]),
         ]);
