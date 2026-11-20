@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace App\Services\Zoho;
 
+use App\Models\User;
 use App\Models\ZohoInvoiceDocument;
+use App\Services\WhatsApp\MetaWhatsAppService;
 use App\Support\Zoho\ZohoBillingClient;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class ZohoInvoicePdfStorageService
 {
     public function __construct(
         private readonly ZohoBillingClient $client,
+        private readonly MetaWhatsAppService $metaWhatsAppService,
     ) {}
 
     /**
@@ -104,5 +110,208 @@ class ZohoInvoicePdfStorageService
         ]);
 
         return $document;
+    }
+
+    /**
+     * Download and store the Zoho invoice PDF in zoho_invoice_documents,
+     * then send it via WhatsApp using the approved payment_invoice_receipt template.
+     *
+     * Never throws so payment finalization is never disrupted.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function fetchStoreAndSendWhatsApp(string $zohoInvoiceId, ?User $user = null, array $meta = []): ?ZohoInvoiceDocument
+    {
+        $zohoInvoiceId = trim($zohoInvoiceId);
+        if ($zohoInvoiceId === '') {
+            return null;
+        }
+
+        if (! Schema::hasTable('zoho_invoice_documents')) {
+            Log::warning('zoho_invoice_documents_table_missing', [
+                'zoho_invoice_id' => $zohoInvoiceId,
+            ]);
+
+            return null;
+        }
+
+        try {
+            if ($user && empty($meta['user_id'])) {
+                $meta['user_id'] = (string) $user->id;
+            }
+
+            $document = $this->fetchAndStore($zohoInvoiceId, $meta);
+
+            return $this->sendInvoiceWhatsApp($document, $user, $meta);
+        } catch (Throwable $e) {
+            Log::warning('zoho_invoice_pdf_store_or_whatsapp_failed', [
+                'zoho_invoice_id' => $zohoInvoiceId,
+                'user_id' => $user?->id ?? ($meta['user_id'] ?? null),
+                'payment_type' => $meta['payment_type'] ?? null,
+                'reference_id' => $meta['reference_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Send an already-stored ZohoInvoiceDocument PDF via Meta WhatsApp Cloud API
+     * using the payment_invoice_receipt (en_IN) template.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function sendInvoiceWhatsApp(ZohoInvoiceDocument $document, ?User $user = null, array $meta = []): ZohoInvoiceDocument
+    {
+        if (! (bool) Config::get('whatsapp.invoice_receipt.enabled', true)) {
+            return $document;
+        }
+
+        if ($document->whatsapp_status === 'sent' && ! empty($document->whatsapp_message_id)) {
+            return $document;
+        }
+
+        if (! $user && ! empty($document->user_id)) {
+            $user = User::query()->find($document->user_id);
+        }
+
+        $recipientPhone = trim((string) ($meta['recipient_phone'] ?? $user?->phone ?? ''));
+        if ($recipientPhone === '') {
+            $document->forceFill([
+                'whatsapp_status' => 'skipped',
+                'whatsapp_error' => 'Recipient phone number is missing.',
+            ])->save();
+
+            Log::warning('zoho_invoice_whatsapp_skipped_no_phone', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'user_id' => $document->user_id,
+            ]);
+
+            return $document;
+        }
+
+        $recipientName = trim((string) ($meta['recipient_name'] ?? ''));
+        if ($recipientName === '' && $user) {
+            $recipientName = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
+            if ($recipientName === '') {
+                $recipientName = trim((string) ($user->company_name ?? ''));
+            }
+        }
+        if ($recipientName === '') {
+            $recipientName = 'Member';
+        }
+
+        $formattedAmount = $this->formatAmount((float) $document->amount, (string) ($document->currency ?: 'INR'));
+        $templateName = (string) Config::get('whatsapp.invoice_receipt.template_name', 'payment_invoice_receipt');
+        $languageCode = (string) Config::get('whatsapp.invoice_receipt.language', 'en_IN');
+
+        $disk = (string) ($document->pdf_disk ?: 'public');
+        $pdfPath = (string) ($document->pdf_path ?? '');
+        $absolutePath = $pdfPath !== '' ? Storage::disk($disk)->path($pdfPath) : '';
+
+        if ($absolutePath === '' || ! file_exists($absolutePath)) {
+            $document->forceFill([
+                'whatsapp_status' => 'failed',
+                'whatsapp_error' => 'Stored PDF file not found on disk.',
+            ])->save();
+
+            return $document;
+        }
+
+        $fileName = basename($pdfPath);
+        if ($fileName === '' || ! str_ends_with(strtolower($fileName), '.pdf')) {
+            $base = trim((string) ($document->zoho_invoice_number ?: $document->zoho_invoice_id));
+            $fileName = ($base !== '' ? $base : 'Invoice').'.pdf';
+        }
+
+        try {
+            $mediaId = $this->metaWhatsAppService->uploadMediaFromPath($absolutePath);
+
+            $components = [
+                [
+                    'type' => 'header',
+                    'parameters' => [
+                        [
+                            'type' => 'document',
+                            'document' => [
+                                'id' => $mediaId,
+                                'filename' => $fileName,
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'type' => 'body',
+                    'parameters' => [
+                        [
+                            'type' => 'text',
+                            'text' => $recipientName,
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $formattedAmount,
+                        ],
+                    ],
+                ],
+            ];
+
+            $result = $this->metaWhatsAppService->sendTemplateMessage(
+                recipientPhone: $recipientPhone,
+                templateName: $templateName,
+                languageCode: $languageCode,
+                components: $components,
+                userId: $user ? (string) $user->id : ($document->user_id ? (string) $document->user_id : null),
+            );
+
+            $document->forceFill([
+                'whatsapp_status' => 'sent',
+                'whatsapp_media_id' => $mediaId,
+                'whatsapp_message_id' => $result['meta_message_id'] ?? $result['whatsapp_message_id'] ?? null,
+                'whatsapp_sent_at' => now(),
+                'whatsapp_error' => null,
+            ])->save();
+
+            Log::info('zoho_invoice_whatsapp_sent', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'zoho_invoice_number' => $document->zoho_invoice_number,
+                'payment_type' => $document->payment_type,
+                'recipient_phone' => $recipientPhone,
+                'template_name' => $templateName,
+                'whatsapp_media_id' => $mediaId,
+                'whatsapp_message_id' => $document->whatsapp_message_id,
+            ]);
+        } catch (Throwable $e) {
+            $document->forceFill([
+                'whatsapp_status' => 'failed',
+                'whatsapp_error' => mb_substr($e->getMessage(), 0, 1000),
+            ])->save();
+
+            Log::error('zoho_invoice_whatsapp_send_failed', [
+                'document_id' => (string) $document->id,
+                'zoho_invoice_id' => $document->zoho_invoice_id,
+                'payment_type' => $document->payment_type,
+                'recipient_phone' => $recipientPhone,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $document->fresh() ?? $document;
+    }
+
+    private function formatAmount(float $amount, string $currency): string
+    {
+        $code = strtoupper(trim($currency));
+        $symbol = match ($code) {
+            'INR', '' => '₹',
+            'USD' => '$',
+            'EUR' => '€',
+            'GBP' => '£',
+            default => $code.' ',
+        };
+
+        return $symbol.number_format($amount, 2);
     }
 }

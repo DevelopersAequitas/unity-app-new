@@ -380,6 +380,8 @@ class CircleJoinPaymentService
                     }
                     if ($circle) {
                         $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user->fresh() ?? $user, [
+                            'payment_type' => 'circle_join',
+                            'reference_id' => (string) $payment->id,
                             'item_name' => 'Circle Join - '.$circle->name,
                             'description' => 'Circle Join Fee: '.$circle->name.($plan ? ' | Plan: '.$plan->name : ''),
                             'amount' => (float) ($payment->total_amount > 0 ? $payment->total_amount : $payment->amount),
@@ -455,6 +457,8 @@ class CircleJoinPaymentService
                     }
                     if ($user && $circle) {
                         $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user, [
+                            'payment_type' => 'circle_join',
+                            'reference_id' => (string) $payment->id,
                             'item_name' => 'Circle Join - '.$circle->name,
                             'description' => 'Circle Join Fee: '.$circle->name.($plan ? ' | Plan: '.$plan->name : ''),
                             'amount' => (float) ($payment->total_amount > 0 ? $payment->total_amount : $payment->amount),
