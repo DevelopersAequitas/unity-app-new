@@ -63,6 +63,22 @@
                                 </div>
                             </div>
 
+                            <!-- Private Candidate Ledger Link -->
+                            <div style="background-color:#1e293b; border:1px solid #3b82f6; border-radius:12px; padding:18px 20px; text-align:center; margin:20px 0;">
+                                <div style="font-size:12px; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px;">
+                                    CONFIDENTIAL CANDIDATE DASHBOARD
+                                </div>
+                                <p style="margin:0 0 12px 0; font-size:13.5px; color:#cbd5e1;">
+                                    Track live voters and supporters in real-time using your secure OTP-protected ledger:
+                                </p>
+                                <a href="{{ $nomineeLedgerUrl ?? url('/leadership/nomination/' . $nomination->id . '/live-votes') }}" target="_blank" style="display:inline-block; background-color:#2563eb; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:8px;">
+                                    [ View Your Live Voters Ledger ]
+                                </a>
+                                <div style="font-size:11.5px; color:#94a3b8; margin-top:8px;">
+                                    (Requires OTP verification sent to this email • Expires when voting closes)
+                                </div>
+                            </div>
+
                             <!-- Campaign Kit & Creative Poster -->
                             <div style="background-color:#141c2c; border:1px solid #233044; border-radius:14px; padding:22px 20px; margin:26px 0;">
                                 <div style="font-size:12px; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:10px;">

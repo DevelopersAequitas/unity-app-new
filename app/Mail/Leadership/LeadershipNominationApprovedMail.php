@@ -101,6 +101,7 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
                 'votingStart' => $votingStart,
                 'votingEnd' => $votingEnd,
                 'votingLink' => $this->votingLink,
+                'nomineeLedgerUrl' => url("/leadership/nomination/{$this->nomination->id}/live-votes"),
                 'candidateSlug' => $this->nomination->candidate_slug,
                 'applicationNumber' => $this->nomination->application_number,
                 'logoUrl' => $logoUrl,
