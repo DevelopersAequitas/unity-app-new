@@ -557,14 +557,14 @@ class CelebrationCreativeService
     }
 
     /**
-     * Draw member's Full Name, Designation/Category, and Company Name centered cleanly
-     * inside the white space below the circular photo ring (safely above the bottom wave banner).
+     * Draw member's Full Name, Company Name, decorative navy/red divider, and Category/Designation
+     * in ALL UPPERCASE matching the official Peers Global Welcome Creative typography & colors.
      */
     private function drawBirthdayMemberDetails($canvas, User $user, int $width, int $height): void
     {
         $fullName = mb_strtoupper($this->resolvePeerDisplayName($user), 'UTF-8');
         $rawDesignationOrCategory = $this->resolvePeerDesignationOrCategory($user);
-        $designationOrCategory = $rawDesignationOrCategory !== null && $rawDesignationOrCategory !== ''
+        $categoryText = $rawDesignationOrCategory !== null && $rawDesignationOrCategory !== ''
             ? mb_strtoupper($rawDesignationOrCategory, 'UTF-8')
             : null;
         $companyName = trim((string) ($user->company_name ?? ''));
@@ -576,117 +576,182 @@ class CelebrationCreativeService
 
         $fontBold = $this->getFontPath('bold');
         $fontSemiBold = $this->getFontPath('semibold');
-        $fontRegular = $this->getFontPath('regular');
         $hasTtf = file_exists($fontBold);
 
-        $navyColor = imagecolorallocate($canvas, 13, 27, 94);      // #0D1B5E
-        $crimsonColor = imagecolorallocate($canvas, 196, 24, 48);  // #C41830
-        $slateColor = imagecolorallocate($canvas, 51, 65, 85);     // #334155
+        // Exact colors matching the reference Welcome Creative
+        $navyColor = imagecolorallocate($canvas, 0, 47, 108);      // #002F6C
+        $grayColor = imagecolorallocate($canvas, 97, 97, 97);      // #616161
+        $crimsonColor = imagecolorallocate($canvas, 178, 34, 34);  // #B22222
 
-        // Scale base font sizes proportionally to canvas height (~1262px on 2x template)
         $hScale = $height / 1262.0;
-
-        $lines = [
-            [
-                'text' => $fullName,
-                'font' => $fontBold,
-                'color' => $navyColor,
-                'size' => max(14, (int) round(28 * $hScale)),
-                'minSize' => max(11, (int) round(18 * $hScale)),
-                'maxWidth' => (int) round($width * 0.78),
-            ],
-        ];
-
-        if ($designationOrCategory !== null && $designationOrCategory !== '') {
-            $lines[] = [
-                'text' => $designationOrCategory,
-                'font' => file_exists($fontSemiBold) ? $fontSemiBold : $fontBold,
-                'color' => $crimsonColor,
-                'size' => max(11, (int) round(18 * $hScale)),
-                'minSize' => max(9, (int) round(12 * $hScale)),
-                'maxWidth' => (int) round($width * 0.70),
-            ];
-        }
-
-        if ($companyName !== '') {
-            $lines[] = [
-                'text' => $companyName,
-                'font' => file_exists($fontSemiBold) ? $fontSemiBold : (file_exists($fontRegular) ? $fontRegular : $fontBold),
-                'color' => $slateColor,
-                'size' => max(10, (int) round(16 * $hScale)),
-                'minSize' => max(9, (int) round(11 * $hScale)),
-                'maxWidth' => (int) round($width * 0.56),
-            ];
-        }
-
         $centerX = (int) round($width * 0.50);
-        // Clean white zone below circular ring (ring bottom ~75.6%, bottom wave top ~90.2%)
-        $zoneTop = (int) round($height * 0.766);
-        $zoneBottom = (int) round($height * 0.892);
+        $zoneTop = (int) round($height * 0.760);
+        $zoneBottom = (int) round($height * 0.896);
         $zoneHeight = max(40, $zoneBottom - $zoneTop);
-        $gap = (int) round(14 * $hScale);
 
         if (! $hasTtf) {
             $y = $zoneTop + 10;
-            foreach ($lines as $line) {
-                $tw = strlen($line['text']) * imagefontwidth(5);
-                imagestring($canvas, 5, (int) round($centerX - ($tw / 2)), $y, $line['text'], $line['color']);
+            foreach (array_filter([$fullName, $companyName, $categoryText]) as $txt) {
+                $tw = strlen($txt) * imagefontwidth(5);
+                imagestring($canvas, 5, (int) round($centerX - ($tw / 2)), $y, $txt, $navyColor);
                 $y += imagefontheight(5) + 6;
             }
 
             return;
         }
 
-        // Measure & auto-shrink each line to fit horizontally within its safe width
-        $measured = [];
-        $totalHeight = 0;
-        foreach ($lines as $index => $line) {
-            $fontSize = $line['size'];
-            $text = $line['text'];
-            $bbox = @imagettfbbox($fontSize, 0, $line['font'], $text);
+        $measureLine = function (string $text, string $font, int $startSize, int $minSize, int $maxWidth): array {
+            $fontSize = $startSize;
+            $bbox = @imagettfbbox($fontSize, 0, $font, $text);
             $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
 
-            while ($textW > $line['maxWidth'] && $fontSize > $line['minSize']) {
+            while ($textW > $maxWidth && $fontSize > $minSize) {
                 $fontSize--;
-                $bbox = @imagettfbbox($fontSize, 0, $line['font'], $text);
+                $bbox = @imagettfbbox($fontSize, 0, $font, $text);
                 $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
             }
 
-            // If still wider than maxWidth even at minSize, gracefully truncate with ellipsis
-            if ($textW > $line['maxWidth'] && mb_strlen($text) > 12) {
-                while ($textW > $line['maxWidth'] && mb_strlen($text) > 10) {
+            if ($textW > $maxWidth && mb_strlen($text) > 12) {
+                while ($textW > $maxWidth && mb_strlen($text) > 10) {
                     $text = rtrim(mb_substr($text, 0, -1));
-                    $candidate = $text.'…';
-                    $bbox = @imagettfbbox($fontSize, 0, $line['font'], $candidate);
+                    $candidate = $text.'...';
+                    $bbox = @imagettfbbox($fontSize, 0, $font, $candidate);
                     $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
                 }
-                $text = $text.'…';
+                $text = $text.'...';
             }
 
             $ascent = $bbox ? abs($bbox[7]) : $fontSize;
             $descent = $bbox ? max(0, $bbox[1]) : 4;
-            $lineH = $ascent + $descent;
 
-            $measured[] = [
+            return [
                 'text' => $text,
-                'font' => $line['font'],
-                'color' => $line['color'],
+                'font' => $font,
                 'size' => $fontSize,
                 'width' => $textW,
                 'ascent' => $ascent,
-                'height' => $lineH,
+                'height' => $ascent + $descent,
             ];
+        };
 
-            $totalHeight += $lineH + ($index > 0 ? $gap : 0);
+        $nameItem = $measureLine(
+            $fullName,
+            $fontBold,
+            max(16, (int) round(34 * $hScale)),
+            max(12, (int) round(22 * $hScale)),
+            (int) round($width * 0.78)
+        );
+
+        $companyItem = $companyName !== ''
+            ? $measureLine(
+                $companyName,
+                file_exists($fontSemiBold) ? $fontSemiBold : $fontBold,
+                max(11, (int) round(20 * $hScale)),
+                max(9, (int) round(13 * $hScale)),
+                (int) round($width * 0.72)
+            )
+            : null;
+
+        $categoryItem = ($categoryText !== null && $categoryText !== '')
+            ? $measureLine(
+                $categoryText,
+                $fontBold,
+                max(10, (int) round(18 * $hScale)),
+                max(9, (int) round(12 * $hScale)),
+                (int) round($width * 0.58)
+            )
+            : null;
+
+        $showDivider = $categoryItem !== null;
+        $dividerH = $showDivider ? max(10, (int) round(14 * $hScale)) : 0;
+        $gap = (int) round(11 * $hScale);
+
+        $totalHeight = $nameItem['height'];
+        if ($companyItem !== null) {
+            $totalHeight += $gap + $companyItem['height'];
+        }
+        if ($showDivider) {
+            $totalHeight += (int) round($gap * 0.7) + $dividerH + (int) round($gap * 0.7);
+        }
+        if ($categoryItem !== null) {
+            $totalHeight += $categoryItem['height'];
         }
 
         $cursorY = $zoneTop + (int) round(max(0, ($zoneHeight - $totalHeight) / 2));
 
-        foreach ($measured as $item) {
-            $x = (int) round($centerX - ($item['width'] / 2));
-            $baselineY = $cursorY + $item['ascent'];
-            imagettftext($canvas, $item['size'], 0, $x, $baselineY, $item['color'], $item['font'], $item['text']);
-            $cursorY += $item['height'] + $gap;
+        // 1. Member Name (Deep Navy #002F6C, Bold, Uppercase)
+        $x = (int) round($centerX - ($nameItem['width'] / 2));
+        imagettftext($canvas, $nameItem['size'], 0, $x, $cursorY + $nameItem['ascent'], $navyColor, $nameItem['font'], $nameItem['text']);
+        $cursorY += $nameItem['height'];
+
+        // 2. Company Name (Cool Gray #616161, SemiBold, Uppercase)
+        if ($companyItem !== null) {
+            $cursorY += $gap;
+            $cx = (int) round($centerX - ($companyItem['width'] / 2));
+            imagettftext($canvas, $companyItem['size'], 0, $cx, $cursorY + $companyItem['ascent'], $grayColor, $companyItem['font'], $companyItem['text']);
+            $cursorY += $companyItem['height'];
+        }
+
+        // 3. Decorative Divider (Navy line -- Crimson dot -- Crimson line)
+        if ($showDivider) {
+            $cursorY += (int) round($gap * 0.7);
+            $divY = $cursorY + (int) round($dividerH / 2);
+            $lineHalf = (int) round($width * 0.14);
+            $dotGap = max(8, (int) round(14 * $hScale));
+            $dotDiam = max(6, (int) round(9 * $hScale));
+
+            imagesetthickness($canvas, max(1, (int) round(2 * $hScale)));
+            imageline($canvas, $centerX - $lineHalf, $divY, $centerX - $dotGap, $divY, $navyColor);
+            imageline($canvas, $centerX + $dotGap, $divY, $centerX + $lineHalf, $divY, $crimsonColor);
+            imagesetthickness($canvas, 1);
+            imagefilledellipse($canvas, $centerX, $divY, $dotDiam, $dotDiam, $crimsonColor);
+
+            $cursorY += $dividerH + (int) round($gap * 0.7);
+        }
+
+        // 4. Category (Navy #002F6C -> Crimson #B22222 horizontal gradient, Bold, Uppercase)
+        if ($categoryItem !== null) {
+            $this->drawGradientTtfText(
+                $canvas,
+                $categoryItem['text'],
+                $categoryItem['size'],
+                $categoryItem['font'],
+                (int) round($centerX - ($categoryItem['width'] / 2)),
+                $cursorY + $categoryItem['ascent'],
+                [0, 47, 108],
+                [178, 34, 34]
+            );
+        }
+    }
+
+    /**
+     * Render horizontal gradient TrueType text (e.g. #002F6C -> #B22222) cleanly onto a GD canvas.
+     *
+     * @param  array{0:int,1:int,2:int}  $startRgb
+     * @param  array{0:int,1:int,2:int}  $endRgb
+     */
+    private function drawGradientTtfText($canvas, string $text, int $fontSize, string $fontPath, int $startX, int $baselineY, array $startRgb, array $endRgb): void
+    {
+        $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (! is_array($chars) || $chars === []) {
+            return;
+        }
+
+        $totalChars = max(1, count($chars) - 1);
+        $cursorX = (float) $startX;
+
+        foreach ($chars as $idx => $ch) {
+            $t = $idx / $totalChars;
+            $r = (int) round($startRgb[0] + ($endRgb[0] - $startRgb[0]) * $t);
+            $g = (int) round($startRgb[1] + ($endRgb[1] - $startRgb[1]) * $t);
+            $b = (int) round($startRgb[2] + ($endRgb[2] - $startRgb[2]) * $t);
+            $col = imagecolorallocate($canvas, $r, $g, $b);
+
+            imagettftext($canvas, $fontSize, 0, (int) round($cursorX), $baselineY, $col, $fontPath, $ch);
+
+            $chBox = @imagettfbbox($fontSize, 0, $fontPath, $ch);
+            $advance = $chBox ? abs($chBox[2] - $chBox[0]) : ($fontSize * 0.65);
+            $cursorX += ($ch === ' ') ? max($advance, $fontSize * 0.36) : ($advance + max(1.0, $fontSize * 0.06));
         }
     }
 
