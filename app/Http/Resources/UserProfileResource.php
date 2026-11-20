@@ -100,7 +100,27 @@ class UserProfileResource extends MemberDetailResource
         $data['referral_count'] = $introducedCount;
         $data['peer_referrals_count'] = $introducedCount;
 
+        $data['dob'] = $this->formatCalendarDate($this->dob ?? ($data['dob'] ?? null));
+        $data['anniversary_date'] = $this->formatCalendarDate($this->anniversary_date ?? ($data['anniversary_date'] ?? null));
+
         return $data;
+    }
+
+    private function formatCalendarDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('Y-m-d');
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /**

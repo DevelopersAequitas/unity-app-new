@@ -255,6 +255,23 @@ class ChatController extends BaseApiController
 
         $content = $this->normalizedContent($data['content_text'] ?? $data['content'] ?? null);
 
+        // Rapid-fire duplicate guard (e.g., double-tap / auto-wish retry within 10 seconds)
+        if ($attachments === [] && $content !== null && $content !== '') {
+            $recentDuplicate = $chat->messages()
+                ->where('sender_id', $authUser->id)
+                ->where('content', $content)
+                ->whereNull('attachments')
+                ->where('created_at', '>=', now()->subSeconds(10))
+                ->latest('created_at')
+                ->first();
+
+            if ($recentDuplicate) {
+                $recentDuplicate->load('sender');
+
+                return $this->success(new MessageResource($recentDuplicate), 'Message sent');
+            }
+        }
+
         $message = $chat->messages()->create([
             'sender_id' => $authUser->id,
             'content' => $content,
