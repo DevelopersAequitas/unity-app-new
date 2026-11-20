@@ -27,31 +27,35 @@
                         <td style="padding:36px 32px; color:#cbd5e1; font-size:15px; line-height:1.65;">
                             
                             <p style="margin:0 0 16px 0; font-size:16px; font-weight:600; color:#f1f5f9;">
-                                Dear Leader,
+                                Hello {{ $name }},
                             </p>
 
-                            <p style="margin:0 0 24px 0; color:#cbd5e1; font-size:15px; line-height:1.6;">
-                                Use this 6-digit code to verify your email and proceed with your leadership nomination:
+                            <p style="margin:0 0 20px 0; color:#cbd5e1; font-size:15px; line-height:1.6;">
+                                Use this code to verify your email and continue your leadership nomination:
                             </p>
 
                             <!-- OTP Box -->
-                            <div style="margin:28px 0; text-align:center;">
+                            <div style="margin:26px 0; text-align:center;">
                                 <div style="display:inline-block; background-color:#182234; border:2px dashed #4338ca; border-radius:12px; padding:18px 36px;">
                                     <span style="font-family:'Courier New', Courier, monospace; font-size:36px; font-weight:800; letter-spacing:8px; color:#ffffff; text-shadow:0 2px 4px rgba(0,0,0,0.4);">
                                         {{ $otp }}
                                     </span>
                                 </div>
-                                <div style="margin-top:10px; font-size:13px; color:#a5b4fc; font-weight:500;">
-                                    (Valid for 10 minutes)
+                                <div style="margin-top:12px; font-size:13.5px; color:#a5b4fc; font-weight:500;">
+                                    This code is valid for 10 minutes. Enter it on the nomination form.
                                 </div>
                             </div>
 
+                            <p style="margin:0 0 14px 0; color:#94a3b8; font-size:13.5px; line-height:1.6;">
+                                Do not share this code with anyone. Peers Global will never ask you for it.<br>
+                                If you did not request this, you can safely ignore this email.
+                            </p>
+
                             <!-- About Peers Global Card -->
-                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#182234; border:1px solid #283548; border-radius:10px; margin:28px 0 24px 0; border-collapse:collapse;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#182234; border:1px solid #283548; border-radius:10px; margin:24px 0 24px 0; border-collapse:collapse;">
                                 <tr>
                                     <td style="padding:16px 20px; font-size:13.5px; line-height:1.6; color:#cbd5e1;">
-                                        <strong style="color:#ffffff; font-size:14px;">Peers Global:</strong><br>
-                                        A global community of business owners collaborating under the principle: &ldquo;Partners in business, friends in life.&rdquo; We are selecting leaders who believe in mutual growth and giving first.
+                                        Peers Global is a Community of Collaboration where Peers are Partners in Business and Friends in Life. We select leaders who believe in mutual growth and giving first.
                                     </td>
                                 </tr>
                             </table>

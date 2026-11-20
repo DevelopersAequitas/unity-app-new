@@ -14,14 +14,19 @@ class ChatResource extends JsonResource
 
         $otherUser = null;
         if ($authUser) {
-            if ($authUser->id === $this->user1_id) {
+            $authUserId = (string) $authUser->id;
+            if ($authUserId === (string) $this->user1_id) {
                 $otherUser = $this->user2;
-            } elseif ($authUser->id === $this->user2_id) {
+            } elseif ($authUserId === (string) $this->user2_id) {
                 $otherUser = $this->user1;
             }
         }
 
         $lastMessage = $this->whenLoaded('lastMessage', function () {
+            if (! $this->lastMessage) {
+                return null;
+            }
+
             return [
                 'id' => $this->lastMessage->id,
                 'sender_id' => $this->lastMessage->sender_id,
@@ -33,10 +38,7 @@ class ChatResource extends JsonResource
             ];
         });
 
-        $unreadCount = null;
-        if (isset($this->unread_count)) {
-            $unreadCount = (int) $this->unread_count;
-        }
+        $unreadCount = isset($this->unread_count) ? (int) $this->unread_count : 0;
 
         return [
             'id' => $this->id,

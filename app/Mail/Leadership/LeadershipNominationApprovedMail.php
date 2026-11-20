@@ -12,6 +12,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 
 class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
 {
@@ -27,8 +28,18 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $roleName = $this->nomination->applied_role_name
+            ?? $this->nomination->campaign?->role?->name
+            ?? 'District Executive Director';
+
+        $region = $this->nomination->scope_name
+            ?? $this->nomination->scope?->name
+            ?? 'Ahmedabad';
+
+        $roleWithRegion = $region ? "{$roleName} – {$region}" : $roleName;
+
         return new Envelope(
-            subject: 'Approved! Your Candidate Voting Link is Live | Peers Global',
+            subject: "Your nomination is approved – voting is open | {$roleWithRegion}",
         );
     }
 
@@ -38,7 +49,20 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
             ?? $this->nomination->campaign?->role?->name
             ?? 'District Executive Director';
 
-        $candidateName = $this->nomination->candidate_name ?: $this->nomination->full_name;
+        $region = $this->nomination->scope_name
+            ?? $this->nomination->scope?->name
+            ?? 'Ahmedabad';
+
+        $roleWithRegion = $region ? "{$roleName} – {$region}" : $roleName;
+        $candidateName = $this->nomination->candidate_name ?: $this->nomination->full_name ?: 'Candidate';
+
+        // Voting window formatted in IST
+        $campaign = $this->nomination->campaign;
+        $startCarbon = $campaign?->voting_starts_at ? Carbon::parse($campaign->voting_starts_at) : Carbon::now();
+        $endCarbon = $campaign?->voting_ends_at ? Carbon::parse($campaign->voting_ends_at) : Carbon::now()->addDays(14);
+
+        $votingStart = $startCarbon->setTimezone('Asia/Kolkata')->format('d M Y, h:i A');
+        $votingEnd = $endCarbon->setTimezone('Asia/Kolkata')->format('d M Y, h:i A');
 
         $logoUrl = 'https://peersunity.com/images/peersglobal-logo.png';
         if (file_exists(public_path('images/peersglobal-logo.png'))) {
@@ -53,6 +77,10 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
                 'nomination' => $this->nomination,
                 'candidateName' => $candidateName,
                 'roleName' => $roleName,
+                'region' => $region,
+                'roleWithRegion' => $roleWithRegion,
+                'votingStart' => $votingStart,
+                'votingEnd' => $votingEnd,
                 'votingLink' => $this->votingLink,
                 'candidateSlug' => $this->nomination->candidate_slug,
                 'applicationNumber' => $this->nomination->application_number,
