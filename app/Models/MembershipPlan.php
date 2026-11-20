@@ -37,9 +37,14 @@ class MembershipPlan extends Model
 
         try {
             if (Schema::hasTable('membership_plans') && ! Schema::hasColumn('membership_plans', 'monthly_price')) {
-                Schema::table('membership_plans', function (Blueprint $table): void {
-                    $table->decimal('monthly_price', 10, 2)->nullable()->after('price');
-                });
+                $driver = Schema::getConnection()->getDriverName();
+                if ($driver === 'pgsql') {
+                    Schema::getConnection()->statement('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS monthly_price NUMERIC(10, 2) DEFAULT NULL');
+                } else {
+                    Schema::table('membership_plans', function (Blueprint $table): void {
+                        $table->decimal('monthly_price', 10, 2)->nullable();
+                    });
+                }
             }
             self::$monthlyPriceColumnChecked = true;
         } catch (Throwable) {
@@ -127,21 +132,26 @@ class MembershipPlan extends Model
     public function scopeCircleOnly(Builder $query): Builder
     {
         return $query->where(function (Builder $q): void {
+            $isPgsql = $q->getConnection()->getDriverName() === 'pgsql';
             if (Schema::hasTable('membership_plans') && Schema::hasColumn('membership_plans', 'plan_type')) {
                 $q->where('plan_type', 'circle')
-                    ->orWhere(function (Builder $inner): void {
+                    ->orWhere(function (Builder $inner) use ($isPgsql): void {
                         $inner->whereIn('slug', self::CIRCLE_SLUGS)
                             ->orWhere('slug', 'like', 'circle\_%')
-                            ->orWhere('slug', 'like', 'circle-%')
-                            ->orWhere('slug', 'like', 'circle\_%')
-                            ->orWhere('slug', 'ilike', 'circle-%');
+                            ->orWhere('slug', 'like', 'circle-%');
+                        if ($isPgsql) {
+                            $inner->orWhere('slug', 'ilike', 'circle\_%')
+                                ->orWhere('slug', 'ilike', 'circle-%');
+                        }
                     });
             } else {
                 $q->whereIn('slug', self::CIRCLE_SLUGS)
                     ->orWhere('slug', 'like', 'circle\_%')
-                    ->orWhere('slug', 'like', 'circle-%')
-                    ->orWhere('slug', 'ilike', 'circle\_%')
-                    ->orWhere('slug', 'ilike', 'circle-%');
+                    ->orWhere('slug', 'like', 'circle-%');
+                if ($isPgsql) {
+                    $q->orWhere('slug', 'ilike', 'circle\_%')
+                        ->orWhere('slug', 'ilike', 'circle-%');
+                }
             }
         });
     }
@@ -149,6 +159,7 @@ class MembershipPlan extends Model
     public function scopeMembershipOnly(Builder $query): Builder
     {
         return $query->where(function (Builder $q): void {
+            $isPgsql = $q->getConnection()->getDriverName() === 'pgsql';
             if (Schema::hasTable('membership_plans') && Schema::hasColumn('membership_plans', 'plan_type')) {
                 $q->where(function (Builder $inner): void {
                     $inner->where('plan_type', 'membership')
@@ -158,9 +169,11 @@ class MembershipPlan extends Model
 
             $q->whereNotIn('slug', self::CIRCLE_SLUGS)
                 ->where('slug', 'not like', 'circle\_%')
-                ->where('slug', 'not like', 'circle-%')
-                ->where('slug', 'not ilike', 'circle\_%')
-                ->where('slug', 'not ilike', 'circle-%');
+                ->where('slug', 'not like', 'circle-%');
+            if ($isPgsql) {
+                $q->where('slug', 'not ilike', 'circle\_%')
+                    ->where('slug', 'not ilike', 'circle-%');
+            }
         });
     }
 }
