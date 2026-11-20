@@ -715,16 +715,38 @@ class MetaWhatsAppAdminController extends Controller
                 $docObject = null;
                 $file = $request->file('header_document_file') ?? $request->file('header_image_file');
                 $url = $validated['header_document_url'] ?? $validated['header_image_url'] ?? null;
+                $customFilename = trim((string) $request->input('header_document_filename', ''));
 
                 if ($file) {
                     $mediaId = $this->whatsAppService->uploadMedia($file);
-                    $docObject = ['id' => $mediaId];
+                    $resolvedFilename = $customFilename !== '' ? $customFilename : $file->getClientOriginalName();
+                    if (! str_ends_with(strtolower($resolvedFilename), '.pdf')) {
+                        $resolvedFilename .= '.pdf';
+                    }
+                    $docObject = [
+                        'id' => $mediaId,
+                        'filename' => $resolvedFilename,
+                    ];
                 } elseif (! empty($url)) {
-                    $docObject = ['link' => (string) $url];
+                    $urlBasename = basename((string) parse_url((string) $url, PHP_URL_PATH));
+                    $resolvedFilename = $customFilename !== ''
+                        ? $customFilename
+                        : ($urlBasename !== '' && str_contains($urlBasename, '.') ? $urlBasename : 'Peers_Global_Document.pdf');
+                    $docObject = [
+                        'link' => (string) $url,
+                        'filename' => $resolvedFilename,
+                    ];
                 } elseif (! empty($headerDef['example']['header_handle'][0])) {
                     $sampleHandle = (string) $headerDef['example']['header_handle'][0];
                     if (str_starts_with($sampleHandle, 'http://') || str_starts_with($sampleHandle, 'https://')) {
-                        $docObject = ['link' => $sampleHandle];
+                        $urlBasename = basename((string) parse_url($sampleHandle, PHP_URL_PATH));
+                        $resolvedFilename = $customFilename !== ''
+                            ? $customFilename
+                            : ($urlBasename !== '' && str_contains($urlBasename, '.') ? $urlBasename : 'Peers_Global_Document.pdf');
+                        $docObject = [
+                            'link' => $sampleHandle,
+                            'filename' => $resolvedFilename,
+                        ];
                     }
                 }
 
