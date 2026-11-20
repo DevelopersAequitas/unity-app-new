@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\ActivityVideoApiController;
 use App\Http\Controllers\Api\Admin\AuditLogAdminController;
+use App\Http\Controllers\Api\Admin\CelebrationAdminController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Http\Controllers\Api\Admin\RbacController;
@@ -186,6 +187,7 @@ use App\Http\Controllers\Api\V1\Peers\PeerBadgeController;
 use App\Http\Controllers\Api\V1\Peers\TopPeersController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
+use App\Http\Controllers\Api\V1\Profile\ContactChangeController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
@@ -705,6 +707,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::post('/profile/change-email/request-otp', [ContactChangeController::class, 'requestEmailOtp']);
+        Route::post('/profile/change-email/verify-otp', [ContactChangeController::class, 'verifyEmailOtp']);
+        Route::post('/profile/change-phone/request-otp', [ContactChangeController::class, 'requestPhoneOtp']);
+        Route::post('/profile/change-phone/verify-otp', [ContactChangeController::class, 'verifyPhoneOtp']);
         Route::get('/intro-videos', [IntroVideoController::class, 'index']);
         Route::post('/intro-videos', [IntroVideoController::class, 'store']);
         Route::get('/intro-videos/me', [IntroVideoController::class, 'show']);
@@ -1262,18 +1268,18 @@ Route::prefix('v1')->group(function () {
             Route::delete('/posts/{id}/comments/{commentId}', [App\Http\Controllers\Api\Admin\PostController::class, 'deleteComment'])->whereUuid('id')->whereUuid('commentId');
 
             // Section 21b: Automated Birthday & Wedding Anniversary Celebrations (NEW Admin Panel)
-            Route::get('/celebrations/upcoming', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'upcoming']);
-            Route::post('/celebrations/sync', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'sync']);
-            Route::post('/celebrations/process-due', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'processDue']);
-            Route::post('/celebrations/publish', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'publish']);
-            Route::post('/celebrations/schedule', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'schedule']);
-            Route::post('/celebrations/{id}/cancel', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'cancel'])->whereUuid('id');
-            Route::post('/celebrations/{id}/retry', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'retry'])->whereUuid('id');
-            Route::post('/celebrations/{id}/refresh-creative', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'refreshCreative'])->whereUuid('id');
-            Route::get('/celebrations/logs', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'logs']);
-            Route::get('/celebrations/templates', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'templates']);
-            Route::post('/celebrations/templates/anniversary', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'uploadAnniversaryTemplate']);
-            Route::delete('/celebrations/templates/anniversary', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'resetAnniversaryTemplate']);
+            Route::get('/celebrations/upcoming', [CelebrationAdminController::class, 'upcoming']);
+            Route::post('/celebrations/sync', [CelebrationAdminController::class, 'sync']);
+            Route::post('/celebrations/process-due', [CelebrationAdminController::class, 'processDue']);
+            Route::post('/celebrations/publish', [CelebrationAdminController::class, 'publish']);
+            Route::post('/celebrations/schedule', [CelebrationAdminController::class, 'schedule']);
+            Route::post('/celebrations/{id}/cancel', [CelebrationAdminController::class, 'cancel'])->whereUuid('id');
+            Route::post('/celebrations/{id}/retry', [CelebrationAdminController::class, 'retry'])->whereUuid('id');
+            Route::post('/celebrations/{id}/refresh-creative', [CelebrationAdminController::class, 'refreshCreative'])->whereUuid('id');
+            Route::get('/celebrations/logs', [CelebrationAdminController::class, 'logs']);
+            Route::get('/celebrations/templates', [CelebrationAdminController::class, 'templates']);
+            Route::post('/celebrations/templates/anniversary', [CelebrationAdminController::class, 'uploadAnniversaryTemplate']);
+            Route::delete('/celebrations/templates/anniversary', [CelebrationAdminController::class, 'resetAnniversaryTemplate']);
 
             // Post Reports
             Route::get('/post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);

@@ -343,6 +343,8 @@ class AdminOpsController extends BaseApiController
             }
         }
 
+        $requestedOccurrenceId = trim((string) request('occurrence_id', ''));
+
         $query = EventRegistration::query()
             ->with(['user', 'occurrence'])
             ->where(function ($q) use ($id, $occurrenceIds) {
@@ -351,6 +353,7 @@ class AdminOpsController extends BaseApiController
                     $q->orWhereIn('occurrence_id', $occurrenceIds);
                 }
             })
+            ->when($requestedOccurrenceId !== '', fn ($q) => $q->where('occurrence_id', $requestedOccurrenceId))
             ->latest('registered_at')
             ->latest('created_at');
 

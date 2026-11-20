@@ -37,7 +37,7 @@ class AdminNominationService
     {
         $query = LeadershipNomination::query()
             ->where('application_number', '!=', 'PG-STANDING-POOL')
-            ->with(['campaign.role', 'scope', 'user'])
+            ->with(['campaign.role', 'scope', 'user', 'documents'])
             ->withCount([
                 'documents as documents_pending' => fn ($q) => $q->where('verification_status', 'pending'),
             ]);
@@ -110,22 +110,11 @@ class AdminNominationService
                             $subQ->where('profile_snapshot->form_2_status', 'pending_submission')
                                 ->where('application_number', 'NOT LIKE', '%-F2%');
                         });
-                    $nomTable = (new LeadershipNomination)->getTable();
-                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
-                        $q->orWhere('form_type', 'sub_form_2');
-                    }
                 });
             } else {
                 // Default to main_form_1: all primary website nominations
                 $query->where(function ($q): void {
-                    $nomTable = (new LeadershipNomination)->getTable();
                     $q->where('application_number', 'NOT LIKE', '%-F2%');
-                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
-                        $q->where(function ($sub): void {
-                            $sub->where('form_type', 'main_form_1')
-                                ->orWhereNull('form_type');
-                        });
-                    }
                 });
             }
         }

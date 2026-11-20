@@ -69,7 +69,26 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
             $logoUrl = asset('images/peersglobal-logo.png');
         }
 
+        $path = $this->creativePath;
+        if (! $path || ! file_exists($path)) {
+            $candidatePath = public_path("storage/creatives/leadership/nomination_{$this->nomination->id}.png");
+            if (file_exists($candidatePath)) {
+                $path = $candidatePath;
+            } else {
+                $storageAppPath = storage_path("app/public/creatives/leadership/nomination_{$this->nomination->id}.png");
+                if (file_exists($storageAppPath)) {
+                    $path = $storageAppPath;
+                }
+            }
+        }
+
         $creativeUrl = $this->creativeUrl ?: $this->nomination->creative_url;
+        if ($creativeUrl) {
+            $version = ($path && file_exists($path)) ? filemtime($path) : time();
+            $creativeUrlWithVersion = $creativeUrl.(str_contains($creativeUrl, '?') ? '&' : '?').'v='.$version;
+        } else {
+            $creativeUrlWithVersion = null;
+        }
 
         return new Content(
             view: 'emails.leadership.nomination_approved',
@@ -85,7 +104,8 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
                 'candidateSlug' => $this->nomination->candidate_slug,
                 'applicationNumber' => $this->nomination->application_number,
                 'logoUrl' => $logoUrl,
-                'creativeUrl' => $creativeUrl,
+                'creativeUrl' => $creativeUrlWithVersion ?: $creativeUrl,
+                'creativePath' => $path,
                 'websiteUrl' => config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')),
             ],
         );
@@ -101,10 +121,15 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
         $attachments = [];
 
         $path = $this->creativePath;
-        if (! $path) {
+        if (! $path || ! file_exists($path)) {
             $candidatePath = public_path("storage/creatives/leadership/nomination_{$this->nomination->id}.png");
             if (file_exists($candidatePath)) {
                 $path = $candidatePath;
+            } else {
+                $storageAppPath = storage_path("app/public/creatives/leadership/nomination_{$this->nomination->id}.png");
+                if (file_exists($storageAppPath)) {
+                    $path = $storageAppPath;
+                }
             }
         }
 

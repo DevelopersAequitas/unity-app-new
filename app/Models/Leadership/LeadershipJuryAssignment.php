@@ -60,17 +60,25 @@ class LeadershipJuryAssignment extends Model
 
     public function getCandidateNameAttribute(): ?string
     {
-        return $this->nomination?->candidate_name ?? $this->nomination?->full_name;
+        if ($this->relationLoaded('nomination') && $this->nomination) {
+            return $this->nomination->candidate_name ?? $this->nomination->full_name;
+        }
+
+        return null;
     }
 
     public function getJuryNameAttribute(): ?string
     {
-        return $this->juror?->display_name ?: trim(($this->juror?->first_name ?? '').' '.($this->juror?->last_name ?? '')) ?: $this->juror_user_id;
+        $juror = $this->relationLoaded('juror') ? $this->juror : null;
+
+        return $juror?->display_name ?: trim(($juror?->first_name ?? '').' '.($juror?->last_name ?? '')) ?: $this->juror_user_id;
     }
 
     public function getJuryEmailAttribute(): ?string
     {
-        return $this->juror?->email;
+        $juror = $this->relationLoaded('juror') ? $this->juror : null;
+
+        return $juror?->email;
     }
 
     public function getDeadlineAttribute(): ?string
@@ -80,31 +88,43 @@ class LeadershipJuryAssignment extends Model
 
     public function getCampaignIdAttribute(): ?string
     {
-        return $this->nomination?->campaign_id;
+        if ($this->relationLoaded('nomination') && $this->nomination) {
+            return $this->nomination->campaign_id;
+        }
+
+        return $this->attributes['campaign_id'] ?? null;
     }
 
     public function getCampaignNameAttribute(): ?string
     {
-        return $this->nomination?->campaign?->name ?? $this->nomination?->campaign_name;
+        if ($this->relationLoaded('nomination') && $this->nomination) {
+            return $this->nomination->campaign?->name ?? $this->nomination->campaign_name;
+        }
+
+        return null;
     }
 
     public function getReportDataAttribute(): ?array
     {
-        $report = $this->relationLoaded('report') ? $this->report : $this->report()->first();
+        if (! $this->relationLoaded('report')) {
+            return null;
+        }
 
+        $report = $this->report;
         if (! $report) {
             return null;
         }
 
         $scoresList = [];
-        $scores = $this->relationLoaded('scores') ? $this->scores : $this->scores()->with('criterion')->get();
+        $scores = $this->relationLoaded('scores') ? $this->scores : collect();
         foreach ($scores as $sc) {
+            $criterion = $sc->relationLoaded('criterion') ? $sc->criterion : null;
             $scoresList[] = [
                 'criterion_id' => $sc->criterion_id,
-                'criterion_name' => $sc->criterion?->name ?? 'Criterion',
-                'category' => $sc->criterion?->category ?? 'General',
-                'max_score' => (float) ($sc->criterion?->max_score ?? 10),
-                'weightage' => (float) ($sc->criterion?->weightage ?? 20),
+                'criterion_name' => $criterion?->name ?? 'Criterion',
+                'category' => $criterion?->category ?? 'General',
+                'max_score' => (float) ($criterion?->max_score ?? 10),
+                'weightage' => (float) ($criterion?->weightage ?? 20),
                 'score' => (float) $sc->score,
                 'remarks' => $sc->remarks,
             ];

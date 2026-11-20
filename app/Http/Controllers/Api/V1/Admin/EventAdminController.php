@@ -49,8 +49,17 @@ class EventAdminController extends BaseApiController
         }
 
         $items = Event::query()
-            ->with(['circle', 'circles.cityRef', 'occurrences'])
-            ->withCount(['registrations', 'occurrences'])
+            ->with([
+                'circle',
+                'circles.cityRef',
+                'occurrences' => fn ($q) => $q
+                    ->withCount(['registrations as registered_count' => fn ($r) => $r->where('status', '!=', 'cancelled')])
+                    ->orderBy('start_at'),
+            ])
+            ->withCount([
+                'registrations' => fn ($r) => $r->where('status', '!=', 'cancelled'),
+                'occurrences',
+            ])
             ->when($request->input('event_type'), fn ($q, $v) => $q->where('event_type', $v))
             ->when($request->input('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
             ->latest('start_at')

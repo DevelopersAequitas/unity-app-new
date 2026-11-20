@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NormalizesUtcTimestamps;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 class Event extends Model
 {
     use HasFactory;
+    use NormalizesUtcTimestamps;
     use SoftDeletes;
 
     protected $keyType = 'string';

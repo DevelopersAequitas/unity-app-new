@@ -72,10 +72,24 @@
                                     Share your voting page with your Circle and network. Every vote from an active Peer member counts.
                                 </p>
 
-                                @if (!empty($creativeUrl))
+                                @php
+                                    $embedCreativeSrc = null;
+                                    if (!empty($creativePath) && file_exists($creativePath) && isset($message)) {
+                                        try {
+                                            $embedCreativeSrc = $message->embed($creativePath);
+                                        } catch (\Throwable $e) {
+                                            $embedCreativeSrc = null;
+                                        }
+                                    }
+                                    if (empty($embedCreativeSrc)) {
+                                        $embedCreativeSrc = $creativeUrl ?? null;
+                                    }
+                                @endphp
+
+                                @if (!empty($embedCreativeSrc))
                                 <div style="text-align:center; margin:18px 0;">
-                                    <a href="{{ $creativeUrl }}" target="_blank" style="text-decoration:none; display:inline-block; max-width:420px; width:100%;">
-                                        <img src="{{ $creativeUrl }}" alt="Official Leadership Announcement Creative" width="420" style="max-width:100%; height:auto; border-radius:12px; box-shadow:0 12px 28px rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1); display:block; margin:0 auto;" />
+                                    <a href="{{ $creativeUrl ?? '#' }}" target="_blank" style="text-decoration:none; display:inline-block; max-width:420px; width:100%;">
+                                        <img src="{{ $embedCreativeSrc }}" alt="Official Leadership Announcement Creative" width="420" style="max-width:100%; height:auto; border-radius:12px; box-shadow:0 12px 28px rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1); display:block; margin:0 auto;" />
                                     </a>
                                 </div>
                                 @endif

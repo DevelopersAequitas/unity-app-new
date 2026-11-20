@@ -76,7 +76,6 @@ class LeadershipNomination extends Model
         'form_2_link',
         'form_2_status',
         'form_2_data',
-        'jury_evaluation',
         'creative_url',
     ];
 
@@ -85,40 +84,21 @@ class LeadershipNomination extends Model
      */
     public function getJuryEvaluationAttribute(): ?array
     {
-        $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
-            ->where('nomination_id', $this->id)
+        if (! $this->relationLoaded('juryAssignments')) {
+            return null;
+        }
+
+        $assignment = $this->juryAssignments
             ->where('status', 'completed')
-            ->latest('completed_at')
+            ->sortByDesc('completed_at')
             ->first();
-
-        if (! $assignment && str_ends_with((string) $this->application_number, '-F2')) {
-            $parent = static::where('application_number', substr((string) $this->application_number, 0, -3))->first();
-            if ($parent) {
-                $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
-                    ->where('nomination_id', $parent->id)
-                    ->where('status', 'completed')
-                    ->latest('completed_at')
-                    ->first();
-            }
-        }
-
-        if (! $assignment) {
-            $child = static::where('application_number', $this->application_number.'-F2')->first();
-            if ($child) {
-                $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
-                    ->where('nomination_id', $child->id)
-                    ->where('status', 'completed')
-                    ->latest('completed_at')
-                    ->first();
-            }
-        }
 
         if (! $assignment) {
             return null;
         }
 
-        $juror = $assignment->juror;
-        $report = $assignment->report;
+        $juror = $assignment->relationLoaded('juror') ? $assignment->juror : null;
+        $report = $assignment->relationLoaded('report') ? $assignment->report : null;
 
         return [
             'status' => 'completed',
@@ -154,7 +134,7 @@ class LeadershipNomination extends Model
             return (string) $snapshot['form_2_status'];
         }
 
-        if (static::where('application_number', $this->application_number.'-F2')->where('status', 'submitted')->exists()) {
+        if (str_ends_with((string) $this->application_number, '-F2')) {
             return 'submitted';
         }
 
@@ -167,17 +147,13 @@ class LeadershipNomination extends Model
     public function getForm2DataAttribute(): ?array
     {
         $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && isset($snapshot['form_2']) && is_array($snapshot['form_2'])) {
-            return $snapshot['form_2'];
-        }
-
-        if (is_array($snapshot) && (isset($snapshot['section_a_business_credibility']) || isset($snapshot['section_d_leadership_bench']))) {
-            return $snapshot;
-        }
-
-        $child = static::where('application_number', $this->application_number.'-F2')->first();
-        if ($child && is_array($child->profile_snapshot)) {
-            return $child->profile_snapshot['form_2'] ?? $child->profile_snapshot;
+        if (is_array($snapshot)) {
+            if (isset($snapshot['form_2']) && is_array($snapshot['form_2'])) {
+                return $snapshot['form_2'];
+            }
+            if (isset($snapshot['section_a_business_credibility']) || isset($snapshot['section_d_leadership_bench'])) {
+                return $snapshot;
+            }
         }
 
         return null;
@@ -326,21 +302,23 @@ class LeadershipNomination extends Model
             return $this->user->profile_photo_url;
         }
 
-        // 4. Resolve Unity user by candidate email or mobile if relation not loaded/linked
-        $user = null;
-        if (! empty($this->email)) {
-            $user = User::where('email', strtolower(trim((string) $this->email)))->first();
-        }
-        if (! $user && ! empty($this->mobile)) {
-            $user = User::where('phone', trim((string) $this->mobile))->first();
-        }
-        if ($user && ! empty($user->profile_photo_url)) {
-            return $user->profile_photo_url;
+        // 4. Resolve Unity user by candidate email or mobile only if user relation was not loaded
+        if (! $this->relationLoaded('user')) {
+            $user = null;
+            if (! empty($this->email)) {
+                $user = User::where('email', strtolower(trim((string) $this->email)))->first();
+            }
+            if (! $user && ! empty($this->mobile)) {
+                $user = User::where('phone', trim((string) $this->mobile))->first();
+            }
+            if ($user && ! empty($user->profile_photo_url)) {
+                return $user->profile_photo_url;
+            }
         }
 
-        // 5. Check uploaded documents for portrait photo or image
+        // 5. Check uploaded documents for portrait photo or image (in-memory if relation loaded)
         try {
-            $docs = $this->relationLoaded('documents') ? $this->documents : $this->documents()->get();
+            $docs = $this->relationLoaded('documents') ? $this->documents : null;
             if ($docs && $docs->isNotEmpty()) {
                 $photoDoc = $docs->first(function ($doc) {
                     $type = strtolower((string) ($doc->document_type ?? ''));
@@ -384,16 +362,11 @@ class LeadershipNomination extends Model
         }
 
         $relativePath = "creatives/leadership/nomination_{$this->id}.png";
-        $disk = config('filesystems.default', 'public');
-        if (\Illuminate\Support\Facades\Storage::disk($disk)->exists($relativePath) || \Illuminate\Support\Facades\Storage::disk('public')->exists($relativePath)) {
-            $url = \Illuminate\Support\Facades\Storage::disk('public')->url($relativePath);
-            if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
-                $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+        $localPath = storage_path("app/public/{$relativePath}");
+        if (file_exists($localPath)) {
+            $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
 
-                return $appUrl.'/'.ltrim($url, '/');
-            }
-
-            return $url;
+            return "{$appUrl}/storage/{$relativePath}";
         }
 
         return null;
