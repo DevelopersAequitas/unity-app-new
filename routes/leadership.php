@@ -73,6 +73,10 @@ Route::prefix('public')->group(function (): void {
     Route::get('public/nominations/{id}/form-2', [LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
     Route::post('public/nominations/{id}/form-2/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/request-otp', [LeadershipForm2Controller::class, 'requestOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/request-otp', [LeadershipForm2Controller::class, 'requestOtp'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/verify-otp', [LeadershipForm2Controller::class, 'verifyOtp'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/verify-otp', [LeadershipForm2Controller::class, 'verifyOtp'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/upload', [LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
     Route::post('public/nominations/{id}/form-2/upload', [LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/submit', [LeadershipForm2Controller::class, 'submit'])->whereUuid('id');

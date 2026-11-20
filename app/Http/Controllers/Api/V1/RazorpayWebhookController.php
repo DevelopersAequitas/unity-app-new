@@ -247,7 +247,6 @@ class RazorpayWebhookController extends Controller
                 'status' => Payment::STATUS_SUCCESS,
                 'paid_at' => $now,
                 'provider' => 'razorpay',
-                'zoho_invoice_id' => $lockedPayment->zoho_invoice_id ?: $invoiceNumber,
             ]);
 
             if ($lockedPayment->user_id && $circleId) {
@@ -327,6 +326,41 @@ class RazorpayWebhookController extends Controller
                 }
             }
         });
+
+        // Create Zoho Billing invoice for Circle Package webhook payment (auto-checks users.gst_number)
+        $freshPayment = Payment::query()->find($payment->id);
+        if ($freshPayment && $freshPayment->status === Payment::STATUS_SUCCESS && (empty($freshPayment->zoho_invoice_id) || str_starts_with((string) $freshPayment->zoho_invoice_id, 'INV-CP-'))) {
+            $user = User::query()->find($freshPayment->user_id);
+            $circle = $freshPayment->circle_id ? Circle::query()->find($freshPayment->circle_id) : null;
+            if ($user && $circle) {
+                try {
+                    $zohoInvoice = app(\App\Support\Zoho\ZohoBillingService::class)->createPaidInvoiceForAppPayment($user, [
+                        'item_name' => 'Circle Package - '.($circle->zoho_addon_name ?: $circle->name),
+                        'description' => 'Circle Package Subscription for '.$circle->name,
+                        'amount' => (float) ($freshPayment->total_amount > 0 ? $freshPayment->total_amount : $freshPayment->amount),
+                        'currency' => (string) ($freshPayment->currency ?: 'INR'),
+                        'reference_number' => (string) ($freshPayment->razorpay_payment_id ?: $freshPayment->id),
+                        'notes' => 'Paid via Razorpay: '.($freshPayment->razorpay_payment_id ?: $freshPayment->id),
+                        'terms' => 'Thank you for joining the circle.',
+                    ]);
+
+                    if (! empty($zohoInvoice['invoice_id'])) {
+                        $freshPayment->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                        CircleSubscription::query()
+                            ->where('user_id', $user->id)
+                            ->where('circle_id', $circle->id)
+                            ->where('reference_id', $freshPayment->razorpay_order_id)
+                            ->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Zoho invoice sync failed for circle package webhook', [
+                        'payment_id' => $freshPayment->id,
+                        'circle_id' => $circle->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
     }
 
     private function handlePaymentFailed(array $payload): void

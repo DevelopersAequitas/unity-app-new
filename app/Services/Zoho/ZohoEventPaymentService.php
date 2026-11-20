@@ -69,11 +69,18 @@ class ZohoEventPaymentService
             'rate' => $amount,
             'quantity' => 1,
         ]];
+        $gstNumber = trim((string) ($registration->user?->gst_number ?? ''));
         $payload = [
             'customer_id' => $customerId,
             'line_items' => $lineItems,
             'reference_number' => (string) $registration->id,
         ];
+        if ($gstNumber !== '') {
+            $payload['gst_no'] = $gstNumber;
+            $payload['gst_treatment'] = 'business_gst';
+        } else {
+            $payload['gst_treatment'] = 'business_none';
+        }
         Log::info('Zoho Billing invoice payload', [
             'registration_id' => $registration->id,
             'item_id_present' => ! empty(data_get($payload, 'line_items.0.item_id')),

@@ -102,14 +102,6 @@ class LeadershipNominationCreativeService
             $x = (int) (($width - $tw) / 2);
             $y = 222;
             $this->drawGradientText($canvas, $lines[0], $fontBold, $roleFontSize, $x, $y, $blueGradient, $redGradient);
-
-            // Flanking lines: left blue, right red
-            imagesetthickness($canvas, 4);
-            $leftLineStart = max(35, $x - 110);
-            $rightLineEnd = min($width - 35, $x + $tw + 110);
-            imageline($canvas, $leftLineStart, $y - 12, $x - 18, $y - 12, $blueColor);
-            imageline($canvas, $x + $tw + 18, $y - 12, $rightLineEnd, $y - 12, $redColor);
-            imagesetthickness($canvas, 1);
         } else {
             // Line 1: Centered with gradient
             $bbox1 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[0]);
@@ -122,17 +114,16 @@ class LeadershipNominationCreativeService
             $x1 = (int) (($width - $w1) / 2);
             $this->drawGradientText($canvas, $lines[0], $fontBold, $roleFontSize, $x1, 206, $blueGradient, $redGradient);
 
-            // Line 2: with trailing vivid red bar
+            // Line 2: Centered with gradient (no trailing lines or boxes)
             $bbox2 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[1]);
             $w2 = abs($bbox2[4] - $bbox2[0]);
-            $barLength = 80;
-            $totalLine2W = $w2 + 20 + $barLength;
-            $x2 = (int) (($width - $totalLine2W) / 2);
+            while ($w2 > 600 && $roleFontSize > 18) {
+                $roleFontSize -= 1;
+                $bbox2 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[1]);
+                $w2 = abs($bbox2[4] - $bbox2[0]);
+            }
+            $x2 = (int) (($width - $w2) / 2);
             $this->drawGradientText($canvas, $lines[1], $fontBold, $roleFontSize, $x2, 256, $blueGradient, $redGradient);
-
-            imagesetthickness($canvas, 4);
-            imageline($canvas, $x2 + $w2 + 18, 244, $x2 + $totalLine2W, 244, $redColor);
-            imagesetthickness($canvas, 1);
         }
 
         // 2. DYNAMIC CANDIDATE CIRCULAR PHOTO & DUAL-COLOR FRAME (Center X = 406, Center Y = 469)
@@ -404,9 +395,18 @@ class LeadershipNominationCreativeService
         // 1. Gather all potential photo locations in priority order
         $candidates = [];
 
-        // Direct photo_url attribute
+        // Direct profile_photo_url & photo_url accessors
+        if (! empty($nomination->profile_photo_url)) {
+            $candidates[] = $nomination->profile_photo_url;
+        }
         if (! empty($nomination->photo_url)) {
             $candidates[] = $nomination->photo_url;
+        }
+        if (! empty($nomination->avatar_url)) {
+            $candidates[] = $nomination->avatar_url;
+        }
+        if (! empty($nomination->image_url)) {
+            $candidates[] = $nomination->image_url;
         }
 
         $snapshot = $nomination->profile_snapshot;
@@ -431,6 +431,20 @@ class LeadershipNominationCreativeService
                     $candidates[] = $nomination->edited_profile[$key];
                 }
             }
+        }
+
+        // Check nomination answers for uploaded photo / image
+        try {
+            $answers = $nomination->relationLoaded('answers') ? $nomination->answers : $nomination->answers()->get();
+            if ($answers && $answers->isNotEmpty()) {
+                foreach ($answers as $ans) {
+                    $val = $ans->answer['value'] ?? $ans->answer ?? $ans->answer_text ?? $ans->answer_json ?? null;
+                    if (is_string($val) && (str_contains($val, 'http') || str_contains($val, '.jpg') || str_contains($val, '.jpeg') || str_contains($val, '.png') || str_contains($val, '.webp') || preg_match('/[0-9a-f]{8}-[0-9a-f]{4}/i', $val))) {
+                        $candidates[] = $val;
+                    }
+                }
+            }
+        } catch (\Throwable) {
         }
 
         // Check nomination documents
@@ -545,22 +559,32 @@ class LeadershipNominationCreativeService
 
             // Case B: Full HTTP/HTTPS URL
             if (str_starts_with($candidate, 'http://') || str_starts_with($candidate, 'https://')) {
-                // If it points to local storage path, check disk first
+                // If it points to local storage path, check local filesystem first
                 $pathPart = parse_url($candidate, PHP_URL_PATH);
                 if ($pathPart && str_contains($pathPart, '/storage/')) {
                     $relStorage = preg_replace('#^.*?/storage/#', '', $pathPart);
-                    $localCheck = public_path('storage/'.$relStorage);
-                    if (file_exists($localCheck)) {
-                        $img = @imagecreatefromstring((string) file_get_contents($localCheck));
-                        if ($img) {
-                            return $img;
+                    foreach ([
+                        public_path('storage/'.$relStorage),
+                        public_path($relStorage),
+                        storage_path('app/public/'.$relStorage),
+                        storage_path('app/'.$relStorage),
+                    ] as $localCheck) {
+                        if (file_exists($localCheck)) {
+                            $img = @imagecreatefromstring((string) file_get_contents($localCheck));
+                            if ($img) {
+                                return $img;
+                            }
                         }
                     }
                 }
 
-                // Remote download with timeout and SSL fallback
+                // Remote download with realistic browser User-Agent, timeout and SSL fallback
                 try {
-                    $resp = Http::timeout(6)->withoutVerifying()->get($candidate);
+                    $resp = Http::withHeaders([
+                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept' => 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    ])->timeout(10)->withoutVerifying()->get($candidate);
+
                     if ($resp->successful() && ! empty($resp->body())) {
                         $img = @imagecreatefromstring($resp->body());
                         if ($img) {
@@ -571,7 +595,10 @@ class LeadershipNominationCreativeService
                     try {
                         $ctx = stream_context_create([
                             'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
-                            'http' => ['timeout' => 6],
+                            'http' => [
+                                'timeout' => 10,
+                                'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nAccept: image/*,*/*\r\n",
+                            ],
                         ]);
                         $data = @file_get_contents($candidate, false, $ctx);
                         if ($data) {
