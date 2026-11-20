@@ -52,7 +52,7 @@
                             <div style="background-color:#182234; border:1px solid #283548; border-radius:12px; padding:24px 20px; text-align:center; margin:24px 0;">
                                 <div style="margin-bottom:14px;">
                                     <a href="{{ $secureLink }}" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:14px 28px; border-radius:10px; box-shadow:0 8px 20px rgba(37, 99, 235, 0.35); letter-spacing:0.02em;">
-                                        [ Open Jury Form ]
+                                        Open Jury Form
                                     </a>
                                 </div>
                                 <div style="font-size:13px; color:#94a3b8; word-break:break-all;">

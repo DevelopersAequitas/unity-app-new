@@ -55,7 +55,7 @@
                             <div style="background-color:#182234; border:1px solid #283548; border-radius:12px; padding:22px 20px; text-align:center; margin:24px 0;">
                                 <div style="margin-bottom:12px;">
                                     <a href="{{ $votingLink }}" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:14px 28px; border-radius:10px; box-shadow:0 8px 20px rgba(37, 99, 235, 0.35); letter-spacing:0.02em;">
-                                        [ Open Your Voting Page ]
+                                        Open Your Voting Page
                                     </a>
                                 </div>
                                 <div style="font-size:13px; color:#94a3b8; word-break:break-all;">
@@ -72,7 +72,7 @@
                                     Track live voters and supporters in real-time using your secure OTP-protected ledger:
                                 </p>
                                 <a href="{{ $nomineeLedgerUrl ?? url('/leadership/nomination/' . $nomination->id . '/live-votes') }}" target="_blank" style="display:inline-block; background-color:#2563eb; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:8px;">
-                                    [ View Your Live Voters Ledger ]
+                                    View Your Live Voters Ledger
                                 </a>
                                 <div style="font-size:11.5px; color:#94a3b8; margin-top:8px;">
                                     (Requires OTP verification sent to this email • Expires when voting closes)
@@ -114,7 +114,7 @@
                                     <span style="font-size:13.5px; color:#e2e8f0; font-weight:500;">Ready-to-share creative and message:</span><br>
                                     @if (!empty($creativeUrl))
                                     <a href="{{ $creativeUrl }}" target="_blank" style="display:inline-block; margin-top:8px; background-color:#1e293b; border:1px solid #3b82f6; color:#60a5fa; font-size:13.5px; font-weight:700; text-decoration:none; padding:8px 20px; border-radius:8px;">
-                                        [ Download Creative ]
+                                        Download Creative
                                     </a>
                                     @else
                                     <span style="font-size:12.5px; color:#94a3b8;">(Creative attached to this email)</span>

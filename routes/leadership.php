@@ -112,6 +112,11 @@ Route::get('public/circles', [FinalDecisionController::class, 'circles']);
 Route::get('cities', [PublicCampaignController::class, 'cities']);
 Route::get('public/cities', [PublicCampaignController::class, 'cities']);
 
+// Direct aliases for Candidate Live Voter Ledger (matches /api/v1/leadership/nominations/{id}/voter-ledger/...)
+Route::post('nominations/{id}/voter-ledger/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])->whereUuid('id');
+Route::post('nominations/{id}/voter-ledger/verify-otp', [LeadershipCandidateLedgerController::class, 'verifyOtp'])->whereUuid('id');
+Route::get('nominations/{id}/voter-ledger', [LeadershipCandidateLedgerController::class, 'fetchLedger'])->whereUuid('id');
+
 // ==========================================
 // 2. JUROR ROUTES (Sanctum Authenticated)
 // ==========================================

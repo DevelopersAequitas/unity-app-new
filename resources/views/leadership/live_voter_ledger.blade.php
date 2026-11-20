@@ -150,10 +150,6 @@
                     <img src="{{ asset('images/logo-full.png') }}" onerror="this.onerror=null; this.src='https://peersglobal.com/images/logo-full.png';" alt="Peers Global Unity" style="height: 48px; max-width: 250px; object-fit: contain; filter: brightness(0) invert(1);" />
                 </a>
             </div>
-            <div class="d-inline-flex align-items-center gap-2 mb-2 px-3 py-1 bg-white bg-opacity-10 rounded-pill text-white small">
-                <i class="bi bi-shield-lock-fill text-warning"></i>
-                <span>Private Nominee Access &bull; Unindexed Page</span>
-            </div>
             <h1 class="h2 fw-bold text-white mb-2">Candidate Private Voter Ledger</h1>
             <p class="text-white-50 mb-4 mx-auto" style="max-width: 650px;">
                 Live, verified peer voting breakdown for your official leadership candidacy.
@@ -185,9 +181,6 @@
                         @if(!$isExpired)
                             <span class="badge badge-live px-3 py-2 rounded-pill d-inline-flex align-items-center gap-1.5">
                                 <span class="pulsing-dot"></span> Voting Active & Open
-                            </span>
-                            <span class="badge badge-verified px-3 py-2 rounded-pill">
-                                <i class="bi bi-patch-check-fill text-primary me-1"></i> 100% Verified Peer OTP Votes
                             </span>
                         @else
                             <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-2 rounded-pill">
@@ -240,7 +233,7 @@
                         <label class="form-label fw-semibold small" for="inputCandidateEmail">Registered Candidate Email Address</label>
                         <div class="input-group">
                             <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
-                            <input type="email" id="inputCandidateEmail" class="form-control" placeholder="name@example.com" value="{{ $registeredEmail }}" required>
+                            <input type="email" id="inputCandidateEmail" class="form-control" placeholder="Enter your registered email address" value="" required autocomplete="off">
                         </div>
                         <div class="form-text small">Must match the registered email for this candidate nomination.</div>
                     </div>
@@ -434,6 +427,21 @@
                 }, 1000);
             }
 
+            async function requestWithFallback(primaryUrl, fallbackUrl, options) {
+                try {
+                    let res = await fetch(primaryUrl, options);
+                    if (res.status === 404 && fallbackUrl) {
+                        res = await fetch(fallbackUrl, options);
+                    }
+                    return res;
+                } catch (e) {
+                    if (fallbackUrl) {
+                        return await fetch(fallbackUrl, options);
+                    }
+                    throw e;
+                }
+            }
+
             // Step A: Send OTP
             async function sendOtp() {
                 const email = inputEmail.value.trim();
@@ -450,7 +458,9 @@
                 btnSendOtp.disabled = true;
 
                 try {
-                    const response = await fetch(`/api/v1/leadership/nominations/${nominationId}/voter-ledger/send-otp`, {
+                    const primaryUrl = `/api/v1/leadership/nominations/${nominationId}/voter-ledger/send-otp`;
+                    const fallbackUrl = `/leadership/nomination/${nominationId}/live-votes/send-otp`;
+                    const response = await requestWithFallback(primaryUrl, fallbackUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -512,7 +522,9 @@
                 btnVerifyOtp.disabled = true;
 
                 try {
-                    const response = await fetch(`/api/v1/leadership/nominations/${nominationId}/voter-ledger/verify-otp`, {
+                    const primaryUrl = `/api/v1/leadership/nominations/${nominationId}/voter-ledger/verify-otp`;
+                    const fallbackUrl = `/leadership/nomination/${nominationId}/live-votes/verify-otp`;
+                    const response = await requestWithFallback(primaryUrl, fallbackUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -600,7 +612,9 @@
                         headers['X-Ledger-Token'] = currentToken;
                     }
 
-                    const response = await fetch(`/api/v1/leadership/nominations/${nominationId}/voter-ledger`, {
+                    const primaryUrl = `/api/v1/leadership/nominations/${nominationId}/voter-ledger`;
+                    const fallbackUrl = `/leadership/nomination/${nominationId}/live-votes/data`;
+                    const response = await requestWithFallback(primaryUrl, fallbackUrl, {
                         method: 'GET',
                         headers: headers
                     });
