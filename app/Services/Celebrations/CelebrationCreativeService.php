@@ -656,9 +656,9 @@ class CelebrationCreativeService
             ? $measureLine(
                 $categoryText,
                 $fontBold,
-                max(10, (int) round(18 * $hScale)),
-                max(9, (int) round(12 * $hScale)),
-                (int) round($width * 0.58)
+                max(9, (int) round(14 * $hScale)),
+                max(7, (int) round(8 * $hScale)),
+                (int) round($width * 0.56)
             )
             : null;
 
