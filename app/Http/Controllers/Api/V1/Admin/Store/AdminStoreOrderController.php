@@ -26,6 +26,47 @@ class AdminStoreOrderController extends BaseApiController
     {
         $query = Order::with(['user', 'items.product', 'shipment']);
 
+        $tab = $request->input('tab');
+        if ($tab && $tab !== 'all') {
+            if ($tab === 'pending') {
+                $query->whereIn('status', ['pending', 'placed', 'confirmed', 'PLACED', 'CONFIRMED']);
+            } elseif ($tab === 'processing') {
+                $query->whereIn('status', ['processing', 'packing', 'packed', 'PROCESSING', 'PACKING', 'PACKED']);
+            } elseif ($tab === 'shipped') {
+                $query->whereIn('status', ['shipped', 'dispatched', 'SHIPPED', 'DISPATCHED']);
+            } elseif ($tab === 'out_for_delivery') {
+                $query->whereIn('status', ['out_for_delivery', 'ready_for_pickup', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP']);
+            } elseif ($tab === 'delivered') {
+                $query->whereIn('status', ['delivered', 'picked_up', 'completed', 'DELIVERED', 'PICKED_UP', 'COMPLETED']);
+            } elseif ($tab === 'cancelled') {
+                $query->whereIn('status', ['cancelled', 'refunded', 'CANCELLED', 'REFUNDED']);
+            } else {
+                $query->where('status', 'ILIKE', $tab);
+            }
+        }
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('order_no', 'ILIKE', "%{$search}%")
+                    ->orWhere('courier_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('tracking_number', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($dateFrom = $request->input('date_from')) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo = $request->input('date_to')) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
         if ($orderNo = $request->input('order_no')) {
             $query->where('order_no', 'ILIKE', "%{$orderNo}%");
         }
@@ -33,7 +74,7 @@ class AdminStoreOrderController extends BaseApiController
             $query->where('user_id', $userId);
         }
         if ($status = $request->input('status')) {
-            $query->where('status', $status);
+            $query->where('status', 'ILIKE', $status);
         }
         if ($deliveryMode = $request->input('delivery_mode')) {
             $query->where('delivery_type', $deliveryMode);
@@ -65,7 +106,7 @@ class AdminStoreOrderController extends BaseApiController
     public function updateStatus(AdminOrderStatusRequest $request, string $id): JsonResponse
     {
         $order = Order::findOrFail($id);
-        $newStatus = $request->input('status');
+        $newStatus = strtoupper($request->input('status'));
         $fromStatus = $order->status;
         $adminUser = $request->user();
 
@@ -75,7 +116,19 @@ class AdminStoreOrderController extends BaseApiController
             return $this->success($order, 'Order marked as Ready for Pickup');
         }
 
-        $order->update(['status' => $newStatus]);
+        $updateData = ['status' => $newStatus];
+        if ($request->filled('courier_name')) {
+            $updateData['courier_name'] = $request->input('courier_name');
+            $updateData['delivery_person_name'] = $request->input('courier_name');
+        }
+        if ($request->filled('tracking_number')) {
+            $updateData['tracking_number'] = $request->input('tracking_number');
+            $updateData['delivery_person_phone'] = $request->input('tracking_number');
+        }
+        if ($request->filled('note')) {
+            $updateData['notes'] = $request->input('note');
+        }
+        $order->update($updateData);
 
         OrderStatusHistory::create([
             'order_id' => $order->id,

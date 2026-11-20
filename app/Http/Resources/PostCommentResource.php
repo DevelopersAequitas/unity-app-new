@@ -12,12 +12,17 @@ class PostCommentResource extends JsonResource
 {
     public function toArray($request)
     {
+        $mentions = $this->resolveMentions();
+        $taggedPeerIds = $this->resolveTaggedPeerIds($mentions);
+
         return [
             'id' => $this->id,
             'post_id' => $this->post_id,
             'user_id' => $this->user_id,
             'parent_id' => $this->parent_id,
             'content' => $this->content,
+            'mentions' => $mentions,
+            'tagged_peer_ids' => $taggedPeerIds,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'user' => $this->whenLoaded('user', function () {
@@ -160,5 +165,75 @@ class PostCommentResource extends JsonResource
         }
 
         return null;
+    }
+
+    /**
+     * Resolve structured mentions for the comment from stored mentions column or inline @[Name](uuid) tokens.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveMentions(): array
+    {
+        $stored = $this->resource->getAttribute('mentions');
+        if (is_string($stored)) {
+            $decoded = json_decode($stored, true);
+            $stored = is_array($decoded) ? $decoded : [];
+        }
+
+        if (is_array($stored) && $stored !== []) {
+            return array_values(array_filter(array_map(function ($m) {
+                if (! is_array($m) || empty($m['id'])) {
+                    return null;
+                }
+
+                return [
+                    'id' => (string) $m['id'],
+                    'name' => (string) ($m['name'] ?? 'Peer Member'),
+                    'username' => $m['username'] ?? null,
+                    'profile_photo_url' => $m['profile_photo_url'] ?? null,
+                ];
+            }, $stored)));
+        }
+
+        $mentions = [];
+        $content = (string) ($this->content ?? '');
+        if ($content !== '' && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', $content, $matches, PREG_SET_ORDER)) {
+            $seen = [];
+            foreach ($matches as $match) {
+                $peerId = (string) $match[2];
+                if (isset($seen[$peerId])) {
+                    continue;
+                }
+                $seen[$peerId] = true;
+                $mentions[] = [
+                    'id' => $peerId,
+                    'name' => trim((string) $match[1]) ?: 'Peer Member',
+                ];
+            }
+        }
+
+        return $mentions;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $mentions
+     * @return array<int, string>
+     */
+    private function resolveTaggedPeerIds(array $mentions): array
+    {
+        $stored = $this->resource->getAttribute('tagged_peer_ids');
+        if (is_string($stored)) {
+            $decoded = json_decode($stored, true);
+            $stored = is_array($decoded) ? $decoded : [];
+        }
+
+        $ids = is_array($stored) ? array_map('strval', $stored) : [];
+        foreach ($mentions as $m) {
+            if (! empty($m['id'])) {
+                $ids[] = (string) $m['id'];
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 }

@@ -40,6 +40,8 @@ class AdminPlansApiController extends BaseApiController
      */
     public function membershipPlans(): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plans = MembershipPlan::query()
             ->membershipOnly()
             ->orderBy('sort_order')
@@ -48,12 +50,15 @@ class AdminPlansApiController extends BaseApiController
 
         $data = $plans->map(function (MembershipPlan $plan): array {
             $amounts = $this->membershipService->calculateAmounts($plan);
+            $monthlyPrice = $plan->resolveMonthlyPrice();
 
             return [
                 'id' => (string) $plan->id,
                 'name' => (string) $plan->name,
                 'slug' => (string) $plan->slug,
                 'price' => (float) $plan->price,
+                'monthly_price' => $monthlyPrice,
+                'display_monthly_price' => $monthlyPrice,
                 'gst_percent' => (float) $plan->gst_percent,
                 'gst_amount' => (float) $amounts['gst_amount'],
                 'total_amount' => (float) $amounts['total_amount'],
@@ -77,9 +82,18 @@ class AdminPlansApiController extends BaseApiController
      */
     public function createMembershipPlan(Request $request): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
+        if (! $request->has('monthly_price') && ($request->has('display_monthly_price') || $request->has('monthly_amount'))) {
+            $request->merge([
+                'monthly_price' => $request->input('display_monthly_price', $request->input('monthly_amount')),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'gst_percent' => ['required', 'numeric', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0'],
             'duration_months' => ['nullable', 'integer', 'min:0'],
@@ -91,6 +105,14 @@ class AdminPlansApiController extends BaseApiController
 
         if ($validated['is_free'] && (float) $validated['price'] > 0) {
             return $this->error('Free plans must have a base price of 0.', 422);
+        }
+
+        if ($validated['is_free']) {
+            $validated['monthly_price'] = 0;
+        }
+
+        if (! Schema::hasColumn('membership_plans', 'monthly_price')) {
+            unset($validated['monthly_price']);
         }
 
         $validated['id'] = (string) Str::uuid();
@@ -101,8 +123,11 @@ class AdminPlansApiController extends BaseApiController
 
         $plan = MembershipPlan::query()->create($validated);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]), 'Membership plan created successfully.', 201);
@@ -113,10 +138,15 @@ class AdminPlansApiController extends BaseApiController
      */
     public function getMembershipPlan(string $id): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plan = MembershipPlan::query()->findOrFail($id);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]));
@@ -127,15 +157,24 @@ class AdminPlansApiController extends BaseApiController
      */
     public function updateMembershipPlan(Request $request, string $id): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plan = MembershipPlan::query()->findOrFail($id);
 
         if ($plan->isCirclePlan()) {
             return $this->error('Circle plans cannot be edited from Membership Plans.', 422);
         }
 
+        if (! $request->has('monthly_price') && ($request->has('display_monthly_price') || $request->has('monthly_amount'))) {
+            $request->merge([
+                'monthly_price' => $request->input('display_monthly_price', $request->input('monthly_amount')),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'gst_percent' => ['required', 'numeric', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0'],
             'duration_months' => ['nullable', 'integer', 'min:0'],
@@ -149,14 +188,25 @@ class AdminPlansApiController extends BaseApiController
             return $this->error('Free plans must have a base price of 0.', 422);
         }
 
+        if ($validated['is_free']) {
+            $validated['monthly_price'] = 0;
+        }
+
+        if (! Schema::hasColumn('membership_plans', 'monthly_price')) {
+            unset($validated['monthly_price']);
+        }
+
         if (empty($plan->slug)) {
             $validated['slug'] = $this->generateUniqueSlug($validated['name'], $plan->id);
         }
 
         $plan->update($validated);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]), 'Membership plan updated successfully.');
@@ -188,6 +238,8 @@ class AdminPlansApiController extends BaseApiController
      */
     public function circlePlans(): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plans = MembershipPlan::query()
             ->circleOnly()
             ->orderBy('sort_order')
@@ -196,12 +248,15 @@ class AdminPlansApiController extends BaseApiController
 
         $data = $plans->map(function (MembershipPlan $plan): array {
             $amounts = $this->membershipService->calculateAmounts($plan);
+            $monthlyPrice = $plan->resolveMonthlyPrice();
 
             return [
                 'id' => (string) $plan->id,
                 'name' => (string) $plan->name,
                 'slug' => (string) $plan->slug,
                 'price' => (float) $plan->price,
+                'monthly_price' => $monthlyPrice,
+                'display_monthly_price' => $monthlyPrice,
                 'gst_percent' => (float) $plan->gst_percent,
                 'gst_amount' => (float) $amounts['gst_amount'],
                 'total_amount' => (float) $amounts['total_amount'],
@@ -226,9 +281,12 @@ class AdminPlansApiController extends BaseApiController
      */
     public function createCirclePlan(Request $request): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'gst_percent' => ['required', 'numeric', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0'],
             'duration_months' => ['nullable', 'integer', 'min:0'],
@@ -240,6 +298,14 @@ class AdminPlansApiController extends BaseApiController
 
         if ($validated['is_free'] && (float) $validated['price'] > 0) {
             return $this->error('Free plans must have a base price of 0.', 422);
+        }
+
+        if ($validated['is_free']) {
+            $validated['monthly_price'] = 0;
+        }
+
+        if (! Schema::hasColumn('membership_plans', 'monthly_price')) {
+            unset($validated['monthly_price']);
         }
 
         $validated['id'] = (string) Str::uuid();
@@ -250,8 +316,11 @@ class AdminPlansApiController extends BaseApiController
 
         $plan = MembershipPlan::query()->create($validated);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]), 'Circle plan created successfully.', 201);
@@ -262,10 +331,15 @@ class AdminPlansApiController extends BaseApiController
      */
     public function getCirclePlan(string $id): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plan = MembershipPlan::query()->findOrFail($id);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]));
@@ -276,6 +350,8 @@ class AdminPlansApiController extends BaseApiController
      */
     public function updateCirclePlan(Request $request, string $id): JsonResponse
     {
+        MembershipPlan::ensureMonthlyPriceColumn();
+
         $plan = MembershipPlan::query()->findOrFail($id);
 
         if (! $plan->isCirclePlan()) {
@@ -285,6 +361,7 @@ class AdminPlansApiController extends BaseApiController
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'gst_percent' => ['required', 'numeric', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0'],
             'duration_months' => ['nullable', 'integer', 'min:0'],
@@ -296,6 +373,14 @@ class AdminPlansApiController extends BaseApiController
 
         if ($validated['is_free'] && (float) $validated['price'] > 0) {
             return $this->error('Free plans must have a base price of 0.', 422);
+        }
+
+        if ($validated['is_free']) {
+            $validated['monthly_price'] = 0;
+        }
+
+        if (! Schema::hasColumn('membership_plans', 'monthly_price')) {
+            unset($validated['monthly_price']);
         }
 
         // Never clear or overwrite slug for circle plans
@@ -307,8 +392,11 @@ class AdminPlansApiController extends BaseApiController
 
         $plan->update($validated);
         $amounts = $this->membershipService->calculateAmounts($plan);
+        $monthlyPrice = $plan->resolveMonthlyPrice();
 
         return $this->success(array_merge($plan->toArray(), [
+            'monthly_price' => $monthlyPrice,
+            'display_monthly_price' => $monthlyPrice,
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
         ]), 'Circle plan updated successfully.');
@@ -352,6 +440,7 @@ class AdminPlansApiController extends BaseApiController
             ->get()
             ->map(function ($p) {
                 $amounts = $this->membershipService->calculateAmounts($p);
+
                 return [
                     'id' => $p->id,
                     'name' => $p->name,
@@ -383,6 +472,7 @@ class AdminPlansApiController extends BaseApiController
             ->get()
             ->map(function ($u) {
                 $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+
                 return [
                     'id' => $u->id,
                     'name' => $name ?: $u->email,
@@ -684,6 +774,7 @@ class AdminPlansApiController extends BaseApiController
             ->get()
             ->map(function ($u) {
                 $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+
                 return [
                     'id' => $u->id,
                     'name' => $name ?: $u->email,
@@ -702,6 +793,7 @@ class AdminPlansApiController extends BaseApiController
             ->get()
             ->map(function ($p) {
                 $amounts = $this->membershipService->calculateAmounts($p);
+
                 return [
                     'id' => $p->id,
                     'name' => $p->name,

@@ -14,8 +14,10 @@ class AdminOrderStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => 'required|string|in:PROCESSING,PACKED,SHIPPED,OUT_FOR_DELIVERY,DELIVERED,READY_FOR_PICKUP,CANCELLED',
+            'status' => 'required|string',
             'note' => 'nullable|string|max:500',
+            'courier_name' => 'nullable|string|max:100',
+            'tracking_number' => 'nullable|string|max:100',
         ];
     }
 }

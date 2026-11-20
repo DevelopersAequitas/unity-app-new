@@ -35,24 +35,24 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::prefix('categories')->group(function () {
         Route::get('/', [AdminStoreCategoryController::class, 'index']);
         Route::post('/', [AdminStoreCategoryController::class, 'store']);
-        Route::put('/{id}', [AdminStoreCategoryController::class, 'update'])->whereUuid('id');
-        Route::delete('/{id}', [AdminStoreCategoryController::class, 'destroy'])->whereUuid('id');
+        Route::put('/{id}', [AdminStoreCategoryController::class, 'update']);
+        Route::delete('/{id}', [AdminStoreCategoryController::class, 'destroy']);
     });
 
     // Products
     Route::prefix('products')->group(function () {
         Route::get('/', [AdminStoreProductController::class, 'index']);
         Route::post('/', [AdminStoreProductController::class, 'store']);
-        Route::get('/{id}', [AdminStoreProductController::class, 'show'])->whereUuid('id');
-        Route::put('/{id}', [AdminStoreProductController::class, 'update'])->whereUuid('id');
-        Route::post('/{id}/disable', [AdminStoreProductController::class, 'disable'])->whereUuid('id');
-        Route::post('/{id}/archive', [AdminStoreProductController::class, 'archive'])->whereUuid('id');
-        Route::delete('/{id}', [AdminStoreProductController::class, 'destroy'])->whereUuid('id');
-        Route::post('/{id}/images', [AdminStoreProductController::class, 'addImage'])->whereUuid('id');
-        Route::delete('/{id}/images/{imageId}', [AdminStoreProductController::class, 'removeImage'])->whereUuid('id')->whereUuid('imageId');
+        Route::get('/{id}', [AdminStoreProductController::class, 'show']);
+        Route::put('/{id}', [AdminStoreProductController::class, 'update']);
+        Route::post('/{id}/disable', [AdminStoreProductController::class, 'disable']);
+        Route::post('/{id}/archive', [AdminStoreProductController::class, 'archive']);
+        Route::delete('/{id}', [AdminStoreProductController::class, 'destroy']);
+        Route::post('/{id}/images', [AdminStoreProductController::class, 'addImage']);
+        Route::delete('/{id}/images/{imageId}', [AdminStoreProductController::class, 'removeImage']);
 
         // Variants for Product
-        Route::post('/{id}/variants', [AdminStoreVariantController::class, 'store'])->whereUuid('id');
+        Route::post('/{id}/variants', [AdminStoreVariantController::class, 'store']);
     });
 
     // Variants & Inventory
@@ -177,6 +177,7 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
         // Pincodes
         Route::get('pincodes', [AdminStoreServiceabilityController::class, 'pincodes']);
         Route::post('pincodes', [AdminStoreServiceabilityController::class, 'storePincode']);
+        Route::put('pincodes/{id}', [AdminStoreServiceabilityController::class, 'updatePincode'])->whereUuid('id');
         Route::post('pincodes/{id}/status', [AdminStoreServiceabilityController::class, 'togglePincode'])->whereUuid('id');
         Route::delete('pincodes/{id}', [AdminStoreServiceabilityController::class, 'deletePincode'])->whereUuid('id');
 

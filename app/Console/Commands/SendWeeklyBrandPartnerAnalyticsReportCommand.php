@@ -35,6 +35,7 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
 
         $now = Carbon::now();
         $weekStart = $now->copy()->subDays(7)->startOfDay();
+        $prevWeekStart = $weekStart->copy()->subDays(7)->startOfDay();
 
         $activePartners = BrandPartner::query()
             ->where('is_active', true)
@@ -57,20 +58,34 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
                 continue;
             }
 
-            // Weekly (last 7 days) metrics
+            // Current week (last 7 days) vs Previous week (7-14 days ago) metrics
             $weeklyViews = Schema::hasTable('brand_partner_views')
                 ? BrandPartnerView::where('brand_partner_id', $partner->id)
                     ->where('viewed_at', '>=', $weekStart)
                     ->count()
                 : 0;
+            $prevWeeklyViews = Schema::hasTable('brand_partner_views')
+                ? BrandPartnerView::where('brand_partner_id', $partner->id)
+                    ->where('viewed_at', '>=', $prevWeekStart)
+                    ->where('viewed_at', '<', $weekStart)
+                    ->count()
+                : 0;
 
             $weeklyUniqueViews = 0;
+            $prevWeeklyUniqueViews = 0;
             if (Schema::hasTable('brand_partner_views')) {
                 $uvRow = BrandPartnerView::where('brand_partner_id', $partner->id)
                     ->where('viewed_at', '>=', $weekStart)
                     ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
                     ->first();
                 $weeklyUniqueViews = (int) ($uvRow->count ?? 0);
+
+                $prevUvRow = BrandPartnerView::where('brand_partner_id', $partner->id)
+                    ->where('viewed_at', '>=', $prevWeekStart)
+                    ->where('viewed_at', '<', $weekStart)
+                    ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
+                    ->first();
+                $prevWeeklyUniqueViews = (int) ($prevUvRow->count ?? 0);
             }
 
             $weeklyClicks = Schema::hasTable('brand_partner_clicks')
@@ -78,28 +93,32 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
                     ->where('created_at', '>=', $weekStart)
                     ->count()
                 : 0;
-
-            $weeklyUniqueClicks = 0;
-            if (Schema::hasTable('brand_partner_clicks')) {
-                $ucRow = BrandPartnerClick::where('brand_partner_id', $partner->id)
-                    ->where('created_at', '>=', $weekStart)
-                    ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
-                    ->first();
-                $weeklyUniqueClicks = (int) ($ucRow->count ?? 0);
-            }
-            if ($weeklyUniqueClicks > $weeklyUniqueViews) {
-                $weeklyUniqueClicks = $weeklyUniqueViews;
-            }
-
-            $weeklyCtr = $weeklyUniqueViews > 0
-                ? min(100.0, round(($weeklyUniqueClicks / $weeklyUniqueViews) * 100, 2))
-                : 0.0;
+            $prevWeeklyClicks = Schema::hasTable('brand_partner_clicks')
+                ? BrandPartnerClick::where('brand_partner_id', $partner->id)
+                    ->where('created_at', '>=', $prevWeekStart)
+                    ->where('created_at', '<', $weekStart)
+                    ->count()
+                : 0;
 
             $weeklyCallbacks = Schema::hasTable('brand_partner_inquiries')
                 ? BrandPartnerInquiry::where('brand_partner_id', $partner->id)
                     ->where('created_at', '>=', $weekStart)
                     ->count()
                 : 0;
+            $prevWeeklyCallbacks = Schema::hasTable('brand_partner_inquiries')
+                ? BrandPartnerInquiry::where('brand_partner_id', $partner->id)
+                    ->where('created_at', '>=', $prevWeekStart)
+                    ->where('created_at', '<', $weekStart)
+                    ->count()
+                : 0;
+
+            // CTR = Clicks ÷ Views; Callback Rate = Callback Requests ÷ Clicks
+            $weeklyCtr = $weeklyViews > 0
+                ? min(100.0, round(($weeklyClicks / $weeklyViews) * 100, 2))
+                : 0.0;
+            $weeklyCallbackRate = $weeklyClicks > 0
+                ? min(100.0, round(($weeklyCallbacks / $weeklyClicks) * 100, 2))
+                : 0.0;
 
             // Lifetime metrics
             $lifetimeViews = Schema::hasTable('brand_partner_views')
@@ -112,14 +131,37 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
                 ? BrandPartnerInquiry::where('brand_partner_id', $partner->id)->count()
                 : 0;
 
+            $packageStartDate = $partner->valid_from
+                ? $partner->valid_from->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                : ($partner->created_at
+                    ? $partner->created_at->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                    : $weekStart->copy()->setTimezone('Asia/Kolkata')->format('d M Y'));
+
+            $expiryDate = $partner->valid_to
+                ? $partner->valid_to->copy()->setTimezone('Asia/Kolkata')->format('d M Y')
+                : 'Active';
+
+            $daysLeft = $partner->valid_to
+                ? max(0, (int) $now->copy()->setTimezone('Asia/Kolkata')->startOfDay()->diffInDays($partner->valid_to->copy()->setTimezone('Asia/Kolkata')->startOfDay(), false))
+                : 30;
+
             $weeklyStats = [
-                'from' => $weekStart->toFormattedDateString(),
-                'to' => $now->toFormattedDateString(),
+                'from' => $weekStart->copy()->setTimezone('Asia/Kolkata')->format('d M Y'),
+                'to' => $now->copy()->setTimezone('Asia/Kolkata')->format('d M Y'),
                 'total_views' => $weeklyViews,
+                'views_change' => $this->formatPercentChange($weeklyViews, $prevWeeklyViews),
                 'unique_reach' => $weeklyUniqueViews,
+                'unique_change' => $this->formatPercentChange($weeklyUniqueViews, $prevWeeklyUniqueViews).' vs last week',
                 'total_clicks' => $weeklyClicks,
+                'clicks_change' => $this->formatPercentChange($weeklyClicks, $prevWeeklyClicks).' vs last week',
                 'ctr_percent' => $weeklyCtr,
                 'callback_requests' => $weeklyCallbacks,
+                'callbacks_change' => $this->formatCountOrPercentChange($weeklyCallbacks, $prevWeeklyCallbacks).' vs last week',
+                'callback_rate_percent' => $weeklyCallbackRate,
+                'package_start_date' => $packageStartDate,
+                'expiry_date' => $expiryDate,
+                'days_left' => $daysLeft,
+                'dashboard_link' => rtrim((string) config('app.public_url', config('app.url', 'https://peersunity.com')), '/').'/advertiser/dashboard',
             ];
 
             $lifetimeStats = [
@@ -136,5 +178,23 @@ class SendWeeklyBrandPartnerAnalyticsReportCommand extends Command
         $this->info("Sent weekly Brand Partner performance report to {$sentCount} active partner(s).");
 
         return self::SUCCESS;
+    }
+
+    protected function formatPercentChange(int $current, int $previous): string
+    {
+        if ($previous <= 0) {
+            return $current > 0 ? '+100%' : '0%';
+        }
+
+        $diffPercent = (int) round((($current - $previous) / $previous) * 100);
+
+        return ($diffPercent >= 0 ? '+' : '').$diffPercent.'%';
+    }
+
+    protected function formatCountOrPercentChange(int $current, int $previous): string
+    {
+        $diff = $current - $previous;
+
+        return ($diff >= 0 ? '+' : '').$diff;
     }
 }

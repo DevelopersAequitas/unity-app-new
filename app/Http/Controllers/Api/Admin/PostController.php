@@ -66,7 +66,13 @@ class PostController extends BaseApiController
         // Post Type filter (ask, impact, general, birthday, collaboration)
         if ($postType = $request->query('post_type')) {
             if ($postType !== 'all') {
-                $query->where('post_type', $postType);
+                if ($postType === 'birthday') {
+                    $query->whereIn('post_type', ['birthday', 'genie_birthday']);
+                } elseif ($postType === 'anniversary') {
+                    $query->whereIn('post_type', ['anniversary', 'genie_anniversary']);
+                } else {
+                    $query->where('post_type', $postType);
+                }
             }
         }
 
@@ -304,7 +310,7 @@ class PostController extends BaseApiController
         // Check if this is a recognition / celebration / system-generated bot post
         $currentAuthorName = (string) ($post->user?->display_name ?? $post->user?->name ?? '');
         $isRecognition = ($post->post_type ?? null) === 'life_impact_recognition'
-            || in_array($post->post_type ?? '', ['birthday', 'anniversary', 'birthday_celebration', 'anniversary_celebration'], true)
+            || in_array($post->post_type ?? '', ['birthday', 'genie_birthday', 'anniversary', 'genie_anniversary', 'birthday_celebration', 'anniversary_celebration'], true)
             || in_array($post->source_type ?? '', ['birthday', 'anniversary', 'life_impact'], true)
             || str_contains(strtolower($currentAuthorName), 'genie')
             || str_contains(strtolower($currentAuthorName), 'peers global');

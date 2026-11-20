@@ -36,9 +36,9 @@ Schedule::command('PGU:advertiser-subscription-expiry-check')->dailyAt('08:15')-
 // Weekly Brand Partner performance & callback leads report email (Every Monday at 09:00 AM)
 Schedule::command('PGU:brand-partner-weekly-report')->weeklyOn(1, '09:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
-// Engagement reminders (push + in-app)
-Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
-Schedule::command('app:send-inactivity-activity-reminders')->dailyAt('18:30')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+// Engagement reminders (push + in-app) — Temporarily stopped per admin request
+// Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
+// Schedule::command('app:send-inactivity-activity-reminders')->dailyAt('18:30')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Notification campaigns scheduler (mail + push + in-app campaigns)
 Schedule::command('campaigns:run')->everyMinute()->withoutOverlapping();
@@ -52,19 +52,18 @@ Schedule::command('celebrations:sync-schedules')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
-Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:00')
+Schedule::command('celebrations:sync-schedules')
+    ->dailyAt('06:55')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
-// Safety retry passes for any transient failure (idempotent: already-published celebrations are skipped)
+// Runs every minute; command internally enforces the 07:00 AM IST (Asia/Kolkata) gate:
+// - Before 07:00 AM IST: waits (publishes nothing)
+// - At 07:00 AM IST: publishes all birthdays & anniversaries automatically without admin login
+// - After 07:00 AM IST: skips already-published posts (strict dedup), auto-publishes same-day
+//   newly registered/edited peers, and retries any failed attempts
 Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:15')
-    ->timezone('Asia/Kolkata')
-    ->withoutOverlapping();
-
-Schedule::command('celebrations:publish-due')
-    ->dailyAt('07:30')
+    ->everyMinute()
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 

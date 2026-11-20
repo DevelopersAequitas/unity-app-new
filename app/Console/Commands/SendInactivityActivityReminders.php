@@ -19,6 +19,12 @@ class SendInactivityActivityReminders extends Command
 
     public function handle(ActivityReminderService $service): int
     {
+        if (! (bool) config('services.engagement_notifications.enabled', false)) {
+            $this->info('Smart Inactivity Activity Reminders are currently disabled.');
+
+            return self::SUCCESS;
+        }
+
         $this->info('Starting Smart Inactivity Activity Reminders check...');
 
         $targetUserId = $this->option('user-id') ? (string) $this->option('user-id') : null;

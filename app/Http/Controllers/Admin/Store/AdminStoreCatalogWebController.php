@@ -31,6 +31,15 @@ class AdminStoreCatalogWebController extends Controller
 
         $categories = $query->paginate(15);
 
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Categories retrieved successfully',
+                'data' => $categories->items(),
+                'categories' => $categories,
+            ]);
+        }
+
         return view('admin.store.catalog.categories', compact('categories'));
     }
 
@@ -126,6 +135,13 @@ class AdminStoreCatalogWebController extends Controller
             $category->delete();
         });
 
+        if (request()->wantsJson() || request()->ajax() || request()->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Category deleted successfully.',
+            ]);
+        }
+
         return redirect()->route('admin.store.categories.index')->with('success', 'Category deleted successfully.');
     }
 
@@ -157,6 +173,15 @@ class AdminStoreCatalogWebController extends Controller
 
         $products = $query->paginate(20);
         $categories = StoreCategory::where('status', 'ACTIVE')->orderBy('name')->get();
+
+        if ($request->wantsJson() || $request->ajax() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Products retrieved successfully',
+                'data' => $products->items(),
+                'products' => $products,
+            ]);
+        }
 
         return view('admin.store.catalog.products', compact('products', 'categories'));
     }
@@ -327,6 +352,13 @@ class AdminStoreCatalogWebController extends Controller
         $product = Product::findOrFail($id);
         $product->update(['status' => 'ARCHIVED']);
 
+        if (request()->wantsJson() || request()->ajax() || request()->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product archived successfully.',
+            ]);
+        }
+
         return redirect()->route('admin.store.products.index')->with('success', 'Product archived successfully.');
     }
 
@@ -386,6 +418,13 @@ class AdminStoreCatalogWebController extends Controller
             // Permanently delete the product
             $product->delete();
         });
+
+        if (request()->wantsJson() || request()->ajax() || request()->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product permanently deleted successfully.',
+            ]);
+        }
 
         return redirect()->route('admin.store.products.index')->with('success', 'Product permanently deleted successfully.');
     }

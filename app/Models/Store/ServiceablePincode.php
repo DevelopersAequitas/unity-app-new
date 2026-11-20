@@ -47,4 +47,9 @@ class ServiceablePincode extends Model
         }
         return (bool) ($this->attributes['serviceable'] ?? true);
     }
+
+    public function getEstimatedDeliveryDaysAttribute(): int
+    {
+        return (int) ($this->attributes['estimated_delivery_days'] ?? ($this->attributes['delivery_days'] ?? 3));
+    }
 }

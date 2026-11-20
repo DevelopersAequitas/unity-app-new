@@ -17,6 +17,7 @@ class UpdateMembershipPlanRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:200'],
             'price' => ['required', 'numeric', 'min:0'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'gst_percent' => ['required', 'numeric', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0'],
             'duration_months' => ['nullable', 'integer', 'min:0'],
