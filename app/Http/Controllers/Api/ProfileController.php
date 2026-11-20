@@ -328,7 +328,6 @@ class ProfileController extends BaseApiController
         $fields = [
             'first_name',
             'last_name',
-            'phone',
             'company_name',
             'designation',
             'business_type',
