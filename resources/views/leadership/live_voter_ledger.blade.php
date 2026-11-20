@@ -333,8 +333,6 @@
                                         <th>Verified Voter Name</th>
                                         <th>Business / Org &amp; Role</th>
                                         <th>Chapter / City</th>
-                                        <th>Support Statement</th>
-                                        <th>Vote Ref Code</th>
                                         <th>Voted At</th>
                                     </tr>
                                 </thead>
@@ -683,14 +681,6 @@
                             </td>
                             <td data-label="Chapter / City">
                                 <span class="badge bg-light text-dark border">${escapeHtml(v.city || 'India')}</span>
-                            </td>
-                            <td data-label="Support Statement" style="max-width: 280px;">
-                                <div class="vote-statement-box">
-                                    &ldquo;${escapeHtml(v.support_statement || 'Verified community support for circle growth')}&rdquo;
-                                </div>
-                            </td>
-                            <td data-label="Vote Ref Code">
-                                <span class="badge-ref">${escapeHtml(v.vote_ref_code || '-')}</span>
                             </td>
                             <td data-label="Voted At" class="text-nowrap small text-muted">
                                 <i class="bi bi-calendar3 me-1"></i> ${escapeHtml(v.voted_at || '')}

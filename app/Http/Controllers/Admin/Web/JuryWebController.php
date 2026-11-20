@@ -528,7 +528,6 @@ class JuryWebController extends Controller
                             [
                                 'score' => (float) $scoreData['score'],
                                 'remarks' => $scoreData['remarks'] ?? null,
-                                'scored_at' => Carbon::now(),
                             ]
                         );
                     }
@@ -561,7 +560,6 @@ class JuryWebController extends Controller
                         [
                             'score' => (float) $cItem['score'],
                             'remarks' => $cItem['remarks'] ?? null,
-                            'scored_at' => Carbon::now(),
                         ]
                     );
                 }
