@@ -90,6 +90,9 @@ class PostController extends BaseApiController
         $userDistrictIds = array_values(array_unique(array_filter($userDistrictIds)));
         $cityId = $user->city_id;
 
+
+        
+
         try {
             if (Schema::hasTable('asks') && Schema::hasTable('ask_timeline_links')) {
                 $unlinkedAsks = Ask::query()

@@ -585,8 +585,8 @@ class CelebrationCreativeService
 
         $hScale = $height / 1262.0;
         $centerX = (int) round($width * 0.50);
-        $zoneTop = (int) round($height * 0.760);
-        $zoneBottom = (int) round($height * 0.896);
+        $zoneTop = (int) round($height * 0.748);
+        $zoneBottom = (int) round($height * 0.868);
         $zoneHeight = max(40, $zoneBottom - $zoneTop);
 
         if (! $hasTtf) {
@@ -637,18 +637,18 @@ class CelebrationCreativeService
         $nameItem = $measureLine(
             $fullName,
             $fontBold,
-            max(16, (int) round(34 * $hScale)),
-            max(12, (int) round(22 * $hScale)),
-            (int) round($width * 0.78)
+            max(16, (int) round(32 * $hScale)),
+            max(12, (int) round(20 * $hScale)),
+            (int) round($width * 0.76)
         );
 
         $companyItem = $companyName !== ''
             ? $measureLine(
                 $companyName,
                 file_exists($fontSemiBold) ? $fontSemiBold : $fontBold,
-                max(11, (int) round(20 * $hScale)),
-                max(9, (int) round(13 * $hScale)),
-                (int) round($width * 0.72)
+                max(11, (int) round(19 * $hScale)),
+                max(9, (int) round(12 * $hScale)),
+                (int) round($width * 0.70)
             )
             : null;
 
@@ -656,15 +656,15 @@ class CelebrationCreativeService
             ? $measureLine(
                 $categoryText,
                 $fontBold,
-                max(10, (int) round(18 * $hScale)),
-                max(9, (int) round(12 * $hScale)),
-                (int) round($width * 0.58)
+                max(10, (int) round(17 * $hScale)),
+                max(8, (int) round(9 * $hScale)),
+                (int) round($width * 0.56)
             )
             : null;
 
         $showDivider = $categoryItem !== null;
-        $dividerH = $showDivider ? max(10, (int) round(14 * $hScale)) : 0;
-        $gap = (int) round(11 * $hScale);
+        $dividerH = $showDivider ? max(8, (int) round(12 * $hScale)) : 0;
+        $gap = (int) round(8 * $hScale);
 
         $totalHeight = $nameItem['height'];
         if ($companyItem !== null) {

@@ -518,6 +518,26 @@ class LeadershipNominationCreativeService
                 continue;
             }
 
+            // Case 0: Data URI or Base64 Encoded Image (From Website Form FileReader)
+            if (str_starts_with($candidate, 'data:image/') && str_contains($candidate, ';base64,')) {
+                $base64Part = substr($candidate, strpos($candidate, ';base64,') + 8);
+                $decoded = base64_decode($base64Part, true);
+                if ($decoded !== false && ! empty($decoded)) {
+                    $img = @imagecreatefromstring($decoded);
+                    if ($img) {
+                        return $img;
+                    }
+                }
+            } elseif (strlen($candidate) > 200 && preg_match('/^[a-zA-Z0-9\/\+]{100,}={0,2}$/', $candidate)) {
+                $decoded = base64_decode($candidate, true);
+                if ($decoded !== false && ! empty($decoded)) {
+                    $img = @imagecreatefromstring($decoded);
+                    if ($img) {
+                        return $img;
+                    }
+                }
+            }
+
             // Case A: UUID or string containing /api/v1/files/{uuid}
             if (preg_match('/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i', $candidate, $matches)) {
                 $uuid = $matches[1];
