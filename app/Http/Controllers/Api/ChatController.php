@@ -79,9 +79,23 @@ class ChatController extends BaseApiController
             return $this->error('You cannot interact with this peer.', 422);
         }
 
-        $otherUser = User::find($otherUserId);
+        $otherUser = User::query()
+            ->whereKey($otherUserId)
+            ->whereNull('deleted_at')
+            ->first();
+
         if (! $otherUser) {
             return $this->error('User not found', 404);
+        }
+
+        $otherStatus = strtolower(trim((string) ($otherUser->status ?? 'active')));
+        $otherAttributes = $otherUser->getAttributes();
+        $isTargetInactive = in_array($otherStatus, ['inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected'], true)
+            || ! empty($otherUser->gdpr_deleted_at)
+            || (array_key_exists('is_active', $otherAttributes) && $otherAttributes['is_active'] !== null && ! (bool) $otherAttributes['is_active']);
+
+        if ($isTargetInactive) {
+            return $this->error('This peer is currently inactive and cannot receive messages.', 422);
         }
 
         [$userSmall, $userBig] = strcmp($authUserId, $otherUserId) <= 0
@@ -95,6 +109,7 @@ class ChatController extends BaseApiController
         if (! $chat) {
             try {
                 $chat = Chat::create([
+                    'id' => (string) Str::uuid(),
                     'user1_id' => $userSmall,
                     'user2_id' => $userBig,
                 ]);
@@ -107,6 +122,16 @@ class ChatController extends BaseApiController
                     throw $e;
                 }
             }
+        }
+
+        if (! $chat || empty($chat->id)) {
+            $chat = Chat::where('user1_id', $userSmall)
+                ->where('user2_id', $userBig)
+                ->first();
+        }
+
+        if (! $chat || empty($chat->id)) {
+            return $this->error('Unable to initialize chat', 500);
         }
 
         $chat->load([
@@ -254,6 +279,23 @@ class ChatController extends BaseApiController
         }
 
         $content = $this->normalizedContent($data['content_text'] ?? $data['content'] ?? null);
+
+        // Rapid-fire duplicate guard (e.g., double-tap / auto-wish retry within 10 seconds)
+        if ($attachments === [] && $content !== null && $content !== '') {
+            $recentDuplicate = $chat->messages()
+                ->where('sender_id', $authUser->id)
+                ->where('content', $content)
+                ->whereNull('attachments')
+                ->where('created_at', '>=', now()->subSeconds(10))
+                ->latest('created_at')
+                ->first();
+
+            if ($recentDuplicate) {
+                $recentDuplicate->load('sender');
+
+                return $this->success(new MessageResource($recentDuplicate), 'Message sent');
+            }
+        }
 
         $message = $chat->messages()->create([
             'sender_id' => $authUser->id,

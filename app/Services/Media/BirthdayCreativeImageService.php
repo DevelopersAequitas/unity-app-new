@@ -16,9 +16,20 @@ class BirthdayCreativeImageService
     use HasCreativeRendering;
 
     /**
-     * Generate birthday creative image for a user.
+     * Generate birthday creative image for a user using the unified approved Birthday Creative template
+     * (with dynamic profile photo inside the circular frame and full name, designation/category, and company name below).
      */
     public function generate(User $user): FileModel
+    {
+        $result = app(\App\Services\Celebrations\CelebrationCreativeService::class)->generateBirthdayCreative($user);
+
+        return $result['file'];
+    }
+
+    /**
+     * Legacy generator retained only for reference; superseded by CelebrationCreativeService::generateBirthdayCreative.
+     */
+    protected function generateLegacy(User $user): FileModel
     {
         try {
             $config = BirthdayCreativeConfig::first();

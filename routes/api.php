@@ -1269,6 +1269,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/celebrations/schedule', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'schedule']);
             Route::post('/celebrations/{id}/cancel', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'cancel'])->whereUuid('id');
             Route::post('/celebrations/{id}/retry', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'retry'])->whereUuid('id');
+            Route::post('/celebrations/{id}/refresh-creative', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'refreshCreative'])->whereUuid('id');
             Route::get('/celebrations/logs', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'logs']);
             Route::get('/celebrations/templates', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'templates']);
             Route::post('/celebrations/templates/anniversary', [App\Http\Controllers\Api\Admin\CelebrationAdminController::class, 'uploadAnniversaryTemplate']);

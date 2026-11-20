@@ -162,6 +162,7 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
             ->selectRaw('posts.post_type as post_type')
+            ->selectRaw('posts.image as post_image')
             ->where(function ($q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
                 $visibilityCol = DB::raw('CAST(posts.visibility AS TEXT)');
 
@@ -234,14 +235,41 @@ class PostController extends BaseApiController
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
-            ->whereExists(function ($authorQuery): void {
-                $authorQuery->select(DB::raw(1))
-                    ->from('users as author_filter')
-                    ->whereColumn('author_filter.id', 'posts.user_id')
-                    ->where(function ($sq): void {
-                        $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
-                    })
-                    ->whereNull('author_filter.deleted_at');
+            ->where(function ($authorOrSystemQuery): void {
+                $authorOrSystemQuery->whereIn('posts.post_type', [
+                    'genie_birthday',
+                    'birthday',
+                    'genie_anniversary',
+                    'anniversary',
+                    'welcome',
+                    'life_impact_recognition',
+                    'growth_honour',
+                    'milestone_honour',
+                    'global_peer_certificate',
+                    'introduction',
+                ])
+                    ->orWhereIn('posts.source_type', [
+                        'birthday',
+                        'anniversary',
+                        'welcome',
+                        'life_impact',
+                        'recognition',
+                        'growth_honour',
+                        'milestone_honour',
+                        'global_peer_certificate',
+                        'introduction',
+                    ])
+                    ->orWhereExists(function ($authorQuery): void {
+                        $authorQuery->select(DB::raw(1))
+                            ->from('users as author_filter')
+                            ->whereColumn('author_filter.id', 'posts.user_id')
+                            ->where(function ($sq): void {
+                                $sq->whereNull('author_filter.status')
+                                    ->orWhereRaw("LOWER(CAST(author_filter.status AS TEXT)) = 'active'")
+                                    ->orWhereRaw("LOWER(COALESCE(author_filter.email, '')) = 'info@peersglobal.com'");
+                            })
+                            ->whereNull('author_filter.deleted_at');
+                    });
             });
 
         $union = $postRows;
@@ -280,6 +308,7 @@ class PostController extends BaseApiController
                 ->selectRaw('impacts.action as impact_action')
                 ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
                 ->selectRaw('NULL::text as post_type')
+                ->selectRaw('NULL::text as post_image')
                 ->where('impacts.status', 'approved')
                 ->whereNotNull('impacts.timeline_posted_at')
                 ->whereExists(function ($authorQuery): void {
@@ -330,6 +359,7 @@ class PostController extends BaseApiController
                 ->selectRaw('referrals.referral_of as impact_action')
                 ->selectRaw('1 as life_impacted')
                 ->selectRaw("'referral' as post_type")
+                ->selectRaw('NULL::text as post_image')
                 ->where('referrals.is_deleted', false)
                 ->whereNull('referrals.deleted_at')
                 ->whereNotExists(function ($q): void {
@@ -367,6 +397,92 @@ class PostController extends BaseApiController
             ->unique()
             ->values()
             ->all();
+
+        $celebrationSchedulesByPostId = (Schema::hasTable('celebration_schedules') && $postIds !== [])
+            ? \App\Models\CelebrationSchedule::query()
+                ->whereIn('post_id', $postIds)
+                ->where('status', \App\Models\CelebrationSchedule::STATUS_PUBLISHED)
+                ->get()
+                ->keyBy(fn ($sched): string => (string) $sched->post_id)
+            : collect();
+
+        $upgradedBirthdayMediaByPostId = [];
+        // Ensure any published birthday post on this page that still points to a pre-update creative
+        // (missing Member Name / Category / Company Name) is upgraded in-place ONCE so Mobile Timeline
+        // displays the exact same personalized creative shown in the Admin Panel.
+        if ($celebrationSchedulesByPostId->isNotEmpty()) {
+            foreach ($celebrationSchedulesByPostId as $schedPostId => $sched) {
+                if ($sched->event_type !== \App\Models\CelebrationSchedule::TYPE_BIRTHDAY) {
+                    continue;
+                }
+                $meta = is_array($sched->meta) ? $sched->meta : [];
+                if (! empty($meta['has_member_details'])) {
+                    continue;
+                }
+                try {
+                    $refreshed = app(\App\Services\Celebrations\CelebrationPublishingService::class)
+                        ->refreshPublishedCreative($sched);
+                    if (! empty($refreshed['schedule'])) {
+                        $celebrationSchedulesByPostId->put((string) $schedPostId, $refreshed['schedule']);
+                    }
+                } catch (Throwable $e) {
+                    Log::warning("[PostController::feed] Could not auto-sync birthday creative for post {$schedPostId}: {$e->getMessage()}");
+                }
+            }
+        }
+
+        // Also handle any legacy birthday posts on this page that have no linked celebration_schedules row
+        // and still point to an old pre-update creative (width < 1000px, without Member Name / Category / Company Name).
+        foreach ($pageRows as $bdayRow) {
+            if ((string) ($bdayRow->source_type ?? '') !== 'post') {
+                continue;
+            }
+            $bdayPostId = (string) $bdayRow->id;
+            if ($celebrationSchedulesByPostId->has($bdayPostId)) {
+                continue;
+            }
+            $bdayPostType = strtolower(trim((string) ($bdayRow->post_type ?? '')));
+            $bdaySourceType = strtolower(trim((string) ($bdayRow->post_source_type ?? '')));
+            if (! in_array($bdayPostType, ['birthday', 'genie_birthday'], true) && $bdaySourceType !== 'birthday') {
+                continue;
+            }
+            $celebrantId = (string) ($bdayRow->post_source_id ?? '');
+            if ($celebrantId === '' || ! Str::isUuid($celebrantId)) {
+                continue;
+            }
+            $existingMedia = $this->decodeJsonColumn($bdayRow->media ?? null);
+            $existingFileId = is_array($existingMedia[0] ?? null) ? ($existingMedia[0]['id'] ?? null) : null;
+            $existingFile = ($existingFileId && Str::isUuid((string) $existingFileId)) ? FileModel::find($existingFileId) : null;
+            if ($existingFile && (int) ($existingFile->width ?? 0) >= 1000) {
+                continue;
+            }
+            try {
+                $celebrant = User::withTrashed()->find($celebrantId);
+                if (! $celebrant) {
+                    continue;
+                }
+                $generated = app(\App\Services\Celebrations\CelebrationCreativeService::class)->generateBirthdayCreative($celebrant);
+                $newFileId = (string) $generated['file']->id;
+                $newUrl = (string) $generated['url'];
+                Post::query()->whereKey($bdayPostId)->update([
+                    'media' => json_encode([['id' => $newFileId, 'type' => 'image', 'url' => $newUrl]]),
+                    'image' => $newUrl,
+                ]);
+                if (Schema::hasTable('activity_creatives')) {
+                    ActivityCreative::query()->where('post_id', $bdayPostId)->update([
+                        'creative_file_id' => $newFileId,
+                        'creative_url' => $newUrl,
+                        'updated_at' => now(),
+                    ]);
+                }
+                $upgradedBirthdayMediaByPostId[$bdayPostId] = [
+                    'id' => $newFileId,
+                    'url' => $newUrl,
+                ];
+            } catch (Throwable $e) {
+                Log::warning("[PostController::feed] Could not auto-sync unlinked birthday creative for post {$bdayPostId}: {$e->getMessage()}");
+            }
+        }
 
         $activityCreativesByPostId = (Schema::hasTable('activity_creatives') && $postIds !== [])
             ? ActivityCreative::query()
@@ -1004,7 +1120,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -1042,6 +1158,7 @@ class PostController extends BaseApiController
                     }
                     $mName = $dm->display_name ?: trim((($dm->first_name ?? '').' '.($dm->last_name ?? '')));
                     $mentions[] = [
+                        'user_id' => $peerId,
                         'id' => $peerId,
                         'name' => $mName !== '' ? $mName : 'Peer Member',
                         'username' => $resolveUsername($dm->public_profile_slug ?? null, $dm->email ?? null),
@@ -1126,6 +1243,7 @@ class PostController extends BaseApiController
                         $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
                         $finalName = $recName !== '' ? $recName : ($fallbackName ?: 'Peer Member');
                         $mentions[] = [
+                            'user_id' => (string) $recPeer->id,
                             'id' => (string) $recPeer->id,
                             'name' => $finalName,
                             'username' => $resolveUsername($recPeer->public_profile_slug ?? null, $recPeer->email ?? null),
@@ -1212,18 +1330,76 @@ class PostController extends BaseApiController
                 'is_online' => true,
             ];
 
+            $celebrationSchedule = (string) ($row->source_type ?? '') === 'post'
+                ? $celebrationSchedulesByPostId->get((string) $row->id)
+                : null;
+
+            $feedMedia = $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreative);
+
+            // Always serve the latest published creative from celebration_schedules when present
+            // so Admin Panel and Mobile App Timeline display the exact same creative image.
+            if ($celebrationSchedule && (! empty($celebrationSchedule->creative_file_id) || ! empty($celebrationSchedule->creative_url))) {
+                $schedFileId = $celebrationSchedule->creative_file_id ? (string) $celebrationSchedule->creative_file_id : null;
+                $schedCreativeUrl = $this->normalizeFeedAssetUrl(
+                    $celebrationSchedule->creative_url ? (string) $celebrationSchedule->creative_url : null,
+                    $schedFileId
+                );
+                if ($schedCreativeUrl !== null) {
+                    $feedMedia = [
+                        [
+                            'id' => $schedFileId,
+                            'type' => 'image',
+                            'url' => $schedCreativeUrl,
+                        ],
+                    ];
+                }
+            } elseif (isset($upgradedBirthdayMediaByPostId[(string) $row->id])) {
+                $up = $upgradedBirthdayMediaByPostId[(string) $row->id];
+                $upUrl = $this->normalizeFeedAssetUrl((string) ($up['url'] ?? ''), (string) ($up['id'] ?? ''));
+                if ($upUrl !== null) {
+                    $feedMedia = [
+                        [
+                            'id' => (string) $up['id'],
+                            'type' => 'image',
+                            'url' => $upUrl,
+                        ],
+                    ];
+                }
+            }
+
+            $primaryImageUrl = null;
+            foreach ($feedMedia as $mItem) {
+                if (is_array($mItem) && ! empty($mItem['url'])) {
+                    $primaryImageUrl = (string) $mItem['url'];
+                    break;
+                }
+            }
+            if ($primaryImageUrl === null && ! empty($row->post_image)) {
+                $primaryImageUrl = $this->normalizeFeedAssetUrl((string) $row->post_image, $activityCreative?->creative_file_id);
+            }
+
+            $formattedActivityCreative = $this->formatActivityCreative($activityCreative);
+            if ($formattedActivityCreative !== null && $primaryImageUrl !== null && $celebrationSchedule) {
+                $formattedActivityCreative['creative_url'] = $primaryImageUrl;
+                if (! empty($celebrationSchedule->creative_file_id)) {
+                    $formattedActivityCreative['creative_file_id'] = (string) $celebrationSchedule->creative_file_id;
+                }
+            }
+
             $item = [
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
                 'post_type' => $normalizedPostType,
                 'is_verified' => $isVerified,
-                'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
+                'media' => $feedMedia,
+                'image' => $primaryImageUrl,
+                'media_url' => $primaryImageUrl,
                 'tags' => $normalizedTags,
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
                 'is_system_announcement' => $isSystemCreative,
-                'activity_creative' => $this->formatActivityCreative($activityCreative),
+                'activity_creative' => $formattedActivityCreative,
                 'author' => $isSystemCreative ? $systemAuthor : ($author ? [
                     'id' => (string) $author->id,
                     'display_name' => $author->display_name,
@@ -1401,8 +1577,39 @@ class PostController extends BaseApiController
             'title' => $creative->title,
             'description' => $creative->description,
             'creative_file_id' => $creative->creative_file_id,
-            'creative_url' => $creative->creative_url,
+            'creative_url' => $this->normalizeFeedAssetUrl($creative->creative_url, $creative->creative_file_id),
         ];
+    }
+
+    private function normalizeFeedAssetUrl(?string $rawUrl, ?string $fileId = null): ?string
+    {
+        $trimmed = trim((string) ($rawUrl ?? ''));
+        $isStaleLocalHost = $trimmed !== '' && (
+            str_contains($trimmed, '://localhost')
+            || str_contains($trimmed, '://127.0.0.1')
+            || str_contains($trimmed, 'ngrok-free.dev')
+        );
+
+        if (! empty($fileId) && ($trimmed === '' || $isStaleLocalHost || ! Str::startsWith($trimmed, ['http://', 'https://']))) {
+            return url('/api/v1/files/'.$fileId);
+        }
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if ($isStaleLocalHost) {
+            $path = parse_url($trimmed, PHP_URL_PATH);
+            if ($path) {
+                return url(ltrim($path, '/'));
+            }
+        }
+
+        if (! Str::startsWith($trimmed, ['http://', 'https://'])) {
+            return url(ltrim($trimmed, '/'));
+        }
+
+        return $trimmed;
     }
 
     private function formatToDefaultDateTime(mixed $value): ?string
@@ -1416,7 +1623,7 @@ class PostController extends BaseApiController
             ->format('Y-m-d H:i:s');
     }
 
-    private function buildFeedMedia(object $row, $p2pMeetingsById, array $fallbackP2pMeetingIdByPostId): array
+    private function buildFeedMedia(object $row, $p2pMeetingsById, array $fallbackP2pMeetingIdByPostId, ?ActivityCreative $activityCreative = null): array
     {
         $isP2pPost = (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row);
 
@@ -1441,19 +1648,35 @@ class PostController extends BaseApiController
 
         $mediaItems = $this->decodeJsonColumn($row->media);
 
-        return array_map(function ($item) {
+        $normalized = array_map(function ($item) {
             if (! is_array($item)) {
                 return $item;
             }
-            $itemUrl = $item['url'] ?? null;
-            if (! empty($item['id']) && (empty($itemUrl) || ! Str::startsWith((string) $itemUrl, ['http://', 'https://']))) {
-                $item['url'] = url('/api/v1/files/'.$item['id']);
-            } elseif (! empty($itemUrl) && ! Str::startsWith((string) $itemUrl, ['http://', 'https://'])) {
-                $item['url'] = url(ltrim((string) $itemUrl, '/'));
+            $fileId = ! empty($item['id']) ? (string) $item['id'] : null;
+            $itemUrl = isset($item['url']) ? (string) $item['url'] : null;
+            $resolvedUrl = $this->normalizeFeedAssetUrl($itemUrl, $fileId);
+            if ($resolvedUrl !== null) {
+                $item['url'] = $resolvedUrl;
             }
 
             return $item;
         }, $mediaItems);
+
+        if ($normalized === []) {
+            $fallbackUrl = $this->normalizeFeedAssetUrl(
+                ! empty($row->post_image) ? (string) $row->post_image : ($activityCreative?->creative_url ?? null),
+                $activityCreative?->creative_file_id
+            );
+            if ($fallbackUrl !== null) {
+                $normalized[] = [
+                    'id' => $activityCreative?->creative_file_id ? (string) $activityCreative->creative_file_id : null,
+                    'type' => 'image',
+                    'url' => $fallbackUrl,
+                ];
+            }
+        }
+
+        return $normalized;
     }
 
     private function isP2pMeetingPostRow(object $row): bool
@@ -2209,11 +2432,11 @@ class PostController extends BaseApiController
     {
         $peerIds = [];
 
-        // 1. From payload mentions array: [{"id": "uuid", "name": "..."}]
+        // 1. From payload mentions array: [{"user_id": "uuid", "id": "uuid", "name": "..."}]
         $rawMentions = $request->input('mentions');
         if (is_array($rawMentions)) {
             foreach ($rawMentions as $item) {
-                $id = is_array($item) ? ($item['id'] ?? null) : (is_string($item) ? $item : null);
+                $id = is_array($item) ? ($item['user_id'] ?? $item['peer_id'] ?? $item['id'] ?? null) : (is_string($item) ? $item : null);
                 if (is_string($id) && Str::isUuid($id)) {
                     $peerIds[] = $id;
                 }
@@ -2293,6 +2516,7 @@ class PostController extends BaseApiController
             if ($peer && (string) $peer->id !== $authorId) {
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $name !== '' ? $name : 'Peer Member',
                     'username' => $resolveUsername($peer),
@@ -2505,6 +2729,7 @@ class PostController extends BaseApiController
                 $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
                 $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $finalName,
                     'username' => $resolveUsername($peer),
@@ -2547,8 +2772,11 @@ class PostController extends BaseApiController
         $rawMentions = $request->input('mentions');
         if (is_array($rawMentions)) {
             foreach ($rawMentions as $item) {
-                if (is_array($item) && ! empty($item['id']) && ! empty($item['name'])) {
-                    $inputNamesById[(string) $item['id']] = trim((string) $item['name']);
+                if (is_array($item) && ! empty($item['name'])) {
+                    $itemId = $item['user_id'] ?? $item['peer_id'] ?? $item['id'] ?? null;
+                    if (! empty($itemId)) {
+                        $inputNamesById[(string) $itemId] = trim((string) $item['name']);
+                    }
                 }
             }
         }
@@ -2567,6 +2795,7 @@ class PostController extends BaseApiController
                 $slug = trim((string) ($peer->public_profile_slug ?? ''));
                 $username = $slug !== '' ? $slug : (str_contains((string) ($peer->email ?? ''), '@') ? (strstr((string) $peer->email, '@', true) ?: null) : null);
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $name !== '' ? $name : ($inputNamesById[(string) $peerId] ?? 'Peer Member'),
                     'username' => $username,
@@ -2576,6 +2805,7 @@ class PostController extends BaseApiController
                 ];
             } elseif (isset($inputNamesById[(string) $peerId])) {
                 $mentions[] = [
+                    'user_id' => (string) $peerId,
                     'id' => (string) $peerId,
                     'name' => $inputNamesById[(string) $peerId],
                 ];

@@ -12,6 +12,22 @@ class UpdateProfileRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        foreach (['dob', 'anniversary_date'] as $dateField) {
+            if ($this->has($dateField)) {
+                $rawDate = $this->input($dateField);
+                if (is_string($rawDate)) {
+                    $trimmed = trim($rawDate);
+                    if (
+                        $trimmed === ''
+                        || in_array(strtolower($trimmed), ['-', '--', 'n/a', 'na', 'none', 'null', '0000-00-00', '0000-00-00 00:00:00'], true)
+                        || str_starts_with($trimmed, '0000-')
+                    ) {
+                        $this->merge([$dateField => null]);
+                    }
+                }
+            }
+        }
+
         if ($this->has('contact_visibility')) {
             $this->merge([
                 'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),
@@ -73,8 +89,8 @@ class UpdateProfileRequest extends FormRequest
             'designation' => ['sometimes', 'nullable', 'string', 'max:255'],
             'about' => ['sometimes', 'nullable', 'string'],
             'gender' => ['sometimes', 'nullable', 'in:male,female,other'],
-            'dob' => ['sometimes', 'nullable', 'date'],
-            'anniversary_date' => ['sometimes', 'nullable', 'date'],
+            'dob' => ['sometimes', 'nullable', 'date', 'after_or_equal:1900-01-01', 'before_or_equal:today'],
+            'anniversary_date' => ['sometimes', 'nullable', 'date', 'after_or_equal:1900-01-01', 'before_or_equal:'.($currentYear + 1).'-12-31'],
             'experience_years' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:80'],
             'experience_summary' => ['sometimes', 'nullable', 'string'],
             'city_id' => ['sometimes', 'nullable'],

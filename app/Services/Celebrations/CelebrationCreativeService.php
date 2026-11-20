@@ -38,6 +38,54 @@ class CelebrationCreativeService
         return $this->generateBirthdayCreative($user);
     }
 
+    /**
+     * Persist an exact rendered creative image (base64 data URL) submitted from the Admin Panel preview
+     * so Admin Preview and Mobile App Timeline display the exact same final creative image.
+     *
+     * @return array{file: FileModel, url: string, template_used: string, used_initials: bool}|null
+     */
+    public function storeRenderedCreativeDataUrl(User $user, string $eventType, string $dataUrl): ?array
+    {
+        $trimmed = trim($dataUrl);
+        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/is', $trimmed, $matches)) {
+            return null;
+        }
+
+        $binary = base64_decode(preg_replace('/\s+/', '', $matches[2]), true);
+        if ($binary === false || strlen($binary) < 1024) {
+            return null;
+        }
+
+        $img = @imagecreatefromstring($binary);
+        if (! $img) {
+            return null;
+        }
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+        if ($width < 200 || $height < 200) {
+            imagedestroy($img);
+
+            return null;
+        }
+
+        $canvas = imagecreatetruecolor($width, $height);
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        imagefill($canvas, 0, 0, $white);
+        imagealphablending($canvas, true);
+        imagecopy($canvas, $img, 0, 0, 0, 0, $width, $height);
+        imagedestroy($img);
+
+        $fileModel = $this->saveCanvasAsFile($canvas, $user, $eventType, $width, $height);
+
+        return [
+            'file' => $fileModel,
+            'url' => url("/api/v1/files/{$fileModel->id}"),
+            'template_used' => 'admin_rendered_preview',
+            'used_initials' => false,
+        ];
+    }
+
     public function generateBirthdayCreative(User $user): array
     {
         $approvedTemplatePath = public_path('images/birthday_creative_template.jpg');
@@ -53,24 +101,29 @@ class CelebrationCreativeService
 
         if (! $baseImg) {
             // Secondary fallback if approved template file is missing in test env
-            $width = 952;
-            $height = 1194;
+            $width = 1166;
+            $height = 1262;
             $canvas = imagecreatetruecolor($width, $height);
             $bg = imagecolorallocate($canvas, 248, 250, 252);
             imagefill($canvas, 0, 0, $bg);
             $templateUsed = 'fallback_birthday_canvas';
         } else {
-            $width = imagesx($baseImg);
-            $height = imagesy($baseImg);
+            $origWidth = imagesx($baseImg);
+            $origHeight = imagesy($baseImg);
+            // Upscale cleanly to HD (~1166x1262) when source template is under 1000px wide
+            // so the circular photo and TrueType text render razor-sharp while keeping the template unchanged.
+            $scale = $origWidth < 1000 ? 2 : 1;
+            $width = $origWidth * $scale;
+            $height = $origHeight * $scale;
             $canvas = imagecreatetruecolor($width, $height);
             imagealphablending($canvas, true);
-            imagecopy($canvas, $baseImg, 0, 0, 0, 0, $width, $height);
+            imagecopyresampled($canvas, $baseImg, 0, 0, 0, 0, $width, $height, $origWidth, $origHeight);
             imagedestroy($baseImg);
         }
 
         // Exact circular frame coordinates matching the approved birthday_creative_template.jpg (583x631)
         $centerX = (int) round($width * 0.4940);
-        $centerY = (int) round($height * 0.5737);
+        $centerY = (int) round($height * 0.5745);
         $avatarDiameter = (int) round($width * 0.3560);
 
         $usedInitials = $this->drawProfilePhotoOrInitials(
@@ -81,6 +134,9 @@ class CelebrationCreativeService
             $avatarDiameter,
             'birthday'
         );
+
+        // Dynamically render member's Full Name, Designation / Category, and Company Name below the circular frame
+        $this->drawBirthdayMemberDetails($canvas, $user, $width, $height);
 
         $fileModel = $this->saveCanvasAsFile($canvas, $user, 'birthday', $width, $height);
 
@@ -443,6 +499,195 @@ class CelebrationCreativeService
         $full = trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')));
 
         return $full !== '' ? $full : 'Global Peer';
+    }
+
+    /**
+     * Resolve member's real category or designation from database fields (never dummy data).
+     * Prefers real Business Category over generic default designations like "Member" or "Peer".
+     */
+    public function resolvePeerDesignationOrCategory(User $user): ?string
+    {
+        $designation = trim((string) ($user->designation ?? ''));
+        $isGenericDesignation = $designation === ''
+            || in_array(strtolower($designation), ['—', '-', 'member', 'peer', 'user', 'n/a', 'na'], true);
+
+        try {
+            $relations = [];
+            foreach (['businessCategory', 'level4Category', 'mainBusinessCategory'] as $rel) {
+                if (method_exists($user, $rel) && ! $user->relationLoaded($rel)) {
+                    $relations[] = $rel;
+                }
+            }
+            if ($relations !== []) {
+                $user->loadMissing($relations);
+            }
+        } catch (\Throwable) {
+            // Non-blocking relation load
+        }
+
+        $categoryCandidates = [
+            $user->businessCategory?->name ?? null,
+            $user->level4Category?->name ?? null,
+            $user->mainBusinessCategory?->name ?? null,
+            $user->business_sub_category ?? null,
+        ];
+
+        $resolvedCategory = null;
+        foreach ($categoryCandidates as $candidate) {
+            $clean = trim((string) ($candidate ?? ''));
+            if ($clean !== '' && $clean !== '—' && $clean !== '-') {
+                $resolvedCategory = $clean;
+                break;
+            }
+        }
+
+        if ($resolvedCategory !== null && $isGenericDesignation) {
+            return $resolvedCategory;
+        }
+
+        if (! $isGenericDesignation) {
+            return $designation;
+        }
+
+        if ($resolvedCategory !== null) {
+            return $resolvedCategory;
+        }
+
+        return ($designation !== '' && $designation !== '—' && $designation !== '-') ? $designation : null;
+    }
+
+    /**
+     * Draw member's Full Name, Designation/Category, and Company Name centered cleanly
+     * inside the white space below the circular photo ring (safely above the bottom wave banner).
+     */
+    private function drawBirthdayMemberDetails($canvas, User $user, int $width, int $height): void
+    {
+        $fullName = mb_strtoupper($this->resolvePeerDisplayName($user), 'UTF-8');
+        $rawDesignationOrCategory = $this->resolvePeerDesignationOrCategory($user);
+        $designationOrCategory = $rawDesignationOrCategory !== null && $rawDesignationOrCategory !== ''
+            ? mb_strtoupper($rawDesignationOrCategory, 'UTF-8')
+            : null;
+        $companyName = trim((string) ($user->company_name ?? ''));
+        if ($companyName === '—' || $companyName === '-') {
+            $companyName = '';
+        } elseif ($companyName !== '') {
+            $companyName = mb_strtoupper($companyName, 'UTF-8');
+        }
+
+        $fontBold = $this->getFontPath('bold');
+        $fontSemiBold = $this->getFontPath('semibold');
+        $fontRegular = $this->getFontPath('regular');
+        $hasTtf = file_exists($fontBold);
+
+        $navyColor = imagecolorallocate($canvas, 13, 27, 94);      // #0D1B5E
+        $crimsonColor = imagecolorallocate($canvas, 196, 24, 48);  // #C41830
+        $slateColor = imagecolorallocate($canvas, 51, 65, 85);     // #334155
+
+        // Scale base font sizes proportionally to canvas height (~1262px on 2x template)
+        $hScale = $height / 1262.0;
+
+        $lines = [
+            [
+                'text' => $fullName,
+                'font' => $fontBold,
+                'color' => $navyColor,
+                'size' => max(14, (int) round(28 * $hScale)),
+                'minSize' => max(11, (int) round(18 * $hScale)),
+                'maxWidth' => (int) round($width * 0.78),
+            ],
+        ];
+
+        if ($designationOrCategory !== null && $designationOrCategory !== '') {
+            $lines[] = [
+                'text' => $designationOrCategory,
+                'font' => file_exists($fontSemiBold) ? $fontSemiBold : $fontBold,
+                'color' => $crimsonColor,
+                'size' => max(11, (int) round(18 * $hScale)),
+                'minSize' => max(9, (int) round(12 * $hScale)),
+                'maxWidth' => (int) round($width * 0.70),
+            ];
+        }
+
+        if ($companyName !== '') {
+            $lines[] = [
+                'text' => $companyName,
+                'font' => file_exists($fontSemiBold) ? $fontSemiBold : (file_exists($fontRegular) ? $fontRegular : $fontBold),
+                'color' => $slateColor,
+                'size' => max(10, (int) round(16 * $hScale)),
+                'minSize' => max(9, (int) round(11 * $hScale)),
+                'maxWidth' => (int) round($width * 0.56),
+            ];
+        }
+
+        $centerX = (int) round($width * 0.50);
+        // Clean white zone below circular ring (ring bottom ~75.6%, bottom wave top ~90.2%)
+        $zoneTop = (int) round($height * 0.766);
+        $zoneBottom = (int) round($height * 0.892);
+        $zoneHeight = max(40, $zoneBottom - $zoneTop);
+        $gap = (int) round(14 * $hScale);
+
+        if (! $hasTtf) {
+            $y = $zoneTop + 10;
+            foreach ($lines as $line) {
+                $tw = strlen($line['text']) * imagefontwidth(5);
+                imagestring($canvas, 5, (int) round($centerX - ($tw / 2)), $y, $line['text'], $line['color']);
+                $y += imagefontheight(5) + 6;
+            }
+
+            return;
+        }
+
+        // Measure & auto-shrink each line to fit horizontally within its safe width
+        $measured = [];
+        $totalHeight = 0;
+        foreach ($lines as $index => $line) {
+            $fontSize = $line['size'];
+            $text = $line['text'];
+            $bbox = @imagettfbbox($fontSize, 0, $line['font'], $text);
+            $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
+
+            while ($textW > $line['maxWidth'] && $fontSize > $line['minSize']) {
+                $fontSize--;
+                $bbox = @imagettfbbox($fontSize, 0, $line['font'], $text);
+                $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
+            }
+
+            // If still wider than maxWidth even at minSize, gracefully truncate with ellipsis
+            if ($textW > $line['maxWidth'] && mb_strlen($text) > 12) {
+                while ($textW > $line['maxWidth'] && mb_strlen($text) > 10) {
+                    $text = rtrim(mb_substr($text, 0, -1));
+                    $candidate = $text.'…';
+                    $bbox = @imagettfbbox($fontSize, 0, $line['font'], $candidate);
+                    $textW = $bbox ? abs($bbox[4] - $bbox[0]) : 0;
+                }
+                $text = $text.'…';
+            }
+
+            $ascent = $bbox ? abs($bbox[7]) : $fontSize;
+            $descent = $bbox ? max(0, $bbox[1]) : 4;
+            $lineH = $ascent + $descent;
+
+            $measured[] = [
+                'text' => $text,
+                'font' => $line['font'],
+                'color' => $line['color'],
+                'size' => $fontSize,
+                'width' => $textW,
+                'ascent' => $ascent,
+                'height' => $lineH,
+            ];
+
+            $totalHeight += $lineH + ($index > 0 ? $gap : 0);
+        }
+
+        $cursorY = $zoneTop + (int) round(max(0, ($zoneHeight - $totalHeight) / 2));
+
+        foreach ($measured as $item) {
+            $x = (int) round($centerX - ($item['width'] / 2));
+            $baselineY = $cursorY + $item['ascent'];
+            imagettftext($canvas, $item['size'], 0, $x, $baselineY, $item['color'], $item['font'], $item['text']);
+            $cursorY += $item['height'] + $gap;
+        }
     }
 
     public function resolveInitials(User $user): string

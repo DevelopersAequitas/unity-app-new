@@ -46,6 +46,20 @@ class CelebrationAdminController extends BaseApiController
         $todayIst = $this->dateResolver->todayIst();
         $hasAnniversaryCol = Schema::hasColumn('users', 'anniversary_date');
 
+        $withRelations = [
+            'cityRelation:id,name,state,country',
+            'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+        ];
+        if (Schema::hasTable('circle_categories')) {
+            $withRelations[] = 'mainBusinessCategory:id,name';
+        }
+        if (Schema::hasTable('business_categories')) {
+            $withRelations[] = 'businessCategory:id,name';
+        }
+        if (Schema::hasTable('circle_category_level4')) {
+            $withRelations[] = 'level4Category:id,name';
+        }
+
         // Fetch all active non-deleted peers with DOB or anniversary_date from the real DB
         $peersQuery = User::query()
             ->whereNull('deleted_at')
@@ -56,22 +70,55 @@ class CelebrationAdminController extends BaseApiController
                     $q->orWhereNotNull('anniversary_date');
                 }
             })
-            ->with([
-                'cityRelation:id,name,state,country',
-                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
-            ]);
+            ->with($withRelations);
 
         $peers = $peersQuery->get()->filter(fn (User $peer): bool => $this->syncService->isUserEligible($peer));
 
-        // Load existing celebration schedules for fast O(1) lookup
+        // Load existing celebration schedules for fast O(1) lookup, verifying that any 'published' post is still live on Timeline
         $schedulesByKey = [];
+        $livePostIds = [];
         if ($this->syncService->tablesReady()) {
             $schedules = CelebrationSchedule::query()
                 ->whereIn('user_id', $peers->pluck('id')->all())
                 ->whereIn('event_year', [$todayIst->year, $todayIst->year + 1])
                 ->get();
 
+            $publishedPostIds = $schedules
+                ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
+                ->pluck('post_id')
+                ->filter()
+                ->map(fn ($id): string => (string) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($publishedPostIds !== [] && Schema::hasTable('posts')) {
+                $livePostIds = \App\Models\Post::query()
+                    ->whereIn('id', $publishedPostIds)
+                    ->where('status', 'active')
+                    ->where('is_deleted', false)
+                    ->whereNull('deleted_at')
+                    ->whereRaw("CAST(visibility AS TEXT) = 'public'")
+                    ->when(Schema::hasColumn('posts', 'active'), function ($q): void {
+                        $q->where(function ($aq): void {
+                            $aq->whereNull('active')->orWhere('active', true);
+                        });
+                    })
+                    ->pluck('id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->all();
+                $livePostIds = array_flip($livePostIds);
+            }
+
             foreach ($schedules as $sched) {
+                if (
+                    $sched->status === CelebrationSchedule::STATUS_PUBLISHED
+                    && (empty($sched->post_id) || ! isset($livePostIds[(string) $sched->post_id]))
+                ) {
+                    // Self-heal orphaned schedule whose post was removed/deactivated so Admin Panel & auto-publish stay accurate
+                    $sched->status = CelebrationSchedule::STATUS_PENDING;
+                    $sched->post_id = null;
+                }
                 $schedulesByKey["{$sched->user_id}_{$sched->event_type}_{$sched->event_year}"] = $sched;
             }
         }
@@ -245,6 +292,38 @@ class CelebrationAdminController extends BaseApiController
             ], 'Waiting until 07:00 AM IST before publishing today\'s celebrations.');
         }
 
+        // Recover stale processing schedules (older than 5 min, no post)
+        CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $todayStr)
+            ->where('status', CelebrationSchedule::STATUS_PROCESSING)
+            ->whereNull('post_id')
+            ->where(function ($q): void {
+                $q->whereNull('last_attempted_at')
+                    ->orWhere('last_attempted_at', '<=', now()->subMinutes(5));
+            })
+            ->whereColumn('attempts', '<', 'max_attempts')
+            ->update([
+                'status' => CelebrationSchedule::STATUS_PENDING,
+                'last_error' => 'Recovered from interrupted processing state',
+            ]);
+
+        // Recover any 'published' schedules for today whose linked post is missing or no longer live on Timeline
+        $todayPublished = CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $todayStr)
+            ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
+            ->get();
+
+        foreach ($todayPublished as $pubSched) {
+            if (empty($pubSched->post_id) || ! $this->publishingService->findLivePostById((string) $pubSched->post_id)) {
+                $pubSched->update([
+                    'status' => CelebrationSchedule::STATUS_PENDING,
+                    'post_id' => null,
+                    'attempts' => 0,
+                    'last_error' => 'Recovered: linked post was missing or inactive on Timeline',
+                ]);
+            }
+        }
+
         $dueSchedules = CelebrationSchedule::query()
             ->whereDate('scheduled_date', $todayStr)
             ->whereIn('status', [
@@ -293,6 +372,8 @@ class CelebrationAdminController extends BaseApiController
             'user_id' => ['required', 'uuid', 'exists:users,id'],
             'event_type' => ['required', 'in:birthday,anniversary'],
             'message' => ['nullable', 'string', 'max:2000'],
+            'creative_image' => ['nullable', 'string'],
+            'refresh_existing' => ['sometimes', 'boolean'],
         ]);
 
         $user = User::query()->findOrFail($validated['user_id']);
@@ -306,7 +387,9 @@ class CelebrationAdminController extends BaseApiController
                 $user,
                 $validated['event_type'],
                 $validated['message'] ?? null,
-                true
+                true,
+                $validated['creative_image'] ?? null,
+                (bool) ($validated['refresh_existing'] ?? false)
             );
 
             return $this->success([
@@ -314,12 +397,48 @@ class CelebrationAdminController extends BaseApiController
                 'status' => $result['status'],
                 'schedule' => $this->formatSchedule($result['schedule']),
                 'post_id' => $result['post']?->id,
+                'creative_file_id' => $result['schedule']?->creative_file_id,
+                'creative_url' => $result['schedule']?->creative_url,
                 'notification_id' => $result['notification_id'],
             ], $result['message']);
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (Throwable $e) {
             return $this->error('Failed to publish celebration post: '.$e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/v1/admin/celebrations/{id}/refresh-creative
+     * Updates an already-published celebration post's creative image in-place (zero duplicates).
+     */
+    public function refreshCreative(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'creative_image' => ['nullable', 'string'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $schedule = CelebrationSchedule::query()->findOrFail($id);
+
+        try {
+            $result = $this->publishingService->refreshPublishedCreative(
+                $schedule,
+                $validated['creative_image'] ?? null,
+                $validated['message'] ?? null
+            );
+
+            return $this->success([
+                'duplicate' => $result['duplicate'],
+                'status' => $result['status'],
+                'schedule' => $this->formatSchedule($result['schedule']),
+                'post_id' => $result['post']?->id,
+                'creative_file_id' => $result['schedule']?->creative_file_id,
+                'creative_url' => $result['schedule']?->creative_url,
+                'notification_id' => $result['notification_id'],
+            ], $result['message']);
+        } catch (Throwable $e) {
+            return $this->error('Failed to refresh celebration creative: '.$e->getMessage(), 500);
         }
     }
 
@@ -579,11 +698,28 @@ class CelebrationAdminController extends BaseApiController
 
         $milestoneYears = (int) $occ['milestone_years'];
 
+        $designation = trim((string) ($peer->designation ?? ''));
+        $isGenericDesignation = $designation === ''
+            || in_array(strtolower($designation), ['—', '-', 'member', 'peer', 'user', 'n/a', 'na'], true);
+        $businessCategory = trim((string) (
+            $peer->businessCategory?->name
+            ?? $peer->level4Category?->name
+            ?? $peer->mainBusinessCategory?->name
+            ?? $peer->business_sub_category
+            ?? ''
+        ));
+        $designationOrCategory = ($businessCategory !== '' && $isGenericDesignation)
+            ? $businessCategory
+            : (! $isGenericDesignation ? $designation : ($businessCategory !== '' ? $businessCategory : ($designation !== '' ? $designation : null)));
+
         return [
             'id' => "evt-{$eventType}-{$peerId}-{$occ['scheduled_date']->format('Y-m-d')}",
             'peer_id' => $peerId,
             'peer_name' => $peerName,
             'display_name' => $peerName,
+            'designation' => $designation !== '' ? $designation : null,
+            'business_category' => $businessCategory !== '' ? $businessCategory : null,
+            'designation_or_category' => $designationOrCategory,
             'company_name' => $company,
             'city' => $city,
             'circle_name' => $circleName,

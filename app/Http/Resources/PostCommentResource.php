@@ -182,12 +182,14 @@ class PostCommentResource extends JsonResource
 
         if (is_array($stored) && $stored !== []) {
             return array_values(array_filter(array_map(function ($m) {
-                if (! is_array($m) || empty($m['id'])) {
+                $peerId = is_array($m) ? ($m['user_id'] ?? $m['peer_id'] ?? $m['id'] ?? null) : null;
+                if (! is_array($m) || empty($peerId)) {
                     return null;
                 }
 
                 return [
-                    'id' => (string) $m['id'],
+                    'user_id' => (string) $peerId,
+                    'id' => (string) $peerId,
                     'name' => (string) ($m['name'] ?? 'Peer Member'),
                     'username' => $m['username'] ?? null,
                     'profile_photo_url' => $m['profile_photo_url'] ?? null,
@@ -206,6 +208,7 @@ class PostCommentResource extends JsonResource
                 }
                 $seen[$peerId] = true;
                 $mentions[] = [
+                    'user_id' => $peerId,
                     'id' => $peerId,
                     'name' => trim((string) $match[1]) ?: 'Peer Member',
                 ];

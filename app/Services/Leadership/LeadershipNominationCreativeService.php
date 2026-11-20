@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Leadership;
 
+use App\Models\File;
 use App\Models\FileModel;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\User;
@@ -56,6 +57,7 @@ class LeadershipNominationCreativeService
         }
 
         // Colors
+        $white = imagecolorallocate($canvas, 255, 255, 255);
         $blueGradient = [2, 6, 228];    // Royal Blue #0206E4
         $redGradient = [216, 19, 19];   // Vivid Red #D81313
         $redColor = imagecolorallocate($canvas, 216, 19, 19);
@@ -63,13 +65,23 @@ class LeadershipNominationCreativeService
         $nameColor = imagecolorallocate($canvas, 11, 36, 118); // #0B2476 Deep Royal Blue
         $subSlate = imagecolorallocate($canvas, 51, 65, 85);   // #334155 Slate
 
+        // 0. CLEAN DYNAMIC ZONES (Ensures zero text bleeding / ghosting)
+        // Clean Role zone: Y = 165 to 275
+        imagefilledrectangle($canvas, 0, 165, $width, 275, $white);
+        // Clean inner circle area: Center = (406, 469), diameter = 340
+        imagefilledellipse($canvas, 406, 469, 340, 340, $white);
+        // Clean Name zone: Y = 670 to 738
+        imagefilledrectangle($canvas, 0, 670, $width, 738, $white);
+        // Clean Industry • City zone: Y = 739 to 795
+        imagefilledrectangle($canvas, 0, 739, $width, 795, $white);
+
         // 1. DYNAMIC ROLE TITLE (Center top below "LEADERSHIP OPPORTUNITY" pill)
         $roleName = (string) ($nomination->applied_role_name ?? $nomination->campaign?->role?->name ?? 'LEADERSHIP ROLE');
         $cleanRole = strtoupper(trim((string) preg_replace('/\s*\([^)]*\)/', '', $roleName)));
 
         $words = explode(' ', $cleanRole);
         $lines = [];
-        if (count($words) <= 2 && strlen($cleanRole) <= 15) {
+        if (count($words) <= 2 && strlen($cleanRole) <= 16) {
             $lines = [$cleanRole];
         } elseif (count($words) >= 3) {
             $lines[] = implode(' ', array_slice($words, 0, count($words) - 1));
@@ -82,59 +94,52 @@ class LeadershipNominationCreativeService
         if (count($lines) === 1) {
             $bbox = imagettfbbox($roleFontSize, 0, $fontBold, $lines[0]);
             $tw = abs($bbox[4] - $bbox[0]);
-            while ($tw > 620 && $roleFontSize > 18) {
+            while ($tw > 560 && $roleFontSize > 18) {
                 $roleFontSize -= 1;
                 $bbox = imagettfbbox($roleFontSize, 0, $fontBold, $lines[0]);
                 $tw = abs($bbox[4] - $bbox[0]);
             }
-            $barLength = 60;
-            $totalW = $tw + 20 + $barLength;
-            $x = (int) (($width - $totalW) / 2);
-            $y = 230;
+            $x = (int) (($width - $tw) / 2);
+            $y = 222;
             $this->drawGradientText($canvas, $lines[0], $fontBold, $roleFontSize, $x, $y, $blueGradient, $redGradient);
 
+            // Flanking lines: left blue, right red
             imagesetthickness($canvas, 4);
-            imageline($canvas, $x + $tw + 18, $y - 10, $x + $totalW, $y - 10, $redColor);
+            $leftLineStart = max(35, $x - 110);
+            $rightLineEnd = min($width - 35, $x + $tw + 110);
+            imageline($canvas, $leftLineStart, $y - 12, $x - 18, $y - 12, $blueColor);
+            imageline($canvas, $x + $tw + 18, $y - 12, $rightLineEnd, $y - 12, $redColor);
             imagesetthickness($canvas, 1);
         } else {
-            // Line 1
+            // Line 1: Centered with gradient
             $bbox1 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[0]);
             $w1 = abs($bbox1[4] - $bbox1[0]);
-            while ($w1 > 620 && $roleFontSize > 18) {
+            while ($w1 > 600 && $roleFontSize > 18) {
                 $roleFontSize -= 1;
                 $bbox1 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[0]);
                 $w1 = abs($bbox1[4] - $bbox1[0]);
             }
             $x1 = (int) (($width - $w1) / 2);
-            $this->drawGradientText($canvas, $lines[0], $fontBold, $roleFontSize, $x1, 215, $blueGradient, $redGradient);
+            $this->drawGradientText($canvas, $lines[0], $fontBold, $roleFontSize, $x1, 206, $blueGradient, $redGradient);
 
-            // Line 2 with trailing red bar
+            // Line 2: with trailing vivid red bar
             $bbox2 = imagettfbbox($roleFontSize, 0, $fontBold, $lines[1]);
             $w2 = abs($bbox2[4] - $bbox2[0]);
-            $barLength = 70;
+            $barLength = 80;
             $totalLine2W = $w2 + 20 + $barLength;
             $x2 = (int) (($width - $totalLine2W) / 2);
-            $this->drawGradientText($canvas, $lines[1], $fontBold, $roleFontSize, $x2, 265, $blueGradient, $redGradient);
+            $this->drawGradientText($canvas, $lines[1], $fontBold, $roleFontSize, $x2, 256, $blueGradient, $redGradient);
 
             imagesetthickness($canvas, 4);
-            imageline($canvas, $x2 + $w2 + 18, 252, $x2 + $totalLine2W, 252, $redColor);
+            imageline($canvas, $x2 + $w2 + 18, 244, $x2 + $totalLine2W, 244, $redColor);
             imagesetthickness($canvas, 1);
         }
 
-        // 2. DYNAMIC CANDIDATE CIRCULAR PHOTO & DUAL-COLOR FRAME (Center X = 409, Center Y = 475)
-        $cx = 409;
-        $cy = 475;
-        $targetDiameter = 320;
+        // 2. DYNAMIC CANDIDATE CIRCULAR PHOTO & DUAL-COLOR FRAME (Center X = 406, Center Y = 469)
+        $cx = 406;
+        $cy = 469;
+        $targetDiameter = 342;
         $radius = (int) ($targetDiameter / 2);
-
-        // Draw outer accent arcs (diameter = 360, radius = 180)
-        $outerD = 360;
-        imagesetthickness($canvas, 2);
-        // Left blue accent arc (from 135 deg to 225 deg)
-        imagearc($canvas, $cx, $cy, $outerD, $outerD, 135, 225, $blueColor);
-        // Right red accent arc (from 315 deg to 45 deg)
-        imagearc($canvas, $cx, $cy, $outerD, $outerD, 315, 45, $redColor);
-        imagesetthickness($canvas, 1);
 
         // Prepare candidate avatar image
         $avatarImg = $this->resolveAvatarImage($nomination);
@@ -159,11 +164,14 @@ class LeadershipNominationCreativeService
             imagecopyresampled($resized, $avatarImg, 0, 0, $srcX, $srcY, $targetDiameter, $targetDiameter, $minSide, $minSide);
             imagedestroy($avatarImg);
 
+            // Antialiased circular mask
             for ($x = 0; $x < $targetDiameter; $x++) {
                 for ($y = 0; $y < $targetDiameter; $y++) {
                     $dx = $x - $radius;
                     $dy = $y - $radius;
-                    if (($dx * $dx + $dy * $dy) <= ($radius * $radius)) {
+                    $distSq = ($dx * $dx + $dy * $dy);
+                    $rSq = ($radius * $radius);
+                    if ($distSq <= $rSq) {
                         $color = imagecolorat($resized, $x, $y);
                         imagesetpixel($circleImg, $x, $y, $color);
                     }
@@ -190,21 +198,21 @@ class LeadershipNominationCreativeService
             $candidateName = (string) ($nomination->candidate_name ?: $nomination->full_name ?: 'PG');
             $parts = explode(' ', trim($candidateName));
             $initials = strtoupper(substr($parts[0], 0, 1).substr(end($parts), 0, 1));
-            $white = imagecolorallocate($circleImg, 255, 255, 255);
-            $initSize = 64;
+            $whiteColor = imagecolorallocate($circleImg, 255, 255, 255);
+            $initSize = 68;
             $ibbox = imagettfbbox($initSize, 0, $fontBold, $initials);
             $iw = abs($ibbox[4] - $ibbox[0]);
             $ih = abs($ibbox[5]);
-            imagettftext($circleImg, $initSize, 0, (int) ($radius - $iw / 2), (int) ($radius + $ih / 2), $white, $fontBold, $initials);
+            imagettftext($circleImg, $initSize, 0, (int) ($radius - $iw / 2), (int) ($radius + $ih / 2), $whiteColor, $fontBold, $initials);
         }
 
-        // Composite avatar onto clean canvas
+        // Composite avatar onto clean canvas at exact center (406, 469)
         imagealphablending($canvas, true);
         imagecopy($canvas, $circleImg, (int) ($cx - $radius), (int) ($cy - $radius), 0, 0, $targetDiameter, $targetDiameter);
         imagedestroy($circleImg);
 
-        // Draw main dual-color border ring OVER the avatar (clean 4px border)
-        $borderD = $targetDiameter + 4;
+        // Draw crisp dual-color border ring OVER the avatar (clean 4px border)
+        $borderD = $targetDiameter;
         imagesetthickness($canvas, 4);
         // Left half (Royal Blue): from 90 deg to 270 deg
         imagearc($canvas, $cx, $cy, $borderD, $borderD, 90, 270, $blueColor);
@@ -223,9 +231,9 @@ class LeadershipNominationCreativeService
             $nameW = abs($nameBbox[4] - $nameBbox[0]);
         }
         $nameX = (int) (($width - $nameW) / 2);
-        imagettftext($canvas, $nameSize, 0, $nameX, 705, $nameColor, $fontBold, $name);
+        imagettftext($canvas, $nameSize, 0, $nameX, 706, $nameColor, $fontBold, $name);
 
-        // 4. DYNAMIC INDUSTRY • CITY (Flanked with lines and red center dot)
+        // 4. DYNAMIC INDUSTRY • CITY (Flanked with lines and vivid red center dot)
         $industry = $this->resolveIndustry($nomination);
         $city = $this->resolveCity($nomination);
 
@@ -247,13 +255,17 @@ class LeadershipNominationCreativeService
         }
 
         $subStartX = (int) (($width - $totalTextW) / 2);
-        $subY = 745;
+        $subY = 748;
         $lineY = $subY - 5;
-        $flankLen = 60;
+        $flankLen = 70;
 
         // Flanking horizontal lines
-        imageline($canvas, $subStartX - $flankLen - 14, $lineY, $subStartX - 14, $lineY, $redColor);
-        imageline($canvas, $subStartX + $totalTextW + 14, $lineY, $subStartX + $totalTextW + $flankLen + 14, $lineY, $redColor);
+        imagesetthickness($canvas, 2);
+        $subLeftStart = max(40, $subStartX - $flankLen - 16);
+        $subRightEnd = min($width - 40, $subStartX + $totalTextW + $flankLen + 16);
+        imageline($canvas, $subLeftStart, $lineY, $subStartX - 16, $lineY, $redColor);
+        imageline($canvas, $subStartX + $totalTextW + 16, $lineY, $subRightEnd, $lineY, $redColor);
+        imagesetthickness($canvas, 1);
 
         // Industry text
         imagettftext($canvas, $subSize, 0, $subStartX, $subY, $subSlate, $fontBold, $industry);
@@ -400,13 +412,13 @@ class LeadershipNominationCreativeService
         $snapshot = $nomination->profile_snapshot;
         if (is_array($snapshot)) {
             if (isset($snapshot['profile']) && is_array($snapshot['profile'])) {
-                foreach (['photo_url', 'photo', 'avatar_url', 'image_url', 'avatar'] as $key) {
+                foreach (['photo_url', 'photo', 'avatar_url', 'image_url', 'avatar', 'profile_photo', 'profile_photo_url'] as $key) {
                     if (! empty($snapshot['profile'][$key]) && is_string($snapshot['profile'][$key])) {
                         $candidates[] = $snapshot['profile'][$key];
                     }
                 }
             }
-            foreach (['photo_url', 'profile_photo_url', 'avatar_url', 'image_url', 'profile_photo', 'photo', 'avatar'] as $key) {
+            foreach (['photo_url', 'profile_photo_url', 'avatar_url', 'image_url', 'profile_photo', 'photo', 'avatar', 'profile_image'] as $key) {
                 if (! empty($snapshot[$key]) && is_string($snapshot[$key])) {
                     $candidates[] = $snapshot[$key];
                 }
@@ -414,20 +426,20 @@ class LeadershipNominationCreativeService
         }
 
         if (is_array($nomination->edited_profile)) {
-            foreach (['photo_url', 'profile_photo_url', 'avatar_url', 'image_url'] as $key) {
+            foreach (['photo_url', 'profile_photo_url', 'avatar_url', 'image_url', 'photo', 'avatar'] as $key) {
                 if (! empty($nomination->edited_profile[$key]) && is_string($nomination->edited_profile[$key])) {
                     $candidates[] = $nomination->edited_profile[$key];
                 }
             }
         }
 
-        // Check documents for photo/id proof
+        // Check nomination documents
         try {
             $docs = $nomination->relationLoaded('documents') ? $nomination->documents : $nomination->documents()->get();
             if ($docs && $docs->isNotEmpty()) {
                 foreach ($docs as $doc) {
                     $type = strtolower((string) ($doc->document_type ?? ''));
-                    if (str_contains($type, 'photo') || str_contains($type, 'avatar') || str_contains($type, 'image') || str_contains($type, 'proof')) {
+                    if (str_contains($type, 'photo') || str_contains($type, 'avatar') || str_contains($type, 'image') || str_contains($type, 'profile') || str_contains($type, 'proof')) {
                         if (! empty($doc->file_url)) {
                             $candidates[] = $doc->file_url;
                         }
@@ -445,11 +457,44 @@ class LeadershipNominationCreativeService
             if (! empty($nomination->user->profile_photo_url)) {
                 $candidates[] = $nomination->user->profile_photo_url;
             }
+            if (! empty($nomination->user->profile_photo_file_id)) {
+                $candidates[] = (string) $nomination->user->profile_photo_file_id;
+            }
             if (! empty($nomination->user->avatar_file_id)) {
-                $file = FileModel::find($nomination->user->avatar_file_id);
-                if ($file && $file->s3_key) {
-                    $candidates[] = $file->s3_key;
+                $candidates[] = (string) $nomination->user->avatar_file_id;
+            }
+            if (! empty($nomination->user->profile_photo_id)) {
+                $candidates[] = (string) $nomination->user->profile_photo_id;
+            }
+        }
+
+        // Check by user email or phone if user relation was not connected
+        if (! $nomination->user && (! empty($nomination->email) || ! empty($nomination->mobile))) {
+            try {
+                $matchedUser = User::where(function ($q) use ($nomination) {
+                    if (! empty($nomination->email)) {
+                        $q->where('email', $nomination->email);
+                    }
+                    if (! empty($nomination->mobile)) {
+                        $q->orWhere('phone', $nomination->mobile);
+                    }
+                })->first();
+
+                if ($matchedUser) {
+                    if (! empty($matchedUser->profile_photo_url)) {
+                        $candidates[] = $matchedUser->profile_photo_url;
+                    }
+                    if (! empty($matchedUser->profile_photo_file_id)) {
+                        $candidates[] = (string) $matchedUser->profile_photo_file_id;
+                    }
+                    if (! empty($matchedUser->avatar_file_id)) {
+                        $candidates[] = (string) $matchedUser->avatar_file_id;
+                    }
+                    if (! empty($matchedUser->profile_photo_id)) {
+                        $candidates[] = (string) $matchedUser->profile_photo_id;
+                    }
                 }
+            } catch (\Throwable) {
             }
         }
 
@@ -459,7 +504,46 @@ class LeadershipNominationCreativeService
                 continue;
             }
 
-            // Case A: Full URL
+            // Case A: UUID or string containing /api/v1/files/{uuid}
+            if (preg_match('/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i', $candidate, $matches)) {
+                $uuid = $matches[1];
+                try {
+                    $fileRecord = File::find($uuid) ?? FileModel::find($uuid);
+                    if ($fileRecord && ! empty($fileRecord->s3_key)) {
+                        $s3Key = $fileRecord->s3_key;
+                        foreach (['public', config('filesystems.default', 'public'), 'local', 's3'] as $diskName) {
+                            try {
+                                if (Storage::disk($diskName)->exists($s3Key)) {
+                                    $data = Storage::disk($diskName)->get($s3Key);
+                                    if (! empty($data)) {
+                                        $img = @imagecreatefromstring($data);
+                                        if ($img) {
+                                            return $img;
+                                        }
+                                    }
+                                }
+                            } catch (\Throwable) {
+                            }
+                        }
+
+                        foreach ([
+                            public_path('storage/'.$s3Key),
+                            storage_path('app/public/'.$s3Key),
+                            storage_path('app/'.$s3Key),
+                        ] as $checkPath) {
+                            if (file_exists($checkPath)) {
+                                $img = @imagecreatefromstring((string) file_get_contents($checkPath));
+                                if ($img) {
+                                    return $img;
+                                }
+                            }
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+
+            // Case B: Full HTTP/HTTPS URL
             if (str_starts_with($candidate, 'http://') || str_starts_with($candidate, 'https://')) {
                 // If it points to local storage path, check disk first
                 $pathPart = parse_url($candidate, PHP_URL_PATH);
@@ -476,19 +560,18 @@ class LeadershipNominationCreativeService
 
                 // Remote download with timeout and SSL fallback
                 try {
-                    $resp = Http::timeout(8)->withoutVerifying()->get($candidate);
+                    $resp = Http::timeout(6)->withoutVerifying()->get($candidate);
                     if ($resp->successful() && ! empty($resp->body())) {
                         $img = @imagecreatefromstring($resp->body());
                         if ($img) {
                             return $img;
                         }
                     }
-                } catch (\Throwable $e) {
-                    // Try stream context with disabled peer verification
+                } catch (\Throwable) {
                     try {
                         $ctx = stream_context_create([
                             'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
-                            'http' => ['timeout' => 8],
+                            'http' => ['timeout' => 6],
                         ]);
                         $data = @file_get_contents($candidate, false, $ctx);
                         if ($data) {
@@ -502,7 +585,7 @@ class LeadershipNominationCreativeService
                 }
             }
 
-            // Case B: Local absolute file path
+            // Case C: Local absolute file path
             if (file_exists($candidate)) {
                 $img = @imagecreatefromstring((string) file_get_contents($candidate));
                 if ($img) {
@@ -510,7 +593,7 @@ class LeadershipNominationCreativeService
                 }
             }
 
-            // Case C: Relative storage/public path
+            // Case D: Relative storage/public path
             $rel = ltrim($candidate, '/');
             $rel = preg_replace('#^(storage/|public/)#', '', $rel);
 
@@ -530,7 +613,7 @@ class LeadershipNominationCreativeService
                 }
             }
 
-            // Case D: Storage disk check
+            // Case E: Storage disk check
             try {
                 if (Storage::disk('public')->exists($rel)) {
                     $data = Storage::disk('public')->get($rel);

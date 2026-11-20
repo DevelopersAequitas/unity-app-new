@@ -179,11 +179,18 @@ class FileController extends BaseApiController
 
                             $file = File::find($id);
                         }
-                    } elseif ($post && $post->post_type === 'birthday') {
+                    } elseif ($post && in_array($post->post_type, ['birthday', 'genie_birthday'], true)) {
                         $targetUser = $post->source_id ? User::find($post->source_id) : $post->user;
                         if ($targetUser && class_exists(BirthdayCreativeImageService::class)) {
                             $imageService = app(BirthdayCreativeImageService::class);
                             $fileModel = $imageService->generate($targetUser);
+                            $file = File::find($fileModel->id) ?: $fileModel;
+                        }
+                    } elseif ($post && in_array($post->post_type, ['anniversary', 'genie_anniversary'], true)) {
+                        $targetUser = $post->source_id ? User::find($post->source_id) : $post->user;
+                        if ($targetUser && class_exists(\App\Services\Celebrations\CelebrationCreativeService::class)) {
+                            $generated = app(\App\Services\Celebrations\CelebrationCreativeService::class)->generateAnniversaryCreative($targetUser);
+                            $fileModel = $generated['file'];
                             $file = File::find($fileModel->id) ?: $fileModel;
                         }
                     } else {
