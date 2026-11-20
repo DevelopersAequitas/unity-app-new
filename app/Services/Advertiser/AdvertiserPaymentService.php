@@ -434,7 +434,7 @@ class AdvertiserPaymentService
         }
 
         // 3. Mark payment captured and publish campaign transactionally
-        return DB::transaction(function () use ($payment, $razorpayPaymentId, $razorpaySignature, $providerPayment) {
+        $capturedPayment = DB::transaction(function () use ($payment, $razorpayPaymentId, $razorpaySignature, $providerPayment) {
             $payment->provider_payment_id = $razorpayPaymentId;
             $payment->provider_signature = $razorpaySignature;
             $payment->status = AdvertiserPayment::STATUS_CAPTURED;
@@ -456,8 +456,12 @@ class AdvertiserPaymentService
                 $this->markPaymentCompletedPendingAdminPublish($payment->subscription, $payment);
             }
 
-            return $payment->fresh(['subscription.brandPartner', 'subscription.application']);
+            return $payment->fresh(['subscription.brandPartner', 'subscription.application', 'subscription.user']);
         });
+
+        $this->syncZohoInvoiceForAdvertiserPayment($capturedPayment);
+
+        return $capturedPayment->fresh(['subscription.brandPartner', 'subscription.application']) ?? $capturedPayment;
     }
 
     /**
@@ -599,6 +603,8 @@ class AdvertiserPaymentService
                         $this->markPaymentCompletedPendingAdminPublish($localPayment->subscription, $localPayment);
                     }
                 });
+
+                $this->syncZohoInvoiceForAdvertiserPayment($localPayment->fresh(['subscription.user', 'subscription.application', 'subscription.brandPartner']) ?? $localPayment);
             }
         } elseif ($event === 'payment.failed' || $status === 'failed') {
             if ($localPayment->status !== AdvertiserPayment::STATUS_CAPTURED) {
@@ -645,6 +651,8 @@ class AdvertiserPaymentService
 
                     $this->markPaymentCompletedPendingAdminPublish($payment->subscription, $payment);
                 });
+
+                $this->syncZohoInvoiceForAdvertiserPayment($payment->fresh(['subscription.user', 'subscription.application', 'subscription.brandPartner']) ?? $payment);
             } elseif ($remoteStatus === 'failed') {
                 $payment->update([
                     'status' => AdvertiserPayment::STATUS_FAILED,
@@ -655,5 +663,87 @@ class AdvertiserPaymentService
         }
 
         return $payment->fresh();
+    }
+
+    /**
+     * Create and mark PAID a Zoho Billing invoice for Brand Partner / Advertiser payments.
+     * Automatically checks users.gst_number: with GST if present, without GST if empty.
+     */
+    public function syncZohoInvoiceForAdvertiserPayment(AdvertiserPayment $payment): ?array
+    {
+        $payload = is_array($payment->provider_payload) ? $payment->provider_payload : [];
+        if (! empty($payload['zoho_invoice_id'])) {
+            return [
+                'invoice_id' => $payload['zoho_invoice_id'],
+                'invoice_number' => $payload['zoho_invoice_number'] ?? null,
+                'status' => $payload['zoho_invoice_status'] ?? 'paid',
+            ];
+        }
+
+        $payment->loadMissing(['subscription.user', 'subscription.application', 'subscription.brandPartner']);
+        $subscription = $payment->subscription;
+        $user = $subscription?->user;
+
+        if (! $user && $subscription?->application?->user_id) {
+            $user = \App\Models\User::query()->find($subscription->application->user_id);
+        }
+
+        if (! $user) {
+            Log::warning('[AdvertiserPayment] Skipping Zoho invoice sync: user not found', [
+                'payment_id' => $payment->id,
+                'subscription_id' => $payment->subscription_id,
+            ]);
+
+            return null;
+        }
+
+        $amount = round((float) $payment->amount, 2);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $isRenewal = (bool) ($payload['is_renewal'] ?? false);
+        $packageName = (string) ($payload['renewal_package_name'] ?? $subscription?->package_name_snapshot ?? 'Advertiser / Brand Partner Package');
+        $itemName = ($isRenewal ? 'Brand Partner / Advertiser Renewal - ' : 'Brand Partner / Advertiser - ').$packageName;
+        $referenceNumber = (string) ($payment->provider_payment_id ?: $payment->id);
+
+        try {
+            $zohoInvoice = app(\App\Support\Zoho\ZohoBillingService::class)->createPaidInvoiceForAppPayment($user, [
+                'item_name' => $itemName,
+                'description' => $itemName.' | Subscription ID: '.(string) $payment->subscription_id,
+                'amount' => $amount,
+                'currency' => strtoupper((string) ($payment->currency ?: 'INR')),
+                'reference_number' => $referenceNumber,
+                'notes' => 'Paid via Razorpay: '.$referenceNumber,
+                'terms' => 'Thank you for partnering with Peers Global Unity.',
+            ]);
+
+            $payment->provider_payload = array_merge($payload, [
+                'zoho_customer_id' => $zohoInvoice['customer_id'] ?? null,
+                'zoho_invoice_id' => $zohoInvoice['invoice_id'] ?? null,
+                'zoho_invoice_number' => $zohoInvoice['invoice_number'] ?? null,
+                'zoho_invoice_url' => $zohoInvoice['invoice_url'] ?? null,
+                'zoho_invoice_pdf_url' => $zohoInvoice['invoice_pdf_url'] ?? null,
+                'zoho_invoice_status' => $zohoInvoice['status'] ?? 'paid',
+                'zoho_gst_treatment' => $zohoInvoice['gst_treatment'] ?? null,
+                'zoho_gst_no' => $zohoInvoice['gst_no'] ?? null,
+            ]);
+            $payment->save();
+
+            return $zohoInvoice;
+        } catch (Throwable $e) {
+            Log::error('[AdvertiserPayment] Failed to sync Zoho invoice', [
+                'payment_id' => $payment->id,
+                'subscription_id' => $payment->subscription_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $payment->provider_payload = array_merge($payload, [
+                'zoho_invoice_sync_error' => $e->getMessage(),
+            ]);
+            $payment->save();
+
+            return null;
+        }
     }
 }
