@@ -1072,6 +1072,7 @@ class PostController extends BaseApiController
                     }
                     $mName = $dm->display_name ?: trim((($dm->first_name ?? '').' '.($dm->last_name ?? '')));
                     $mentions[] = [
+                        'user_id' => $peerId,
                         'id' => $peerId,
                         'name' => $mName !== '' ? $mName : 'Peer Member',
                         'username' => $resolveUsername($dm->public_profile_slug ?? null, $dm->email ?? null),
@@ -1156,6 +1157,7 @@ class PostController extends BaseApiController
                         $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
                         $finalName = $recName !== '' ? $recName : ($fallbackName ?: 'Peer Member');
                         $mentions[] = [
+                            'user_id' => (string) $recPeer->id,
                             'id' => (string) $recPeer->id,
                             'name' => $finalName,
                             'username' => $resolveUsername($recPeer->public_profile_slug ?? null, $recPeer->email ?? null),
@@ -2300,11 +2302,11 @@ class PostController extends BaseApiController
     {
         $peerIds = [];
 
-        // 1. From payload mentions array: [{"id": "uuid", "name": "..."}]
+        // 1. From payload mentions array: [{"user_id": "uuid", "id": "uuid", "name": "..."}]
         $rawMentions = $request->input('mentions');
         if (is_array($rawMentions)) {
             foreach ($rawMentions as $item) {
-                $id = is_array($item) ? ($item['id'] ?? null) : (is_string($item) ? $item : null);
+                $id = is_array($item) ? ($item['user_id'] ?? $item['peer_id'] ?? $item['id'] ?? null) : (is_string($item) ? $item : null);
                 if (is_string($id) && Str::isUuid($id)) {
                     $peerIds[] = $id;
                 }
@@ -2384,6 +2386,7 @@ class PostController extends BaseApiController
             if ($peer && (string) $peer->id !== $authorId) {
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $name !== '' ? $name : 'Peer Member',
                     'username' => $resolveUsername($peer),
@@ -2596,6 +2599,7 @@ class PostController extends BaseApiController
                 $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
                 $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $finalName,
                     'username' => $resolveUsername($peer),
@@ -2638,8 +2642,11 @@ class PostController extends BaseApiController
         $rawMentions = $request->input('mentions');
         if (is_array($rawMentions)) {
             foreach ($rawMentions as $item) {
-                if (is_array($item) && ! empty($item['id']) && ! empty($item['name'])) {
-                    $inputNamesById[(string) $item['id']] = trim((string) $item['name']);
+                if (is_array($item) && ! empty($item['name'])) {
+                    $itemId = $item['user_id'] ?? $item['peer_id'] ?? $item['id'] ?? null;
+                    if (! empty($itemId)) {
+                        $inputNamesById[(string) $itemId] = trim((string) $item['name']);
+                    }
                 }
             }
         }
@@ -2658,6 +2665,7 @@ class PostController extends BaseApiController
                 $slug = trim((string) ($peer->public_profile_slug ?? ''));
                 $username = $slug !== '' ? $slug : (str_contains((string) ($peer->email ?? ''), '@') ? (strstr((string) $peer->email, '@', true) ?: null) : null);
                 $mentions[] = [
+                    'user_id' => (string) $peer->id,
                     'id' => (string) $peer->id,
                     'name' => $name !== '' ? $name : ($inputNamesById[(string) $peerId] ?? 'Peer Member'),
                     'username' => $username,
@@ -2667,6 +2675,7 @@ class PostController extends BaseApiController
                 ];
             } elseif (isset($inputNamesById[(string) $peerId])) {
                 $mentions[] = [
+                    'user_id' => (string) $peerId,
                     'id' => (string) $peerId,
                     'name' => $inputNamesById[(string) $peerId],
                 ];

@@ -206,6 +206,7 @@ class PostResource extends JsonResource
                         if ($peer && (string) $peer->id !== $authorId) {
                             $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                             $mentions[] = [
+                                'user_id' => (string) $peer->id,
                                 'id' => (string) $peer->id,
                                 'name' => $name !== '' ? $name : 'Peer Member',
                                 'username' => $resolveUsername($peer),
@@ -225,6 +226,7 @@ class PostResource extends JsonResource
                         if ($peer && (string) $peer->id !== $authorId) {
                             $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                             $mentions[] = [
+                                'user_id' => (string) $peer->id,
                                 'id' => (string) $peer->id,
                                 'name' => $name !== '' ? $name : 'Peer Member',
                                 'username' => $resolveUsername($peer),
@@ -439,6 +441,7 @@ class PostResource extends JsonResource
                         $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
                         $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
                         $mentions[] = [
+                            'user_id' => (string) $peer->id,
                             'id' => (string) $peer->id,
                             'name' => $finalName,
                             'username' => $resolveUsername($peer),

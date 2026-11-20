@@ -18,6 +18,7 @@ class StorePostCommentRequest extends FormRequest
             'parent_id' => 'nullable|uuid|exists:post_comments,id',
             'mentions' => 'nullable|array',
             'mentions.*.id' => 'nullable|uuid',
+            'mentions.*.user_id' => 'nullable|uuid',
             'mentions.*.name' => 'nullable|string|max:255',
             'tagged_peer_ids' => 'nullable|array',
             'tagged_peer_ids.*' => 'uuid',

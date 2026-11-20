@@ -2,25 +2,40 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Chat extends Model
 {
     use HasFactory;
+    use HasUuids;
+
+    protected $primaryKey = 'id';
 
     protected $keyType = 'string';
 
     public $incrementing = false;
 
     protected $fillable = [
+        'id',
         'user1_id',
         'user2_id',
         'last_message_at',
         'last_message_id',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $chat): void {
+            if (empty($chat->id)) {
+                $chat->id = (string) Str::uuid();
+            }
+        });
+    }
 
     protected $casts = [
         'last_message_at' => 'datetime',

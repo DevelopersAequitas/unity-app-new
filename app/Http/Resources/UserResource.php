@@ -240,8 +240,8 @@ class UserResource extends JsonResource
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
-            'dob' => optional($this->dob)?->format('Y-m-d'),
-            'anniversary_date' => optional($this->anniversary_date)?->format('Y-m-d'),
+            'dob' => $this->sanitizeCalendarDate($this->dob),
+            'anniversary_date' => $this->sanitizeCalendarDate($this->anniversary_date),
             'experience_years' => $this->experience_years,
             'experience_summary' => $this->experience_summary,
             'bio' => $this->short_bio,
@@ -298,6 +298,40 @@ class UserResource extends JsonResource
                 fn () => $this->resolveProfileMatch($request)
             ),
         ];
+    }
+
+    protected function sanitizeCalendarDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            $year = (int) $value->format('Y');
+
+            return $year >= 1900 ? $value->format('Y-m-d') : null;
+        }
+
+        $raw = trim((string) $value);
+        if (
+            $raw === ''
+            || in_array(strtolower($raw), ['-', '--', 'n/a', 'na', 'none', 'null', '0000-00-00', '0000-00-00 00:00:00'], true)
+            || str_starts_with($raw, '0000-')
+            || str_starts_with($raw, '-0001')
+        ) {
+            return null;
+        }
+
+        try {
+            $parsed = \Carbon\Carbon::parse($raw);
+            if ($parsed->year < 1900) {
+                return null;
+            }
+
+            return $parsed->format('Y-m-d');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function resolveProfileMatch($request): ?array
