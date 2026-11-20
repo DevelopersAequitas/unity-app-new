@@ -109,9 +109,10 @@
     <!-- Main Header -->
     <header class="header-bg text-center">
         <div class="container">
-            <div class="d-inline-flex align-items-center gap-2 mb-2 px-3 py-1 bg-white bg-opacity-10 rounded-pill text-white small">
-                <i class="bi bi-shield-check text-warning"></i>
-                <span>Peers Global Unity • Community of Collaboration</span>
+            <div class="mb-3 text-center">
+                <a href="https://peersglobal.com" target="_blank" rel="noopener noreferrer" class="d-inline-flex align-items-center justify-content-center text-decoration-none">
+                    <img src="{{ asset('images/logo-full.png') }}" onerror="this.onerror=null; this.src='https://peersglobal.com/images/logo-full.png';" alt="Peers Global Unity" style="height: 48px; max-width: 250px; object-fit: contain; filter: brightness(0) invert(1);" />
+                </a>
             </div>
             <h1 class="h2 fw-bold text-white mb-2">Jury Evaluation Form</h1>
             <p class="text-white-50 mb-4 mx-auto" style="max-width: 650px;">
@@ -159,44 +160,72 @@
                 <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
                     Thank you, <strong>{{ $candidateName }}</strong>. Your Jury Evaluation Data and Leadership Bench records have been securely stored in the <strong>Jury Evaluation Dossier</strong> and forwarded to the Scrutiny Committee and Jury Board.
                 </p>
-                <div class="mb-4">
+                <div class="mb-0">
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6 fw-semibold">
                         <i class="bi bi-shield-check me-1"></i> Status: Under Jury Review
                     </span>
                 </div>
-                <div>
-                    <a href="/" class="btn btn-outline-primary px-4 py-2">Return to Peers Global</a>
-                </div>
             </div>
         @else
 
-            <!-- Step 1: Security Verification Gate -->
-            <div id="verificationGate" class="card card-custom p-4 p-md-5 mx-auto" style="max-width: 600px;">
+            <!-- Step 1: Security Verification Gate (OTP Confirmation) -->
+            <div id="verificationGate" class="card card-custom p-4 p-md-5 mx-auto" style="max-width: 580px;">
                 <div class="text-center mb-4">
-                    <div class="mx-auto rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                    <div class="mx-auto rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
                         <i class="bi bi-shield-lock-fill fs-2"></i>
                     </div>
-                    <h3 class="h5 fw-bold text-dark mb-1">Identity & Email Verification</h3>
+                    <h3 class="h5 fw-bold text-dark mb-1">Identity & OTP Verification</h3>
                     <p class="text-muted small mb-0">
-                        To prevent application mismatching, please enter the registered email address used during your initial nomination for <strong>{{ $candidateName }}</strong>.
+                        To protect candidate confidentiality, please verify your registered email address for nominee <strong>{{ $candidateName }}</strong>.
                     </p>
                 </div>
 
-                <div id="emailVerifyAlert" class="alert alert-danger d-none py-2 px-3 small rounded-3" role="alert"></div>
+                <div id="verifyAlert" class="alert d-none py-2 px-3 small rounded-3 mb-3" role="alert"></div>
 
-                <div class="mb-3">
-                    <label class="form-label" for="verifyEmailInput">Registered Email Address</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
-                        <input type="email" id="verifyEmailInput" class="form-control" placeholder="name@example.com" required>
+                <!-- Step A: Enter Email & Request OTP -->
+                <div id="otpStepEmail">
+                    <div class="mb-3">
+                        <label class="form-label" for="verifyEmailInput">Registered Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
+                            <input type="email" id="verifyEmailInput" class="form-control" placeholder="name@example.com" value="{{ old('email', '') }}" required>
+                        </div>
+                        <div class="form-text small">Must match the email on your initial nomination application.</div>
                     </div>
-                    <div class="form-text small">Must match the email on your nomination application.</div>
+
+                    <button type="button" id="btnRequestOtp" class="btn btn-pg-primary w-100 py-2.5">
+                        <span id="requestOtpSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <i class="bi bi-send me-1" id="requestOtpIcon"></i> Send 6-Digit OTP
+                    </button>
                 </div>
 
-                <button type="button" id="btnVerifyEmail" class="btn btn-pg-primary w-100 py-2.5">
-                    <span id="verifyBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-                    <i class="bi bi-arrow-right-circle me-1" id="verifyBtnIcon"></i> Verify & Unlock Evaluation Form
-                </button>
+                <!-- Step B: Enter 6-Digit OTP & Confirm -->
+                <div id="otpStepCode" class="d-none">
+                    <div class="p-3 bg-light rounded-3 border border-light-subtle mb-3 text-center">
+                        <div class="small text-muted mb-1">Verification code sent to:</div>
+                        <div class="fw-bold text-dark" id="displayMaskedEmail">your email</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-center d-block" for="verifyOtpInput">Enter 6-Digit Verification Code</label>
+                        <input type="text" id="verifyOtpInput" maxlength="6" inputmode="numeric" pattern="[0-9]*" class="form-control form-control-lg text-center fw-bold fs-4" placeholder="• • • • • •" style="letter-spacing: 0.5rem;" autocomplete="one-time-code" required>
+                        <div class="form-text small text-center">Check your inbox or spam folder for your 6-digit code.</div>
+                    </div>
+
+                    <button type="button" id="btnVerifyOtp" class="btn btn-pg-primary w-100 py-2.5 mb-3">
+                        <span id="verifyOtpSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <i class="bi bi-shield-check me-1" id="verifyOtpIcon"></i> Verify OTP & Unlock Evaluation Form
+                    </button>
+
+                    <div class="d-flex align-items-center justify-content-between small text-muted">
+                        <button type="button" id="btnBackToEmail" class="btn btn-link p-0 text-decoration-none small text-secondary">
+                            <i class="bi bi-arrow-left"></i> Change email
+                        </button>
+                        <button type="button" id="btnResendOtp" class="btn btn-link p-0 text-decoration-none small text-primary fw-semibold">
+                            Resend code
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 2: The Main Form 2 (Hidden until email verified) -->
@@ -552,57 +581,209 @@
                 });
             });
 
-            const verifyBtn = document.getElementById('btnVerifyEmail');
-            const verifyInput = document.getElementById('verifyEmailInput');
-            const verifyAlert = document.getElementById('emailVerifyAlert');
             const verifyGate = document.getElementById('verificationGate');
             const mainForm = document.getElementById('mainForm2');
             const hiddenEmail = document.getElementById('verifiedEmailHidden');
-            const spinner = document.getElementById('verifyBtnSpinner');
-            const btnIcon = document.getElementById('verifyBtnIcon');
+            const verifyAlert = document.getElementById('verifyAlert');
 
-            if (verifyBtn) {
-                verifyBtn.addEventListener('click', async function () {
-                    const email = verifyInput.value.trim();
-                    if (!email) {
-                        verifyAlert.textContent = 'Please enter your registered email address.';
-                        verifyAlert.classList.remove('d-none');
-                        return;
-                    }
+            // Step A elements
+            const otpStepEmail = document.getElementById('otpStepEmail');
+            const verifyEmailInput = document.getElementById('verifyEmailInput');
+            const btnRequestOtp = document.getElementById('btnRequestOtp');
+            const requestOtpSpinner = document.getElementById('requestOtpSpinner');
+            const requestOtpIcon = document.getElementById('requestOtpIcon');
 
-                    spinner.classList.remove('d-none');
-                    btnIcon.classList.add('d-none');
-                    verifyAlert.classList.add('d-none');
+            // Step B elements
+            const otpStepCode = document.getElementById('otpStepCode');
+            const displayMaskedEmail = document.getElementById('displayMaskedEmail');
+            const verifyOtpInput = document.getElementById('verifyOtpInput');
+            const btnVerifyOtp = document.getElementById('btnVerifyOtp');
+            const verifyOtpSpinner = document.getElementById('verifyOtpSpinner');
+            const verifyOtpIcon = document.getElementById('verifyOtpIcon');
+            const btnBackToEmail = document.getElementById('btnBackToEmail');
+            const btnResendOtp = document.getElementById('btnResendOtp');
 
-                    try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                        const response = await fetch("{{ route('leadership.form2.verify-email', ['id' => $nomination->id]) }}", {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken
-                            },
-                            body: JSON.stringify({ email: email })
-                        });
+            let currentVerificationId = null;
+            let resendCooldown = 0;
+            let cooldownInterval = null;
 
-                        const data = await response.json();
+            function showAlert(msg, isSuccess = false) {
+                if (!verifyAlert) return;
+                verifyAlert.className = `alert py-2 px-3 small rounded-3 mb-3 ${isSuccess ? 'alert-success' : 'alert-danger'}`;
+                verifyAlert.textContent = msg;
+                verifyAlert.classList.remove('d-none');
+            }
 
-                        if (response.ok && data.success) {
-                            hiddenEmail.value = email;
-                            verifyGate.classList.add('d-none');
-                            mainForm.classList.remove('d-none');
-                            window.scrollTo({ top: 350, behavior: 'smooth' });
+            function clearAlert() {
+                if (!verifyAlert) return;
+                verifyAlert.classList.add('d-none');
+                verifyAlert.textContent = '';
+            }
+
+            function startCooldown(seconds = 60) {
+                resendCooldown = seconds;
+                if (btnResendOtp) {
+                    btnResendOtp.disabled = true;
+                    btnResendOtp.classList.add('text-muted');
+                    btnResendOtp.classList.remove('text-primary');
+                }
+                clearInterval(cooldownInterval);
+                cooldownInterval = setInterval(() => {
+                    resendCooldown--;
+                    if (btnResendOtp) {
+                        if (resendCooldown > 0) {
+                            btnResendOtp.textContent = `Resend code (${resendCooldown}s)`;
                         } else {
-                            verifyAlert.textContent = data.message || 'Email does not match this nomination application.';
-                            verifyAlert.classList.remove('d-none');
+                            clearInterval(cooldownInterval);
+                            btnResendOtp.disabled = false;
+                            btnResendOtp.textContent = 'Resend code';
+                            btnResendOtp.classList.remove('text-muted');
+                            btnResendOtp.classList.add('text-primary');
                         }
-                    } catch (err) {
-                        verifyAlert.textContent = 'Verification server error. Please try again.';
-                        verifyAlert.classList.remove('d-none');
-                    } finally {
-                        spinner.classList.add('d-none');
-                        btnIcon.classList.remove('d-none');
+                    }
+                }, 1000);
+            }
+
+            async function requestOtpCode() {
+                const email = verifyEmailInput.value.trim();
+                if (!email) {
+                    showAlert('Please enter your registered email address.');
+                    return;
+                }
+
+                clearAlert();
+                requestOtpSpinner.classList.remove('d-none');
+                requestOtpIcon.classList.add('d-none');
+                btnRequestOtp.disabled = true;
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                    const response = await fetch("{{ route('leadership.form2.request-otp', ['id' => $nomination->id]) }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({ email: email })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        currentVerificationId = data.data.verification_id;
+                        displayMaskedEmail.textContent = data.data.masked_email || email;
+                        otpStepEmail.classList.add('d-none');
+                        otpStepCode.classList.remove('d-none');
+                        showAlert(data.message || 'Verification code sent to your email.', true);
+                        startCooldown(data.data.resend_after || 60);
+                        setTimeout(() => verifyOtpInput.focus(), 150);
+                    } else {
+                        showAlert(data.message || 'Email does not match this nomination application.');
+                    }
+                } catch (err) {
+                    showAlert('Unable to send verification code. Please check your connection and try again.');
+                } finally {
+                    requestOtpSpinner.classList.add('d-none');
+                    requestOtpIcon.classList.remove('d-none');
+                    btnRequestOtp.disabled = false;
+                }
+            }
+
+            if (btnRequestOtp) {
+                btnRequestOtp.addEventListener('click', requestOtpCode);
+            }
+            if (verifyEmailInput) {
+                verifyEmailInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        requestOtpCode();
+                    }
+                });
+            }
+
+            async function verifyOtpCode() {
+                const otp = verifyOtpInput.value.trim();
+                if (!otp || otp.length !== 6) {
+                    showAlert('Please enter the complete 6-digit verification code.');
+                    return;
+                }
+                if (!currentVerificationId) {
+                    showAlert('Please request an OTP code first.');
+                    return;
+                }
+
+                clearAlert();
+                verifyOtpSpinner.classList.remove('d-none');
+                verifyOtpIcon.classList.add('d-none');
+                btnVerifyOtp.disabled = true;
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                    const response = await fetch("{{ route('leadership.form2.verify-otp', ['id' => $nomination->id]) }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            verification_id: currentVerificationId,
+                            otp: otp
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        hiddenEmail.value = data.data?.email || verifyEmailInput.value.trim();
+                        verifyGate.classList.add('d-none');
+                        mainForm.classList.remove('d-none');
+                        window.scrollTo({ top: 350, behavior: 'smooth' });
+                    } else {
+                        showAlert(data.message || 'Invalid verification code. Please try again.');
+                    }
+                } catch (err) {
+                    showAlert('Verification server error. Please try again.');
+                } finally {
+                    verifyOtpSpinner.classList.add('d-none');
+                    verifyOtpIcon.classList.remove('d-none');
+                    btnVerifyOtp.disabled = false;
+                }
+            }
+
+            if (btnVerifyOtp) {
+                btnVerifyOtp.addEventListener('click', verifyOtpCode);
+            }
+            if (verifyOtpInput) {
+                verifyOtpInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        verifyOtpCode();
+                    }
+                });
+                // Auto-submit when 6 digits are typed
+                verifyOtpInput.addEventListener('input', function () {
+                    if (this.value.length === 6) {
+                        verifyOtpCode();
+                    }
+                });
+            }
+
+            if (btnBackToEmail) {
+                btnBackToEmail.addEventListener('click', function () {
+                    clearAlert();
+                    otpStepCode.classList.add('d-none');
+                    otpStepEmail.classList.remove('d-none');
+                    verifyOtpInput.value = '';
+                    verifyEmailInput.focus();
+                });
+            }
+
+            if (btnResendOtp) {
+                btnResendOtp.addEventListener('click', function () {
+                    if (resendCooldown <= 0) {
+                        requestOtpCode();
                     }
                 });
             }

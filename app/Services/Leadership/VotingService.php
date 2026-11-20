@@ -525,11 +525,13 @@ class VotingService
                 'nomination_id' => $cand->id,
                 'candidate_name' => $cand->full_name,
                 'application_number' => $cand->application_number ?? '-',
-                'role_name' => $cand->campaign?->role?->name,
+                'role_name' => $cand->applied_role_name ?? $cand->campaign?->role?->name ?? 'Leadership Role',
+                'applied_role_name' => $cand->applied_role_name ?? $cand->campaign?->role?->name ?? 'Leadership Role',
                 'scope_name' => $cand->scope?->scope_name,
                 'vote_count' => $vCount,
                 'percentage' => 0.0,
                 'result_token' => $resultToken,
+                'photo_url' => $cand->profile_photo_url ?? $cand->photo_url,
             ];
         }
 

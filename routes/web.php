@@ -285,6 +285,12 @@ Route::get('/leadership/form-2', [LeadershipForm2Controller::class, 'show'])
 Route::post('/leadership/form-2/{id}/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])
     ->whereUuid('id')
     ->name('leadership.form2.verify-email');
+Route::post('/leadership/form-2/{id}/request-otp', [LeadershipForm2Controller::class, 'requestOtp'])
+    ->whereUuid('id')
+    ->name('leadership.form2.request-otp');
+Route::post('/leadership/form-2/{id}/verify-otp', [LeadershipForm2Controller::class, 'verifyOtp'])
+    ->whereUuid('id')
+    ->name('leadership.form2.verify-otp');
 Route::post('/leadership/form-2/{id}/submit', [LeadershipForm2Controller::class, 'submit'])
     ->whereUuid('id')
     ->name('leadership.form2.submit');
