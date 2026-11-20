@@ -62,6 +62,21 @@ class PublishCelebrationsCommand extends Command
             }
         }
 
+        // 2b. Recover any stale 'processing' schedules left behind by interrupted/crashed workers (older than 5 min, no post)
+        CelebrationSchedule::query()
+            ->whereDate('scheduled_date', $targetDateStr)
+            ->where('status', CelebrationSchedule::STATUS_PROCESSING)
+            ->whereNull('post_id')
+            ->where(function ($q): void {
+                $q->whereNull('last_attempted_at')
+                    ->orWhere('last_attempted_at', '<=', now()->subMinutes(5));
+            })
+            ->whereColumn('attempts', '<', 'max_attempts')
+            ->update([
+                'status' => CelebrationSchedule::STATUS_PENDING,
+                'last_error' => 'Recovered from interrupted processing state',
+            ]);
+
         // 3. Query all due pending/retryable schedules for target date
         $query = CelebrationSchedule::query()
             ->whereDate('scheduled_date', $targetDateStr)

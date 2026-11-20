@@ -58,6 +58,9 @@ class CelebrationAdminController extends BaseApiController
             })
             ->with([
                 'cityRelation:id,name,state,country',
+                'mainBusinessCategory:id,name',
+                'businessCategory:id,name',
+                'level4Category:id,name',
                 'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
             ]);
 
@@ -579,11 +582,24 @@ class CelebrationAdminController extends BaseApiController
 
         $milestoneYears = (int) $occ['milestone_years'];
 
+        $designation = trim((string) ($peer->designation ?? ''));
+        $businessCategory = trim((string) (
+            $peer->businessCategory?->name
+            ?? $peer->level4Category?->name
+            ?? $peer->mainBusinessCategory?->name
+            ?? $peer->business_sub_category
+            ?? ''
+        ));
+        $designationOrCategory = $designation !== '' ? $designation : ($businessCategory !== '' ? $businessCategory : null);
+
         return [
             'id' => "evt-{$eventType}-{$peerId}-{$occ['scheduled_date']->format('Y-m-d')}",
             'peer_id' => $peerId,
             'peer_name' => $peerName,
             'display_name' => $peerName,
+            'designation' => $designation !== '' ? $designation : null,
+            'business_category' => $businessCategory !== '' ? $businessCategory : null,
+            'designation_or_category' => $designationOrCategory,
             'company_name' => $company,
             'city' => $city,
             'circle_name' => $circleName,
