@@ -424,6 +424,33 @@ class JuryAssignmentController extends LeadershipBaseController
     }
 
     /**
+     * Admin: Remove a jury member completely.
+     */
+    public function adminRemoveJuror(string $jurorUserId): JsonResponse
+    {
+        try {
+            $count = \App\Models\Leadership\LeadershipJuryAssignment::where('juror_user_id', $jurorUserId)->delete();
+
+            return $this->success(['deleted_count' => $count], 'Jury member removed successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Admin: Remove a jury member via POST payload.
+     */
+    public function adminRemoveJurorPost(Request $request): JsonResponse
+    {
+        $jurorUserId = $request->input('juror_user_id') ?: $request->input('jury_user_id') ?: $request->input('user_id');
+        if (empty($jurorUserId)) {
+            return $this->error('juror_user_id is required', 422);
+        }
+
+        return $this->adminRemoveJuror((string) $jurorUserId);
+    }
+
+    /**
      * Admin: List evaluation criteria.
      */
     public function adminCriteria(Request $request): JsonResponse

@@ -158,28 +158,12 @@
 </head>
 <body>
 
-<!-- Top Navigation -->
-<nav class="navbar navbar-jury">
-    <div class="container-xl d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-3">
-            <a href="{{ route('admin.web.jury.dashboard') }}" class="d-inline-flex align-items-center text-decoration-none">
-                <img src="{{ asset('images/peersglobal-logo.png') }}" alt="PeersGlobal" style="height: 44px; width: auto;" class="d-inline-block" />
-            </a>
-            <div class="border-start border-white border-opacity-25 ps-3 ms-1 d-flex flex-column justify-content-center">
-                <span class="text-white fw-bold fs-6 tracking-tight d-block" style="line-height: 1.25;">Leadership Selection</span>
-                <span class="text-white-50 small" style="font-size: 11.5px;">Official Jury Evaluation Portal</span>
-            </div>
-        </div>
-
-        <div class="d-flex align-items-center gap-3">
-            <div class="text-end d-none d-sm-block">
-                <span class="text-white fw-semibold small d-block">{{ $juror->display_name ?: ($juror->first_name.' '.$juror->last_name) }}</span>
-                <span class="text-white-50" style="font-size: 11.5px;">{{ $juror->email }}</span>
-            </div>
-            <a href="{{ route('admin.web.jury.logout.get') }}" class="btn btn-outline-light btn-sm rounded-pill px-3 py-1.5">
-                <i class="fa-solid fa-arrow-right-from-bracket me-1"></i> Logout
-            </a>
-        </div>
+<!-- Top Navigation (Only Peers Global Logo) -->
+<nav class="navbar navbar-jury py-3">
+    <div class="container-xl d-flex align-items-center justify-content-center">
+        <a href="{{ route('admin.web.jury.dashboard') }}" class="d-inline-flex align-items-center text-decoration-none">
+            <img src="{{ asset('images/peersglobal-logo.png') }}" alt="PeersGlobal" style="height: 48px; width: auto;" class="d-inline-block" />
+        </a>
     </div>
 </nav>
 
@@ -338,6 +322,20 @@
         @endif
     </div>
 
+    <!-- Middle Bottom Jury Account Bar -->
+    <div class="d-flex flex-column align-items-center justify-content-center text-center mt-5 mb-4">
+        <div class="bg-white border rounded-4 shadow-xs px-4 py-3 d-inline-flex flex-column flex-sm-row align-items-center gap-3">
+            <div class="text-center text-sm-start">
+                <span class="text-dark fw-bold fs-6 d-block">{{ $juror->display_name ?: ($juror->first_name.' '.$juror->last_name) }}</span>
+                <span class="text-muted small" style="font-size: 12px;">{{ $juror->email }} • Official Jury Member</span>
+            </div>
+            <a href="{{ route('admin.web.jury.logout.get') }}" class="btn btn-outline-danger btn-sm rounded-pill px-3.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+            </a>
+        </div>
+        <p class="text-muted small mt-2 mb-0" style="font-size: 11.5px;">Peers Global Leadership Selection 2026 • Dedicated Jury Evaluation Portal</p>
+    </div>
+
 </div>
 
 <!-- Candidate Review & Scoring Modal -->
@@ -487,30 +485,35 @@
                                 
                                 <div id="criteriaList">
                                     @foreach($criteria as $crit)
-                                        <div class="score-slider-box" id="crit-box-{{ $crit->id }}">
-                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <div class="p-3 bg-light rounded-4 border mb-3" id="crit-box-{{ $crit->id }}">
+                                            <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-2">
                                                 <div>
-                                                    <span class="fw-bold text-dark">{{ $crit->name }}</span>
-                                                    <span class="badge bg-light text-muted border ms-2" style="font-size: 11px;">Weight: {{ $crit->weightage }}%</span>
+                                                    <span class="fw-bold text-dark fs-6">{{ $crit->name }}</span>
+                                                    <span class="badge bg-white text-muted border ms-2" style="font-size: 11px;">Weight: {{ $crit->weightage }}%</span>
+                                                    <p class="text-muted small mb-0 mt-1" style="font-size: 12px;">{{ $crit->description ?: 'Score candidate competence and demonstrated excellence on this criterion.' }}</p>
                                                 </div>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="fw-bold text-primary fs-5" id="score-val-{{ $crit->id }}">8</span>
-                                                    <span class="text-muted small">/ {{ $crit->max_score }} pts</span>
+                                                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                                    <label class="small text-muted fw-semibold me-1">Score:</label>
+                                                    <div class="input-group input-group-sm" style="width: 140px;">
+                                                        <input 
+                                                            type="number" 
+                                                            class="form-control text-center fw-bold fs-6 text-primary score-number-input" 
+                                                            min="0" 
+                                                            max="{{ $crit->max_score }}" 
+                                                            step="0.5" 
+                                                            value="8" 
+                                                            data-criterion-id="{{ $crit->id }}"
+                                                            data-criterion-name="{{ $crit->name }}"
+                                                            id="input-score-{{ $crit->id }}"
+                                                            required
+                                                        >
+                                                        <span class="input-group-text bg-white text-muted fw-semibold" style="font-size: 12px;">/ 10 pts</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <input 
-                                                type="range" 
-                                                class="form-range" 
-                                                min="0" 
-                                                max="{{ $crit->max_score }}" 
-                                                step="0.5" 
-                                                value="8" 
-                                                data-criterion-id="{{ $crit->id }}"
-                                                data-criterion-name="{{ $crit->name }}"
-                                                id="range-{{ $crit->id }}"
-                                                oninput="updateScoreDisplay('{{ $crit->id }}', this.value)"
-                                            >
-                                            <p class="text-muted small mb-0 mt-1" style="font-size: 12px;">{{ $crit->description ?: 'Score candidate competence and demonstrated excellence on this criterion.' }}</p>
+                                            <div class="mt-2">
+                                                <input type="text" class="form-control form-control-sm bg-white" placeholder="Optional notes/remarks on this criterion..." id="remarks-{{ $crit->id }}" data-criterion-id="{{ $crit->id }}">
+                                            </div>
                                         </div>
                                     @endforeach
                                 </div>
@@ -743,18 +746,47 @@ function populateCandidateDetails(data, isViewOnly) {
                     return clean.charAt(0).toUpperCase() + clean.slice(1);
                 })();
 
-                let val = ans.answer_text ?? ans.answer_json ?? (ans.answer && typeof ans.answer === 'object' && 'value' in ans.answer ? ans.answer.value : ans.answer);
+                let raw = ans.sanitized_value ?? ans.answer_text ?? ans.answer_json ?? ans.answer;
+                if (typeof raw === 'string' && (raw.startsWith('{') || raw.startsWith('['))) {
+                    try { raw = JSON.parse(raw); } catch (e) {}
+                }
+
+                let val = raw;
+                if (val && typeof val === 'object') {
+                    if ('value' in val) {
+                        val = val.value;
+                    } else if ('text' in val) {
+                        val = val.text;
+                    }
+                }
+
                 let valHtml = '';
                 if (val === true || val === 'true') {
                     valHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill"><i class="fa-solid fa-check me-1"></i> Affirmed (Yes)</span>';
                 } else if (val === false || val === 'false') {
                     valHtml = '<span class="badge bg-light text-muted border px-2 py-0.5 rounded-pill">No</span>';
+                } else if (Array.isArray(val)) {
+                    const filtered = val.filter(item => item !== null && item !== undefined && item !== '');
+                    if (filtered.length === 0) {
+                        valHtml = '<span class="text-muted fst-italic small">No data submitted</span>';
+                    } else {
+                        valHtml = `<p class="fw-semibold text-dark mb-0 small">${filtered.join(', ')}</p>`;
+                    }
+                } else if (val === null || val === undefined || val === '' || val === 'null' || val === '[]' || val === '{}') {
+                    valHtml = '<span class="text-muted fst-italic small">No data submitted</span>';
                 } else if (typeof val === 'string' && val.trim().length > 0) {
+                    valHtml = `<p class="fw-semibold text-dark mb-0 small" style="white-space: pre-line;">${val.trim()}</p>`;
+                } else if (typeof val === 'number') {
                     valHtml = `<p class="fw-semibold text-dark mb-0 small">${val}</p>`;
                 } else if (val && typeof val === 'object') {
-                    valHtml = `<pre class="bg-white p-2 rounded small text-dark mb-0 border" style="white-space: pre-wrap;">${JSON.stringify(val, null, 2)}</pre>`;
+                    const entries = Object.entries(val).filter(([k, v]) => v !== null && v !== '' && v !== undefined);
+                    if (entries.length === 0) {
+                        valHtml = '<span class="text-muted fst-italic small">No data submitted</span>';
+                    } else {
+                        valHtml = entries.map(([k, v]) => `<div class="small"><strong>${k}:</strong> ${v}</div>`).join('');
+                    }
                 } else {
-                    valHtml = '<span class="text-muted fst-italic small">No answer provided</span>';
+                    valHtml = '<span class="text-muted fst-italic small">No data submitted</span>';
                 }
 
                 qHtml += `
@@ -805,9 +837,70 @@ function renderForm2Dossier(rawF2, docs) {
     const secF = rawF2.section_f_commitment_fit || rawF2;
     const secG = rawF2.section_g_references || rawF2;
 
-    const benchList = Array.isArray(secD?.bench_members)
-        ? secD.bench_members
-        : (Array.isArray(secD?.bench) ? secD.bench : []);
+    const getVal = (...keys) => {
+        for (const k of keys) {
+            if (rawF2 && rawF2[k] !== undefined && rawF2[k] !== null && rawF2[k] !== '') return rawF2[k];
+            if (secA && secA[k] !== undefined && secA[k] !== null && secA[k] !== '') return secA[k];
+            if (secB && secB[k] !== undefined && secB[k] !== null && secB[k] !== '') return secB[k];
+            if (secC && secC[k] !== undefined && secC[k] !== null && secC[k] !== '') return secC[k];
+            if (secD && secD[k] !== undefined && secD[k] !== null && secD[k] !== '') return secD[k];
+            if (secE && secE[k] !== undefined && secE[k] !== null && secE[k] !== '') return secE[k];
+            if (secF && secF[k] !== undefined && secF[k] !== null && secF[k] !== '') return secF[k];
+            if (secG && secG[k] !== undefined && secG[k] !== null && secG[k] !== '') return secG[k];
+        }
+        return null;
+    };
+
+    // Section A
+    const businessType = getVal('business_type') || '—';
+    const yearFounded = getVal('year_founded') || '—';
+    const turnoverBand = getVal('turnover_band', 'annual_turnover_band') || '—';
+    const teamSize = getVal('team_size') || '—';
+    const achs = [getVal('achievement_1'), getVal('achievement_2'), getVal('achievement_3')].filter(Boolean);
+    const achievementsText = achs.length > 0 ? achs.map((a, i) => `${i + 1}. ${a}`).join('\n') : (getVal('achievements', 'top_3_achievements') || 'No specific achievements noted.');
+    const regProofUrl = getVal('business_proof_url', 'registration_doc_url');
+
+    // Section B
+    const rolesHeld = getVal('leadership_roles_held') || '—';
+    const largestCommunity = getVal('largest_community') || '—';
+    const devs = [getVal('developed_leader_1'), getVal('developed_leader_2')].filter(Boolean);
+    const developedText = devs.length > 0 ? devs.map((d, i) => `Leader ${i + 1}: ${d}`).join('\n') : (getVal('developed_leaders') || '—');
+    const crisisHandled = getVal('leadership_failure_lesson', 'crisis_handled') || 'No crisis case reported.';
+
+    // Section C
+    const associations = getVal('associations', 'industry_associations') || '—';
+    const institutionsAccess = getVal('institutions_access', 'cxo_network') || '—';
+    const potentialSponsors = getVal('potential_sponsors') || '—';
+
+    // Section D (Bench)
+    let rawBench = getVal('bench', 'bench_members') || [];
+    if (typeof rawBench === 'object' && !Array.isArray(rawBench)) {
+        rawBench = Object.values(rawBench);
+    }
+    const benchList = Array.isArray(rawBench) ? rawBench : [];
+
+    // Section E
+    const target6 = getVal('targets_6_months') || '—';
+    const target12 = getVal('targets_12_months') || '—';
+    const first90 = getVal('first_90_days') || '—';
+    const bigRisk = getVal('biggest_risk') || '—';
+
+    // Section F
+    const hoursPerWeek = getVal('hours_per_week', 'commitment_hours') || '—';
+    const travelAvailability = getVal('travel_availability') || '—';
+    const valuesAlignment = getVal('peers_values_alignment', 'values_alignment') || '—';
+
+    // Section G
+    let refList = [];
+    if (getVal('ref_1_name')) {
+        refList.push({ name: getVal('ref_1_name'), phone: getVal('ref_1_phone') || '', relationship: getVal('ref_1_relationship') || '' });
+    }
+    if (getVal('ref_2_name')) {
+        refList.push({ name: getVal('ref_2_name'), phone: getVal('ref_2_phone') || '', relationship: getVal('ref_2_relationship') || '' });
+    }
+    if (refList.length === 0 && Array.isArray(getVal('references'))) {
+        refList = getVal('references');
+    }
 
     let html = '';
 
@@ -821,32 +914,32 @@ function renderForm2Dossier(rawF2, docs) {
             <div class="row g-3">
                 <div class="col-md-6 col-lg-3">
                     <span class="text-muted small d-block">Sub-Point 1.1: Business Structure</span>
-                    <span class="fw-bold text-dark">${secA?.business_type || '—'}</span>
+                    <span class="fw-bold text-dark">${businessType}</span>
                 </div>
                 <div class="col-md-6 col-lg-3">
                     <span class="text-muted small d-block">Sub-Point 1.2: Year Founded</span>
-                    <span class="fw-bold text-dark">${secA?.year_founded || '—'}</span>
+                    <span class="fw-bold text-dark">${yearFounded}</span>
                 </div>
                 <div class="col-md-6 col-lg-3">
                     <span class="text-muted small d-block">Sub-Point 1.3: Annual Turnover Band</span>
                     <span class="badge bg-primary-subtle text-primary fw-bold px-2.5 py-1">
-                        ${secA?.annual_turnover_band || '—'}
+                        ${turnoverBand}
                     </span>
                 </div>
                 <div class="col-md-6 col-lg-3">
                     <span class="text-muted small d-block">Sub-Point 1.4: Enterprise Team Size</span>
-                    <span class="fw-bold text-dark">${secA?.team_size || '—'}</span>
+                    <span class="fw-bold text-dark">${teamSize}</span>
                 </div>
                 <div class="col-12 col-md-8">
                     <span class="text-muted small d-block">Sub-Point 1.5: Top Business Achievements</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
-                        ${secA?.achievements || secA?.top_3_achievements || 'No specific achievements noted.'}
+                        ${achievementsText}
                     </div>
                 </div>
                 <div class="col-12 col-md-4">
                     <span class="text-muted small d-block">Sub-Point 1.6: Business Registration Proof</span>
-                    ${secA?.registration_doc_url || rawF2?.business_proof_url ? `
-                        <a href="${secA?.registration_doc_url || rawF2?.business_proof_url}" target="_blank" class="btn btn-outline-primary btn-sm mt-2 rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
+                    ${regProofUrl ? `
+                        <a href="${regProofUrl}" target="_blank" class="btn btn-outline-primary btn-sm mt-2 rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
                             <i class="fa-solid fa-file-invoice"></i> View Registration Certificate
                         </a>
                     ` : '<span class="text-muted small mt-2 d-inline-block">No document uploaded</span>'}
@@ -855,33 +948,43 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 2: Section B - Leadership Track Record & Crisis Governance
+    // MAIN POINT 2: Section B - Leadership Scale & Track Record
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
                 <span class="badge bg-success text-white font-monospace px-2.5 py-1">MAIN POINT 2</span>
-                <h6 class="fw-bold text-dark mb-0">Section B: Leadership Scale & Crisis Governance</h6>
+                <h6 class="fw-bold text-dark mb-0">Section B: Leadership Scale & Track Record</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.1: Largest Community / Workforce Led</span>
-                    <span class="fw-bold text-dark">${secB?.largest_community || '—'}</span>
+                    <span class="text-muted small d-block">Sub-Point 2.1: Leadership Roles Previously Held</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${rolesHeld}
+                    </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.2: Measurable Impact Metric</span>
-                    <span class="fw-bold text-dark">${secB?.peak_impact_metric || '—'}</span>
-                </div>
-                <div class="col-12">
-                    <span class="text-muted small d-block">Sub-Point 2.3: Real Crisis Handled & Resolution Outcome</span>
+                    <span class="text-muted small d-block">Sub-Point 2.2: Largest Community / Workforce Led</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
-                        ${secB?.crisis_handled || 'No crisis case reported.'}
+                        ${largestCommunity}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 2.3: Leaders Developed & Mentored</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${developedText}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 2.4: Difficult Leadership Failure & Lesson Learned</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${crisisHandled}
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    // MAIN POINT 3: Section C - Ecosystem Influence & Industry Networks
+    // MAIN POINT 3: Section C - Ecosystem Influence & Strategic Networks
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
@@ -889,16 +992,22 @@ function renderForm2Dossier(rawF2, docs) {
                 <h6 class="fw-bold text-dark mb-0">Section C: Ecosystem Influence & Strategic Networks</h6>
             </div>
             <div class="row g-3">
-                <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 3.1: Industry Associations & Board Memberships</span>
+                <div class="col-md-4">
+                    <span class="text-muted small d-block">Sub-Point 3.1: Industry Associations & Chambers</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
-                        ${secC?.industry_associations || '—'}
+                        ${associations}
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 3.2: CXO, Investor & Institutional Network</span>
+                <div class="col-md-4">
+                    <span class="text-muted small d-block">Sub-Point 3.2: Institutions Access (Banks, Media, Universities)</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
-                        ${secC?.cxo_network || '—'}
+                        ${institutionsAccess}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <span class="text-muted small d-block">Sub-Point 3.3: Potential Enterprise Sponsors</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${potentialSponsors}
                     </div>
                 </div>
             </div>
@@ -910,26 +1019,39 @@ function renderForm2Dossier(rawF2, docs) {
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
                 <span class="badge bg-warning text-dark font-monospace px-2.5 py-1">MAIN POINT 4</span>
-                <h6 class="fw-bold text-dark mb-0">Section D: Leadership Bench & Successor Pool</h6>
+                <h6 class="fw-bold text-dark mb-0">Section D: Leadership Bench Strength & Succession Pool</h6>
             </div>
             ${benchList.length > 0 ? `
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm align-middle mb-0">
                         <thead class="table-light small">
                             <tr>
-                                <th>Sub-Point 4.1: Nominated Leader</th>
-                                <th>Current Designation / Venture</th>
-                                <th>Proposed Leadership Role</th>
-                                <th>Readiness / Endorsement Note</th>
+                                <th>#</th>
+                                <th>Leader Name & Mobile</th>
+                                <th>Location & Industry</th>
+                                <th>Relationship</th>
+                                <th>Proposed Role</th>
+                                <th>Status & Timeline</th>
                             </tr>
                         </thead>
                         <tbody class="small">
-                            ${benchList.map(b => `
+                            ${benchList.map((b, bIdx) => `
                                 <tr>
-                                    <td class="fw-bold text-dark">${b.name || '—'}</td>
-                                    <td>${b.current_designation || b.designation || '—'}</td>
+                                    <td class="text-muted">${bIdx + 1}</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">${b.name || '—'}</div>
+                                        <div class="text-muted small">${b.mobile || ''}</div>
+                                    </td>
+                                    <td>
+                                        <div>${b.city || '—'}</div>
+                                        <span class="badge bg-light text-muted border">${b.industry || '—'}</span>
+                                    </td>
+                                    <td>${b.relationship || '—'}</td>
                                     <td><span class="badge bg-indigo-subtle text-indigo px-2 py-1">${b.proposed_role || b.role || '—'}</span></td>
-                                    <td class="text-muted">${b.endorsement || b.notes || '—'}</td>
+                                    <td>
+                                        <span class="badge bg-success-subtle text-success border">${b.status || 'Committed'}</span>
+                                        <span class="text-muted ms-1 small">(${b.timeline || 'Immediate'})</span>
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -943,39 +1065,75 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 5: Section E - 12-Month Strategic Execution Roadmap
+    // MAIN POINT 5: Section E - 12-Month Expansion Plan & Targets
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
                 <span class="badge text-white font-monospace px-2.5 py-1" style="background-color: #7c3aed;">MAIN POINT 5</span>
-                <h6 class="fw-bold text-dark mb-0">Section E: 12-Month Strategic Execution Roadmap</h6>
+                <h6 class="fw-bold text-dark mb-0">Section E: 12-Month Expansion Plan & Milestones</h6>
             </div>
-            <div class="p-3 rounded-3 bg-light border small text-dark" style="white-space: pre-line; line-height: 1.6;">
-                ${secE?.twelve_month_plan || secE?.plan || 'No 12-month execution roadmap provided.'}
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 5.1: 6-Month Expansion Target</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1">
+                        ${target6}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 5.2: 12-Month Expansion Target</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1">
+                        ${target12}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 5.3: First 90 Days Priority Actions</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${first90}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 5.4: Anticipated Risks & Mitigation Strategy</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${bigRisk}
+                    </div>
+                </div>
             </div>
         </div>
     `;
 
-    // MAIN POINT 6: Section F & G - Commitment, Compliance & Professional References
+    // MAIN POINT 6: Section F & G - Commitment, Values & Professional References
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
                 <span class="badge bg-secondary text-white font-monospace px-2.5 py-1">MAIN POINT 6</span>
-                <h6 class="fw-bold text-dark mb-0">Section F & G: Commitment, Ethics & References</h6>
+                <h6 class="fw-bold text-dark mb-0">Section F & G: Time Commitment, Culture & References</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
                     <span class="text-muted small d-block">Sub-Point 6.1: Weekly Dedicated Hours</span>
-                    <span class="fw-bold text-dark">${secF?.hours_per_week || secF?.commitment_hours || '10+'} hours/week</span>
+                    <span class="fw-bold text-dark">${hoursPerWeek}</span>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 6.2: Conflict of Interest Disclosure</span>
-                    <span class="fw-bold text-dark">${secF?.conflict_disclosure || 'None declared'}</span>
+                    <span class="text-muted small d-block">Sub-Point 6.2: Travel & Regional Availability</span>
+                    <span class="fw-bold text-dark">${travelAvailability}</span>
                 </div>
                 <div class="col-12">
-                    <span class="text-muted small d-block">Sub-Point 6.3: Professional Referees</span>
+                    <span class="text-muted small d-block">Sub-Point 6.3: Peers Global Values & Culture Alignment</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
-                        ${secG?.references || 'No external references attached.'}
+                        ${valuesAlignment}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <span class="text-muted small d-block">Sub-Point 6.4: Professional Referees</span>
+                    <div class="row g-2 mt-1">
+                        ${refList.length > 0 ? refList.map((r, rIdx) => `
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-3 bg-light border">
+                                    <div class="fw-bold text-dark small">Reference #${rIdx + 1}: ${r.name || '—'}</div>
+                                    <div class="text-muted small">${r.phone || ''} • ${r.relationship || 'Peer'}</div>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="col-12 text-muted small">No external references listed.</div>'}
                     </div>
                 </div>
             </div>
@@ -1047,11 +1205,10 @@ function applyReviewFormState(existing, isViewOnly) {
     // Scores
     if (existing?.scores && Array.isArray(existing.scores)) {
         existing.scores.forEach(s => {
-            const range = document.getElementById('range-' + s.criterion_id);
-            if (range) {
-                range.value = s.score;
-                updateScoreDisplay(s.criterion_id, s.score);
-            }
+            const numInput = document.getElementById('input-score-' + s.criterion_id);
+            if (numInput) numInput.value = s.score;
+            const remInput = document.getElementById('remarks-' + s.criterion_id);
+            if (remInput) remInput.value = s.remarks || '';
         });
     }
 
@@ -1106,32 +1263,37 @@ function showAddCustomCriterionPrompt() {
     if (!criteriaList) return;
 
     const newBox = document.createElement('div');
-    newBox.className = 'score-slider-box border border-primary-subtle bg-primary-subtle bg-opacity-10';
+    newBox.className = 'p-3 bg-light rounded-4 border border-primary-subtle bg-primary-subtle bg-opacity-10 mb-3';
     newBox.id = 'crit-box-' + customId;
     newBox.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-2">
             <div>
-                <span class="fw-bold text-dark">${name.trim()}</span>
-                <span class="badge bg-primary text-white border ms-2" style="font-size: 11px;">Custom Juror Metric</span>
+                <span class="fw-bold text-dark fs-6">${name.trim()}</span>
+                <span class="badge bg-primary text-white border ms-2" style="font-size: 11px;">Custom Jury Metric</span>
+                <p class="text-muted small mb-0 mt-1" style="font-size: 12px;">Dynamic criterion added by evaluation jury.</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold text-primary fs-5" id="score-val-${customId}">8</span>
-                <span class="text-muted small">/ 10 pts</span>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <label class="small text-muted fw-semibold me-1">Score:</label>
+                <div class="input-group input-group-sm" style="width: 140px;">
+                    <input 
+                        type="number" 
+                        class="form-control text-center fw-bold fs-6 text-primary score-number-input" 
+                        min="0" 
+                        max="10" 
+                        step="0.5" 
+                        value="8" 
+                        data-criterion-id="${customId}"
+                        data-criterion-name="${name.trim()}"
+                        id="input-score-${customId}"
+                        required
+                    >
+                    <span class="input-group-text bg-white text-muted fw-semibold" style="font-size: 12px;">/ 10 pts</span>
+                </div>
             </div>
         </div>
-        <input 
-            type="range" 
-            class="form-range" 
-            min="0" 
-            max="10" 
-            step="0.5" 
-            value="8" 
-            data-criterion-id="${customId}"
-            data-criterion-name="${name.trim()}"
-            id="range-${customId}"
-            oninput="updateScoreDisplay('${customId}', this.value)"
-        >
-        <p class="text-muted small mb-0 mt-1" style="font-size: 12px;">Dynamic criterion added by evaluation juror.</p>
+        <div class="mt-2">
+            <input type="text" class="form-control form-control-sm bg-white" placeholder="Optional notes/remarks on this criterion..." id="remarks-${customId}" data-criterion-id="${customId}">
+        </div>
     `;
     criteriaList.appendChild(newBox);
 }
@@ -1166,7 +1328,18 @@ async function handleReviewSubmit(e) {
     const conflictDetails = conflictExists ? (document.getElementById('evalConflictDetails')?.value.trim() || 'Conflict disclosed') : null;
 
     // Collect scores (standard and dynamic custom criteria)
-    const scoreInputs = document.querySelectorAll('input[type="range"][data-criterion-id]');
+    const scoreInputs = document.querySelectorAll('.score-number-input[data-criterion-id]');
+    const scores = [];
+    scoreInputs.forEach(input => {
+        const critId = input.getAttribute('data-criterion-id');
+        const remEl = document.getElementById('remarks-' + critId);
+        scores.push({
+            criterion_id: critId,
+            criterion_name: input.getAttribute('data-criterion-name') || '',
+            score: parseFloat(input.value) || 0,
+            remarks: remEl ? remEl.value.trim() : null
+        });
+    });
     const scores = [];
     scoreInputs.forEach(input => {
         scores.push({

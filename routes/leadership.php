@@ -224,6 +224,8 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('jury-assignments/{id}/send-invitation', [JuryAssignmentController::class, 'sendInvitation'])->whereUuid('id');
     Route::post('jury/assignments/{id}/resend-email', [JuryAssignmentController::class, 'sendInvitation'])->whereUuid('id');
     Route::post('jury/resend-email', [JuryAssignmentController::class, 'resendJurorEmail']);
+    Route::delete('jury/members/{jurorUserId}', [JuryAssignmentController::class, 'adminRemoveJuror'])->whereUuid('jurorUserId');
+    Route::post('jury/remove-member', [JuryAssignmentController::class, 'adminRemoveJurorPost']);
 
     // Module I: Admin Jury Summary
     Route::get('nominations/{id}/jury-summary', [JuryEvaluationController::class, 'summary'])->whereUuid('id');
