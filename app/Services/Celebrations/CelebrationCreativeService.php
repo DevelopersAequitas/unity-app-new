@@ -562,11 +562,16 @@ class CelebrationCreativeService
      */
     private function drawBirthdayMemberDetails($canvas, User $user, int $width, int $height): void
     {
-        $fullName = $this->resolvePeerDisplayName($user);
-        $designationOrCategory = $this->resolvePeerDesignationOrCategory($user);
+        $fullName = mb_strtoupper($this->resolvePeerDisplayName($user), 'UTF-8');
+        $rawDesignationOrCategory = $this->resolvePeerDesignationOrCategory($user);
+        $designationOrCategory = $rawDesignationOrCategory !== null && $rawDesignationOrCategory !== ''
+            ? mb_strtoupper($rawDesignationOrCategory, 'UTF-8')
+            : null;
         $companyName = trim((string) ($user->company_name ?? ''));
         if ($companyName === '—' || $companyName === '-') {
             $companyName = '';
+        } elseif ($companyName !== '') {
+            $companyName = mb_strtoupper($companyName, 'UTF-8');
         }
 
         $fontBold = $this->getFontPath('bold');
