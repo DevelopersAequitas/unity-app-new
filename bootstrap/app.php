@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
 use App\Http\Middleware\EnsureScanAppUser;
 use App\Http\Middleware\EnsureUnityUser;
+use App\Http\Middleware\NormalizeCrudTimestampsToUtc;
 use App\Leader\Middleware\CheckLeaderCapability;
 use App\Leader\Middleware\EnsureLeaderUser;
 use Illuminate\Auth\AuthenticationException;
@@ -64,7 +65,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/whatsapp/*',
             'api/*',
         ]);
+        $middleware->api(prepend: [
+            NormalizeCrudTimestampsToUtc::class,
+        ]);
         $middleware->alias([
+            'utc.crud' => NormalizeCrudTimestampsToUtc::class,
             'admin.auth' => EnsureAdminAuthenticated::class,
             'admin.role' => AdminRoleMiddleware::class,
             'admin.industry-director' => EnsureIndustryDirector::class,
