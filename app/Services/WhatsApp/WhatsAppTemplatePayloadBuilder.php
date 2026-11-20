@@ -166,14 +166,20 @@ class WhatsAppTemplatePayloadBuilder
             $mediaUrl = $extracted['header_media_url'] ?? $extracted['media_url'] ?? null;
 
             if (is_string($mediaUrl) && trim($mediaUrl) !== '') {
+                $mediaObj = ['link' => trim($mediaUrl)];
+                if ($mediaType === 'document') {
+                    $customName = trim((string) ($extracted['filename'] ?? $extracted['document_filename'] ?? ''));
+                    $urlBasename = basename((string) parse_url(trim($mediaUrl), PHP_URL_PATH));
+                    $mediaObj['filename'] = $customName !== ''
+                        ? $customName
+                        : ($urlBasename !== '' && str_contains($urlBasename, '.') ? $urlBasename : 'Peers_Global_Document.pdf');
+                }
                 $components[] = [
                     'type' => 'header',
                     'parameters' => [
                         [
                             'type' => $mediaType,
-                            $mediaType => [
-                                'link' => trim($mediaUrl),
-                            ],
+                            $mediaType => $mediaObj,
                         ],
                     ],
                 ];
