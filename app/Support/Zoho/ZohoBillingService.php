@@ -412,6 +412,14 @@ class ZohoBillingService
             ? $this->ensureCustomerForUser($user)
             : $this->ensureCustomerForContact($customer);
 
+        $gstNumber = trim((string) (
+            $eventInvoice['gst_number']
+            ?? $customer['gst_number']
+            ?? ($user instanceof User ? ($user->gst_number ?? '') : '')
+        ));
+
+        $this->syncCustomerGst($customerId, $customer, $user instanceof User ? $user : null, $gstNumber);
+
         $registrationId = (string) ($eventInvoice['registration_id'] ?? '');
         $amount = round((float) ($eventInvoice['amount'] ?? 0), 2);
         $currency = strtoupper((string) ($eventInvoice['currency'] ?? 'INR'));
@@ -420,6 +428,11 @@ class ZohoBillingService
 
         if ($registrationId === '' || $amount <= 0) {
             throw new RuntimeException('Invalid event registration invoice payload.');
+        }
+
+        $notes = 'Event registration payment: '.$registrationId;
+        if ($gstNumber !== '') {
+            $notes .= ' | GSTIN: '.$gstNumber;
         }
 
         $payload = [
@@ -436,8 +449,15 @@ class ZohoBillingService
                 'price' => $amount,
                 'quantity' => 1,
             ]],
-            'notes' => 'Razorpay paid event registration: '.$registrationId,
+            'notes' => $notes,
         ];
+
+        if ($gstNumber !== '') {
+            $payload['gst_no'] = $gstNumber;
+            $payload['gst_treatment'] = 'business_gst';
+        } else {
+            $payload['gst_treatment'] = 'business_none';
+        }
 
         Log::info('event zoho invoice request payload', [
             'event_registration_id' => $registrationId,
@@ -445,6 +465,8 @@ class ZohoBillingService
             'payload_keys' => array_keys($payload),
             'amount' => $amount,
             'currency' => $currency,
+            'gst_treatment' => $payload['gst_treatment'],
+            'gst_no' => $payload['gst_no'] ?? null,
         ]);
 
         $response = $this->client->request('POST', '/invoices', $payload);
@@ -469,6 +491,207 @@ class ZohoBillingService
             'invoice_pdf_url' => data_get($invoice, 'invoice_pdf_url') ?? data_get($invoice, 'pdf_url'),
             'raw' => $response,
         ];
+    }
+
+    /**
+     * Create and mark PAID a Zoho Billing invoice for any app payment
+     * (Circle Subscription/Package, Brand Partner, Advertiser, etc.).
+     * Automatically checks users.gst_number: uses business_gst + gst_no if present,
+     * otherwise business_none without gst_no.
+     *
+     * @param  array<string, mixed>  $details
+     * @return array<string, mixed>
+     */
+    public function createPaidInvoiceForAppPayment(User $user, array $details): array
+    {
+        $user = $user->fresh() ?? $user;
+        $customerId = $this->ensureCustomerForUser($user);
+        $gstNumber = trim((string) ($user->gst_number ?? ''));
+
+        $this->syncCustomerGst($customerId, [
+            'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'company' => (string) ($user->company_name ?? ''),
+        ], $user, $gstNumber);
+
+        $amount = round((float) ($details['amount'] ?? 0), 2);
+        if ($amount <= 0) {
+            throw new RuntimeException('Invoice amount must be greater than zero.');
+        }
+
+        $currency = strtoupper((string) ($details['currency'] ?? 'INR'));
+        $referenceNumber = trim((string) ($details['reference_number'] ?? ''));
+        $itemName = trim((string) ($details['item_name'] ?? 'Unity App Payment'));
+        $description = trim((string) ($details['description'] ?? $itemName));
+        $notes = trim((string) ($details['notes'] ?? ('Paid via Razorpay: '.$referenceNumber)));
+        $terms = trim((string) ($details['terms'] ?? 'Thank you for your payment.'));
+
+        if ($gstNumber !== '' && ! str_contains($notes, 'GSTIN:')) {
+            $notes .= ' | GSTIN: '.$gstNumber;
+        }
+
+        $payload = [
+            'customer_id' => $customerId,
+            'date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'payment_terms' => 0,
+            'currency_code' => $currency,
+            'reference_number' => $referenceNumber,
+            'invoice_items' => [[
+                'name' => $itemName,
+                'description' => $description,
+                'rate' => $amount,
+                'price' => $amount,
+                'quantity' => 1,
+            ]],
+            'notes' => $notes,
+            'terms' => $terms,
+        ];
+
+        if ($gstNumber !== '') {
+            $payload['gst_no'] = $gstNumber;
+            $payload['gst_treatment'] = 'business_gst';
+        } else {
+            $payload['gst_treatment'] = 'business_none';
+        }
+
+        Log::info('zoho_app_payment_invoice_create_start', [
+            'user_id' => (string) $user->id,
+            'customer_id' => $customerId,
+            'item_name' => $itemName,
+            'amount' => $amount,
+            'currency' => $currency,
+            'reference_number' => $referenceNumber,
+            'gst_treatment' => $payload['gst_treatment'],
+            'gst_no' => $payload['gst_no'] ?? null,
+        ]);
+
+        $response = $this->client->request('POST', '/invoices', $payload);
+        $invoice = is_array($response['invoice'] ?? null) ? $response['invoice'] : $response;
+        $invoiceId = (string) data_get($invoice, 'invoice_id', '');
+
+        if ($invoiceId === '') {
+            throw new RuntimeException('Zoho Billing returned an empty invoice ID.');
+        }
+
+        $invoiceNumber = (string) (data_get($invoice, 'invoice_number') ?? data_get($invoice, 'number') ?? '');
+        $invoiceStatus = strtolower((string) data_get($invoice, 'status', ''));
+
+        if ($invoiceStatus === 'draft') {
+            try {
+                $this->client->postZohoAction('/invoices/'.$invoiceId.'/converttoopen', []);
+            } catch (Throwable $e) {
+                if (! str_contains(strtolower($e->getMessage()), 'already') && ! str_contains(strtolower($e->getMessage()), 'not draft')) {
+                    Log::warning('zoho_app_payment_invoice_convert_to_open_warning', [
+                        'invoice_id' => $invoiceId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        $refreshedResp = $this->client->request('GET', '/invoices/'.$invoiceId);
+        $refreshedInvoice = is_array($refreshedResp['invoice'] ?? null) ? $refreshedResp['invoice'] : $refreshedResp;
+        $balanceToPay = (float) (data_get($refreshedInvoice, 'balance') ?? data_get($refreshedInvoice, 'total') ?? $amount);
+        $currentStatus = strtolower((string) data_get($refreshedInvoice, 'status', ''));
+
+        if ($balanceToPay > 0 && ! in_array($currentStatus, ['paid', 'closed'], true)) {
+            $paymentPayload = [
+                'customer_id' => $customerId,
+                'payment_mode' => 'others',
+                'amount' => $balanceToPay,
+                'date' => now()->toDateString(),
+                'reference_number' => $referenceNumber !== '' ? $referenceNumber : $invoiceId,
+                'description' => $description.($referenceNumber !== '' ? ' | ref: '.$referenceNumber : ''),
+                'invoices' => [[
+                    'invoice_id' => $invoiceId,
+                    'amount_applied' => $balanceToPay,
+                ]],
+            ];
+
+            $this->createPaymentForInvoice($paymentPayload);
+        }
+
+        $finalResp = $this->client->request('GET', '/invoices/'.$invoiceId);
+        $finalInvoice = is_array($finalResp['invoice'] ?? null) ? $finalResp['invoice'] : $finalResp;
+
+        if (Schema::hasColumn('users', 'zoho_last_invoice_id')) {
+            $user->forceFill([
+                'zoho_customer_id' => $customerId,
+                'zoho_last_invoice_id' => $invoiceId,
+            ])->save();
+        }
+
+        Log::info('zoho_app_payment_invoice_created_and_paid', [
+            'user_id' => (string) $user->id,
+            'invoice_id' => $invoiceId,
+            'invoice_number' => $invoiceNumber,
+            'status' => data_get($finalInvoice, 'status'),
+            'gst_treatment' => data_get($finalInvoice, 'gst_treatment'),
+            'gst_no' => data_get($finalInvoice, 'gst_no'),
+        ]);
+
+        return [
+            'synced' => true,
+            'customer_id' => $customerId,
+            'invoice_id' => $invoiceId,
+            'invoice_number' => (string) (data_get($finalInvoice, 'invoice_number') ?? $invoiceNumber),
+            'invoice_url' => data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url'),
+            'invoice_pdf_url' => data_get($finalInvoice, 'invoice_pdf_url') ?? data_get($finalInvoice, 'pdf_url'),
+            'status' => strtolower((string) data_get($finalInvoice, 'status', 'paid')),
+            'gst_treatment' => data_get($finalInvoice, 'gst_treatment'),
+            'gst_no' => data_get($finalInvoice, 'gst_no'),
+            'total' => (float) data_get($finalInvoice, 'total', $amount),
+            'balance' => (float) data_get($finalInvoice, 'balance', 0),
+        ];
+    }
+
+    private function syncCustomerGst(string $customerId, array $customer, ?User $user, string $gstNumber): void
+    {
+        if (trim($customerId) === '') {
+            return;
+        }
+
+        $name = trim((string) (
+            $customer['name']
+            ?? ($user ? ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))) : '')
+        ));
+        $companyName = trim((string) (
+            $customer['company']
+            ?? ($user?->company_name ?? '')
+        ));
+
+        $updatePayload = [];
+        if ($name !== '') {
+            $updatePayload['display_name'] = $name;
+        }
+
+        if ($gstNumber !== '') {
+            $updatePayload['gst_no'] = $gstNumber;
+            $updatePayload['gst_treatment'] = 'business_gst';
+            if ($companyName !== '') {
+                $updatePayload['company_name'] = $companyName;
+            } elseif ($name !== '') {
+                $updatePayload['company_name'] = $name;
+            }
+        } else {
+            $updatePayload['gst_no'] = '';
+            $updatePayload['gst_treatment'] = 'business_none';
+        }
+
+        try {
+            $this->client->request('PUT', '/customers/'.$customerId, $updatePayload);
+            Log::info('event zoho customer gst synced', [
+                'customer_id' => $customerId,
+                'gst_treatment' => $updatePayload['gst_treatment'],
+                'gst_no' => $gstNumber !== '' ? $gstNumber : null,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('event zoho customer gst sync failed', [
+                'customer_id' => $customerId,
+                'gst_treatment' => $updatePayload['gst_treatment'],
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function createHostedPageForSubscription(User $user, string $planCode): array

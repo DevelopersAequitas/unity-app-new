@@ -448,7 +448,6 @@ class CircleSubscriptionController extends BaseApiController
                 'status' => Payment::STATUS_SUCCESS,
                 'paid_at' => $now,
                 'provider' => 'razorpay',
-                'zoho_invoice_id' => $lockedPayment->zoho_invoice_id ?: $invoiceNumber,
             ]);
 
             // Update or create CircleSubscription
@@ -534,12 +533,43 @@ class CircleSubscriptionController extends BaseApiController
         });
 
         $finalPayment = $result['payment'];
+        $finalSubscription = $result['subscription'] ?? null;
 
-        // Optionally attempt Zoho invoice creation if available
-        try {
-            $this->zohoInvoiceService->createPaidInvoiceForCircle($user, $circle, null, $finalPayment);
-        } catch (Throwable $e) {
-            Log::info('Zoho invoice sync notice for circle package payment', ['error' => $e->getMessage()]);
+        // Create Zoho Billing invoice (automatically checks users.gst_number)
+        if (empty($finalPayment->zoho_invoice_id) || str_starts_with((string) $finalPayment->zoho_invoice_id, 'INV-CP-')) {
+            try {
+                $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user, [
+                    'item_name' => 'Circle Package - '.($circle->zoho_addon_name ?: $circle->name),
+                    'description' => 'Circle Package Subscription for '.$circle->name,
+                    'amount' => (float) ($finalPayment->total_amount > 0 ? $finalPayment->total_amount : $finalPayment->amount),
+                    'currency' => (string) ($finalPayment->currency ?: 'INR'),
+                    'reference_number' => (string) ($finalPayment->razorpay_payment_id ?: $finalPayment->id),
+                    'notes' => 'Paid via Razorpay: '.($finalPayment->razorpay_payment_id ?: $finalPayment->id),
+                    'terms' => 'Thank you for joining the circle.',
+                ]);
+
+                if (! empty($zohoInvoice['invoice_id'])) {
+                    $finalPayment->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                    if ($finalSubscription) {
+                        $finalSubscription->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                    }
+                    $finalPayment->refresh();
+                }
+            } catch (Throwable $e) {
+                Log::warning('Zoho invoice sync failed for circle package payment', [
+                    'payment_id' => $finalPayment->id,
+                    'circle_id' => $circle->id,
+                    'error' => $e->getMessage(),
+                ]);
+                if (empty($finalPayment->zoho_invoice_id)) {
+                    $fallbackInvoiceNo = 'INV-CP-'.strtoupper(substr((string) $circle->id, 0, 4)).'-'.strtoupper(substr(str_replace('-', '', (string) $finalPayment->id), 0, 8));
+                    $finalPayment->update(['zoho_invoice_id' => $fallbackInvoiceNo]);
+                    if ($finalSubscription) {
+                        $finalSubscription->update(['zoho_invoice_id' => $fallbackInvoiceNo]);
+                    }
+                    $finalPayment->refresh();
+                }
+            }
         }
 
         return $this->success([

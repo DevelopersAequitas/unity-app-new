@@ -223,8 +223,34 @@ class EventZohoInvoiceSyncService
         }
     }
 
+    private function resolveUserGstNumber(EventRegistration $registration): string
+    {
+        $user = $registration->user;
+
+        if (! $user instanceof User && ! empty($registration->user_id)) {
+            $user = User::query()->find($registration->user_id);
+        }
+
+        if (! $user instanceof User && (! empty($registration->visitor_email) || ! empty($registration->visitor_phone))) {
+            $user = User::query()
+                ->where(function ($query) use ($registration): void {
+                    if (! empty($registration->visitor_email)) {
+                        $query->orWhereRaw('LOWER(email) = ?', [strtolower((string) $registration->visitor_email)]);
+                    }
+                    if (! empty($registration->visitor_phone)) {
+                        $query->orWhere('phone', (string) $registration->visitor_phone);
+                    }
+                })
+                ->first();
+        }
+
+        return trim((string) ($user?->gst_number ?? ''));
+    }
+
     private function customerPayload(EventRegistration $registration): array
     {
+        $gstNumber = $this->resolveUserGstNumber($registration);
+
         if ($registration->user instanceof User) {
             $user = $registration->user;
 
@@ -235,6 +261,7 @@ class EventZohoInvoiceSyncService
                 'phone' => (string) ($user->phone ?? $user->mobile ?? ''),
                 'company' => (string) ($user->company_name ?? ''),
                 'city' => (string) ($user->city ?? $user->business_city ?? ''),
+                'gst_number' => $gstNumber,
             ];
         }
 
@@ -244,6 +271,7 @@ class EventZohoInvoiceSyncService
             'phone' => (string) $registration->visitor_phone,
             'company' => (string) $registration->visitor_company,
             'city' => (string) $registration->visitor_city,
+            'gst_number' => $gstNumber,
         ];
     }
 
@@ -259,6 +287,7 @@ class EventZohoInvoiceSyncService
         $eventTime = optional($startAt)->format('h:i A') ?: 'TBD';
         $modeOrVenue = $registration->event?->location_text ?: (($registration->event?->mode ?? '') === 'online' ? 'Online' : 'TBD');
         $itemId = (string) config('services.zoho_event_ticket_item_id', '');
+        $gstNumber = $this->resolveUserGstNumber($registration);
 
         $details = "Event Date: {$eventDate}\n"
             ."Event Time: {$eventTime}\n"
@@ -266,6 +295,35 @@ class EventZohoInvoiceSyncService
             ."Attendee: {$attendeeName}";
 
         $shortRegistrationId = substr((string) $registration->id, 0, 8);
+        $notes = $registration->payment_gateway === 'razorpay'
+            ? "Payment received via Razorpay.\nOrder ID: ".((string) ($registration->razorpay_order_id ?? 'N/A'))."\nPayment ID: ".((string) ($registration->razorpay_payment_id ?? 'N/A'))."\nRegistration Ref: ".$shortRegistrationId
+            : "Payment received via Zoho Payment Link.\nRegistration Ref: ".$shortRegistrationId;
+
+        if ($gstNumber !== '') {
+            $notes .= "\nGSTIN: ".$gstNumber;
+        }
+
+        $zohoInvoicePayload = [
+            'customer_id' => $registration->zoho_customer_id,
+            'reference_number' => (string) $registration->id,
+            'date' => now()->toDateString(),
+            'notes' => $notes,
+            'terms' => 'Thank you for registering for this event.',
+            'line_items' => [[
+                'item_id' => $itemId,
+                'name' => 'Event Registration - '.$eventTitle,
+                'rate' => (float) ($registration->amount ?? 0),
+                'quantity' => 1,
+                'description' => $details,
+            ]],
+        ];
+
+        if ($gstNumber !== '') {
+            $zohoInvoicePayload['gst_no'] = $gstNumber;
+            $zohoInvoicePayload['gst_treatment'] = 'business_gst';
+        } else {
+            $zohoInvoicePayload['gst_treatment'] = 'business_none';
+        }
 
         $payload = [
             'registration_id' => (string) $registration->id,
@@ -273,26 +331,13 @@ class EventZohoInvoiceSyncService
             'description' => $details,
             'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
             'currency' => (string) ($registration->currency ?? 'INR'),
-            'invoice_payload' => [
-                'customer_id' => $registration->zoho_customer_id,
-                'reference_number' => (string) $registration->id,
-                'date' => now()->toDateString(),
-                'notes' => $registration->payment_gateway === 'razorpay'
-                    ? "Payment received via Razorpay.\nOrder ID: ".((string) ($registration->razorpay_order_id ?? 'N/A'))."\nPayment ID: ".((string) ($registration->razorpay_payment_id ?? 'N/A'))."\nRegistration Ref: ".$shortRegistrationId
-                    : "Payment received via Zoho Payment Link.\nRegistration Ref: ".$shortRegistrationId,
-                'terms' => 'Thank you for registering for this event.',
-                'line_items' => [[
-                    'item_id' => $itemId,
-                    'name' => 'Event Registration - '.$eventTitle,
-                    'rate' => (float) ($registration->amount ?? 0),
-                    'quantity' => 1,
-                    'description' => $details,
-                ]],
-            ],
+            'gst_number' => $gstNumber,
+            'invoice_payload' => $zohoInvoicePayload,
         ];
 
         Log::info('zoho_invoice_payload', [
             'event_registration_id' => (string) $registration->id,
+            'gst_number_present' => $gstNumber !== '',
             'payload' => $payload['invoice_payload'],
         ]);
 

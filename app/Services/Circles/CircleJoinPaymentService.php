@@ -379,7 +379,18 @@ class CircleJoinPaymentService
                         $plan = MembershipPlan::query()->find($circle->payment_plan_id);
                     }
                     if ($circle) {
-                        $this->zohoInvoiceService->createPaidInvoiceForCircle($user->fresh() ?? $user, $circle, $plan, $payment);
+                        $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user->fresh() ?? $user, [
+                            'item_name' => 'Circle Join - '.$circle->name,
+                            'description' => 'Circle Join Fee: '.$circle->name.($plan ? ' | Plan: '.$plan->name : ''),
+                            'amount' => (float) ($payment->total_amount > 0 ? $payment->total_amount : $payment->amount),
+                            'currency' => strtoupper((string) ($payment->currency ?: 'INR')),
+                            'reference_number' => (string) ($payment->razorpay_payment_id ?: $payment->id),
+                            'notes' => 'Paid via Razorpay: '.($payment->razorpay_payment_id ?: $payment->id),
+                            'terms' => 'Thank you for joining the circle.',
+                        ]);
+                        if (! empty($zohoInvoice['invoice_id'])) {
+                            $payment->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                        }
                     }
                 } catch (Throwable $e) {
                     Log::error('Failed to generate Zoho invoice for circle join payment', [
@@ -443,7 +454,18 @@ class CircleJoinPaymentService
                         $plan = MembershipPlan::query()->find($circle->payment_plan_id);
                     }
                     if ($user && $circle) {
-                        $this->zohoInvoiceService->createPaidInvoiceForCircle($user, $circle, $plan, $payment);
+                        $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user, [
+                            'item_name' => 'Circle Join - '.$circle->name,
+                            'description' => 'Circle Join Fee: '.$circle->name.($plan ? ' | Plan: '.$plan->name : ''),
+                            'amount' => (float) ($payment->total_amount > 0 ? $payment->total_amount : $payment->amount),
+                            'currency' => strtoupper((string) ($payment->currency ?: 'INR')),
+                            'reference_number' => (string) ($payment->razorpay_payment_id ?: $payment->id),
+                            'notes' => 'Paid via Razorpay: '.($payment->razorpay_payment_id ?: $payment->id),
+                            'terms' => 'Thank you for joining the circle.',
+                        ]);
+                        if (! empty($zohoInvoice['invoice_id'])) {
+                            $payment->update(['zoho_invoice_id' => $zohoInvoice['invoice_id']]);
+                        }
                     }
                 } catch (Throwable $e) {
                     Log::error('Failed to generate Zoho invoice for circle webhook payment', [

@@ -406,6 +406,7 @@ class PostController extends BaseApiController
                 ->keyBy(fn ($sched): string => (string) $sched->post_id)
             : collect();
 
+        $upgradedBirthdayMediaByPostId = [];
         // Ensure any published birthday post on this page that still points to a pre-update creative
         // (missing Member Name / Category / Company Name) is upgraded in-place ONCE so Mobile Timeline
         // displays the exact same personalized creative shown in the Admin Panel.
@@ -427,6 +428,59 @@ class PostController extends BaseApiController
                 } catch (Throwable $e) {
                     Log::warning("[PostController::feed] Could not auto-sync birthday creative for post {$schedPostId}: {$e->getMessage()}");
                 }
+            }
+        }
+
+        // Also handle any legacy birthday posts on this page that have no linked celebration_schedules row
+        // and still point to an old pre-update creative (width < 1000px, without Member Name / Category / Company Name).
+        foreach ($pageRows as $bdayRow) {
+            if ((string) ($bdayRow->source_type ?? '') !== 'post') {
+                continue;
+            }
+            $bdayPostId = (string) $bdayRow->id;
+            if ($celebrationSchedulesByPostId->has($bdayPostId)) {
+                continue;
+            }
+            $bdayPostType = strtolower(trim((string) ($bdayRow->post_type ?? '')));
+            $bdaySourceType = strtolower(trim((string) ($bdayRow->post_source_type ?? '')));
+            if (! in_array($bdayPostType, ['birthday', 'genie_birthday'], true) && $bdaySourceType !== 'birthday') {
+                continue;
+            }
+            $celebrantId = (string) ($bdayRow->post_source_id ?? '');
+            if ($celebrantId === '' || ! Str::isUuid($celebrantId)) {
+                continue;
+            }
+            $existingMedia = $this->decodeJsonColumn($bdayRow->media ?? null);
+            $existingFileId = is_array($existingMedia[0] ?? null) ? ($existingMedia[0]['id'] ?? null) : null;
+            $existingFile = ($existingFileId && Str::isUuid((string) $existingFileId)) ? FileModel::find($existingFileId) : null;
+            if ($existingFile && (int) ($existingFile->width ?? 0) >= 1000) {
+                continue;
+            }
+            try {
+                $celebrant = User::withTrashed()->find($celebrantId);
+                if (! $celebrant) {
+                    continue;
+                }
+                $generated = app(\App\Services\Celebrations\CelebrationCreativeService::class)->generateBirthdayCreative($celebrant);
+                $newFileId = (string) $generated['file']->id;
+                $newUrl = (string) $generated['url'];
+                Post::query()->whereKey($bdayPostId)->update([
+                    'media' => json_encode([['id' => $newFileId, 'type' => 'image', 'url' => $newUrl]]),
+                    'image' => $newUrl,
+                ]);
+                if (Schema::hasTable('activity_creatives')) {
+                    ActivityCreative::query()->where('post_id', $bdayPostId)->update([
+                        'creative_file_id' => $newFileId,
+                        'creative_url' => $newUrl,
+                        'updated_at' => now(),
+                    ]);
+                }
+                $upgradedBirthdayMediaByPostId[$bdayPostId] = [
+                    'id' => $newFileId,
+                    'url' => $newUrl,
+                ];
+            } catch (Throwable $e) {
+                Log::warning("[PostController::feed] Could not auto-sync unlinked birthday creative for post {$bdayPostId}: {$e->getMessage()}");
             }
         }
 
@@ -1066,7 +1120,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -1296,6 +1350,18 @@ class PostController extends BaseApiController
                             'id' => $schedFileId,
                             'type' => 'image',
                             'url' => $schedCreativeUrl,
+                        ],
+                    ];
+                }
+            } elseif (isset($upgradedBirthdayMediaByPostId[(string) $row->id])) {
+                $up = $upgradedBirthdayMediaByPostId[(string) $row->id];
+                $upUrl = $this->normalizeFeedAssetUrl((string) ($up['url'] ?? ''), (string) ($up['id'] ?? ''));
+                if ($upUrl !== null) {
+                    $feedMedia = [
+                        [
+                            'id' => (string) $up['id'],
+                            'type' => 'image',
+                            'url' => $upUrl,
                         ],
                     ];
                 }
