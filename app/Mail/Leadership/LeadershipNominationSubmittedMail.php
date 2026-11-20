@@ -29,7 +29,7 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
         $appNo = $this->nomination->application_number;
 
         return new Envelope(
-            subject: "Nomination Received: {$roleName} [{$appNo}] | Peers Global",
+            subject: "Nomination received – {$appNo} | {$roleName}",
         );
     }
 
@@ -39,9 +39,9 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
             ?? $this->nomination->campaign?->role?->name
             ?? 'Leadership Role';
 
-        $jurisdiction = $this->nomination->scope_name;
-        if (empty($jurisdiction)) {
-            $jurisdiction = $this->nomination->scope?->name ?? 'General / All Circles';
+        $region = $this->nomination->scope_name;
+        if (empty($region)) {
+            $region = $this->nomination->scope?->name ?? ($this->nomination->city ?? 'All Circles');
         }
 
         $logoUrl = 'https://peersunity.com/images/peersglobal-logo.png';
@@ -49,16 +49,23 @@ class LeadershipNominationSubmittedMail extends Mailable implements ShouldQueue
             $logoUrl = asset('images/peersglobal-logo.png');
         }
 
+        $submittedDateTime = $this->nomination->submitted_at
+            ? $this->nomination->submitted_at->timezone('Asia/Kolkata')->format('d M Y, h:i A')
+            : now()->timezone('Asia/Kolkata')->format('d M Y, h:i A');
+
+        $statusLink = config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')).'/leadership';
+
         return new Content(
             view: 'emails.leadership.nomination_submitted',
             with: [
                 'nomination' => $this->nomination,
-                'candidateName' => $this->nomination->candidate_name ?: $this->nomination->full_name,
+                'fullName' => $this->nomination->candidate_name ?: $this->nomination->full_name,
                 'roleName' => $roleName,
-                'campaignName' => $this->nomination->campaign_name ?? $this->nomination->campaign?->name ?? 'Leadership Selection',
-                'jurisdiction' => $jurisdiction,
+                'region' => $region,
                 'applicationNumber' => $this->nomination->application_number,
-                'submittedAt' => $this->nomination->submitted_at?->format('d/m/Y') ?? now()->format('d/m/Y'),
+                'submittedDateTime' => $submittedDateTime,
+                'email' => $this->nomination->email,
+                'statusLink' => $statusLink,
                 'logoUrl' => $logoUrl,
                 'websiteUrl' => config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')),
             ],

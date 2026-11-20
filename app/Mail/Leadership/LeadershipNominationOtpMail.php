@@ -17,7 +17,8 @@ class LeadershipNominationOtpMail extends Mailable
 
     public function __construct(
         public readonly string $otp,
-        public readonly string $verificationSubject = 'Nomination Verification'
+        public readonly string $verificationSubject = 'Nomination Verification',
+        public readonly ?string $name = null
     ) {}
 
     public function envelope(): Envelope
@@ -34,10 +35,16 @@ class LeadershipNominationOtpMail extends Mailable
             $logoUrl = asset('images/peersglobal-logo.png');
         }
 
+        $recipientName = $this->name;
+        if (empty($recipientName)) {
+            $recipientName = 'Leader';
+        }
+
         return new Content(
             view: 'emails.leadership.nomination_otp',
             with: [
                 'otp' => $this->otp,
+                'name' => $recipientName,
                 'verificationSubject' => $this->verificationSubject,
                 'expiresInMinutes' => 10,
                 'logoUrl' => $logoUrl,
