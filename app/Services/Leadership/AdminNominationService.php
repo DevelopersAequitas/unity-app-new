@@ -37,7 +37,7 @@ class AdminNominationService
     {
         $query = LeadershipNomination::query()
             ->where('application_number', '!=', 'PG-STANDING-POOL')
-            ->with(['campaign.role', 'scope', 'user'])
+            ->with(['campaign.role', 'scope', 'user', 'documents', 'juryAssignments.juror', 'juryAssignments.report'])
             ->withCount([
                 'documents as documents_pending' => fn ($q) => $q->where('verification_status', 'pending'),
             ]);

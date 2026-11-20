@@ -559,6 +559,29 @@ class NominationService
             ? $rawProfile['profile_changes']
             : (is_array($data['profile_changes'] ?? null) ? $data['profile_changes'] : []);
 
+        // Resolve or persist base64 data URI photo to public disk
+        $photoCandidate = $rawProfile['photo_url'] ?? $data['photo_url'] ?? ($rawProfile['profile_photo_url'] ?? null) ?? ($data['profile_photo'] ?? null);
+        if (is_string($photoCandidate) && str_starts_with($photoCandidate, 'data:image/')) {
+            try {
+                $ext = 'jpg';
+                if (str_contains($photoCandidate, 'data:image/png')) {
+                    $ext = 'png';
+                }
+                if (str_contains($photoCandidate, 'data:image/webp')) {
+                    $ext = 'webp';
+                }
+                $base64Part = substr($photoCandidate, strpos($photoCandidate, ';base64,') + 8);
+                $decoded = base64_decode($base64Part, true);
+                if ($decoded !== false && ! empty($decoded)) {
+                    $fileName = 'nominee-'.Str::random(16).'.'.$ext;
+                    $savePath = 'nominations/'.$fileName;
+                    Storage::disk('public')->put($savePath, $decoded);
+                    $photoCandidate = asset('storage/'.$savePath);
+                }
+            } catch (\Throwable) {
+            }
+        }
+
         $profile = array_merge(
             $answers,
             $rawProfile,
@@ -566,7 +589,9 @@ class NominationService
                 'full_name' => $fullName,
                 'email' => $email,
                 'mobile' => $mobile,
-                'photo_url' => $rawProfile['photo_url'] ?? $data['photo_url'] ?? ($rawProfile['profile_photo_url'] ?? null),
+                'photo_url' => $photoCandidate,
+                'profile_photo_url' => $photoCandidate,
+                'avatar_url' => $photoCandidate,
                 'linkedin' => $rawProfile['linkedin'] ?? $data['linkedin'] ?? null,
                 'website' => $rawProfile['website'] ?? $data['website'] ?? null,
                 'company_name' => $rawProfile['company_name'] ?? $data['company_name'] ?? $data['company'] ?? ($answers['company_name'] ?? $answers['company'] ?? null),
