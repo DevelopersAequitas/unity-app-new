@@ -1430,7 +1430,10 @@ async function handleReviewSubmit(e) {
     const concerns = document.getElementById('evalConcerns').value.trim();
     const remarks = document.getElementById('evalRemarks').value.trim();
     const recInput = document.querySelector('input[name="overall_recommendation"]:checked');
-    const recommendation = recInput ? recInput.value : 'recommend';
+    let recommendation = recInput ? recInput.value : 'recommend';
+    if (recommendation === 'neutral' || recommendation === 'reservations') {
+        recommendation = 'recommend_with_reservations';
+    }
 
     if (!strengths) {
         alert('Strengths are mandatory. Please provide candidate strengths.');

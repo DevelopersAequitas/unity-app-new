@@ -171,7 +171,11 @@ class JuryAssignmentController extends LeadershipBaseController
                     ->where('application_number', 'not like', '%-F2')
                     ->where(function ($q): void {
                         $q->where('profile_snapshot->form_2_status', 'submitted')
-                            ->orWhere('status', 'shortlisted');
+                            ->orWhereExists(function ($inner): void {
+                                $inner->selectRaw(1)
+                                    ->from('web_leadership_nominations as f2')
+                                    ->whereRaw("f2.application_number = CONCAT(web_leadership_nominations.application_number, '-F2')");
+                            });
                     })
                     ->get();
 

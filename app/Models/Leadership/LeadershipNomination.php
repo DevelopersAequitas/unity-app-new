@@ -99,6 +99,31 @@ class LeadershipNomination extends Model
 
         $juror = $assignment->relationLoaded('juror') ? $assignment->juror : null;
         $report = $assignment->relationLoaded('report') ? $assignment->report : null;
+        $scoresRelation = $assignment->relationLoaded('scores') ? $assignment->scores : collect();
+
+        $scoresList = [];
+        $totalEarned = 0.0;
+        $maxPossible = 0.0;
+
+        foreach ($scoresRelation as $sc) {
+            $scoreVal = (float) $sc->score;
+            $crit = $sc->relationLoaded('criterion') ? $sc->criterion : null;
+            $maxVal = (float) ($crit?->max_score ?? 10);
+            $totalEarned += $scoreVal;
+            $maxPossible += $maxVal;
+
+            $scoresList[] = [
+                'criterion_id' => $sc->criterion_id,
+                'criterion_name' => $crit?->name ?? 'Evaluation Criterion',
+                'category' => $crit?->category ?? 'General',
+                'score' => $scoreVal,
+                'max_score' => $maxVal,
+                'remarks' => $sc->remarks,
+            ];
+        }
+
+        $percentage = $maxPossible > 0 ? round(($totalEarned / $maxPossible) * 100, 1) : 0;
+        $averageOut10 = count($scoresList) > 0 ? round($totalEarned / count($scoresList), 1) : 0;
 
         return [
             'status' => 'completed',
@@ -106,10 +131,15 @@ class LeadershipNomination extends Model
             'juror_id' => $assignment->juror_user_id,
             'juror_name' => $juror?->display_name ?: trim(($juror?->first_name ?? '').' '.($juror?->last_name ?? '')) ?: 'Jury Member',
             'juror_email' => $juror?->email,
-            'overall_recommendation' => $report?->overall_recommendation ?? 'reviewed',
+            'overall_recommendation' => $report?->overall_recommendation ?? 'recommend',
             'strengths' => $report?->strengths,
             'concerns' => $report?->concerns,
             'final_remarks' => $report?->final_remarks,
+            'scores' => $scoresList,
+            'total_score' => $totalEarned,
+            'max_score' => $maxPossible,
+            'percentage_score' => $percentage,
+            'average_score' => $averageOut10,
             'completed_at' => $assignment->completed_at?->toIso8601String(),
         ];
     }

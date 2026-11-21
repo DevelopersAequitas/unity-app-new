@@ -2273,6 +2273,11 @@ foreach (['admin', 'v1/admin'] as $adminAuthPrefix) {
         Route::post('/login/verify_otp', [AdminAuthController::class, 'verifyOtp']);
         Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp']);
         Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp']);
+
+        Route::middleware('auth:sanctum')->group(function (): void {
+            Route::get('/auth/me', [AdminAuthController::class, 'me']);
+            Route::get('/me', [AdminAuthController::class, 'me']);
+        });
     });
 }
 

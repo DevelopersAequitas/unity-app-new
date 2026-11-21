@@ -90,6 +90,8 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
             $creativeUrlWithVersion = null;
         }
 
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+
         return new Content(
             view: 'emails.leadership.nomination_approved',
             with: [
@@ -101,13 +103,13 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
                 'votingStart' => $votingStart,
                 'votingEnd' => $votingEnd,
                 'votingLink' => $this->votingLink,
-                'nomineeLedgerUrl' => url("/leadership/nomination/{$this->nomination->id}/live-votes"),
+                'nomineeLedgerUrl' => "{$frontendUrl}/leadership/nomination/{$this->nomination->id}/live-votes",
                 'candidateSlug' => $this->nomination->candidate_slug,
                 'applicationNumber' => $this->nomination->application_number,
                 'logoUrl' => $logoUrl,
                 'creativeUrl' => $creativeUrlWithVersion ?: $creativeUrl,
                 'creativePath' => $path,
-                'websiteUrl' => config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')),
+                'websiteUrl' => $frontendUrl,
             ],
         );
     }

@@ -1934,6 +1934,25 @@ class AuthController extends BaseApiController
     public function me(): JsonResponse
     {
         $user = Auth::guard('sanctum')->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if ($user instanceof \App\Models\AdminUser) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Admin profile retrieved successfully.',
+                'user' => $user,
+                'admin' => $user,
+                'admin_user' => $user,
+                'data' => [
+                    'user' => $user,
+                    'admin' => $user,
+                    'admin_user' => $user,
+                ],
+            ]);
+        }
+
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 
