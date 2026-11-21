@@ -73,7 +73,10 @@ export const NominationsPage: React.FC = () => {
     };
 
     const getNominationForm2Link = (nom: Nomination) => {
-        return nom.form_2_link || `https://peersglobal.com/leadership/campaigns/${nom.campaign_id}/form-2?nomination=${nom.id}`;
+        if (nom.form_2_link) {
+            return nom.form_2_link.replace(/https?:\/\/peersunity\.com/g, 'https://peersglobal.com');
+        }
+        return `https://peersglobal.com/leadership/form-2/${nom.id}`;
     };
 
     const handleCopyVotingLink = (nom: Nomination) => {
