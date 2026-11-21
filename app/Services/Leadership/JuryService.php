@@ -518,11 +518,23 @@ class JuryService
         }
 
         return DB::transaction(function () use ($assignment, $reportData): LeadershipJuryReport {
+            // Strictly normalize recommendation to adhere to Postgres check constraint:
+            // ('strongly_recommend', 'recommend', 'recommend_with_reservations', 'do_not_recommend', 'abstain')
+            $recVal = strtolower(trim((string) ($reportData['overall_recommendation'] ?? 'recommend')));
+            $recommendation = match ($recVal) {
+                'strongly_recommend' => 'strongly_recommend',
+                'recommend' => 'recommend',
+                'recommend_with_reservations', 'neutral', 'reservations', 'borderline' => 'recommend_with_reservations',
+                'do_not_recommend', 'reject' => 'do_not_recommend',
+                'abstain' => 'abstain',
+                default => 'recommend',
+            };
+
             /** @var LeadershipJuryReport $report */
             $report = LeadershipJuryReport::updateOrCreate(
                 ['assignment_id' => $assignment->id],
                 [
-                    'overall_recommendation' => $reportData['overall_recommendation'],
+                    'overall_recommendation' => $recommendation,
                     'strengths' => $reportData['strengths'],
                     'concerns' => $reportData['concerns'],
                     'verification_summary' => $reportData['verification_summary'] ?? null,
