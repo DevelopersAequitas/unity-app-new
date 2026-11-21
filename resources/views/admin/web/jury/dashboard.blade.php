@@ -386,84 +386,46 @@
                     <!-- TAB 1: FORM 1 PROFILE -->
                     <div class="tab-pane fade show active" id="tab-form1" role="tabpanel">
                         <div class="d-flex flex-column gap-3">
-                            <!-- MAIN POINT 1: Candidate Executive Profile & Business Foundation -->
+                            <!-- Candidate Profile & Enterprise Foundation -->
                             <div class="bg-white p-4 rounded-4 border shadow-xs">
                                 <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                                    <span class="badge bg-primary text-white font-monospace px-2.5 py-1">MAIN POINT 1</span>
                                     <h6 class="fw-bold text-dark mb-0">Candidate Profile & Enterprise Foundation</h6>
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.1: Candidate Name</span>
+                                        <span class="text-muted small d-block">Candidate Name</span>
                                         <span class="fw-bold text-dark fs-6" id="f1CandidateName">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.2: Application Number</span>
+                                        <span class="text-muted small d-block">Application Number</span>
                                         <span class="badge bg-light text-primary border fw-bold px-2.5 py-1" id="f1AppNumber">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.3: Applied Role</span>
+                                        <span class="text-muted small d-block">Applied Role</span>
                                         <span class="fw-bold text-dark" id="f1Role">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.4: Circle / Scope</span>
+                                        <span class="text-muted small d-block">Circle / Scope</span>
                                         <span class="fw-bold text-dark" id="f1Scope">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.5: Company / Venture Name</span>
+                                        <span class="text-muted small d-block">Company / Venture Name</span>
                                         <span class="fw-bold text-dark" id="f1Company">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.6: Executive Designation</span>
+                                        <span class="text-muted small d-block">Executive Designation</span>
                                         <span class="fw-bold text-dark" id="f1Designation">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.7: Business Category</span>
+                                        <span class="text-muted small d-block">Business Category</span>
                                         <span class="badge bg-indigo-subtle text-indigo fw-semibold px-2.5 py-1" id="f1Category">—</span>
                                     </div>
                                     <div class="col-md-6 col-lg-3">
-                                        <span class="text-muted small d-block">Sub-Point 1.8: Contact Information</span>
+                                        <span class="text-muted small d-block">Contact Information</span>
                                         <span class="text-dark small d-block text-truncate" id="f1Email">—</span>
                                         <span class="text-muted small" id="f1Phone">—</span>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- MAIN POINT 2: Strategic Vision for the Leadership Role -->
-                            <div class="bg-white p-4 rounded-4 border shadow-xs">
-                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                                    <span class="badge text-white font-monospace px-2.5 py-1" style="background-color: #4f46e5;">MAIN POINT 2</span>
-                                    <h6 class="fw-bold text-dark mb-0">Strategic Vision for the Leadership Role</h6>
-                                </div>
-                                <div class="p-3 rounded-3 border-start border-4 border-primary bg-light">
-                                    <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 2.1: Vision Statement for this Term</span>
-                                    <p class="text-dark fst-italic mb-0" id="f1Vision" style="font-size: 14px; line-height: 1.6;">
-                                        No vision statement recorded.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- MAIN POINT 3: Professional Experience & Track Record -->
-                            <div class="bg-white p-4 rounded-4 border shadow-xs">
-                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                                    <span class="badge bg-dark text-white font-monospace px-2.5 py-1">MAIN POINT 3</span>
-                                    <h6 class="fw-bold text-dark mb-0">Professional Experience & Track Record</h6>
-                                </div>
-                                <div class="p-3 bg-light rounded-3">
-                                    <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 3.1: Executive Biography & Highlights</span>
-                                    <div class="text-dark small" id="f1Bio" style="line-height: 1.6; white-space: pre-line;">
-                                        No bio submitted.
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- MAIN POINT 4: Form 1 Questionnaire Submissions (Optional) -->
-                            <div class="bg-white p-4 rounded-4 border shadow-xs" id="f1DynamicQuestionsCard" style="display: none;">
-                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                                    <span class="badge bg-secondary text-white font-monospace px-2.5 py-1">MAIN POINT 4</span>
-                                    <h6 class="fw-bold text-dark mb-0">Form 1 Questionnaire Responses</h6>
-                                </div>
-                                <div id="f1QuestionsList" class="d-flex flex-column gap-2"></div>
                             </div>
                         </div>
                     </div>
@@ -573,7 +535,7 @@
                                         <div class="p-3 rounded-3 border bg-light-subtle">
                                             <label class="form-label small fw-bold text-dark d-flex align-items-center gap-1.5 mb-2">
                                                 <i class="fa-solid fa-shield-halved text-primary"></i>
-                                                Juror Conflict of Interest Check *
+                                                Conflict of Interest Check
                                             </label>
                                             <div class="d-flex flex-column gap-2">
                                                 <div class="form-check">

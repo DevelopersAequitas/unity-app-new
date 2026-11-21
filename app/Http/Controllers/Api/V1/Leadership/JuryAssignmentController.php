@@ -642,7 +642,7 @@ class JuryAssignmentController extends LeadershipBaseController
         if ($latestAsg && $latestAsg->nomination) {
             $this->juryService->sendInvitation($latestAsg->id, true, false, 'jury_evaluation_invitation');
         } else {
-            $portalUrl = 'https://admin.peersunity.com/web/leadership/jury-evaluations';
+            $portalUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/').'/admin/web/jury/dashboard';
             $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
             if (! empty($juror->email)) {
                 \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $portalUrl): void {

@@ -180,47 +180,18 @@ class VerificationService
 
         $user = null;
         if (! empty($contact)) {
-            $user = $contactType === 'email'
-                ? User::where('email', $contact)->first()
-                : User::where('phone', $contact)->first();
+            $user = User::findByEmailOrPhone(
+                $contactType === 'email' ? $contact : null,
+                $contactType !== 'email' ? $contact : null
+            );
         }
         if (! $user && $dbRecord?->user_id) {
             $user = User::find($dbRecord->user_id);
         }
 
-        $photoUrl = $user?->profile_photo_url;
-        $fullName = $user ? (trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? 'Member')) : null;
-
-        $profile = null;
-        if ($user) {
-            $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
-            $sinceYear = $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
-            $memberSince = "Since {$sinceYear}";
-            $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
-
-            $profile = [
-                'user_id' => (string) $user->id,
-                'full_name' => $fullName,
-                'email' => $user->email,
-                'mobile' => $user->phone,
-                'phone' => $user->phone,
-                'company' => $user->company_name,
-                'company_name' => $user->company_name,
-                'designation' => $user->designation,
-                'city' => $user->city,
-                'profile_photo_url' => $photoUrl,
-                'photo_url' => $photoUrl,
-                'avatar_url' => $photoUrl,
-                'image_url' => $photoUrl,
-                'life_impact_score' => $lifeImpactScore,
-                'lives_impacted' => $lifeImpactScore,
-                'member_since' => $memberSince,
-                'membership_starts_at' => $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
-                'role' => 'Peers Global Member',
-                'current_role' => 'Peers Global Member',
-                'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
-            ];
-        }
+        $profile = $user ? User::buildNominationProfile($user, $contactType === 'email' ? $contact : null) : null;
+        $photoUrl = $profile['profile_photo_url'] ?? null;
+        $fullName = $profile['full_name'] ?? null;
 
         return [
             'verification_token' => $verificationToken,
@@ -228,16 +199,20 @@ class VerificationService
             'is_existing_member' => (bool) $user,
             'user_id' => $user?->id,
             'full_name' => $fullName,
-            'email' => $user?->email ?? $contact,
-            'mobile' => $user?->phone,
-            'company_name' => $user?->company_name,
-            'company' => $user?->company_name,
-            'designation' => $user?->designation,
-            'city' => $user?->city,
+            'email' => $profile['email'] ?? $contact,
+            'mobile' => $profile['mobile'] ?? ($contactType !== 'email' ? $contact : null),
+            'phone' => $profile['phone'] ?? ($contactType !== 'email' ? $contact : null),
+            'company_name' => $profile['company_name'] ?? null,
+            'company' => $profile['company'] ?? null,
+            'designation' => $profile['designation'] ?? null,
+            'industry' => $profile['industry'] ?? null,
+            'city' => $profile['city'] ?? null,
             'photo_url' => $photoUrl,
+            'profile_photo_url' => $photoUrl,
             'life_impact_score' => $profile['life_impact_score'] ?? 0,
             'lives_impacted' => $profile['lives_impacted'] ?? 0,
             'member_since' => $profile['member_since'] ?? null,
+            'current_circle' => $profile['current_circle'] ?? null,
             'role' => 'Peers Global Member',
             'profile' => $profile,
             'expires_in_seconds' => $expiresIn,

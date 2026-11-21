@@ -140,40 +140,7 @@ class PublicCampaignController extends LeadershipBaseController
             ], 422);
         }
 
-        $cleanPhone = preg_replace('/\D+/', '', $phone);
-        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
-
-        $user = User::query()
-            ->withTrashed()
-            ->with('city')
-            ->where(function ($q) use ($email, $phone, $last10): void {
-                $hasCondition = false;
-
-                if (! empty($email)) {
-                    $q->whereRaw('TRIM(LOWER(email)) = ?', [$email]);
-                    $hasCondition = true;
-                }
-
-                if (! empty($phone)) {
-                    $phoneClosure = function ($sub) use ($phone, $last10): void {
-                        $sub->where('phone', $phone)
-                            ->orWhereRaw('TRIM(phone) = ?', [$phone]);
-
-                        if (! empty($last10)) {
-                            $sub->orWhere('phone', 'like', '%'.$last10)
-                                ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?", ['%'.$last10]);
-                        }
-                    };
-
-                    if ($hasCondition) {
-                        $q->orWhere($phoneClosure);
-                    } else {
-                        $phoneClosure($q);
-                    }
-                }
-            })
-            ->orderByRaw('deleted_at IS NULL DESC')
-            ->first();
+        $user = User::findByEmailOrPhone($email, $phone);
 
         if (! $user) {
             return response()->json([
@@ -184,42 +151,7 @@ class PublicCampaignController extends LeadershipBaseController
             ], 200);
         }
 
-        $fullName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->name ?? $user->email;
-        $company = $user->company_name ?: ($user->business_name ?? ($user->company ?? ''));
-        $designation = $user->designation ?: ($user->job_title ?? '');
-        $cityName = $user->cityRelation?->name ?: (is_string($user->city) ? $user->city : '');
-        $photoUrl = null;
-        try {
-            $photoUrl = $user->profile_photo_url;
-        } catch (\Throwable) {
-            $photoUrl = null;
-        }
-
-        $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
-        $sinceYear = $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
-        $memberSince = "Since {$sinceYear}";
-        $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
-
-        $profile = [
-            'user_id' => (string) $user->id,
-            'full_name' => $fullName,
-            'company' => $company,
-            'company_name' => $company,
-            'designation' => $designation,
-            'email' => $user->email,
-            'mobile' => $user->phone ?: '',
-            'phone' => $user->phone ?: '',
-            'city' => $cityName,
-            'photo_url' => $photoUrl,
-            'profile_photo_url' => $photoUrl,
-            'life_impact_score' => $lifeImpactScore,
-            'lives_impacted' => $lifeImpactScore,
-            'member_since' => $memberSince,
-            'membership_starts_at' => $sinceDate ? ($sinceDate instanceof \Carbon\Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
-            'role' => 'Peers Global Member',
-            'current_role' => 'Peers Global Member',
-            'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
-        ];
+        $profile = User::buildNominationProfile($user, $email);
 
         return response()->json([
             'success' => true,
