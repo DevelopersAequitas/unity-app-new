@@ -1707,4 +1707,182 @@ class User extends Authenticatable
     {
         return $this->hasMany(AdvertiserSubscription::class, 'user_id');
     }
+
+    /**
+     * Find a member by primary email, secondary/work email, linked contact posts, or phone number.
+     */
+    public static function findByEmailOrPhone(?string $email, ?string $phone = null): ?self
+    {
+        $email = ! empty($email) ? strtolower(trim($email)) : null;
+        $phone = ! empty($phone) ? trim($phone) : null;
+
+        if (empty($email) && empty($phone)) {
+            return null;
+        }
+
+        $cleanPhone = $phone ? preg_replace('/\D+/', '', $phone) : '';
+        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
+
+        $driver = DB::connection()->getDriverName();
+        $jsonEmailSql = $driver === 'pgsql' ? 'contact_posts.emails::text ILIKE ?' : 'LOWER(CAST(contact_posts.emails AS CHAR)) LIKE ?';
+        $jsonPhoneSql = $driver === 'pgsql' ? 'contact_posts.phones::text ILIKE ?' : 'CAST(contact_posts.phones AS CHAR) LIKE ?';
+
+        return static::query()
+            ->withTrashed()
+            ->with(['city', 'cityRelation', 'circle'])
+            ->where(function (Builder $q) use ($email, $phone, $last10, $jsonEmailSql, $jsonPhoneSql): void {
+                $hasCondition = false;
+
+                if (! empty($email)) {
+                    $q->where(function (Builder $sub) use ($email, $jsonEmailSql): void {
+                        $sub->whereRaw('TRIM(LOWER(email)) = ?', [$email]);
+
+                        if (Schema::hasColumn('users', 'secondary_email')) {
+                            $sub->orWhereRaw('TRIM(LOWER(secondary_email)) = ?', [$email]);
+                        }
+                        if (Schema::hasColumn('users', 'business_email')) {
+                            $sub->orWhereRaw('TRIM(LOWER(business_email)) = ?', [$email]);
+                        }
+                        if (Schema::hasColumn('users', 'work_email')) {
+                            $sub->orWhereRaw('TRIM(LOWER(work_email)) = ?', [$email]);
+                        }
+
+                        if (Schema::hasTable('contact_posts')) {
+                            $sub->orWhereExists(function ($cpQuery) use ($email, $jsonEmailSql): void {
+                                $cpQuery->select(DB::raw(1))
+                                    ->from('contact_posts')
+                                    ->whereColumn('contact_posts.user_id', 'users.id')
+                                    ->where(function ($jsonQ) use ($email, $jsonEmailSql): void {
+                                        $jsonQ->whereRaw('TRIM(LOWER(contact_posts.email)) = ?', [$email])
+                                            ->orWhereRaw($jsonEmailSql, ['%'.$email.'%']);
+                                    });
+                            });
+                        }
+
+                        if (Schema::hasTable('web_leadership_nominations')) {
+                            $sub->orWhereExists(function ($nomQuery) use ($email): void {
+                                $nomQuery->select(DB::raw(1))
+                                    ->from('web_leadership_nominations')
+                                    ->whereColumn('web_leadership_nominations.user_id', 'users.id')
+                                    ->whereRaw('TRIM(LOWER(web_leadership_nominations.email)) = ?', [$email]);
+                            });
+                        }
+                    });
+                    $hasCondition = true;
+                }
+
+                if (! empty($phone)) {
+                    $phoneClosure = function (Builder $sub) use ($phone, $last10, $jsonPhoneSql): void {
+                        $sub->where('phone', $phone)
+                            ->orWhereRaw('TRIM(phone) = ?', [$phone]);
+
+                        if (Schema::hasColumn('users', 'secondary_mobile')) {
+                            $sub->orWhere('secondary_mobile', $phone)
+                                ->orWhereRaw('TRIM(secondary_mobile) = ?', [$phone]);
+                        }
+
+                        if (! empty($last10)) {
+                            $sub->orWhere('phone', 'like', '%'.$last10)
+                                ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?", ['%'.$last10]);
+
+                            if (Schema::hasColumn('users', 'secondary_mobile')) {
+                                $sub->orWhere('secondary_mobile', 'like', '%'.$last10)
+                                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(secondary_mobile, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?", ['%'.$last10]);
+                            }
+                        }
+
+                        if (Schema::hasTable('contact_posts')) {
+                            $sub->orWhereExists(function ($cpQuery) use ($phone, $last10, $jsonPhoneSql): void {
+                                $cpQuery->select(DB::raw(1))
+                                    ->from('contact_posts')
+                                    ->whereColumn('contact_posts.user_id', 'users.id')
+                                    ->where(function ($pQ) use ($phone, $last10, $jsonPhoneSql): void {
+                                        $pQ->where('contact_posts.phone', $phone);
+                                        if (! empty($last10)) {
+                                            $pQ->orWhere('contact_posts.phone', 'like', '%'.$last10)
+                                                ->orWhereRaw($jsonPhoneSql, ['%'.$last10.'%']);
+                                        }
+                                    });
+                            });
+                        }
+
+                        if (Schema::hasTable('web_leadership_nominations')) {
+                            $sub->orWhereExists(function ($nomQuery) use ($phone, $last10): void {
+                                $nomQuery->select(DB::raw(1))
+                                    ->from('web_leadership_nominations')
+                                    ->whereColumn('web_leadership_nominations.user_id', 'users.id')
+                                    ->where(function ($nSub) use ($phone, $last10): void {
+                                        $nSub->where('web_leadership_nominations.mobile', $phone);
+                                        if (! empty($last10)) {
+                                            $nSub->orWhere('web_leadership_nominations.mobile', 'like', '%'.$last10);
+                                        }
+                                    });
+                            });
+                        }
+                    };
+
+                    if ($hasCondition) {
+                        $q->orWhere($phoneClosure);
+                    } else {
+                        $phoneClosure($q);
+                    }
+                }
+            })
+            ->orderByRaw('deleted_at IS NULL DESC')
+            ->first();
+    }
+
+    /**
+     * Build nomination profile array matching public leadership nomination specs.
+     */
+    public static function buildNominationProfile(self $user, ?string $inputEmail = null): array
+    {
+        $fullName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->name ?? $user->email);
+        $company = $user->company_name ?: ($user->business_name ?? ($user->company ?? ''));
+        $designation = $user->designation ?: ($user->job_title ?? 'Member');
+        $cityName = $user->cityRelation?->name ?: (is_string($user->city) ? $user->city : '');
+
+        $photoUrl = null;
+        try {
+            $photoUrl = $user->profile_photo_url;
+        } catch (\Throwable) {
+            $photoUrl = null;
+        }
+
+        $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
+        $sinceYear = $sinceDate ? ($sinceDate instanceof \Illuminate\Support\Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
+        $memberSince = "Since {$sinceYear}";
+        $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
+        $industry = $user->industry_tags ?: ($user->business_sub_category ?? ($user->businessCategory?->name ?? 'Business & Industry'));
+        if (is_array($industry)) {
+            $industry = implode(', ', $industry);
+        }
+
+        $activeEmail = (! empty($inputEmail) && str_contains($inputEmail, '@')) ? strtolower(trim($inputEmail)) : $user->email;
+
+        return [
+            'user_id' => (string) $user->id,
+            'full_name' => $fullName,
+            'company' => $company,
+            'company_name' => $company,
+            'designation' => $designation,
+            'industry' => $industry ?: 'Business & Industry',
+            'email' => $activeEmail,
+            'primary_email' => $user->email,
+            'mobile' => $user->phone ?: '',
+            'phone' => $user->phone ?: '',
+            'city' => $cityName,
+            'photo_url' => $photoUrl,
+            'profile_photo_url' => $photoUrl,
+            'avatar_url' => $photoUrl,
+            'image_url' => $photoUrl,
+            'life_impact_score' => $lifeImpactScore,
+            'lives_impacted' => $lifeImpactScore,
+            'member_since' => $memberSince,
+            'membership_starts_at' => $sinceDate ? ($sinceDate instanceof \Illuminate\Support\Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
+            'role' => 'Peers Global Member',
+            'current_role' => 'Peers Global Member',
+            'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
+        ];
+    }
 }
