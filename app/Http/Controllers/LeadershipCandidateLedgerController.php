@@ -35,7 +35,7 @@ class LeadershipCandidateLedgerController extends Controller
         $campaign = $nomination->campaign;
         $now = Carbon::now();
 
-        $isApproved = strtolower((string) $nomination->status) === 'approved';
+        $isApproved = in_array(strtolower((string) $nomination->status), ['approved', 'shortlisted'], true);
         $votingStarts = $campaign?->voting_starts_at ? Carbon::parse($campaign->voting_starts_at) : null;
         $votingEnds = $campaign?->voting_ends_at ? Carbon::parse($campaign->voting_ends_at) : null;
 
@@ -108,7 +108,7 @@ class LeadershipCandidateLedgerController extends Controller
 
         $now = Carbon::now();
         $campaign = $nomination->campaign;
-        $isApproved = strtolower((string) $nomination->status) === 'approved';
+        $isApproved = in_array(strtolower((string) $nomination->status), ['approved', 'shortlisted'], true);
         $votingEnds = $campaign?->voting_ends_at ? Carbon::parse($campaign->voting_ends_at) : null;
 
         if (! $isApproved || ($votingEnds !== null && $now->gt($votingEnds))) {
@@ -291,7 +291,7 @@ class LeadershipCandidateLedgerController extends Controller
 
         $now = Carbon::now();
         $campaign = $nomination->campaign;
-        $isApproved = strtolower((string) $nomination->status) === 'approved';
+        $isApproved = in_array(strtolower((string) $nomination->status), ['approved', 'shortlisted'], true);
         $votingEnds = $campaign?->voting_ends_at ? Carbon::parse($campaign->voting_ends_at) : null;
 
         if (! $isApproved || ($votingEnds !== null && $now->gt($votingEnds))) {

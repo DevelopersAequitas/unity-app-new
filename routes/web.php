@@ -342,8 +342,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/send-otp', [JuryWebController::class, 'sendOtp'])->name('send-otp');
         Route::post('/verify-otp', [JuryWebController::class, 'verifyOtp'])->name('verify-otp');
         Route::get('/dashboard', fn () => redirect('https://peersglobal.com/leadership/jury/dashboard', 301))->name('dashboard');
+        Route::get('/candidates', [JuryWebController::class, 'candidates'])->name('candidates');
+        Route::get('/candidate/{id}', [JuryWebController::class, 'candidateDetail'])->name('candidate.detail')->whereUuid('id');
         Route::get('/nomination/{id}/details', [JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
         Route::post('/review/{id}', [JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/submit-score', [JuryWebController::class, 'submitScoreDirect'])->name('submit-score');
         Route::post('/criterion', [JuryWebController::class, 'addCriterion'])->name('criterion.add');
         Route::post('/logout', [JuryWebController::class, 'logout'])->name('logout');
         Route::get('/logout', [JuryWebController::class, 'logout'])->name('logout.get');
