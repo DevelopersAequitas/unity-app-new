@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\Web\JuryWebController;
 use App\Http\Controllers\Api\V1\Leadership\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Leadership\AdminNominationController;
 use App\Http\Controllers\Api\V1\Leadership\AdminScopeController;
@@ -108,6 +109,16 @@ Route::match(['GET', 'POST'], 'public/check-member', [PublicCampaignController::
 Route::post('votes', [VotingController::class, 'castVote']);
 Route::post('public/votes', [VotingController::class, 'castVote']);
 Route::get('circles', [FinalDecisionController::class, 'circles']);
+
+// Module H-Public: Public Jury Portal API Contracts (peersglobal.com Next.js workspace)
+Route::prefix('jury')->group(function (): void {
+    Route::post('send-otp', [JuryWebController::class, 'sendOtp']);
+    Route::post('verify-otp', [JuryWebController::class, 'verifyOtp']);
+    Route::get('candidates', [JuryWebController::class, 'candidates']);
+    Route::get('assigned-candidates', [JuryWebController::class, 'candidates']);
+    Route::get('candidate/{id}', [JuryWebController::class, 'candidateDetail'])->whereUuid('id');
+    Route::post('submit-score', [JuryWebController::class, 'submitScoreDirect']);
+});
 Route::get('public/circles', [FinalDecisionController::class, 'circles']);
 Route::get('cities', [PublicCampaignController::class, 'cities']);
 Route::get('public/cities', [PublicCampaignController::class, 'cities']);

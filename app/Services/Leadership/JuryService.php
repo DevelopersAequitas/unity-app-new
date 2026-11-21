@@ -157,7 +157,7 @@ class JuryService
         try {
             $isStanding = ($nomination->application_number === 'PG-STANDING-POOL');
             $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
-            $campaignName = 'Peers Global Leadership Selection 2026';
+            $campaignName = $nomination->campaign?->name ?? 'Peers Global Leadership Selection';
             $candidateName = $isStanding ? 'All Current & Incoming Candidates' : ($nomination->candidate_name ?? $nomination->full_name);
             $appNumber = $isStanding ? 'Standing Appointment' : $nomination->application_number;
             $roleName = $isStanding ? 'National & Circle Leadership Roles' : ($nomination->campaign?->role?->name ?? 'Leadership Role');
@@ -166,15 +166,15 @@ class JuryService
 
             \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl, $isStanding): void {
                 $greetingParagraph = $isStanding
-                    ? 'You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>Peers Global Leadership Selection 2026</strong>. You have been appointed to evaluate and score all current and incoming candidate leadership applications submitted through the portal.'
-                    : "You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>Peers Global Leadership Selection 2026</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.";
+                    ? "You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>{$campaignName}</strong>. You have been appointed to evaluate and score all current and incoming candidate leadership applications submitted through the portal."
+                    : "You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>{$campaignName}</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.";
 
                 $html = "
                 <div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;'>
                     <div style='text-align: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;'>
                         <div style='display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Official Appointment</div>
                         <h1 style='color: #0f172a; font-size: 22px; font-weight: 800; margin: 0 0 6px 0;'>Jury Evaluation Panel</h1>
-                        <p style='color: #64748b; font-size: 14px; margin: 0;'>Peers Global Leadership Selection 2026</p>
+                        <p style='color: #64748b; font-size: 14px; margin: 0;'>{$campaignName}</p>
                     </div>
 
                     <p style='font-size: 15px; line-height: 1.6; margin-bottom: 16px;'>Dear <strong>{$jurorName}</strong>,</p>
