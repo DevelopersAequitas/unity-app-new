@@ -32,6 +32,7 @@ use App\Models\UserPushToken;
 use App\Services\Admin\Auth\AdminIpAccessService;
 use App\Services\Audit\ActivityLoggerService;
 use App\Services\Auth\OtpService;
+use App\Services\Auth\PhoneRegisterVerificationService;
 use App\Services\Auth\SocialAuthService;
 use App\Services\Coins\CoinsService;
 use App\Services\Creative\WelcomeCreativeService;
@@ -61,6 +62,27 @@ class AuthController extends BaseApiController
     public function register(RegisterRequest $request, ReferralService $referralService, FileUploadService $fileUploadService)
     {
         $data = $request->validated();
+
+        // Enforce phone verification token validation for non-LinkedIn registration
+        $phoneVerificationToken = (string) ($data['phone_verification_token']
+            ?? $request->input('phone_verification_token')
+            ?? $request->input('verification_token')
+            ?? '');
+
+        $phoneVerificationService = app(PhoneRegisterVerificationService::class);
+        $phoneInput = (string) ($data['phone'] ?? $request->input('phone') ?? '');
+        $countryCodeInput = $request->input('country_code') ? (string) $request->input('country_code') : null;
+
+        if (blank($phoneVerificationToken) || ! $phoneVerificationService->validatePhoneVerificationToken($phoneVerificationToken, $phoneInput, $countryCodeInput)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Phone verification token is missing or invalid. Please verify your phone number via WhatsApp first.',
+                'errors' => [
+                    'phone_verification_token' => ['Phone verification token is missing or invalid. Please verify your phone number via WhatsApp first.'],
+                ],
+            ], 422);
+        }
+
         $data = $this->resolveRegisterCategoryPath($data);
 
         if ($businessCategoryError = $this->validateActiveRegisterBusinessCategory($data)) {
@@ -952,6 +974,17 @@ class AuthController extends BaseApiController
         $user->display_name = $displayName;
         $user->email = $data['email'];
         $user->phone = $data['phone'] ?? null;
+
+        // Atomically set phone_verified_at since phone OTP was verified before account creation
+        if (Schema::hasColumn('users', 'phone_verified_at')) {
+            $user->phone_verified_at = now();
+        }
+
+        // Email is not verified at signup
+        if (Schema::hasColumn('users', 'email_verified_at')) {
+            $user->email_verified_at = null;
+        }
+
         $user->company_name = $data['company_name'] ?? null;
         $user->designation = $data['designation'] ?? null;
         $user->city_id = $data['city_id'] ?? null;
@@ -1020,7 +1053,7 @@ class AuthController extends BaseApiController
         $trialEndsAt = now()->addDays($trialDays);
 
         $user->status = 'active';
-        $user->registration_source = 'App';
+        $this->fillIfUserColumnExists($user, 'registration_source', 'App');
         $user->membership_status = User::STATUS_FREE_TRIAL;
         $user->membership_starts_at = now();
         $user->membership_ends_at = $trialEndsAt;
@@ -1901,6 +1934,25 @@ class AuthController extends BaseApiController
     public function me(): JsonResponse
     {
         $user = Auth::guard('sanctum')->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if ($user instanceof \App\Models\AdminUser) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Admin profile retrieved successfully.',
+                'user' => $user,
+                'admin' => $user,
+                'admin_user' => $user,
+                'data' => [
+                    'user' => $user,
+                    'admin' => $user,
+                    'admin_user' => $user,
+                ],
+            ]);
+        }
+
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 

@@ -227,17 +227,23 @@ class AdminAuthController extends Controller
             $adminUser = $result['data']['admin_user'];
             $resolvedChannel = $result['data']['channel'] ?? $channel;
 
-            Auth::guard('admin')->login($adminUser);
-            $request->session()->put('admin_user_id', $adminUser->id);
-            $request->session()->put('admin_login_channel', $resolvedChannel);
-            $request->session()->put('admin_login_identifier', $identifier);
-            if ($resolvedChannel === 'whatsapp') {
-                $request->session()->put('admin_login_mobile', $identifier);
+            if ($request->hasSession()) {
+                try {
+                    Auth::guard('admin')->login($adminUser);
+                    $request->session()->put('admin_user_id', $adminUser->id);
+                    $request->session()->put('admin_login_channel', $resolvedChannel);
+                    $request->session()->put('admin_login_identifier', $identifier);
+                    if ($resolvedChannel === 'whatsapp') {
+                        $request->session()->put('admin_login_mobile', $identifier);
+                    }
+                    if (! empty($adminUser->email)) {
+                        $request->session()->put('admin_login_email', $adminUser->email);
+                    }
+                    $request->session()->regenerate();
+                } catch (Throwable $sessionEx) {
+                    Log::warning('admin.login.session_warning', ['error' => $sessionEx->getMessage()]);
+                }
             }
-            if (! empty($adminUser->email)) {
-                $request->session()->put('admin_login_email', $adminUser->email);
-            }
-            $request->session()->regenerate();
 
             if ($request->expectsJson()) {
                 $token = $adminUser->createToken('admin_panel')->plainTextToken;
@@ -247,9 +253,17 @@ class AdminAuthController extends Controller
                     'message' => 'Login successful',
                     'data' => [
                         'admin' => $adminUser,
+                        'user' => $adminUser,
+                        'admin_user' => $adminUser,
                         'token' => $token,
+                        'access_token' => $token,
                         'channel' => $resolvedChannel,
                     ],
+                    'token' => $token,
+                    'access_token' => $token,
+                    'user' => $adminUser,
+                    'admin' => $adminUser,
+                    'admin_user' => $adminUser,
                 ], 200);
             }
 
@@ -294,6 +308,30 @@ class AdminAuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('admin.login');
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        $user = Auth::guard('sanctum')->user() ?? Auth::guard('admin')->user();
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Current admin profile retrieved successfully.',
+            'user' => $user,
+            'admin' => $user,
+            'admin_user' => $user,
+            'data' => [
+                'user' => $user,
+                'admin' => $user,
+                'admin_user' => $user,
+            ],
+        ]);
     }
 
     private function shouldRedirectToIndustryDirectorDashboard(?AdminUser $adminUser): bool

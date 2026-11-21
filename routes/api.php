@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
@@ -119,6 +120,7 @@ use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Http\Controllers\Api\V1\Auth\LinkedInAuthController;
+use App\Http\Controllers\Api\V1\Auth\PhoneRegisterVerificationController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -272,6 +274,8 @@ Route::prefix('ai')->group(function () {
 Route::prefix('auth')->group(function () {
     Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
     Route::post('register', [AuthController::class, 'register']);
+    Route::post('register/phone/request-otp', [PhoneRegisterVerificationController::class, 'requestOtp']);
+    Route::post('register/phone/verify-otp', [PhoneRegisterVerificationController::class, 'verifyOtp']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('social-login', [AuthController::class, 'socialLogin']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
@@ -391,6 +395,8 @@ Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
         Route::post('register', [AuthController::class, 'register']);
+        Route::post('register/phone/request-otp', [PhoneRegisterVerificationController::class, 'requestOtp']);
+        Route::post('register/phone/verify-otp', [PhoneRegisterVerificationController::class, 'verifyOtp']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
@@ -711,6 +717,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::post('/profile/email/request-otp', [ContactChangeController::class, 'requestCurrentEmailOtp']);
+        Route::post('/profile/email/verify-otp', [ContactChangeController::class, 'verifyCurrentEmailOtp']);
         Route::post('/profile/change-email/request-otp', [ContactChangeController::class, 'requestEmailOtp']);
         Route::post('/profile/change-email/verify-otp', [ContactChangeController::class, 'verifyEmailOtp']);
         Route::post('/profile/change-phone/request-otp', [ContactChangeController::class, 'requestPhoneOtp']);
@@ -2245,6 +2253,31 @@ foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
         Route::post('circle-test-checkout/approve-id/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveId'])->whereUuid('id');
         Route::post('circle-test-checkout/create-order', [AdminPlansApiController::class, 'circleTestCheckoutCreateOrder']);
         Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
+    });
+}
+
+// =========================================================================
+// ADMIN AUTHENTICATION & LOGIN OTP APIs
+// Supports both /api/v1/admin/* and /api/admin/*
+// =========================================================================
+foreach (['admin', 'v1/admin'] as $adminAuthPrefix) {
+    Route::prefix($adminAuthPrefix)->group(function (): void {
+        Route::get('/login/methods', [AdminAuthController::class, 'loginMethods']);
+        Route::get('/auth/methods', [AdminAuthController::class, 'loginMethods']);
+        Route::get('/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+        Route::get('/auth/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+        Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/login/send_otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/login/verify-otp', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/login/verify_otp', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp']);
+
+        Route::middleware('auth:sanctum')->group(function (): void {
+            Route::get('/auth/me', [AdminAuthController::class, 'me']);
+            Route::get('/me', [AdminAuthController::class, 'me']);
+        });
     });
 }
 
