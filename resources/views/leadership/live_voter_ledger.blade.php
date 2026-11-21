@@ -48,18 +48,19 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
         }
         .btn-pg-primary {
-            background-color: #2563eb;
+            background: linear-gradient(135deg, #1D4ED8 0%, #E11D48 100%);
             color: #ffffff;
-            font-weight: 600;
-            padding: 0.75rem 1.75rem;
-            border-radius: 0.6rem;
+            font-weight: 700;
+            padding: 0.85rem 2rem;
+            border-radius: 9999px;
             border: none;
             transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(29, 78, 216, 0.25);
         }
         .btn-pg-primary:hover {
-            background-color: #1d4ed8;
+            opacity: 0.95;
             color: #ffffff;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+            box-shadow: 0 6px 20px rgba(225, 29, 72, 0.3);
         }
         .pulsing-dot {
             width: 8px;
