@@ -162,7 +162,7 @@ class JuryService
             $appNumber = $isStanding ? 'Standing Appointment' : $nomination->application_number;
             $roleName = $isStanding ? 'National & Circle Leadership Roles' : ($nomination->campaign?->role?->name ?? 'Leadership Role');
             $deadline = $dueAt ? Carbon::parse($dueAt)->format('d M Y, h:i A') : '7 Days from Assignment';
-            $portalUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/').'/admin/web/jury/dashboard';
+            $portalUrl = 'https://peersglobal.com/leadership/jury';
 
             \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl, $isStanding): void {
                 $greetingParagraph = $isStanding
