@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
@@ -2252,6 +2253,26 @@ foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
         Route::post('circle-test-checkout/approve-id/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveId'])->whereUuid('id');
         Route::post('circle-test-checkout/create-order', [AdminPlansApiController::class, 'circleTestCheckoutCreateOrder']);
         Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
+    });
+}
+
+// =========================================================================
+// ADMIN AUTHENTICATION & LOGIN OTP APIs
+// Supports both /api/v1/admin/* and /api/admin/*
+// =========================================================================
+foreach (['admin', 'v1/admin'] as $adminAuthPrefix) {
+    Route::prefix($adminAuthPrefix)->group(function (): void {
+        Route::get('/login/methods', [AdminAuthController::class, 'loginMethods']);
+        Route::get('/auth/methods', [AdminAuthController::class, 'loginMethods']);
+        Route::get('/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+        Route::get('/auth/login-policy', [AdminIpAccessController::class, 'loginPolicy']);
+        Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/login/send_otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/login/verify-otp', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/login/verify_otp', [AdminAuthController::class, 'verifyOtp']);
+        Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp']);
+        Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp']);
     });
 }
 
