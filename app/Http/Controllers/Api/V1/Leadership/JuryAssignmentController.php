@@ -276,10 +276,25 @@ class JuryAssignmentController extends LeadershipBaseController
         $remarks = $validated['remarks'] ?? '';
 
         try {
+            $campaignId = $validated['campaign_id'] ?? null;
+            if (empty($campaignId) && ! empty($nominationIds)) {
+                $firstNomId = reset($nominationIds);
+                $campaignId = \App\Models\Leadership\LeadershipNomination::where('id', $firstNomId)->value('campaign_id');
+            }
+            if (empty($campaignId) && ! empty($nominationId) && $nominationId !== 'all') {
+                $campaignId = \App\Models\Leadership\LeadershipNomination::where('id', $nominationId)->value('campaign_id');
+            }
+            if (empty($campaignId)) {
+                $campaignId = \App\Models\Leadership\LeadershipCampaign::where('status', 'active')->value('id')
+                    ?? \App\Models\Leadership\LeadershipCampaign::value('id')
+                    ?? '23ba107a-f314-4cd9-b04a-7af04951f95c';
+            }
+
             // Always ensure the standing pool placeholder exists
             $standingNomination = \App\Models\Leadership\LeadershipNomination::firstOrCreate(
                 ['application_number' => 'PG-STANDING-POOL'],
                 [
+                    'campaign_id' => $campaignId,
                     'candidate_name' => 'Standing Jury Pool',
                     'full_name' => 'Standing Jury Pool',
                     'email' => 'jury-standing@peersglobal.com',
@@ -289,12 +304,16 @@ class JuryAssignmentController extends LeadershipBaseController
                 ]
             );
 
+            if (empty($standingNomination->campaign_id)) {
+                $standingNomination->update(['campaign_id' => $campaignId]);
+            }
+
             // Register standing assignment for each juror so they are standing evaluators
             $standingRes = $this->juryService->assignJurors(
                 $standingNomination->id,
                 $jurorIds,
                 $dueAt ? (string) $dueAt : null,
-                $remarks ?: 'Standing Juror appointment for all candidate applications',
+                $remarks ?: 'Standing Jury appointment for all candidate applications',
                 Auth::id()
             );
 
@@ -402,6 +421,33 @@ class JuryAssignmentController extends LeadershipBaseController
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 404);
         }
+    }
+
+    /**
+     * Admin: Remove a jury member completely.
+     */
+    public function adminRemoveJuror(string $jurorUserId): JsonResponse
+    {
+        try {
+            $count = \App\Models\Leadership\LeadershipJuryAssignment::where('juror_user_id', $jurorUserId)->delete();
+
+            return $this->success(['deleted_count' => $count], 'Jury member removed successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Admin: Remove a jury member via POST payload.
+     */
+    public function adminRemoveJurorPost(Request $request): JsonResponse
+    {
+        $jurorUserId = $request->input('juror_user_id') ?: $request->input('jury_user_id') ?: $request->input('user_id');
+        if (empty($jurorUserId)) {
+            return $this->error('juror_user_id is required', 422);
+        }
+
+        return $this->adminRemoveJuror((string) $jurorUserId);
     }
 
     /**

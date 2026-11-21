@@ -31,4 +31,10 @@ return [
         'allowed_recipients' => array_filter(array_map('trim', explode(',', env('WHATSAPP_TEST_RECIPIENTS', '+916353025164,+917041151714')))),
         'restrict_to_test_recipient' => (bool) env('WHATSAPP_RESTRICT_TO_TEST_RECIPIENT', false),
     ],
+
+    'invoice_receipt' => [
+        'enabled' => (bool) env('WHATSAPP_INVOICE_RECEIPT_ENABLED', true),
+        'template_name' => env('WHATSAPP_INVOICE_RECEIPT_TEMPLATE', 'payment_invoice_receipt'),
+        'language' => env('WHATSAPP_INVOICE_RECEIPT_LANGUAGE', 'en_IN'),
+    ],
 ];

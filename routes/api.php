@@ -102,6 +102,7 @@ use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
+use App\Http\Controllers\Api\V1\Admin\TimelineCardConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserCircleRequestAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
@@ -202,6 +203,7 @@ use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
+use App\Http\Controllers\Api\V1\TimelineCardConfigController;
 use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivityLogController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
@@ -251,6 +253,7 @@ Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
 Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+Route::get('/app-config/timeline-cards', [TimelineCardConfigController::class, 'getTimelineCardsConfig']);
 Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
 Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
@@ -368,6 +371,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/app-config/timeline-cards', [TimelineCardConfigController::class, 'getTimelineCardsConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
     Route::get('/coin-guidelines', [CoinGuidelineController::class, 'index']);
     Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
@@ -1019,6 +1023,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
             Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
             Route::post('/app-config/clear-cache', [AppConfigAdminController::class, 'clearCache']);
+
+            // Timeline Feed Cards Toggles
+            Route::get('/timeline-cards/config', [TimelineCardConfigAdminController::class, 'show']);
+            Route::put('/timeline-cards/config', [TimelineCardConfigAdminController::class, 'update']);
+            Route::get('/app-config/timeline-cards', [TimelineCardConfigAdminController::class, 'show']);
+            Route::put('/app-config/timeline-cards', [TimelineCardConfigAdminController::class, 'update']);
 
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
             Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);

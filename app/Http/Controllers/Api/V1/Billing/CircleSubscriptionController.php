@@ -539,6 +539,8 @@ class CircleSubscriptionController extends BaseApiController
         if (empty($finalPayment->zoho_invoice_id) || str_starts_with((string) $finalPayment->zoho_invoice_id, 'INV-CP-')) {
             try {
                 $zohoInvoice = $this->zohoBillingService->createPaidInvoiceForAppPayment($user, [
+                    'payment_type' => 'circle_package',
+                    'reference_id' => (string) $finalPayment->id,
                     'item_name' => 'Circle Package - '.($circle->zoho_addon_name ?: $circle->name),
                     'description' => 'Circle Package Subscription for '.$circle->name,
                     'amount' => (float) ($finalPayment->total_amount > 0 ? $finalPayment->total_amount : $finalPayment->amount),

@@ -567,7 +567,9 @@ class MetaWhatsAppService
 
         $fileContents = file_get_contents($filePath);
         $fileName = basename($filePath);
-        $mimeType = mime_content_type($filePath) ?: 'image/png';
+        $mimeType = str_ends_with(strtolower($fileName), '.pdf')
+            ? 'application/pdf'
+            : (mime_content_type($filePath) ?: 'image/png');
 
         $response = Http::withToken($this->accessToken)
             ->attach('file', $fileContents, $fileName, ['Content-Type' => $mimeType])
@@ -835,6 +837,34 @@ class MetaWhatsAppService
         ];
 
         if (! empty($components)) {
+            // Ensure every document header parameter includes a non-empty filename so WhatsApp Mobile
+            // displays a proper PDF title instead of "Untitled"
+            foreach ($components as &$component) {
+                if (! is_array($component) || empty($component['parameters']) || ! is_array($component['parameters'])) {
+                    continue;
+                }
+                foreach ($component['parameters'] as &$param) {
+                    if (
+                        is_array($param)
+                        && strtolower((string) ($param['type'] ?? '')) === 'document'
+                        && isset($param['document'])
+                        && is_array($param['document'])
+                        && empty($param['document']['filename'])
+                    ) {
+                        $link = (string) ($param['document']['link'] ?? '');
+                        $urlBasename = $link !== '' ? basename((string) parse_url($link, PHP_URL_PATH)) : '';
+                        $fallbackName = ($urlBasename !== '' && str_contains($urlBasename, '.'))
+                            ? $urlBasename
+                            : (str_contains(strtolower($templateName), 'invoice')
+                                ? 'Peers_Global_Invoice.pdf'
+                                : 'Peers_Global_Document.pdf');
+                        $param['document']['filename'] = $fallbackName;
+                    }
+                }
+                unset($param);
+            }
+            unset($component);
+
             $payload['template']['components'] = $components;
         }
 

@@ -76,7 +76,6 @@ class LeadershipNomination extends Model
         'form_2_link',
         'form_2_status',
         'form_2_data',
-        'jury_evaluation',
         'creative_url',
     ];
 
@@ -85,27 +84,21 @@ class LeadershipNomination extends Model
      */
     public function getJuryEvaluationAttribute(): ?array
     {
-        $assignment = null;
-
-        if ($this->relationLoaded('juryAssignments')) {
-            $assignment = $this->juryAssignments
-                ->where('status', 'completed')
-                ->sortByDesc('completed_at')
-                ->first();
-        } else {
-            $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
-                ->where('nomination_id', $this->id)
-                ->where('status', 'completed')
-                ->latest('completed_at')
-                ->first();
+        if (! $this->relationLoaded('juryAssignments')) {
+            return null;
         }
+
+        $assignment = $this->juryAssignments
+            ->where('status', 'completed')
+            ->sortByDesc('completed_at')
+            ->first();
 
         if (! $assignment) {
             return null;
         }
 
-        $juror = $assignment->juror;
-        $report = $assignment->report;
+        $juror = $assignment->relationLoaded('juror') ? $assignment->juror : null;
+        $report = $assignment->relationLoaded('report') ? $assignment->report : null;
 
         return [
             'status' => 'completed',
@@ -369,16 +362,11 @@ class LeadershipNomination extends Model
         }
 
         $relativePath = "creatives/leadership/nomination_{$this->id}.png";
-        $disk = config('filesystems.default', 'public');
-        if (\Illuminate\Support\Facades\Storage::disk($disk)->exists($relativePath) || \Illuminate\Support\Facades\Storage::disk('public')->exists($relativePath)) {
-            $url = \Illuminate\Support\Facades\Storage::disk('public')->url($relativePath);
-            if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
-                $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+        $localPath = storage_path("app/public/{$relativePath}");
+        if (file_exists($localPath)) {
+            $appUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
 
-                return $appUrl.'/'.ltrim($url, '/');
-            }
-
-            return $url;
+            return "{$appUrl}/storage/{$relativePath}";
         }
 
         return null;
