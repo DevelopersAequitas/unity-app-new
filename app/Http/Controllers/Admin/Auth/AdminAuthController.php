@@ -310,6 +310,30 @@ class AdminAuthController extends Controller
         return redirect()->route('admin.login');
     }
 
+    public function me(Request $request): JsonResponse
+    {
+        $user = Auth::guard('sanctum')->user() ?? Auth::guard('admin')->user();
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Current admin profile retrieved successfully.',
+            'user' => $user,
+            'admin' => $user,
+            'admin_user' => $user,
+            'data' => [
+                'user' => $user,
+                'admin' => $user,
+                'admin_user' => $user,
+            ],
+        ]);
+    }
+
     private function shouldRedirectToIndustryDirectorDashboard(?AdminUser $adminUser): bool
     {
         if (! $adminUser) {
