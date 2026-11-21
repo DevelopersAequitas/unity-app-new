@@ -118,6 +118,7 @@ use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Http\Controllers\Api\V1\Auth\LinkedInAuthController;
+use App\Http\Controllers\Api\V1\Auth\PhoneRegisterVerificationController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -269,6 +270,8 @@ Route::prefix('ai')->group(function () {
 Route::prefix('auth')->group(function () {
     Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
     Route::post('register', [AuthController::class, 'register']);
+    Route::post('register/phone/request-otp', [PhoneRegisterVerificationController::class, 'requestOtp']);
+    Route::post('register/phone/verify-otp', [PhoneRegisterVerificationController::class, 'verifyOtp']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('social-login', [AuthController::class, 'socialLogin']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
@@ -387,6 +390,8 @@ Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::get('login-policy', [AdminIpAccessController::class, 'loginPolicy']);
         Route::post('register', [AuthController::class, 'register']);
+        Route::post('register/phone/request-otp', [PhoneRegisterVerificationController::class, 'requestOtp']);
+        Route::post('register/phone/verify-otp', [PhoneRegisterVerificationController::class, 'verifyOtp']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
@@ -707,6 +712,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::post('/profile/email/request-otp', [ContactChangeController::class, 'requestCurrentEmailOtp']);
+        Route::post('/profile/email/verify-otp', [ContactChangeController::class, 'verifyCurrentEmailOtp']);
         Route::post('/profile/change-email/request-otp', [ContactChangeController::class, 'requestEmailOtp']);
         Route::post('/profile/change-email/verify-otp', [ContactChangeController::class, 'verifyEmailOtp']);
         Route::post('/profile/change-phone/request-otp', [ContactChangeController::class, 'requestPhoneOtp']);

@@ -33,6 +33,154 @@ class ContactChangeOtpService
     ) {}
 
     /**
+     * Request an Email OTP to verify the user's current email.
+     *
+     * @return array{status: int, success: bool, message: string, data: array<string, mixed>|null}
+     */
+    public function requestCurrentEmailOtp(User $user): array
+    {
+        $currentEmail = strtolower(trim((string) ($user->email ?? '')));
+        if ($currentEmail === '' || ! filter_var($currentEmail, FILTER_VALIDATE_EMAIL)) {
+            return [
+                'status' => 422,
+                'success' => false,
+                'message' => 'No valid email address found on your profile.',
+                'data' => null,
+            ];
+        }
+
+        $rateLimitError = $this->checkRateLimit((string) $user->id, 'verify_email', $currentEmail);
+        if ($rateLimitError !== null) {
+            return $rateLimitError;
+        }
+
+        $otp = $this->generateOtp();
+
+        ContactChangeOtp::query()->create([
+            'user_id' => (string) $user->id,
+            'channel' => 'verify_email',
+            'target_value' => $currentEmail,
+            'otp_hash' => Hash::make($otp),
+            'attempts' => 0,
+            'expires_at' => now()->addSeconds(self::OTP_EXPIRES_SECONDS),
+            'consumed_at' => null,
+        ]);
+
+        $mailable = new LoginOtpMail($otp, $user);
+
+        try {
+            Mail::to($currentEmail)->send($mailable);
+
+            $this->emailLogService->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => $currentEmail,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
+                'template_key' => 'contact_verify_email_otp',
+                'source_module' => 'Profile',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => ['purpose' => 'verify_current_email_otp'],
+            ]);
+        } catch (Throwable $exception) {
+            $this->emailLogService->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => $currentEmail,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
+                'template_key' => 'contact_verify_email_otp',
+                'source_module' => 'Profile',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => ['purpose' => 'verify_current_email_otp'],
+            ], $exception);
+
+            Log::error('Failed to send verification email OTP: '.$exception->getMessage(), [
+                'user_id' => (string) $user->id,
+                'target_email' => $currentEmail,
+            ]);
+
+            return [
+                'status' => 503,
+                'success' => false,
+                'message' => 'Failed to send verification OTP email. Please try again later.',
+                'data' => null,
+            ];
+        }
+
+        $this->hitRateLimit((string) $user->id, 'verify_email', $currentEmail);
+
+        return [
+            'status' => 200,
+            'success' => true,
+            'message' => "Verification OTP sent to {$currentEmail}",
+            'data' => [
+                'expires_in_seconds' => self::OTP_EXPIRES_SECONDS,
+            ],
+        ];
+    }
+
+    /**
+     * Verify OTP and mark the user's current email as verified.
+     *
+     * @return array{status: int, success: bool, message: string, user?: User}
+     */
+    public function verifyCurrentEmailOtp(User $user, string $otp, ?string $email = null): array
+    {
+        $targetEmail = strtolower(trim((string) ($email ?: $user->email ?: '')));
+
+        $record = ContactChangeOtp::query()
+            ->where('user_id', (string) $user->id)
+            ->where('channel', 'verify_email')
+            ->where('target_value', $targetEmail)
+            ->whereNull('consumed_at')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $record || now()->greaterThan($record->expires_at) || $record->attempts >= self::MAX_ATTEMPTS) {
+            return [
+                'status' => 422,
+                'success' => false,
+                'message' => 'Invalid or expired OTP.',
+            ];
+        }
+
+        if (! Hash::check($otp, $record->otp_hash)) {
+            $record->increment('attempts');
+
+            return [
+                'status' => 422,
+                'success' => false,
+                'message' => 'Invalid or expired OTP.',
+            ];
+        }
+
+        DB::transaction(function () use ($user, $record): void {
+            if (Schema::hasColumn('users', 'email_verified_at')) {
+                $user->email_verified_at = now();
+            }
+            $user->save();
+
+            $record->consumed_at = now();
+            $record->save();
+
+            ContactChangeOtp::query()
+                ->where('user_id', (string) $user->id)
+                ->where('channel', 'verify_email')
+                ->whereNull('consumed_at')
+                ->where('id', '!=', (string) $record->id)
+                ->update(['consumed_at' => now()]);
+        });
+
+        $user->refresh();
+
+        return [
+            'status' => 200,
+            'success' => true,
+            'message' => 'Email verified successfully.',
+            'user' => $user,
+        ];
+    }
+
+    /**
      * Request an Email OTP to change the user's primary email.
      *
      * @return array{status: int, success: bool, message: string, data: array<string, mixed>|null}

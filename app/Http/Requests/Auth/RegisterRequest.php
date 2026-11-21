@@ -167,6 +167,10 @@ class RegisterRequest extends FormRequest
             'date_of_birth' => ['nullable', 'date'],
             'profile_photo_id' => ['nullable', 'string', 'max:100'],
             'profile_photo_file_id' => ['nullable', 'string', 'max:100'],
+
+            // Phone verification via WhatsApp token
+            'phone_verification_token' => ['nullable', 'string'],
+            'phone_verified' => ['nullable', 'boolean'],
         ];
     }
 

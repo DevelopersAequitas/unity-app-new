@@ -21,6 +21,7 @@ class AdminStoreVariantController extends BaseApiController
     {
         $search = $request->input('search');
         $lowStockOnly = filter_var($request->input('low_stock', false), FILTER_VALIDATE_BOOLEAN);
+        $customThreshold = $request->filled('threshold') ? max(0, (int) $request->input('threshold')) : null;
 
         $query = Product::with(['category', 'primaryImage', 'variants']);
 
@@ -35,13 +36,26 @@ class AdminStoreVariantController extends BaseApiController
         $items = [];
 
         foreach ($products as $prod) {
+            $prodStatus = strtoupper((string) ($prod->status ?? 'ACTIVE'));
+            $prodIsOutOfStock = $prodStatus === 'OUT_OF_STOCK' || (int) ($prod->stock_qty ?? 0) <= 0;
+
             if ($prod->variants && $prod->variants->isNotEmpty()) {
+                $variantsCount = $prod->variants->count();
+                $hasOutOfStockVariant = false;
+
                 foreach ($prod->variants as $variant) {
                     $threshold = (int) ($variant->low_stock_threshold ?? 5);
-                    $stock = (int) ($variant->stock_qty ?? $variant->stock_quantity ?? 0);
+                    $stock = $prodStatus === 'OUT_OF_STOCK'
+                        ? 0
+                        : (int) ($variant->stock_qty ?? $variant->stock_quantity ?? 0);
+                    $effectiveCutoff = $customThreshold !== null ? $customThreshold : $threshold;
                     $isLow = $stock <= $threshold;
 
-                    if ($lowStockOnly && ! $isLow) {
+                    if ($stock <= 0) {
+                        $hasOutOfStockVariant = true;
+                    }
+
+                    if ($lowStockOnly && $stock > $effectiveCutoff) {
                         continue;
                     }
 
@@ -49,7 +63,11 @@ class AdminStoreVariantController extends BaseApiController
                         'id' => (string) $variant->id,
                         'product_id' => (string) $prod->id,
                         'variant_id' => (string) $variant->id,
+                        'variant_name' => $variant->name ?: null,
                         'product_title' => $prod->name . ($variant->name ? " ({$variant->name})" : ''),
+                        'slug' => $prod->slug,
+                        'type' => $prod->type ?? 'PHYSICAL',
+                        'variants_count' => $variantsCount,
                         'sku' => $variant->sku ?: $prod->sku,
                         'current_stock' => $stock,
                         'safety_stock' => $threshold,
@@ -59,12 +77,39 @@ class AdminStoreVariantController extends BaseApiController
                         'last_restocked_at' => $variant->updated_at ? $variant->updated_at->toIso8601String() : null,
                     ];
                 }
+
+                // If the parent product itself is marked out of stock (0 stock_qty or OUT_OF_STOCK status)
+                // while none of its variant rows are <= 0, include a parent out-of-stock entry so admins can restock it.
+                if ($prodIsOutOfStock && ! $hasOutOfStockVariant && $prodStatus !== 'ARCHIVED') {
+                    $threshold = 5;
+                    $effectiveCutoff = $customThreshold !== null ? $customThreshold : $threshold;
+                    if (! $lowStockOnly || 0 <= $effectiveCutoff) {
+                        $items[] = [
+                            'id' => (string) $prod->id,
+                            'product_id' => (string) $prod->id,
+                            'variant_id' => null,
+                            'variant_name' => null,
+                            'product_title' => $prod->name,
+                            'slug' => $prod->slug,
+                            'type' => $prod->type ?? 'PHYSICAL',
+                            'variants_count' => $variantsCount,
+                            'sku' => $prod->sku,
+                            'current_stock' => 0,
+                            'safety_stock' => $threshold,
+                            'is_low_stock' => true,
+                            'price_inr' => (float) ($prod->unit_cost_inr ?? 0),
+                            'coin_price' => (int) ($prod->coin_price ?: ($prod->price_coins ?: 0)),
+                            'last_restocked_at' => $prod->updated_at ? $prod->updated_at->toIso8601String() : null,
+                        ];
+                    }
+                }
             } else {
                 $threshold = 5;
-                $stock = (int) ($prod->stock_qty ?? 0);
+                $stock = $prodStatus === 'OUT_OF_STOCK' ? 0 : (int) ($prod->stock_qty ?? 0);
+                $effectiveCutoff = $customThreshold !== null ? $customThreshold : $threshold;
                 $isLow = $stock <= $threshold;
 
-                if ($lowStockOnly && ! $isLow) {
+                if ($lowStockOnly && $stock > $effectiveCutoff) {
                     continue;
                 }
 
@@ -72,7 +117,11 @@ class AdminStoreVariantController extends BaseApiController
                     'id' => (string) $prod->id,
                     'product_id' => (string) $prod->id,
                     'variant_id' => null,
+                    'variant_name' => null,
                     'product_title' => $prod->name,
+                    'slug' => $prod->slug,
+                    'type' => $prod->type ?? 'PHYSICAL',
+                    'variants_count' => 0,
                     'sku' => $prod->sku,
                     'current_stock' => $stock,
                     'safety_stock' => $threshold,
@@ -82,6 +131,10 @@ class AdminStoreVariantController extends BaseApiController
                     'last_restocked_at' => $prod->updated_at ? $prod->updated_at->toIso8601String() : null,
                 ];
             }
+        }
+
+        if ($lowStockOnly) {
+            usort($items, fn (array $a, array $b) => $a['current_stock'] <=> $b['current_stock']);
         }
 
         return $this->success($items, 'Store inventory items retrieved');
