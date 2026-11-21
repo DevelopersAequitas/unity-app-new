@@ -117,23 +117,42 @@ class LeadershipJuryAssignment extends Model
 
         $scoresList = [];
         $scores = $this->relationLoaded('scores') ? $this->scores : collect();
+        $totalScoreSum = 0.0;
+        $scoredCount = 0;
         foreach ($scores as $sc) {
             $criterion = $sc->relationLoaded('criterion') ? $sc->criterion : null;
+            $cat = $criterion?->category ?? $criterion?->criterion_key ?? 'General';
+            $critName = $criterion?->name ?? $criterion?->title ?? 'Criterion';
+            $isCustom = (bool) ($criterion?->is_custom ?? ($cat === 'Custom Juror Metric' || str_contains(strtolower((string) $cat), 'custom')));
+            $scoreVal = (float) $sc->score;
+            $totalScoreSum += $scoreVal;
+            $scoredCount++;
             $scoresList[] = [
                 'criterion_id' => $sc->criterion_id,
-                'criterion_name' => $criterion?->name ?? 'Criterion',
-                'category' => $criterion?->category ?? 'General',
+                'criterion_name' => $critName,
+                'criterion_description' => $criterion?->description ?? null,
+                'category' => $cat,
+                'is_custom' => $isCustom,
                 'max_score' => (float) ($criterion?->max_score ?? 10),
-                'weightage' => (float) ($criterion?->weightage ?? 20),
-                'score' => (float) $sc->score,
+                'weightage' => (float) ($criterion?->weightage ?? 10),
+                'score' => $scoreVal,
                 'remarks' => $sc->remarks,
             ];
         }
 
+        $overallAverage = $scoredCount > 0 ? round($totalScoreSum / $scoredCount, 1) : null;
+
         return [
+            'overall_score' => $overallAverage,
+            'overall_average' => $overallAverage,
             'overall_recommendation' => $report->overall_recommendation,
             'strengths' => $report->strengths,
+            'key_strengths' => $report->strengths,
             'concerns' => $report->concerns,
+            'key_concerns' => $report->concerns,
+            'conflict_of_interest' => (bool) $report->conflict_of_interest,
+            'conflict_details' => $report->conflict_details,
+            'conflict_disclosure' => $report->conflict_details,
             'final_remarks' => $report->final_remarks,
             'submitted_at' => $report->submitted_at?->toIso8601String(),
             'scores' => $scoresList,

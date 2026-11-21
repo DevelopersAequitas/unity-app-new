@@ -203,6 +203,11 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = [
+        'profile_photo_url',
+        'avatar',
+    ];
+
     protected $casts = [
         'industry_tags' => 'array',
         'target_regions' => 'array',

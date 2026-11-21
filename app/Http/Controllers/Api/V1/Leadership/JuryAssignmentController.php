@@ -202,6 +202,9 @@ class JuryAssignmentController extends LeadershipBaseController
 
         $query = \App\Models\Leadership\LeadershipJuryAssignment::with([
             'nomination.campaign.role',
+            'nomination.user',
+            'nomination.scope',
+            'nomination.documents',
             'juror.mainBusinessCategory',
             'juror.businessCategory',
             'report',
@@ -225,6 +228,14 @@ class JuryAssignmentController extends LeadershipBaseController
                 $asg->setAttribute('is_standing', true);
                 $asg->setAttribute('candidate_name', 'All Incoming Candidates (Standing Pool)');
             }
+            if ($asg->nomination) {
+                $candPhoto = $asg->nomination->photo_url;
+                $asg->nomination->setAttribute('photo_url', $candPhoto);
+                $asg->nomination->setAttribute('profile_photo_url', $candPhoto);
+                $asg->nomination->setAttribute('avatar_url', $candPhoto);
+                $asg->setAttribute('candidate_photo_url', $candPhoto);
+                $asg->setAttribute('candidate_avatar_url', $candPhoto);
+            }
             if ($asg->juror) {
                 $compName = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
                 $catName = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
@@ -234,9 +245,15 @@ class JuryAssignmentController extends LeadershipBaseController
 
                 $asg->juror->setAttribute('business_name', $compName);
                 $asg->juror->setAttribute('business_category', $catName);
+                $jPhoto = $asg->juror->profile_photo_url;
+                $asg->juror->setAttribute('profile_photo_url', $jPhoto);
+                $asg->juror->setAttribute('photo_url', $jPhoto);
+                $asg->juror->setAttribute('avatar_url', $jPhoto);
 
                 $asg->setAttribute('juror_business_name', $compName);
                 $asg->setAttribute('juror_business_category', $catName);
+                $asg->setAttribute('juror_profile_photo_url', $jPhoto);
+                $asg->setAttribute('juror_photo_url', $jPhoto);
             }
         });
 

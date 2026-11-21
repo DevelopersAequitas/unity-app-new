@@ -223,7 +223,17 @@ class LeadershipNomination extends Model
             return $userName;
         }
 
-        return ! empty($raw) ? $raw : 'Hardik Chauhan';
+        if (empty($this->user) && ! empty($this->email)) {
+            $resolvedUser = User::where('email', strtolower(trim((string) $this->email)))->first();
+            if ($resolvedUser) {
+                $uName = $resolvedUser->name ?? trim(($resolvedUser->first_name ?? '').' '.($resolvedUser->last_name ?? '')) ?: $resolvedUser->display_name;
+                if (! empty($uName) && strtolower(trim((string) $uName)) !== 'candidate') {
+                    return $uName;
+                }
+            }
+        }
+
+        return ! empty($raw) ? $raw : 'Candidate';
     }
 
     public function getFullNameAttribute($value): ?string
@@ -239,20 +249,39 @@ class LeadershipNomination extends Model
     {
         $snapshot = $this->profile_snapshot;
         if (is_array($snapshot)) {
-            return $snapshot['company_name'] ?? $snapshot['company'] ?? 'Aequitas IT Solutions';
+            $comp = $snapshot['company_name'] ?? $snapshot['company'] ?? ($snapshot['enterprise'] ?? null);
+            if (! empty($comp) && is_string($comp) && trim($comp) !== '') {
+                return trim($comp);
+            }
         }
 
-        return 'Aequitas IT Solutions';
+        $user = $this->relationLoaded('user') && $this->user ? $this->user : null;
+        if (! $user && ! empty($this->email)) {
+            $user = User::where('email', strtolower(trim((string) $this->email)))->first();
+        }
+        if ($user && ! empty($user->company_name)) {
+            return (string) $user->company_name;
+        }
+
+        return '';
     }
 
     public function getDesignationAttribute(): string
     {
         $snapshot = $this->profile_snapshot;
         if (is_array($snapshot) && ! empty($snapshot['designation'])) {
-            return $snapshot['designation'];
+            return (string) $snapshot['designation'];
         }
 
-        return $this->campaign?->role?->name ?? 'District Executive Director (DED)';
+        $user = $this->relationLoaded('user') && $this->user ? $this->user : null;
+        if (! $user && ! empty($this->email)) {
+            $user = User::where('email', strtolower(trim((string) $this->email)))->first();
+        }
+        if ($user && ! empty($user->designation)) {
+            return (string) $user->designation;
+        }
+
+        return $this->campaign?->role?->name ?? 'Leadership Candidate';
     }
 
     public function getScopeNameAttribute(): string
@@ -274,7 +303,7 @@ class LeadershipNomination extends Model
             return $this->scope->name;
         }
 
-        return 'Surat District';
+        return 'District';
     }
 
     public function getPhotoUrlAttribute(): ?string
@@ -332,14 +361,21 @@ class LeadershipNomination extends Model
             return $this->user->profile_photo_url;
         }
 
-        // 4. Resolve Unity user by candidate email or mobile only if user relation was not loaded
-        if (! $this->relationLoaded('user')) {
+        // 4. Resolve Unity user by user_id, candidate email, or mobile if $this->user is empty (even if relation was loaded as null)
+        if (empty($this->user)) {
             $user = null;
-            if (! empty($this->email)) {
-                $user = User::where('email', strtolower(trim((string) $this->email)))->first();
+            if (! empty($this->user_id)) {
+                $user = User::find($this->user_id);
+            }
+            if (! $user && ! empty($this->email)) {
+                $user = User::whereRaw('LOWER(TRIM(email)) = ?', [strtolower(trim((string) $this->email))])->first();
             }
             if (! $user && ! empty($this->mobile)) {
-                $user = User::where('phone', trim((string) $this->mobile))->first();
+                $cleanedMobile = preg_replace('/\D/', '', (string) $this->mobile);
+                if (strlen($cleanedMobile) >= 10) {
+                    $last10 = substr($cleanedMobile, -10);
+                    $user = User::whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ?", [$last10])->first();
+                }
             }
             if ($user && ! empty($user->profile_photo_url)) {
                 return $user->profile_photo_url;
