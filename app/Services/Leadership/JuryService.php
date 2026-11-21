@@ -45,6 +45,9 @@ class JuryService
                 'business_category_id',
                 'main_business_category_id',
                 'business_sub_category',
+                'profile_photo_url',
+                'profile_photo_file_id',
+                'profile_photo_id',
             ])
             ->with(['mainBusinessCategory', 'businessCategory']);
 
@@ -76,6 +79,10 @@ class JuryService
             $u->setAttribute('business_name', $compName);
             $u->setAttribute('business_category', $catName);
             $u->setAttribute('business_category_name', $catName);
+            $photoUrl = $u->profile_photo_url;
+            $u->setAttribute('profile_photo_url', $photoUrl);
+            $u->setAttribute('photo_url', $photoUrl);
+            $u->setAttribute('avatar_url', $photoUrl);
 
             return $u;
         });

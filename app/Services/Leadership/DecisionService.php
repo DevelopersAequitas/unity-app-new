@@ -30,7 +30,7 @@ class DecisionService
         $query = LeadershipNomination::query()
             ->where('application_number', '!=', 'PG-STANDING-POOL')
             ->where('application_number', 'not like', '%-F2')
-            ->with(['scope', 'campaign.role', 'finalDecision'])
+            ->with(['scope', 'campaign.role', 'finalDecision', 'user', 'documents'])
             ->withCount(['votes', 'juryAssignments', 'juryAssignments as jury_completed_count' => fn ($q) => $q->where('status', 'completed')])
             ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected', 'submitted']);
 

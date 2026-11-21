@@ -1,3 +1,4 @@
+import { LeadershipLayout } from '../../components/LeadershipLayout';
 import React, { useEffect, useState } from 'react';
 import { decisionApi, campaignApi, creativeApi } from '../../api/services';
 import { Campaign, FinalDecision, WinnerCreative } from '../../types';
@@ -7,7 +8,7 @@ import { Link } from 'react-router-dom';
 
 export const WinnersPage: React.FC = () => {
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-    const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+    const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
     const [winners, setWinners] = useState<FinalDecision[]>([]);
     const [creatives, setCreatives] = useState<WinnerCreative[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -18,24 +19,21 @@ export const WinnersPage: React.FC = () => {
             const res = await campaignApi.getAll();
             const list = res.data.data || [];
             setCampaigns(list);
-            if (list.length > 0 && !selectedCampaignId) {
-                setSelectedCampaignId(list[0].id);
-            }
+            loadWinners('all');
         } catch {
             setError('Failed to load campaigns.');
         }
     };
 
-    const loadWinners = async (campaignId: string) => {
-        if (!campaignId) return;
+    const loadWinners = async (campaignId?: string) => {
         setIsLoading(true);
         setError(null);
         try {
             const [decRes, creatRes] = await Promise.all([
-                decisionApi.getByCampaign(campaignId),
-                creativeApi.getByCampaign(campaignId),
+                decisionApi.getByCampaign(campaignId || 'all'),
+                creativeApi.getByCampaign(campaignId || 'all'),
             ]);
-            const selectedList = (decRes.data.data || []).filter((d) => d.decision === 'selected');
+            const selectedList = (decRes.data.data || []).filter((d) => d.decision === 'selected' || d.is_winner);
             setWinners(selectedList);
             setCreatives(creatRes.data.data || []);
         } catch (err: any) {
@@ -56,15 +54,10 @@ export const WinnersPage: React.FC = () => {
     }, [selectedCampaignId]);
 
     return (
-        <div className="container-fluid px-0">
+        <LeadershipLayout>
+            <div className="container-fluid px-0">
             {/* Header Toolbar */}
-            <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-4 bg-white rounded-4 border shadow-xs mb-4">
-                <div>
-                    <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Declared Winners</h1>
-                    <p className="text-muted small mb-0 mt-0.5">
-                        Official elected leaders, declared leadership statements, and announcement creatives
-                    </p>
-                </div>
+            <div className="d-flex justify-content-end align-items-center gap-3 p-4 bg-white rounded-4 border shadow-xs mb-4">
                 <Link to="/creatives" className="btn btn-primary btn-sm rounded-3 px-3 py-2 d-flex align-items-center gap-1.5 fw-semibold">
                     <Sparkles size={14} /> Manage Creative Banners
                 </Link>
@@ -91,6 +84,7 @@ export const WinnersPage: React.FC = () => {
                             value={selectedCampaignId}
                             onChange={(e) => setSelectedCampaignId(e.target.value)}
                         >
+                            <option value="all">All Declared Winners (Global Platform)</option>
                             {campaigns.map((c) => (
                                 <option key={c.id} value={c.id}>
                                     {c.name} ({c.year})
@@ -114,20 +108,40 @@ export const WinnersPage: React.FC = () => {
                 ) : (
                     winners.map((w) => {
                         const creative = creatives.find((c) => c.decision_id === w.id);
+                        const wPhoto = w.nomination?.profile_photo_url || w.nomination?.photo_url || w.nomination?.avatar_url || w.photo_url || (w as any).avatar_url || null;
+
                         return (
                             <div key={w.id} className="col-12 col-md-6 col-lg-4">
                                 <div className="card border-0 shadow-xs rounded-4 p-4 bg-white position-relative overflow-hidden h-100 text-center">
                                     <div className="d-flex justify-content-center mb-3">
-                                        <div
-                                            className="rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm"
-                                            style={{
-                                                width: '68px',
-                                                height: '68px',
-                                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                            }}
-                                        >
-                                            <Trophy size={32} />
-                                        </div>
+                                        {wPhoto ? (
+                                            <div className="position-relative d-inline-block">
+                                                <img
+                                                    src={wPhoto}
+                                                    alt={w.candidate_name || 'Elected Leader'}
+                                                    className="rounded-circle object-fit-cover border shadow-sm"
+                                                    style={{ width: '68px', height: '68px' }}
+                                                    onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                                                />
+                                                <div
+                                                    className="position-absolute bottom-0 end-0 rounded-circle d-flex align-items-center justify-content-center text-white shadow-xs"
+                                                    style={{ width: '24px', height: '24px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+                                                >
+                                                    <Trophy size={13} />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm"
+                                                style={{
+                                                    width: '68px',
+                                                    height: '68px',
+                                                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                                }}
+                                            >
+                                                <Trophy size={32} />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <h5 className="fw-bold text-dark mb-1">{w.candidate_name || 'Elected Leader'}</h5>
@@ -160,5 +174,6 @@ export const WinnersPage: React.FC = () => {
                 )}
             </div>
         </div>
+        </LeadershipLayout>
     );
 };

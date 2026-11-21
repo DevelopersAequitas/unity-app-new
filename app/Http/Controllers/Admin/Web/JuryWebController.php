@@ -516,10 +516,36 @@ class JuryWebController extends Controller
             $contactMasked = "{$maskedPhone} · {$maskedEmail}";
 
             $f2Answers = is_array($rawF2) ? ($rawF2['form_2'] ?? $rawF2) : [];
-            $executiveBio = $isF2Submitted ? ($f2Answers['executive_bio'] ?? ($f2Answers['bio'] ?? ($snap['bio'] ?? ''))) : '';
-            $operationalBlueprint = $isF2Submitted ? ($f2Answers['operational_blueprint'] ?? ($f2Answers['vision'] ?? ($snap['vision_statement'] ?? ''))) : '';
-            $benchValue = $isF2Submitted ? ($f2Answers['bench_value'] ?? ($f2Answers['bench_members'] ?? [])) : [];
-            $documents = $isF2Submitted ? ($f2Answers['documents'] ?? ($nom->documents ? $nom->documents->toArray() : [])) : [];
+            
+            // Build rich executive bio from Form 2 if standard field not directly present
+            $bioParts = [];
+            if (!empty($f2Answers['roles_held'])) $bioParts[] = "Roles Held: " . $f2Answers['roles_held'];
+            if (!empty($f2Answers['largest_community'])) $bioParts[] = "Largest Community Stewarded: " . $f2Answers['largest_community'];
+            if (!empty($f2Answers['developed_leader_1'])) $bioParts[] = "Developed Leaders: " . $f2Answers['developed_leader_1'];
+            if (!empty($f2Answers['leadership_failure'])) $bioParts[] = "Leadership Lessons: " . $f2Answers['leadership_failure'];
+            $executiveBio = $isF2Submitted 
+                ? ($f2Answers['executive_bio'] ?? ($f2Answers['bio'] ?? (!empty($bioParts) ? implode("\n", $bioParts) : ($snap['bio'] ?? '')))) 
+                : '';
+
+            // Build operational blueprint from Form 2
+            $planParts = [];
+            if (!empty($f2Answers['targets_12_months'])) $planParts[] = "12-Month Targets:\n" . $f2Answers['targets_12_months'];
+            if (!empty($f2Answers['action_90_day_1'])) $planParts[] = "90-Day Actions:\n1. " . $f2Answers['action_90_day_1'];
+            if (!empty($f2Answers['action_90_day_2'])) $planParts[] = "2. " . $f2Answers['action_90_day_2'];
+            if (!empty($f2Answers['action_90_day_3'])) $planParts[] = "3. " . $f2Answers['action_90_day_3'];
+            if (!empty($f2Answers['funding_plan'])) $planParts[] = "\nFunding / Resource Plan: " . $f2Answers['funding_plan'];
+            if (!empty($f2Answers['biggest_risk'])) $planParts[] = "Risks: " . $f2Answers['biggest_risk'];
+            $operationalBlueprint = $isF2Submitted 
+                ? ($f2Answers['operational_blueprint'] ?? ($f2Answers['vision'] ?? (!empty($planParts) ? implode("\n", $planParts) : ($snap['vision_statement'] ?? '')))) 
+                : '';
+
+            $benchValue = $isF2Submitted ? ($f2Answers['bench_value'] ?? ($f2Answers['bench'] ?? ($f2Answers['bench_members'] ?? []))) : [];
+            
+            $docList = [];
+            if (!empty($f2Answers['deck_url'])) $docList[] = ['title' => 'Pitch Deck / Strategic Presentation', 'type' => 'PDF / Deck', 'url' => $f2Answers['deck_url']];
+            if (!empty($f2Answers['identity_proof_url'])) $docList[] = ['title' => 'Identity Proof Document', 'type' => 'ID Proof', 'url' => $f2Answers['identity_proof_url']];
+            if (!empty($f2Answers['business_proof_url'])) $docList[] = ['title' => 'Business Track Record Proof', 'type' => 'Proof Document', 'url' => $f2Answers['business_proof_url']];
+            $documents = $isF2Submitted ? (!empty($docList) ? $docList : ($f2Answers['documents'] ?? ($nom->documents ? $nom->documents->toArray() : []))) : [];
 
             $candidatesList[] = [
                 'id' => $nom->id,
@@ -686,29 +712,49 @@ class JuryWebController extends Controller
             ]
         );
 
-        // Save scores across standard criteria
-        $criteriaMap = [
-            'governance_integrity' => 'Leadership of leaders',
-            'operational_execution' => 'Demonstrated track record',
-            'community_engagement' => 'Ecosystem contribution',
-            'strategic_vision' => 'Vision and plan realism',
+        // Save scores across standard criteria and dynamic custom criteria
+        $standardDescriptions = [
+            'Leadership of leaders' => 'Ability to inspire, align, and empower fellow leaders and founders across the region.',
+            'Execution capability' => 'Track record of delivering measurable outcomes, programs, and strategic goals.',
+            'Leadership Bench strength (quality and status of the named people)' => 'Quality, standing, and commitment of core succession bench and key cabinet members named.',
+            'Community-building track record' => 'History of giving first, fostering trust, and driving community cohesion without self-serving agenda.',
+            'Business credibility' => 'Standing in business ecosystem, ethical reputation, financial stability, and peer enterprise respect.',
+            'Vision and plan realism' => 'Clarity, feasibility, and realistic execution roadmap of the build plan and milestone projections.',
+            'Commitment and availability' => 'Pledged weekly time investment, board presence, and willingness to travel and mentor chapter chairs.',
+            'Values alignment' => 'Adherence to Peers Global core philosophy: Partners in business, friends in life.',
         ];
 
-        foreach ($criteriaMap as $key => $critName) {
-            if (isset($scores[$key])) {
+        if (array_is_list($scores)) {
+            foreach ($scores as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $critName = trim((string) ($item['criterion_name'] ?? $item['name'] ?? ''));
+                if ($critName === '') {
+                    continue;
+                }
+                $scoreVal = floatval($item['score'] ?? 0);
+                $isCustom = ! empty($item['is_custom']);
+                $description = $item['criterion_description'] ?? $item['description'] ?? ($standardDescriptions[$critName] ?? ($isCustom ? 'Juror-defined custom leadership evaluation metric.' : 'Standard leadership evaluation criterion.'));
+
                 $crit = LeadershipJuryEvaluationCriterion::firstOrCreate(
                     [
                         'name' => $critName,
                         'campaign_id' => $assignment->campaign_id,
                     ],
                     [
-                        'category' => 'Leadership Criteria',
+                        'category' => $isCustom ? 'Custom Juror Metric' : 'Leadership Criteria',
+                        'description' => $description,
                         'max_score' => 10,
                         'weightage' => 10,
-                        'sort_order' => 1,
+                        'sort_order' => $isCustom ? 99 : 1,
                         'is_active' => true,
                     ]
                 );
+
+                if (! empty($description) && empty($crit->description)) {
+                    $crit->update(['description' => $description]);
+                }
 
                 LeadershipJuryScore::updateOrCreate(
                     [
@@ -716,10 +762,46 @@ class JuryWebController extends Controller
                         'criterion_id' => $crit->id,
                     ],
                     [
-                        'score' => (float) $scores[$key],
-                        'remarks' => null,
+                        'score' => $scoreVal,
+                        'remarks' => $item['remarks'] ?? null,
                     ]
                 );
+            }
+        } else {
+            $criteriaMap = [
+                'governance_integrity' => 'Leadership of leaders',
+                'operational_execution' => 'Demonstrated track record',
+                'community_engagement' => 'Ecosystem contribution',
+                'strategic_vision' => 'Vision and plan realism',
+            ];
+
+            foreach ($criteriaMap as $key => $critName) {
+                if (isset($scores[$key])) {
+                    $crit = LeadershipJuryEvaluationCriterion::firstOrCreate(
+                        [
+                            'name' => $critName,
+                            'campaign_id' => $assignment->campaign_id,
+                        ],
+                        [
+                            'category' => 'Leadership Criteria',
+                            'max_score' => 10,
+                            'weightage' => 10,
+                            'sort_order' => 1,
+                            'is_active' => true,
+                        ]
+                    );
+
+                    LeadershipJuryScore::updateOrCreate(
+                        [
+                            'assignment_id' => $assignment->id,
+                            'criterion_id' => $crit->id,
+                        ],
+                        [
+                            'score' => (float) $scores[$key],
+                            'remarks' => null,
+                        ]
+                    );
+                }
             }
         }
 

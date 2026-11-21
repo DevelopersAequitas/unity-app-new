@@ -873,7 +873,7 @@ function populateCandidateDetails(data, isViewOnly) {
 
                 qHtml += `
                     <div class="p-3 bg-light rounded-3 border">
-                        <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 4.${idx + 1}: ${qText}</span>
+                        <span class="text-muted small d-block fw-semibold mb-1">${qText}</span>
                         ${valHtml}
                     </div>
                 `;
@@ -986,40 +986,39 @@ function renderForm2Dossier(rawF2, docs) {
 
     let html = '';
 
-    // MAIN POINT 1: Section A - Business Credibility & Enterprise Metrics
+    // Section A: Business Credibility & Enterprise Metrics
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-primary text-white font-monospace px-2.5 py-1">MAIN POINT 1</span>
-                <h6 class="fw-bold text-dark mb-0">Section A: Business Credibility & Enterprise Metrics</h6>
+                <h6 class="fw-bold text-dark mb-0">Business Credibility & Enterprise Metrics</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6 col-lg-3">
-                    <span class="text-muted small d-block">Sub-Point 1.1: Business Structure</span>
+                    <span class="text-muted small d-block">Business Structure</span>
                     <span class="fw-bold text-dark">${businessType}</span>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <span class="text-muted small d-block">Sub-Point 1.2: Year Founded</span>
+                    <span class="text-muted small d-block">Year Founded</span>
                     <span class="fw-bold text-dark">${yearFounded}</span>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <span class="text-muted small d-block">Sub-Point 1.3: Annual Turnover Band</span>
+                    <span class="text-muted small d-block">Annual Turnover Band</span>
                     <span class="badge bg-primary-subtle text-primary fw-bold px-2.5 py-1">
                         ${turnoverBand}
                     </span>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <span class="text-muted small d-block">Sub-Point 1.4: Enterprise Team Size</span>
+                    <span class="text-muted small d-block">Enterprise Team Size</span>
                     <span class="fw-bold text-dark">${teamSize}</span>
                 </div>
                 <div class="col-12 col-md-8">
-                    <span class="text-muted small d-block">Sub-Point 1.5: Top Business Achievements</span>
+                    <span class="text-muted small d-block">Top Business Achievements</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${achievementsText}
                     </div>
                 </div>
                 <div class="col-12 col-md-4">
-                    <span class="text-muted small d-block">Sub-Point 1.6: Business Registration Proof</span>
+                    <span class="text-muted small d-block">Business Registration Proof</span>
                     ${regProofUrl ? `
                         <a href="${regProofUrl}" target="_blank" class="btn btn-outline-primary btn-sm mt-2 rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
                             <i class="fa-solid fa-file-invoice"></i> View Registration Certificate
@@ -1030,34 +1029,33 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 2: Section B - Leadership Scale & Track Record
+    // Section B: Leadership Scale & Track Record
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-success text-white font-monospace px-2.5 py-1">MAIN POINT 2</span>
-                <h6 class="fw-bold text-dark mb-0">Section B: Leadership Scale & Track Record</h6>
+                <h6 class="fw-bold text-dark mb-0">Leadership Scale & Track Record</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.1: Leadership Roles Previously Held</span>
+                    <span class="text-muted small d-block">Leadership Roles Previously Held</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${rolesHeld}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.2: Largest Community / Workforce Led</span>
+                    <span class="text-muted small d-block">Largest Community / Workforce Led</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${largestCommunity}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.3: Leaders Developed & Mentored</span>
+                    <span class="text-muted small d-block">Leaders Developed & Mentored</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${developedText}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 2.4: Difficult Leadership Failure & Lesson Learned</span>
+                    <span class="text-muted small d-block">Difficult Leadership Failure & Lesson Learned</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${crisisHandled}
                     </div>
@@ -1066,28 +1064,27 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 3: Section C - Ecosystem Influence & Strategic Networks
+    // Section C: Ecosystem Influence & Strategic Networks
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-info text-white font-monospace px-2.5 py-1">MAIN POINT 3</span>
-                <h6 class="fw-bold text-dark mb-0">Section C: Ecosystem Influence & Strategic Networks</h6>
+                <h6 class="fw-bold text-dark mb-0">Ecosystem Influence & Strategic Networks</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-4">
-                    <span class="text-muted small d-block">Sub-Point 3.1: Industry Associations & Chambers</span>
+                    <span class="text-muted small d-block">Industry Associations & Chambers</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${associations}
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <span class="text-muted small d-block">Sub-Point 3.2: Institutions Access (Banks, Media, Universities)</span>
+                    <span class="text-muted small d-block">Institutions Access (Banks, Media, Universities)</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${institutionsAccess}
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <span class="text-muted small d-block">Sub-Point 3.3: Potential Enterprise Sponsors</span>
+                    <span class="text-muted small d-block">Potential Enterprise Sponsors</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${potentialSponsors}
                     </div>
@@ -1096,12 +1093,11 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 4: Section D - Leadership Bench & Successor Pool
+    // Section D: Leadership Bench Strength & Succession Pool
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-warning text-dark font-monospace px-2.5 py-1">MAIN POINT 4</span>
-                <h6 class="fw-bold text-dark mb-0">Section D: Leadership Bench Strength & Succession Pool</h6>
+                <h6 class="fw-bold text-dark mb-0">Leadership Bench Strength & Succession Pool</h6>
             </div>
             ${benchList.length > 0 ? `
                 <div class="table-responsive">
@@ -1147,34 +1143,33 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 5: Section E - 12-Month Expansion Plan & Targets
+    // Section E: 12-Month Expansion Plan & Milestones
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge text-white font-monospace px-2.5 py-1" style="background-color: #7c3aed;">MAIN POINT 5</span>
-                <h6 class="fw-bold text-dark mb-0">Section E: 12-Month Expansion Plan & Milestones</h6>
+                <h6 class="fw-bold text-dark mb-0">12-Month Expansion Plan & Milestones</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 5.1: 6-Month Expansion Target</span>
+                    <span class="text-muted small d-block">6-Month Expansion Target</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1">
                         ${target6}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 5.2: 12-Month Expansion Target</span>
+                    <span class="text-muted small d-block">12-Month Expansion Target</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1">
                         ${target12}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 5.3: First 90 Days Priority Actions</span>
+                    <span class="text-muted small d-block">First 90 Days Priority Actions</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${first90}
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 5.4: Anticipated Risks & Mitigation Strategy</span>
+                    <span class="text-muted small d-block">Anticipated Risks & Mitigation Strategy</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${bigRisk}
                     </div>
@@ -1183,30 +1178,29 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 6: Section F & G - Commitment, Values & Professional References
+    // Section F & G: Time Commitment, Culture & References
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-secondary text-white font-monospace px-2.5 py-1">MAIN POINT 6</span>
-                <h6 class="fw-bold text-dark mb-0">Section F & G: Time Commitment, Culture & References</h6>
+                <h6 class="fw-bold text-dark mb-0">Time Commitment, Culture & References</h6>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 6.1: Weekly Dedicated Hours</span>
+                    <span class="text-muted small d-block">Weekly Dedicated Hours</span>
                     <span class="fw-bold text-dark">${hoursPerWeek}</span>
                 </div>
                 <div class="col-md-6">
-                    <span class="text-muted small d-block">Sub-Point 6.2: Travel & Regional Availability</span>
+                    <span class="text-muted small d-block">Travel & Regional Availability</span>
                     <span class="fw-bold text-dark">${travelAvailability}</span>
                 </div>
                 <div class="col-12">
-                    <span class="text-muted small d-block">Sub-Point 6.3: Peers Global Values & Culture Alignment</span>
+                    <span class="text-muted small d-block">Peers Global Values & Culture Alignment</span>
                     <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
                         ${valuesAlignment}
                     </div>
                 </div>
                 <div class="col-12">
-                    <span class="text-muted small d-block">Sub-Point 6.4: Professional Referees</span>
+                    <span class="text-muted small d-block">Professional Referees</span>
                     <div class="row g-2 mt-1">
                         ${refList.length > 0 ? refList.map((r, rIdx) => `
                             <div class="col-md-6">
@@ -1222,11 +1216,10 @@ function renderForm2Dossier(rawF2, docs) {
         </div>
     `;
 
-    // MAIN POINT 7: Section H - Verified Supporting Documents & Pitch Decks
+    // Verified Supporting Documents & Presentations
     html += `
         <div class="bg-white p-4 rounded-4 border shadow-xs">
             <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
-                <span class="badge bg-dark text-white font-monospace px-2.5 py-1">MAIN POINT 7</span>
                 <h6 class="fw-bold text-dark mb-0">Verified Supporting Documents & Presentations</h6>
             </div>
             <div class="row g-2">
@@ -1238,6 +1231,16 @@ function renderForm2Dossier(rawF2, docs) {
                                 <span class="small fw-semibold text-dark text-truncate">${d.document_type || 'Document'}</span>
                             </div>
                             <a href="${d.file_path || '#'}" target="_blank" class="btn btn-outline-primary btn-sm rounded-2 py-0.5 px-2.5">
+                                <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> View
+                            </a>
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="col-12 text-muted small p-2">
+                        No supplementary PDF proofs or presentation decks uploaded.
+                    </div>
+                `}
+            </div>
                                 <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> View
                             </a>
                         </div>
