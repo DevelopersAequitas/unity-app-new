@@ -51,24 +51,38 @@ class SocialAuthService
             ->where('provider_id', (string) $profile['id'])
             ->first();
 
-        if ($socialAccount && $socialAccount->user) {
-            $user = $socialAccount->user;
+        if ($socialAccount) {
+            $user = $socialAccount->user()->withTrashed()->first();
 
-            if ($timezone && Schema::hasColumn('users', 'timezone')) {
-                $user->timezone = $timezone;
-                $user->save();
+            if ($user) {
+                if (method_exists($user, 'trashed') && $user->trashed()) {
+                    $user->restore();
+                    $user->status = 'active';
+                    $user->save();
+                }
+
+                if ($timezone && Schema::hasColumn('users', 'timezone')) {
+                    $user->timezone = $timezone;
+                    $user->save();
+                }
+
+                return $user;
             }
-
-            return $user;
         }
 
-        // 2. Find existing user by email
+        // 2. Find existing user by email (including soft-deleted accounts)
         $normalizedEmail = strtolower(trim((string) $profile['email']));
         /** @var User|null $user */
-        $user = User::query()
+        $user = User::withTrashed()
             ->where('email', $normalizedEmail)
             ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
             ->first();
+
+        if ($user && method_exists($user, 'trashed') && $user->trashed()) {
+            $user->restore();
+            $user->status = 'active';
+            $user->save();
+        }
 
         // 3. Create user if not found
         if (! $user) {

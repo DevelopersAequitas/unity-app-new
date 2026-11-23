@@ -140,11 +140,17 @@ class SocialAuthController extends Controller
 
         $normalizedEmail = strtolower(trim((string) $validated['email']));
 
-        // Check if phone or email already registered
-        $existingUser = User::query()
+        // Check if phone or email already registered (including soft-deleted accounts)
+        $existingUser = User::withTrashed()
             ->where('email', $normalizedEmail)
             ->orWhere('phone', $phone)
             ->first();
+
+        if ($existingUser && method_exists($existingUser, 'trashed') && $existingUser->trashed()) {
+            $existingUser->restore();
+            $existingUser->status = 'active';
+            $existingUser->save();
+        }
 
         if ($existingUser) {
             if (blank($existingUser->phone)) {
@@ -249,11 +255,15 @@ class SocialAuthController extends Controller
 
         $providerCol = $provider.'_id';
 
-        // Check if existing user is linked by provider ID or email
+        // Check if existing user is linked by provider ID or email (including soft-deleted accounts)
         /** @var User|null $user */
-        $user = User::query()
-            ->when(Schema::hasColumn('users', $providerCol), fn ($q) => $q->where($providerCol, $providerUserId))
-            ->orWhere('email', $email)
+        $user = User::withTrashed()
+            ->where(function ($q) use ($providerCol, $providerUserId, $email) {
+                if (Schema::hasColumn('users', $providerCol)) {
+                    $q->where($providerCol, $providerUserId);
+                }
+                $q->orWhere('email', $email);
+            })
             ->first();
 
         // Check social_accounts table
@@ -262,9 +272,16 @@ class SocialAuthController extends Controller
                 ->where('provider', $provider)
                 ->where('provider_id', $providerUserId)
                 ->first();
-            if ($socialAccount && $socialAccount->user) {
-                $user = $socialAccount->user;
+            if ($socialAccount) {
+                $user = $socialAccount->user()->withTrashed()->first();
             }
+        }
+
+        // If the account was soft-deleted, restore and reactivate it
+        if ($user && method_exists($user, 'trashed') && $user->trashed()) {
+            $user->restore();
+            $user->status = 'active';
+            $user->save();
         }
 
         $isNewUser = false;
