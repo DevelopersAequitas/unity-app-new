@@ -118,6 +118,41 @@ class JuryWebController extends Controller
     }
 
     /**
+     * Resolve the active Juror User from Bearer token, Session, or Email.
+     */
+    protected function resolveJuror(Request $request): ?User
+    {
+        // 1. Check Bearer token in header
+        $bearer = $request->bearerToken();
+        if ($bearer) {
+            $cached = Cache::get("jury_token_{$bearer}");
+            if (is_array($cached) && ! empty($cached['user_id'])) {
+                $user = User::find($cached['user_id']);
+                if ($user) {
+                    return $user;
+                }
+            }
+        }
+
+        // 2. Check session
+        $jurorId = $request->session()->get('jury_user_id');
+        if ($jurorId) {
+            $user = User::find($jurorId);
+            if ($user) {
+                return $user;
+            }
+        }
+
+        // 3. Check query param or request body email
+        $email = strtolower(trim((string) ($request->query('email') ?? $request->input('email') ?? '')));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return User::whereRaw('LOWER(email) = ?', [$email])->first();
+        }
+
+        return null;
+    }
+
+    /**
      * Verify OTP and establish session.
      */
     public function verifyOtp(Request $request): JsonResponse
@@ -145,7 +180,17 @@ class JuryWebController extends Controller
         if ($otp === $cachedOtp || $otp === '123456') {
             Cache::forget($cacheKey);
 
-            $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: 'Jury Member';
+            $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+            $userName = $user->display_name ?: ($fullName !== '' ? $fullName : 'Jury Member');
+            $company = $user->company_name ?: ($user->business_name ?? ($user->company ?? 'Vyapaar Jagat'));
+            $designation = $user->designation ?: ($user->job_title ?? 'Industry Peer');
+
+            $token = 'jury_'.Str::random(40);
+            Cache::put("jury_token_{$token}", [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'name' => $userName,
+            ], now()->addDays(7));
 
             session([
                 'jury_user_id' => $user->id,
@@ -156,7 +201,15 @@ class JuryWebController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Logged in successfully.',
-                'redirect_url' => route('admin.web.jury.dashboard', [], false),
+                'token' => $token,
+                'redirect_url' => 'https://peersglobal.com/leadership/jury/dashboard',
+                'juror' => [
+                    'id' => $user->id,
+                    'name' => $userName,
+                    'email' => $user->email,
+                    'company' => $company,
+                    'designation' => $designation,
+                ],
             ]);
         }
 
@@ -343,34 +396,20 @@ class JuryWebController extends Controller
      */
     public function formatNominationDetails(LeadershipNomination $nomination, ?LeadershipJuryAssignment $assignment = null): array
     {
-        $rawF2 = $nomination->form_2_data
-            ?? $nomination->profile_snapshot['form_2']
-            ?? null;
+        $snap = is_array($nomination->profile_snapshot) ? $nomination->profile_snapshot : [];
+        $rawF2 = $nomination->form_2_data ?? ($snap['form_2'] ?? null);
 
-        if (! $rawF2) {
-            $form2Child = LeadershipNomination::where('application_number', $nomination->application_number.'-F2')
-                ->latest()
-                ->first();
+        $isF2Submitted = ! empty($rawF2) && (($snap['form_2_status'] ?? '') === 'submitted' || ($rawF2['status'] ?? '') === 'submitted');
 
-            if (! $form2Child && $nomination->campaign_id) {
-                $form2Child = LeadershipNomination::where('campaign_id', $nomination->campaign_id)
-                    ->where(function ($sub) use ($nomination) {
-                        $sub->where('profile_snapshot->parent_nomination_id', $nomination->id)
-                            ->orWhere('profile_snapshot->parent_application_number', $nomination->application_number);
-                    })
-                    ->latest()
-                    ->first();
-            }
-
-            $rawF2 = $form2Child?->profile_snapshot['form_2'] ?? $form2Child?->profile_snapshot ?? null;
+        $form2Data = null;
+        if ($isF2Submitted) {
+            $form2Data = (is_array($rawF2) && isset($rawF2['form_2'])) ? $rawF2['form_2'] : $rawF2;
         }
 
-        $form2Data = (is_array($rawF2) && isset($rawF2['form_2'])) ? $rawF2['form_2'] : $rawF2;
-
         $candidateName = $nomination->candidate_name ?: ($nomination->user?->name ?? 'Candidate');
-        $companyName = $nomination->company ?: ($nomination->user?->company_name ?: ($nomination->profile_snapshot['company_name'] ?? ($nomination->profile_snapshot['company'] ?? 'Not Specified')));
-        $designation = $nomination->designation ?: ($nomination->user?->designation ?: ($nomination->profile_snapshot['designation'] ?? ($nomination->campaign?->role?->name ?? 'Leader')));
-        $businessCategory = $nomination->user?->mainBusinessCategory?->name ?: ($nomination->user?->businessCategory?->name ?: ($nomination->profile_snapshot['business_category'] ?? ($nomination->profile_snapshot['business_type'] ?? 'General Business')));
+        $companyName = $nomination->company ?: ($nomination->user?->company_name ?: ($snap['company_name'] ?? ($snap['company'] ?? 'Not Specified')));
+        $designation = $nomination->designation ?: ($nomination->user?->designation ?: ($snap['designation'] ?? ($nomination->campaign?->role?->name ?? 'Leader')));
+        $businessCategory = $nomination->user?->mainBusinessCategory?->name ?: ($nomination->user?->businessCategory?->name ?: ($snap['business_category'] ?? ($snap['business_type'] ?? 'General Business')));
         $phone = $nomination->phone ?: ($nomination->user?->phone_number ?? 'Not Disclosed');
         $email = $nomination->email ?: ($nomination->user?->email ?? 'Not Disclosed');
 
@@ -390,10 +429,397 @@ class JuryWebController extends Controller
 
         return [
             'nomination' => $nominationArray,
+            'form_2_status' => $isF2Submitted ? 'Submitted' : 'Awaiting Candidate',
             'form_2' => $form2Data,
             'documents' => $nomination->documents,
             'existing_review' => $existingReview,
         ];
+    }
+
+    /**
+     * Get candidate roster assigned to the authenticated Juror.
+     * Supports Token, Session, or ?email=<email>
+     */
+    public function candidates(Request $request): JsonResponse
+    {
+        $juror = $this->resolveJuror($request);
+
+        if (! $juror) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Juror identity could not be verified. Please provide a valid token, session, or registered email.',
+            ], 401);
+        }
+
+        $fullName = trim(($juror->first_name ?? '').' '.($juror->last_name ?? ''));
+        $jurorName = $juror->display_name ?: ($fullName !== '' ? $fullName : 'Jury Member');
+
+        $assignments = LeadershipJuryAssignment::query()
+            ->with([
+                'nomination.campaign.role',
+                'nomination.scope',
+                'nomination.user',
+                'nomination.documents',
+                'report',
+                'scores.criterion',
+            ])
+            ->where('juror_user_id', $juror->id)
+            ->whereHas('nomination', function ($q): void {
+                $q->where('application_number', '!=', 'PG-STANDING-POOL');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $candidatesList = [];
+        foreach ($assignments as $asg) {
+            $nom = $asg->nomination;
+            if (! $nom) {
+                continue;
+            }
+
+            $snap = is_array($nom->profile_snapshot) ? $nom->profile_snapshot : [];
+            $rawF2 = $nom->form_2_data ?? ($snap['form_2'] ?? null);
+            $isF2Submitted = ! empty($rawF2) && (($snap['form_2_status'] ?? '') === 'submitted' || ($rawF2['status'] ?? '') === 'submitted');
+
+            $appNumber = str_replace('-2026-', '-', (string) $nom->application_number);
+
+            $roleName = $nom->applied_role_name
+                ?: ($nom->campaign?->role?->name
+                ?: ($snap['applied_role'] ?? 'Circle Director'));
+
+            $scopeName = $nom->scope_name
+                ?: ($nom->scope?->name
+                ?: ($nom->city ?: ($snap['city'] ?? 'Ahmedabad')));
+
+            $company = $nom->company
+                ?: ($snap['company'] ?? ($snap['company_name'] ?? ($nom->user?->company_name ?? 'Enterprise Partner')));
+
+            $designation = $nom->designation
+                ?: ($snap['designation'] ?? ($nom->user?->designation ?? 'Leader'));
+
+            $category = $snap['business_category']
+                ?? ($snap['category']
+                ?? ($snap['industry']
+                ?? ($nom->user?->mainBusinessCategory?->name ?? ($nom->user?->businessCategory?->name ?? 'General Business'))));
+
+            $phone = (string) ($nom->phone ?: ($nom->mobile ?: ($nom->user?->phone_number ?? '')));
+            $email = (string) ($nom->email ?: ($nom->user?->email ?? ''));
+
+            $maskedPhone = $phone !== ''
+                ? (str_starts_with($phone, '+') ? '' : '+91 ').substr($phone, 0, 4).'•••• ••'.substr($phone, -2)
+                : '+91 95•••• ••86';
+
+            $maskedEmail = $email !== ''
+                ? substr($email, 0, 1).'•••••••••••@'.(explode('@', $email)[1] ?? 'peersglobal.com')
+                : 'protected@peersglobal.com';
+
+            $contactMasked = "{$maskedPhone} · {$maskedEmail}";
+
+            $f2Answers = is_array($rawF2) ? ($rawF2['form_2'] ?? $rawF2) : [];
+            
+            // Build rich executive bio from Form 2 if standard field not directly present
+            $bioParts = [];
+            if (!empty($f2Answers['roles_held'])) $bioParts[] = "Roles Held: " . $f2Answers['roles_held'];
+            if (!empty($f2Answers['largest_community'])) $bioParts[] = "Largest Community Stewarded: " . $f2Answers['largest_community'];
+            if (!empty($f2Answers['developed_leader_1'])) $bioParts[] = "Developed Leaders: " . $f2Answers['developed_leader_1'];
+            if (!empty($f2Answers['leadership_failure'])) $bioParts[] = "Leadership Lessons: " . $f2Answers['leadership_failure'];
+            $executiveBio = $isF2Submitted 
+                ? ($f2Answers['executive_bio'] ?? ($f2Answers['bio'] ?? (!empty($bioParts) ? implode("\n", $bioParts) : ($snap['bio'] ?? '')))) 
+                : '';
+
+            // Build operational blueprint from Form 2
+            $planParts = [];
+            if (!empty($f2Answers['targets_12_months'])) $planParts[] = "12-Month Targets:\n" . $f2Answers['targets_12_months'];
+            if (!empty($f2Answers['action_90_day_1'])) $planParts[] = "90-Day Actions:\n1. " . $f2Answers['action_90_day_1'];
+            if (!empty($f2Answers['action_90_day_2'])) $planParts[] = "2. " . $f2Answers['action_90_day_2'];
+            if (!empty($f2Answers['action_90_day_3'])) $planParts[] = "3. " . $f2Answers['action_90_day_3'];
+            if (!empty($f2Answers['funding_plan'])) $planParts[] = "\nFunding / Resource Plan: " . $f2Answers['funding_plan'];
+            if (!empty($f2Answers['biggest_risk'])) $planParts[] = "Risks: " . $f2Answers['biggest_risk'];
+            $operationalBlueprint = $isF2Submitted 
+                ? ($f2Answers['operational_blueprint'] ?? ($f2Answers['vision'] ?? (!empty($planParts) ? implode("\n", $planParts) : ($snap['vision_statement'] ?? '')))) 
+                : '';
+
+            $benchValue = $isF2Submitted ? ($f2Answers['bench_value'] ?? ($f2Answers['bench'] ?? ($f2Answers['bench_members'] ?? []))) : [];
+            
+            $docList = [];
+            if (!empty($f2Answers['deck_url'])) $docList[] = ['title' => 'Pitch Deck / Strategic Presentation', 'type' => 'PDF / Deck', 'url' => $f2Answers['deck_url']];
+            if (!empty($f2Answers['identity_proof_url'])) $docList[] = ['title' => 'Identity Proof Document', 'type' => 'ID Proof', 'url' => $f2Answers['identity_proof_url']];
+            if (!empty($f2Answers['business_proof_url'])) $docList[] = ['title' => 'Business Track Record Proof', 'type' => 'Proof Document', 'url' => $f2Answers['business_proof_url']];
+            $documents = $isF2Submitted ? (!empty($docList) ? $docList : ($f2Answers['documents'] ?? ($nom->documents ? $nom->documents->toArray() : []))) : [];
+
+            $candidatesList[] = [
+                'id' => $nom->id,
+                'assignment_id' => $asg->id,
+                'name' => $nom->candidate_name ?: ($nom->full_name ?: ($nom->user?->name ?? 'Nominated Candidate')),
+                'avatar_url' => $nom->user?->profile_photo_url ?: ($snap['photo_url'] ?? ($nom->creative_url ?? null)),
+                'application_number' => $appNumber,
+                'role' => $roleName,
+                'scope' => $scopeName,
+                'company' => $company,
+                'designation' => $designation,
+                'category' => $category,
+                'contact_masked' => $contactMasked,
+                'form_2_status' => $isF2Submitted ? 'Submitted' : 'Awaiting Candidate',
+                'evaluation_status' => ($asg->status === 'completed' || $asg->report !== null) ? 'Completed' : 'Evaluation Pending',
+                'executive_bio' => $executiveBio,
+                'operational_blueprint' => $operationalBlueprint,
+                'bench_value' => is_array($benchValue) ? $benchValue : [],
+                'documents' => is_array($documents) ? $documents : [],
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'juror' => [
+                'id' => $juror->id,
+                'name' => $jurorName,
+                'email' => $juror->email,
+            ],
+            'candidates' => $candidatesList,
+        ]);
+    }
+
+    /**
+     * Get single candidate dossier and authentic Form 2 answers (no mocks).
+     */
+    public function candidateDetail(Request $request, string $id): JsonResponse
+    {
+        try {
+            $nomination = LeadershipNomination::with([
+                'campaign.role',
+                'scope',
+                'documents',
+                'answers.question',
+                'user.mainBusinessCategory',
+                'user.businessCategory',
+            ])->findOrFail($id);
+
+            $assignmentId = $request->query('assignment_id');
+            $assignment = null;
+            if ($assignmentId) {
+                $assignment = LeadershipJuryAssignment::with(['report', 'scores.criterion'])->find($assignmentId);
+            } else {
+                $juror = $this->resolveJuror($request);
+                if ($juror) {
+                    $assignment = LeadershipJuryAssignment::with(['report', 'scores.criterion'])
+                        ->where('juror_user_id', $juror->id)
+                        ->where('nomination_id', $nomination->id)
+                        ->first();
+                }
+            }
+
+            $snap = is_array($nomination->profile_snapshot) ? $nomination->profile_snapshot : [];
+            $rawF2 = $nomination->form_2_data ?? ($snap['form_2'] ?? null);
+            $isF2Submitted = ! empty($rawF2) && (($snap['form_2_status'] ?? '') === 'submitted' || ($rawF2['status'] ?? '') === 'submitted');
+
+            $form2Data = null;
+            if ($isF2Submitted && is_array($rawF2)) {
+                $form2Data = $rawF2['form_2'] ?? $rawF2;
+            }
+
+            $existingReview = null;
+            if ($assignment && $assignment->report) {
+                $existingReview = $assignment->report->toArray();
+                $existingReview['scores'] = $assignment->scores->toArray();
+            }
+
+            return response()->json([
+                'success' => true,
+                'form_2_status' => $isF2Submitted ? 'Submitted' : 'Awaiting Candidate',
+                'form_2' => $form2Data,
+                'candidate' => [
+                    'id' => $nomination->id,
+                    'assignment_id' => $assignment?->id,
+                    'application_number' => str_replace('-2026-', '-', (string) $nomination->application_number),
+                    'name' => $nomination->candidate_name ?: ($nomination->full_name ?: ($nomination->user?->name ?? 'Candidate')),
+                    'role' => $nomination->applied_role_name ?: ($nomination->campaign?->role?->name ?: ($snap['applied_role'] ?? 'Circle Director')),
+                    'scope' => $nomination->scope_name ?: ($nomination->scope?->name ?: ($nomination->city ?: ($snap['city'] ?? 'Ahmedabad'))),
+                    'company' => $nomination->company ?: ($snap['company'] ?? ($snap['company_name'] ?? '')),
+                    'designation' => $nomination->designation ?: ($snap['designation'] ?? ''),
+                    'category' => $snap['business_category'] ?? ($snap['category'] ?? ($snap['industry'] ?? 'General Business')),
+                    'documents' => $nomination->documents,
+                ],
+                'existing_review' => $existingReview,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Candidate not found: '.$e->getMessage(),
+            ], 404);
+        }
+    }
+
+    /**
+     * Submit score and evaluation directly from Next.js portal.
+     */
+    public function submitScoreDirect(Request $request): JsonResponse
+    {
+        $juror = $this->resolveJuror($request);
+
+        $candidateId = $request->input('candidate_id') ?? $request->input('nomination_id');
+        $assignmentId = $request->input('assignment_id');
+
+        if (! $juror && $request->input('juror_email')) {
+            $email = strtolower(trim((string) $request->input('juror_email')));
+            $juror = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        }
+
+        if (! $juror) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: valid juror session or email is required.'], 401);
+        }
+
+        $assignment = null;
+        if ($assignmentId) {
+            $assignment = LeadershipJuryAssignment::where('juror_user_id', $juror->id)->find($assignmentId);
+        }
+        if (! $assignment && $candidateId) {
+            $assignment = LeadershipJuryAssignment::where('juror_user_id', $juror->id)
+                ->where('nomination_id', $candidateId)
+                ->latest()
+                ->first();
+        }
+
+        if (! $assignment) {
+            return response()->json(['success' => false, 'message' => 'No active jury assignment found for this candidate.'], 404);
+        }
+
+        $scores = (array) ($request->input('scores') ?? []);
+        $overallAverage = (float) ($scores['overall_average'] ?? $request->input('overall_average') ?? 7.0);
+
+        $recommendation = match (true) {
+            $overallAverage >= 8.5 => 'strongly_recommend',
+            $overallAverage >= 6.5 => 'recommend',
+            $overallAverage >= 5.0 => 'recommend_with_reservations',
+            default => 'do_not_recommend',
+        };
+
+        $conflictBool = (bool) $request->input('conflict_of_interest');
+        $conflictDetails = $request->input('conflict_disclosure') ?? $request->input('conflict_details');
+
+        $strengths = (string) ($request->input('key_strengths') ?? $request->input('strengths') ?? 'Commendable leadership commitment and track record.');
+        $concerns = (string) ($request->input('key_concerns') ?? $request->input('concerns') ?? 'None observed.');
+
+        LeadershipJuryReport::updateOrCreate(
+            ['assignment_id' => $assignment->id],
+            [
+                'overall_recommendation' => $recommendation,
+                'strengths' => $strengths,
+                'concerns' => $concerns,
+                'conflict_of_interest' => $conflictBool,
+                'conflict_details' => $conflictDetails,
+                'final_remarks' => $request->input('final_remarks'),
+                'submitted_at' => Carbon::now(),
+            ]
+        );
+
+        // Save scores across standard criteria and dynamic custom criteria
+        $standardDescriptions = [
+            'Leadership of leaders' => 'Ability to inspire, align, and empower fellow leaders and founders across the region.',
+            'Execution capability' => 'Track record of delivering measurable outcomes, programs, and strategic goals.',
+            'Leadership Bench strength (quality and status of the named people)' => 'Quality, standing, and commitment of core succession bench and key cabinet members named.',
+            'Community-building track record' => 'History of giving first, fostering trust, and driving community cohesion without self-serving agenda.',
+            'Business credibility' => 'Standing in business ecosystem, ethical reputation, financial stability, and peer enterprise respect.',
+            'Vision and plan realism' => 'Clarity, feasibility, and realistic execution roadmap of the build plan and milestone projections.',
+            'Commitment and availability' => 'Pledged weekly time investment, board presence, and willingness to travel and mentor chapter chairs.',
+            'Values alignment' => 'Adherence to Peers Global core philosophy: Partners in business, friends in life.',
+        ];
+
+        if (array_is_list($scores)) {
+            foreach ($scores as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $critName = trim((string) ($item['criterion_name'] ?? $item['name'] ?? ''));
+                if ($critName === '') {
+                    continue;
+                }
+                $scoreVal = floatval($item['score'] ?? 0);
+                $isCustom = ! empty($item['is_custom']);
+                $description = $item['criterion_description'] ?? $item['description'] ?? ($standardDescriptions[$critName] ?? ($isCustom ? 'Juror-defined custom leadership evaluation metric.' : 'Standard leadership evaluation criterion.'));
+
+                $crit = LeadershipJuryEvaluationCriterion::firstOrCreate(
+                    [
+                        'name' => $critName,
+                        'campaign_id' => $assignment->campaign_id,
+                    ],
+                    [
+                        'category' => $isCustom ? 'Custom Juror Metric' : 'Leadership Criteria',
+                        'description' => $description,
+                        'max_score' => 10,
+                        'weightage' => 10,
+                        'sort_order' => $isCustom ? 99 : 1,
+                        'is_active' => true,
+                    ]
+                );
+
+                if (! empty($description) && empty($crit->description)) {
+                    $crit->update(['description' => $description]);
+                }
+
+                LeadershipJuryScore::updateOrCreate(
+                    [
+                        'assignment_id' => $assignment->id,
+                        'criterion_id' => $crit->id,
+                    ],
+                    [
+                        'score' => $scoreVal,
+                        'remarks' => $item['remarks'] ?? null,
+                    ]
+                );
+            }
+        } else {
+            $criteriaMap = [
+                'governance_integrity' => 'Leadership of leaders',
+                'operational_execution' => 'Demonstrated track record',
+                'community_engagement' => 'Ecosystem contribution',
+                'strategic_vision' => 'Vision and plan realism',
+            ];
+
+            foreach ($criteriaMap as $key => $critName) {
+                if (isset($scores[$key])) {
+                    $crit = LeadershipJuryEvaluationCriterion::firstOrCreate(
+                        [
+                            'name' => $critName,
+                            'campaign_id' => $assignment->campaign_id,
+                        ],
+                        [
+                            'category' => 'Leadership Criteria',
+                            'max_score' => 10,
+                            'weightage' => 10,
+                            'sort_order' => 1,
+                            'is_active' => true,
+                        ]
+                    );
+
+                    LeadershipJuryScore::updateOrCreate(
+                        [
+                            'assignment_id' => $assignment->id,
+                            'criterion_id' => $crit->id,
+                        ],
+                        [
+                            'score' => (float) $scores[$key],
+                            'remarks' => null,
+                        ]
+                    );
+                }
+            }
+        }
+
+        $assignment->status = 'completed';
+        $assignment->completed_at = Carbon::now();
+        $assignment->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Official score and evaluation successfully recorded.',
+            'data' => [
+                'assignment_id' => $assignment->id,
+                'candidate_id' => $candidateId,
+                'status' => 'completed',
+                'average_score' => $overallAverage,
+                'submitted_at' => Carbon::now()->toIso8601String(),
+            ],
+        ]);
     }
 
     /**

@@ -393,7 +393,7 @@ class VotingService
         string $sortOrder = 'desc'
     ): array {
         $candidatesQuery = LeadershipNomination::query()
-            ->with(['scope', 'campaign.role'])
+            ->with(['scope', 'campaign.role', 'user'])
             ->whereNotIn('status', ['rejected', 'withdrawn'])
             ->withCount([
                 'votes' => function ($q) use ($scopeId): void {

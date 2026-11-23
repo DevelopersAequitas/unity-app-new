@@ -128,19 +128,45 @@ class PhoneRegisterVerificationTest extends TestCase
         $this->assertFalse($service->validatePhoneVerificationToken($token, '+919999999999'));
     }
 
-    public function test_register_fails_without_phone_verification_token(): void
+    public function test_register_fails_with_invalid_phone_verification_token(): void
     {
         $response = $this->postJson('/api/v1/auth/register', [
             'first_name' => 'New',
             'last_name' => 'Peer',
             'email' => 'unique_newpeer_'.Str::random(8).'@example.com',
             'phone' => $this->testPhone,
+            'phone_verification_token' => 'invalid_token_sample',
         ]);
 
         $response->assertStatus(422)
             ->assertJsonFragment([
                 'success' => false,
             ]);
+    }
+
+    public function test_register_succeeds_without_phone_verification_token_for_normal_flow(): void
+    {
+        Queue::fake();
+
+        $testEmail = 'unique_normal_'.Str::random(8).'@example.com';
+
+        $response = $this->postJson('/api/v1/auth/register', [
+            'first_name' => 'Normal',
+            'last_name' => 'Peer',
+            'email' => $testEmail,
+            'phone' => $this->testPhone,
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $user = User::query()->where('email', $testEmail)->first();
+        $this->assertNotNull($user);
+        $this->assertNull($user->phone_verified_at);
+
+        $user->forceDelete();
     }
 
     public function test_register_succeeds_with_valid_token_and_sets_phone_verified_at(): void

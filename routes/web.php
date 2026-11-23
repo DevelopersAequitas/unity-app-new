@@ -277,12 +277,15 @@ Route::get('/docs/ads-api', function () {
     abort(404, 'Documentation file not found.');
 })->name('docs.ads-api');
 
-// Leadership Form 2 (Jury Evaluation Data Form) Public Access
-Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
-    ->whereUuid('id')
-    ->name('leadership.form2.show');
-Route::get('/leadership/form-2', [LeadershipForm2Controller::class, 'show'])
-    ->name('leadership.form2.query');
+// Leadership Form 2 (Jury Evaluation Data Form) Public Access - Redirect to peersglobal.com
+Route::get('/leadership/form-2/{id}', function (string $id) {
+    return redirect("https://peersglobal.com/leadership/form-2/{$id}", 301);
+})->whereUuid('id')->name('leadership.form2.show');
+
+Route::get('/leadership/form-2', function () {
+    return redirect('https://peersglobal.com/leadership/form-2', 301);
+})->name('leadership.form2.query');
+
 Route::post('/leadership/form-2/{id}/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])
     ->whereUuid('id')
     ->name('leadership.form2.verify-email');
@@ -299,10 +302,11 @@ Route::post('/leadership/form-2/{id}/upload', [LeadershipForm2Controller::class,
     ->whereUuid('id')
     ->name('leadership.form2.upload');
 
-// Private Candidate Live Voter Ledger Portal
-Route::get('/leadership/nomination/{id}/live-votes', [LeadershipCandidateLedgerController::class, 'show'])
-    ->whereUuid('id')
-    ->name('leadership.nomination.live-votes');
+// Private Candidate Live Voter Ledger Portal - Redirect to peersglobal.com
+Route::get('/leadership/nomination/{id}/live-votes', function (string $id) {
+    return redirect("https://peersglobal.com/leadership/nomination/{$id}/live-votes", 301);
+})->whereUuid('id')->name('leadership.nomination.live-votes');
+
 Route::post('/leadership/nomination/{id}/live-votes/send-otp', [LeadershipCandidateLedgerController::class, 'sendOtp'])
     ->whereUuid('id')
     ->name('leadership.nomination.live-votes.send-otp');
@@ -315,10 +319,10 @@ Route::get('/leadership/nomination/{id}/live-votes/data', [LeadershipCandidateLe
 
 Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 
-// Jury Web Portal Direct Root Aliases (support /web/jury and /admin/web/jury)
-Route::redirect('/web/jury/login', '/admin/web/jury/login');
-Route::redirect('/web/jury/dashboard', '/admin/web/jury/dashboard');
-Route::redirect('/web/jury', '/admin/web/jury/login');
+// Jury Web Portal Direct Root Aliases (Redirect to peersglobal.com)
+Route::redirect('/web/jury/login', 'https://peersglobal.com/leadership/jury/login', 301);
+Route::redirect('/web/jury/dashboard', 'https://peersglobal.com/leadership/jury/dashboard', 301);
+Route::redirect('/web/jury', 'https://peersglobal.com/leadership/jury', 301);
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
@@ -332,14 +336,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp'])->name('auth.request-otp');
     Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp'])->name('auth.verify-otp');
 
-    // Jury Web Portal (Public OTP Authentication & Juror Dashboard)
+    // Jury Web Portal (Public OTP Authentication & Juror Dashboard - Redirect UI to peersglobal.com)
     Route::prefix('web/jury')->name('web.jury.')->group(function (): void {
-        Route::get('/login', [JuryWebController::class, 'showLogin'])->name('login');
+        Route::get('/login', fn () => redirect('https://peersglobal.com/leadership/jury/login', 301))->name('login');
         Route::post('/send-otp', [JuryWebController::class, 'sendOtp'])->name('send-otp');
         Route::post('/verify-otp', [JuryWebController::class, 'verifyOtp'])->name('verify-otp');
-        Route::get('/dashboard', [JuryWebController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard', fn () => redirect('https://peersglobal.com/leadership/jury/dashboard', 301))->name('dashboard');
+        Route::get('/candidates', [JuryWebController::class, 'candidates'])->name('candidates');
+        Route::get('/candidate/{id}', [JuryWebController::class, 'candidateDetail'])->name('candidate.detail')->whereUuid('id');
         Route::get('/nomination/{id}/details', [JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
         Route::post('/review/{id}', [JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/submit-score', [JuryWebController::class, 'submitScoreDirect'])->name('submit-score');
         Route::post('/criterion', [JuryWebController::class, 'addCriterion'])->name('criterion.add');
         Route::post('/logout', [JuryWebController::class, 'logout'])->name('logout');
         Route::get('/logout', [JuryWebController::class, 'logout'])->name('logout.get');

@@ -172,6 +172,9 @@ class AdminNominationService
                 'documents',
                 'history.actor',
                 'finalDecision',
+                'juryAssignments.juror',
+                'juryAssignments.report',
+                'juryAssignments.scores.criterion',
             ])
             ->withCount(['votes'])
             ->findOrFail($nominationId);
@@ -805,8 +808,8 @@ class AdminNominationService
             $nomination->shortlisted_at = Carbon::now();
         }
 
-        $backendUrl = rtrim((string) config('app.url', env('APP_URL', 'https://peersunity.com')), '/');
-        $form2Link = "{$backendUrl}/leadership/form-2/{$nomination->id}";
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $form2Link = "{$frontendUrl}/leadership/form-2/{$nomination->id}";
 
         $snapshot = (array) ($nomination->profile_snapshot ?? []);
         $snapshot['form_2_link'] = $form2Link;

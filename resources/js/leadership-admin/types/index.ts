@@ -28,7 +28,9 @@ export interface Campaign {
     year: number;
     description?: string;
     banner_url?: string;
-    status: 'draft' | 'published' | 'nomination_closed' | 'voting_open' | 'voting_closed' | 'completed' | 'archived';
+    status: 'draft' | 'published' | 'nomination_closed' | 'voting_open' | 'voting_closed' | 'completed' | 'archived' | 'active' | 'paused' | string;
+    role?: any;
+    scope_value?: any;
     nomination_start_at: string;
     nomination_end_at: string;
     voting_start_at?: string;
@@ -39,6 +41,8 @@ export interface Campaign {
     nominations_count?: number;
     votes_count?: number;
     shortlisted_count?: number;
+    scopes?: Scope[];
+    city_ids?: string[];
     created_at: string;
     updated_at: string;
 }
@@ -46,9 +50,16 @@ export interface Campaign {
 export interface Scope {
     id: string;
     campaign_id: string;
-    scope_type: 'territory' | 'state' | 'district' | 'city' | 'industry' | 'circle';
-    scope_value: string;
+    city_id?: string;
+    scope_type: 'territory' | 'state' | 'district' | 'city' | 'industry' | 'circle' | string;
+    scope_value?: string;
+    scope_name?: string;
     name?: string;
+    city?: string;
+    district?: string;
+    state?: string;
+    seats_available?: number;
+    status?: string;
 }
 
 export interface FormTemplate {
@@ -98,6 +109,13 @@ export interface FormOption {
 }
 
 export interface Nomination {
+    jury_evaluation?: any;
+    user?: any;
+    campaign?: any;
+    scope?: any;
+    scope_name?: string;
+    full_name?: string;
+    designation?: string;
     id: string;
     campaign_id: string;
     campaign_name?: string;
@@ -107,8 +125,16 @@ export interface Nomination {
     email: string;
     mobile: string;
     applied_role_name?: string;
+    applied_role?: string;
+    city?: string;
+    company?: string;
     profile_photo_url?: string;
-    status: 'draft' | 'submitted' | 'under_review' | 'correction_requested' | 'approved' | 'rejected' | 'shortlisted';
+    photo_url?: string;
+    avatar_url?: string;
+    image_url?: string;
+    candidate_photo_url?: string;
+    creative_url?: string;
+    status: 'draft' | 'submitted' | 'under_review' | 'correction_requested' | 'approved' | 'rejected' | 'shortlisted' | 'winner' | 'not_selected' | string;
     admin_remarks?: string;
     rejection_reason?: string;
     correction_notes?: string;
@@ -124,15 +150,26 @@ export interface Nomination {
     form_2_status?: string;
     form_2_data?: any;
     profile_snapshot?: any;
+    votes_count?: number;
+    detailed_votes?: any[];
+    jury_assignments?: any[];
 }
 
 export interface NominationAnswer {
     id: string;
-    question_id: string;
+    question_id?: string;
+    question_key?: string;
     question_label?: string;
     field_type?: string;
     answer_text?: string;
     answer_json?: any;
+    answer?: any;
+    question?: {
+        id?: string;
+        label?: string;
+        question_key?: string;
+        field_type?: string;
+    };
 }
 
 export interface NominationDocument {
@@ -156,14 +193,24 @@ export interface NominationHistory {
 }
 
 export interface JuryAssignment {
+    nomination?: any;
+    juror_user_id?: string;
+    juror?: any;
+    jury_email?: string;
+    juror_business_name?: string;
+    juror_business_category?: string;
+    campaign_name?: string;
     id: string;
     campaign_id: string;
     nomination_id: string;
     jury_user_id: string;
     jury_name?: string;
     candidate_name?: string;
-    status: 'assigned' | 'in_progress' | 'completed';
+    status: 'assigned' | 'in_progress' | 'completed' | string;
     deadline?: string;
+    report?: any;
+    report_data?: any;
+    scores?: any[];
     created_at: string;
 }
 
@@ -192,10 +239,15 @@ export interface FinalDecision {
     campaign_id: string;
     nomination_id: string;
     candidate_name?: string;
+    nomination?: any;
+    photo_url?: string;
+    profile_photo_url?: string;
+    avatar_url?: string;
     decision: 'selected' | 'runner_up' | 'standby' | 'rejected' | 'deferred';
     rank?: number;
     remarks?: string;
     is_published: boolean;
+    is_winner?: boolean;
     decided_at?: string;
 }
 
