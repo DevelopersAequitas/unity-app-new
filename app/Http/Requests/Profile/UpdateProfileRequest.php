@@ -182,6 +182,10 @@ class UpdateProfileRequest extends FormRequest
             'greenpreneur_goals.*' => ['string', 'max:150'],
             'community_directory_listing' => ['sometimes', 'nullable', 'string', 'max:50'],
             'story_link' => ['sometimes', 'nullable', 'url', 'max:500'],
+
+            // Company & Onboarding Fields
+            'sector_id' => ['sometimes', 'nullable', 'integer'],
+            'onboarding_completed' => ['sometimes', 'nullable', 'boolean'],
         ];
     }
 }
