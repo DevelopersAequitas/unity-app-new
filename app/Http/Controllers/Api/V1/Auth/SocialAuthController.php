@@ -147,6 +147,20 @@ class SocialAuthController extends Controller
             ->first();
 
         if ($existingUser) {
+            if (blank($existingUser->phone)) {
+                $existingUser->phone = $phone;
+                if (Schema::hasColumn('users', 'phone_verified_at')) {
+                    $existingUser->phone_verified_at = now();
+                }
+                if (Schema::hasColumn('users', 'is_phone_verified')) {
+                    $existingUser->is_phone_verified = true;
+                }
+            }
+            if (Schema::hasColumn('users', 'dob') && filled($validated['dob'] ?? null) && blank($existingUser->dob)) {
+                $existingUser->dob = (string) $validated['dob'];
+            }
+            $existingUser->save();
+
             $this->updateUserSocialMetadata($existingUser, (string) $validated['provider'], (string) $validated['provider_user_id'], $validated['photo_url'] ?? null);
 
             $authToken = $existingUser->createToken('auth_token')->plainTextToken;
@@ -253,50 +267,113 @@ class SocialAuthController extends Controller
             }
         }
 
-        // If existing user has completed phone verification or already has this provider linked, log them in
-        if ($user && (filled($user->phone) || (! empty($user->{$providerCol}) && (string) $user->{$providerCol} === $providerUserId))) {
+        $isNewUser = false;
+
+        // If user does not exist, create user account immediately in database
+        if (! $user) {
+            $user = new User;
+            $user->id = (string) Str::uuid();
+            $user->first_name = ! empty($profile['first_name']) ? (string) $profile['first_name'] : ((string) ($profile['name'] ?? 'User'));
+            $user->last_name = $profile['last_name'] ?? null;
+            $user->display_name = ! empty($profile['name']) ? (string) $profile['name'] : trim($user->first_name.' '.($user->last_name ?? ''));
+            $user->email = $email;
+            $user->status = 'active';
+
+            $hashedPassword = Hash::make(Str::random(32));
+            if (Schema::hasColumn('users', 'password')) {
+                $user->password = $hashedPassword;
+            }
+            if (Schema::hasColumn('users', 'password_hash')) {
+                $user->password_hash = $hashedPassword;
+            }
+            if (Schema::hasColumn('users', 'approval_status')) {
+                $user->approval_status = 'approved';
+            }
+            if (Schema::hasColumn('users', 'oauth_provider')) {
+                $user->oauth_provider = $provider;
+            }
+            if (Schema::hasColumn('users', 'social_avatar_url') && filled($profile['avatar'] ?? null)) {
+                $user->social_avatar_url = (string) $profile['avatar'];
+            }
+            if (Schema::hasColumn('users', 'profile_photo_url') && filled($profile['avatar'] ?? null)) {
+                $user->profile_photo_url = (string) $profile['avatar'];
+            }
+            if (Schema::hasColumn('users', $providerCol)) {
+                $user->{$providerCol} = $providerUserId;
+            }
+
+            $user->save();
+            $user->refresh();
+
+            if (Schema::hasTable('social_accounts')) {
+                SocialAccount::query()->firstOrCreate(
+                    [
+                        'provider' => $provider,
+                        'provider_id' => $providerUserId,
+                    ],
+                    [
+                        'id' => (string) Str::uuid(),
+                        'user_id' => (string) $user->id,
+                        'email' => $email,
+                        'token_metadata' => [
+                            'name' => $user->display_name,
+                            'avatar' => $profile['avatar'] ?? null,
+                        ],
+                    ]
+                );
+            }
+
+            $isNewUser = true;
+        } else {
             $this->updateUserSocialMetadata($user, $provider, $providerUserId, $profile['avatar'] ?? null);
 
-            $authToken = $user->createToken('auth_token')->plainTextToken;
-
-            $this->registerPushToken($user, $request);
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Login successful.',
-                'data' => [
-                    'is_new_user' => false,
-                    'is_registered' => true,
-                    'token' => $authToken,
-                    'user' => $this->formatUserResponse($user),
-                ],
-            ], 200);
+            if (Schema::hasTable('social_accounts')) {
+                SocialAccount::query()->firstOrCreate(
+                    [
+                        'provider' => $provider,
+                        'provider_id' => $providerUserId,
+                    ],
+                    [
+                        'id' => (string) Str::uuid(),
+                        'user_id' => (string) $user->id,
+                        'email' => $email,
+                        'token_metadata' => [
+                            'name' => $user->display_name,
+                            'avatar' => $profile['avatar'] ?? null,
+                        ],
+                    ]
+                );
+            }
         }
 
-        // New social user: requires birthday & WhatsApp OTP
+        $authToken = $user->createToken('auth_token')->plainTextToken;
+        $this->registerPushToken($user, $request);
+
+        $hasPhone = filled($user->phone);
+
         return response()->json([
             'status' => true,
-            'message' => 'Google account verified. Registration required.',
+            'message' => $isNewUser ? 'Account created via Google.' : 'Login successful.',
             'data' => [
-                'token' => null,
-                'user' => null,
-                'is_new_user' => true,
-                'is_registered' => false,
+                'token' => $authToken,
+                'is_new_user' => (bool) ($isNewUser || ! $hasPhone),
+                'is_registered' => $hasPhone,
                 'provider' => $provider,
                 'provider_user_id' => $providerUserId,
                 $providerCol => $providerUserId,
                 'email' => $email,
-                'first_name' => $profile['first_name'] ?? '',
-                'last_name' => $profile['last_name'] ?? '',
-                'name' => $profile['name'] ?? '',
-                'photo_url' => $profile['avatar'] ?? null,
-                'avatar_url' => $profile['avatar'] ?? null,
+                'first_name' => $profile['first_name'] ?? ($user->first_name ?? ''),
+                'last_name' => $profile['last_name'] ?? ($user->last_name ?? ''),
+                'name' => $user->display_name,
+                'photo_url' => $profile['avatar'] ?? $user->profile_photo_url,
+                'avatar_url' => $profile['avatar'] ?? $user->profile_photo_url,
+                'user' => $this->formatUserResponse($user),
                 'social_profile' => [
                     'google_id' => $providerUserId,
                     $providerCol => $providerUserId,
                     'email' => $email,
-                    'name' => $profile['name'] ?? '',
-                    'photo_url' => $profile['avatar'] ?? null,
+                    'name' => $user->display_name,
+                    'photo_url' => $profile['avatar'] ?? $user->profile_photo_url,
                 ],
             ],
         ], 200);
