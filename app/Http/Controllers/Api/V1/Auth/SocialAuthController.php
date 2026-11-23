@@ -253,8 +253,8 @@ class SocialAuthController extends Controller
             }
         }
 
-        // If existing user has completed phone verification, log them in
-        if ($user && filled($user->phone)) {
+        // If existing user has completed phone verification or already has this provider linked, log them in
+        if ($user && (filled($user->phone) || (! empty($user->{$providerCol}) && (string) $user->{$providerCol} === $providerUserId))) {
             $this->updateUserSocialMetadata($user, $provider, $providerUserId, $profile['avatar'] ?? null);
 
             $authToken = $user->createToken('auth_token')->plainTextToken;
@@ -263,7 +263,7 @@ class SocialAuthController extends Controller
 
             return response()->json([
                 'status' => true,
-                'message' => 'Authenticated successfully.',
+                'message' => 'Login successful.',
                 'data' => [
                     'is_new_user' => false,
                     'is_registered' => true,
@@ -276,8 +276,10 @@ class SocialAuthController extends Controller
         // New social user: requires birthday & WhatsApp OTP
         return response()->json([
             'status' => true,
-            'message' => 'Social identity validated. Profile completion required.',
+            'message' => 'Google account verified. Registration required.',
             'data' => [
+                'token' => null,
+                'user' => null,
                 'is_new_user' => true,
                 'is_registered' => false,
                 'provider' => $provider,
@@ -289,6 +291,13 @@ class SocialAuthController extends Controller
                 'name' => $profile['name'] ?? '',
                 'photo_url' => $profile['avatar'] ?? null,
                 'avatar_url' => $profile['avatar'] ?? null,
+                'social_profile' => [
+                    'google_id' => $providerUserId,
+                    $providerCol => $providerUserId,
+                    'email' => $email,
+                    'name' => $profile['name'] ?? '',
+                    'photo_url' => $profile['avatar'] ?? null,
+                ],
             ],
         ], 200);
     }
@@ -334,6 +343,8 @@ class SocialAuthController extends Controller
             'email' => (string) ($user->email ?? ''),
             'phone' => (string) ($user->phone ?? ''),
             'avatar' => (string) ($user->profile_photo_url ?? $user->social_avatar_url ?? ''),
+            'status' => (string) ($user->status ?? 'active'),
+            'is_member' => (bool) ($user->is_member ?? false),
             'company_name' => $user->company_name ?? null,
             'designation' => $user->designation ?? null,
             'sector_id' => Schema::hasColumn('users', 'sector_id') ? $user->sector_id : null,
