@@ -281,6 +281,12 @@ class SocialAuthController extends Controller
         if ($user && method_exists($user, 'trashed') && $user->trashed()) {
             $user->restore();
             $user->status = 'active';
+            if (Schema::hasColumn('users', 'approval_status')) {
+                $user->approval_status = 'approved';
+            }
+            if (Schema::hasColumn('users', 'membership_status') && empty($user->membership_status)) {
+                $user->membership_status = 'free_peer';
+            }
             $user->save();
         }
 
@@ -295,6 +301,10 @@ class SocialAuthController extends Controller
             $user->display_name = ! empty($profile['name']) ? (string) $profile['name'] : trim($user->first_name.' '.($user->last_name ?? ''));
             $user->email = $email;
             $user->status = 'active';
+
+            if (Schema::hasColumn('users', 'membership_status')) {
+                $user->membership_status = 'free_peer';
+            }
 
             $hashedPassword = Hash::make(Str::random(32));
             if (Schema::hasColumn('users', 'password')) {
@@ -373,8 +383,9 @@ class SocialAuthController extends Controller
             'message' => $isNewUser ? 'Account created via Google.' : 'Login successful.',
             'data' => [
                 'token' => $authToken,
-                'is_new_user' => (bool) ($isNewUser || ! $hasPhone),
-                'is_registered' => $hasPhone,
+                'is_new_user' => false,
+                'is_registered' => true,
+                'has_phone' => $hasPhone,
                 'provider' => $provider,
                 'provider_user_id' => $providerUserId,
                 $providerCol => $providerUserId,
