@@ -402,6 +402,8 @@ class ProfileController extends BaseApiController
             'greenpreneur_goals',
             'community_directory_listing',
             'story_link',
+            'sector_id',
+            'onboarding_completed',
         ];
 
         if (! Schema::hasColumn('users', 'profile_visibility')) {
