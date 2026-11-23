@@ -741,6 +741,8 @@ Route::prefix('v1')->group(function () {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::post('/profile/update', [ProfileController::class, 'update']);
+        Route::match(['post', 'put', 'patch'], '/user/profile', [ProfileController::class, 'update']);
+        Route::get('/user/profile', [ProfileController::class, 'show']);
         Route::get('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'getStatus']);
         Route::post('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'markPresented']);
         Route::post('/profile/update', [ProfileController::class, 'update']);
