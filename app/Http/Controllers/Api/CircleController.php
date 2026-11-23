@@ -50,23 +50,28 @@ class CircleController extends BaseApiController
      */
     public function index(Request $request)
     {
+        $relations = [
+            'circleFounder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'circleFounder.cityRelation:id,name',
+            'circleDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'circleDirector.cityRelation:id,name',
+            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'industryDirector.cityRelation:id,name',
+            'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'ded.cityRelation:id,name',
+            'city:id,name,state,district,country,country_code',
+        ];
+
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $relations['categories'] = function ($query) {
+                $query->select('circle_categories.*')
+                    ->selectRaw('circle_categories.name as category_name')
+                    ->orderBy('circle_categories.name');
+            };
+        }
+
         $query = Circle::query()
-            ->with([
-                'circleFounder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'circleFounder.cityRelation:id,name',
-                'circleDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'circleDirector.cityRelation:id,name',
-                'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'industryDirector.cityRelation:id,name',
-                'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'ded.cityRelation:id,name',
-                'city:id,name,state,district,country,country_code',
-                'categories' => function ($query) {
-                    $query->select('circle_categories.*')
-                        ->selectRaw('circle_categories.name as category_name')
-                        ->orderBy('circle_categories.name');
-                },
-            ])
+            ->with($relations)
             ->withCount([
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
@@ -133,7 +138,7 @@ class CircleController extends BaseApiController
 
     public function show(string $id)
     {
-        $circle = Circle::with([
+        $relations = [
             'city:id,name,state,district,country,country_code',
             'founder:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'founder.cityRelation:id,name',
@@ -146,12 +151,17 @@ class CircleController extends BaseApiController
             'eed:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'eed.cityRelation:id,name',
             'members.user:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
-            'categories' => function ($query) {
+        ];
+
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $relations['categories'] = function ($query) {
                 $query->select('circle_categories.*')
                     ->selectRaw('circle_categories.name as category_name')
                     ->orderBy('circle_categories.name');
-            },
-        ])
+            };
+        }
+
+        $circle = Circle::with($relations)
             ->withCount([
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')

@@ -140,6 +140,7 @@ class Circle extends Model
                 $u = User::find($fId);
             }
         }
+
         return $u?->display_name ?: $u?->name;
     }
 
@@ -149,6 +150,7 @@ class Circle extends Model
         if (! $u && ! empty($this->ded_user_id)) {
             $u = User::find($this->ded_user_id);
         }
+
         return $u?->display_name ?: $u?->name;
     }
 
@@ -158,6 +160,7 @@ class Circle extends Model
         if (! $u && ! empty($this->industry_director_user_id)) {
             $u = User::find($this->industry_director_user_id);
         }
+
         return $u?->display_name ?: $u?->name;
     }
 
@@ -270,6 +273,19 @@ class Circle extends Model
             }
         });
 
+        static::saving(function (Circle $circle): void {
+            $founderId = $circle->founder_user_id
+                ?: $circle->getAttribute('circle_founder_user_id')
+                ?: $circle->calendarGet('leadership.circle_founder_user_id')
+                ?: $circle->calendarGet('leadership.founder_user_id');
+
+            if ($founderId) {
+                $circle->founder_user_id = $founderId;
+                $circle->calendarSet('leadership.circle_founder_user_id', $founderId);
+                $circle->calendarSet('leadership.founder_user_id', $founderId);
+            }
+        });
+
         static::saved(function (Circle $circle): void {
             if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromCircle($circle);
@@ -293,6 +309,40 @@ class Circle extends Model
                     auth('admin')->id() ? (string) auth('admin')->id() : null,
                     'circle_model_saved'
                 );
+
+                $founderId = $circle->founder_user_id
+                    ?: $circle->getAttribute('circle_founder_user_id')
+                    ?: $circle->calendarGet('leadership.circle_founder_user_id')
+                    ?: $circle->calendarGet('leadership.founder_user_id');
+
+                if ($founderId && Schema::hasTable('circle_members') && User::where('id', $founderId)->exists()) {
+                    $existingFounder = CircleMember::withTrashed()
+                        ->where('circle_id', $circle->id)
+                        ->where('user_id', $founderId)
+                        ->first();
+
+                    if (! $existingFounder) {
+                        CircleMember::query()->create([
+                            'circle_id' => $circle->id,
+                            'user_id' => $founderId,
+                            'role' => 'circle_founder',
+                            'status' => 'approved',
+                            'joined_at' => $circle->created_at ?? now(),
+                        ]);
+                    } else {
+                        if ($existingFounder->trashed()) {
+                            $existingFounder->restore();
+                        }
+                        $existingFounder->status = 'approved';
+                        $existingFounder->role = 'circle_founder';
+                        $existingFounder->save();
+                    }
+
+                    CircleMember::where('circle_id', $circle->id)
+                        ->where('user_id', '!=', $founderId)
+                        ->whereIn('role', ['circle_founder', 'founder'])
+                        ->update(['role' => 'member']);
+                }
             }
 
             if (Schema::hasTable('tbl_permission_cache')) {
@@ -408,6 +458,10 @@ class Circle extends Model
             return trim($value);
         }
 
+        if (! empty($this->attributes['founder_user_id']) && is_string($this->attributes['founder_user_id'])) {
+            return trim((string) $this->attributes['founder_user_id']);
+        }
+
         $calendarValue = $this->calendarGet('leadership.circle_founder_user_id')
             ?? $this->calendarGet('leadership.founder_user_id');
 
@@ -416,7 +470,25 @@ class Circle extends Model
 
     public function getFounderUserIdAttribute($value): ?string
     {
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
         return $this->getCircleFounderUserIdAttribute($value);
+    }
+
+    public function setCircleFounderUserIdAttribute($value): void
+    {
+        $this->attributes['founder_user_id'] = $value ?: null;
+        $this->calendarSet('leadership.circle_founder_user_id', $value ?: null);
+        $this->calendarSet('leadership.founder_user_id', $value ?: null);
+    }
+
+    public function setFounderUserIdAttribute($value): void
+    {
+        $this->attributes['founder_user_id'] = $value ?: null;
+        $this->calendarSet('leadership.circle_founder_user_id', $value ?: null);
+        $this->calendarSet('leadership.founder_user_id', $value ?: null);
     }
 
     public function getIndustryDirectorUserIdAttribute($value): ?string
@@ -763,8 +835,7 @@ class Circle extends Model
 
     public function circleFounder(): BelongsTo
     {
-        $fk = ! empty($this->circle_founder_user_id) ? 'circle_founder_user_id' : 'founder_user_id';
-        return $this->belongsTo(User::class, $fk);
+        return $this->belongsTo(User::class, 'founder_user_id');
     }
 
     public function circleFounderUser(): BelongsTo

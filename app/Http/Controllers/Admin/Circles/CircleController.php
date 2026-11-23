@@ -724,6 +724,7 @@ class CircleController extends Controller
             'status',
             'industry_tags',
             'circle_founder_user_id',
+            'founder_user_id',
             'circle_director_user_id',
             'industry_director_user_id',
             'ded_user_id',
@@ -739,6 +740,10 @@ class CircleController extends Controller
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
             }
+        }
+
+        if (array_key_exists('circle_founder_user_id', $validated)) {
+            $allowed['founder_user_id'] = $validated['circle_founder_user_id'];
         }
 
         if (Schema::hasColumn('circles', 'industry_tags')) {
@@ -1306,6 +1311,8 @@ class CircleController extends Controller
         foreach ($data as $key => $value) {
             if (Schema::hasColumn('circles', $key)) {
                 $filtered[$key] = $value;
+            } elseif ($key === 'circle_founder_user_id' && Schema::hasColumn('circles', 'founder_user_id')) {
+                $filtered['founder_user_id'] = $value;
             }
         }
 

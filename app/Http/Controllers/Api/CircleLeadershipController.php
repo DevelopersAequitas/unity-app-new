@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CircleLeadershipController extends BaseApiController
@@ -56,7 +57,8 @@ class CircleLeadershipController extends BaseApiController
             return $this->error('Circle not found.', 404);
         }
 
-        $with = ['user.cityRelation', 'user.businessCategory', 'user.mainBusinessCategory', 'roleModel'];
+        $hasRoleId = Schema::hasColumn('circle_members', 'role_id');
+        $with = array_values(array_filter(['user.cityRelation', 'user.businessCategory', 'user.mainBusinessCategory', $hasRoleId ? 'roleModel' : null]));
 
         $members = CircleMember::query()
             ->where('circle_id', $circleModel->id)
@@ -162,7 +164,7 @@ class CircleLeadershipController extends BaseApiController
                 }
 
                 $role = strtolower(trim((string) ($m->role ?? '')));
-                $roleKey = $m->roleModel ? strtolower(trim((string) ($m->roleModel->key ?? $m->roleModel->name ?? ''))) : '';
+                $roleKey = ($hasRoleId && $m->relationLoaded('roleModel') && $m->roleModel) ? strtolower(trim((string) ($m->roleModel->key ?? $m->roleModel->name ?? ''))) : '';
                 $metaDesig = strtolower(trim((string) data_get($m->meta, 'designation', '')));
 
                 $matches = in_array($role, $slot['aliases'], true)
@@ -291,7 +293,7 @@ class CircleLeadershipController extends BaseApiController
                 'role_name' => 'Circle Director',
                 'designation' => 'Director',
                 'aliases' => ['circle_director', 'director', 'cd'],
-                'user_id' => $circleModel->circle_director_user_id ?? $circleModel->director_user_id,
+                'user_id' => $circleModel->circle_director_user_id ?? $circleModel->director_user_id ?? $circleModel->calendarGet('leadership.circle_director_user_id') ?? $circleModel->calendarGet('leadership.director_user_id'),
                 'user' => $circleModel->circleDirector ?? $circleModel->director,
             ],
             [
@@ -299,7 +301,7 @@ class CircleLeadershipController extends BaseApiController
                 'role_name' => 'Circle Founder',
                 'designation' => 'Founder',
                 'aliases' => ['circle_founder', 'founder', 'cf'],
-                'user_id' => $circleModel->circle_founder_user_id ?? $circleModel->founder_user_id,
+                'user_id' => $circleModel->circle_founder_user_id ?? $circleModel->founder_user_id ?? $circleModel->calendarGet('leadership.circle_founder_user_id') ?? $circleModel->calendarGet('leadership.founder_user_id'),
                 'user' => $circleModel->circleFounder ?? $circleModel->founder,
             ],
             [
@@ -339,6 +341,7 @@ class CircleLeadershipController extends BaseApiController
         }
 
         // Look for regional leader members in circle_members
+        $hasRoleId = Schema::hasColumn('circle_members', 'role_id');
         $regionalMembers = CircleMember::query()
             ->where('circle_id', $circleModel->id)
             ->whereNull('deleted_at')
@@ -346,14 +349,16 @@ class CircleLeadershipController extends BaseApiController
                 $query->whereNull('status')
                     ->orWhereIn(DB::raw('LOWER(circle_members.status::text)'), CircleMember::activeStatuses());
             })
-            ->where(function ($query): void {
-                $query->whereIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
-                    ->orWhereHas('roleModel', function ($rq): void {
+            ->where(function ($query) use ($hasRoleId): void {
+                $query->whereIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                if ($hasRoleId) {
+                    $query->orWhereHas('roleModel', function ($rq): void {
                         $rq->whereIn(DB::raw('LOWER(key)'), CircleMember::REGIONAL_ROLES)
                             ->orWhereIn(DB::raw('LOWER(name)'), CircleMember::REGIONAL_ROLES);
                     });
+                }
             })
-            ->with(['user.cityRelation', 'user.businessCategory', 'user.mainBusinessCategory', 'roleModel'])
+            ->with(array_values(array_filter(['user.cityRelation', 'user.businessCategory', 'user.mainBusinessCategory', $hasRoleId ? 'roleModel' : null])))
             ->get();
 
         foreach ($regionalMembers as $m) {

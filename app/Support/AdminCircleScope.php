@@ -322,17 +322,28 @@ class AdminCircleScope
 
             // 3. User is a founder, director, or chair of an allowed circle
             $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
+                $circleCols = Schema::getColumnListing('circles');
                 $subQuery->selectRaw(1)
                     ->from('circles as sc')
                     ->whereIn('sc.id', $allowedCircleIds)
                     ->whereNull('sc.deleted_at')
-                    ->where(function ($q) use ($userIdExpression): void {
-                        $q->whereColumn('sc.circle_founder_user_id', $userIdExpression)
-                            ->orWhereColumn('sc.founder_user_id', $userIdExpression)
-                            ->orWhereColumn('sc.circle_director_user_id', $userIdExpression)
-                            ->orWhereColumn('sc.director_user_id', $userIdExpression)
-                            ->orWhereColumn('sc.chair_user_id', $userIdExpression)
-                            ->orWhereColumn('sc.industry_director_user_id', $userIdExpression);
+                    ->where(function ($q) use ($userIdExpression, $circleCols): void {
+                        $q->whereColumn('sc.founder_user_id', $userIdExpression);
+                        if (in_array('circle_founder_user_id', $circleCols, true)) {
+                            $q->orWhereColumn('sc.circle_founder_user_id', $userIdExpression);
+                        }
+                        if (in_array('circle_director_user_id', $circleCols, true)) {
+                            $q->orWhereColumn('sc.circle_director_user_id', $userIdExpression);
+                        }
+                        if (in_array('director_user_id', $circleCols, true)) {
+                            $q->orWhereColumn('sc.director_user_id', $userIdExpression);
+                        }
+                        if (in_array('chair_user_id', $circleCols, true)) {
+                            $q->orWhereColumn('sc.chair_user_id', $userIdExpression);
+                        }
+                        if (in_array('industry_director_user_id', $circleCols, true)) {
+                            $q->orWhereColumn('sc.industry_director_user_id', $userIdExpression);
+                        }
                     });
             });
         });
