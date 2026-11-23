@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Circle;
 use App\Models\User;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -10,8 +11,39 @@ class CircleResource extends JsonResource
 {
     public function toArray($request): array
     {
-        $founder = $this->relationLoaded('circleFounder') ? $this->circleFounder : ($this->relationLoaded('founder') ? $this->founder : null);
-        $director = $this->relationLoaded('circleDirector') ? $this->circleDirector : ($this->relationLoaded('director') ? $this->director : null);
+        $founder = ($this->relationLoaded('circleFounder') && $this->circleFounder)
+            ? $this->circleFounder
+            : (($this->relationLoaded('founder') && $this->founder)
+                ? $this->founder
+                : null);
+
+        if (! $founder) {
+            $founderId = $this->circle_founder_user_id
+                ?: $this->founder_user_id
+                ?: $this->calendarGet('leadership.circle_founder_user_id')
+                ?: $this->calendarGet('leadership.founder_user_id');
+
+            if ($founderId) {
+                $founder = User::with('cityRelation')->find($founderId);
+            }
+        }
+
+        $director = ($this->relationLoaded('circleDirector') && $this->circleDirector)
+            ? $this->circleDirector
+            : (($this->relationLoaded('director') && $this->director)
+                ? $this->director
+                : null);
+
+        if (! $director) {
+            $directorId = $this->circle_director_user_id
+                ?: $this->director_user_id
+                ?: $this->calendarGet('leadership.circle_director_user_id')
+                ?: $this->calendarGet('leadership.director_user_id');
+
+            if ($directorId) {
+                $director = User::with('cityRelation')->find($directorId);
+            }
+        }
         $industryDirector = $this->relationLoaded('industryDirector') ? $this->industryDirector : null;
         $ded = $this->relationLoaded('ded') ? $this->ded : null;
         $eed = $this->relationLoaded('eed') ? $this->eed : null;
@@ -87,7 +119,7 @@ class CircleResource extends JsonResource
             ?? data_get($calendar, 'meeting_schedule.0');
         $normalizedRepeat = null;
         if (is_array($rawRepeat) && ! empty($rawRepeat)) {
-            $normalizedRepeat = \App\Models\Circle::normalizeCadencePayload($rawRepeat, is_array($calendar) ? $calendar : null);
+            $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, is_array($calendar) ? $calendar : null);
         }
 
         if (is_array($calendar)) {
@@ -156,26 +188,17 @@ class CircleResource extends JsonResource
                 'country' => $city->country,
                 'country_code' => $city->country_code,
             ] : null,
-            'founder_user_id' => $this->circle_founder_user_id,
-            'director_user_id' => $this->circle_director_user_id,
-            'circle_founder_user_id' => $this->circle_founder_user_id,
-            'circle_director_user_id' => $this->circle_director_user_id,
+            'founder_user_id' => $this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id') ?: $this->calendarGet('leadership.founder_user_id'),
+            'director_user_id' => $this->circle_director_user_id ?: $this->director_user_id ?: $this->calendarGet('leadership.circle_director_user_id') ?: $this->calendarGet('leadership.director_user_id'),
+            'circle_founder_user_id' => $this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id') ?: $this->calendarGet('leadership.founder_user_id'),
+            'circle_director_user_id' => $this->circle_director_user_id ?: $this->director_user_id ?: $this->calendarGet('leadership.circle_director_user_id') ?: $this->calendarGet('leadership.director_user_id'),
             'industry_director_user_id' => $this->industry_director_user_id,
             'ded_user_id' => $this->ded_user_id,
             'eed_user_id' => $this->eed_user_id,
-            'founder' => $founder ? [
-                'id' => $founder->id,
-                'display_name' => $founder->display_name,
-                'first_name' => $founder->first_name,
-                'last_name' => $founder->last_name,
-                'profile_photo_url' => $founder->profile_photo_url,
-                'email' => $founder->email,
-                'phone' => $founder->phone ?? null,
-                'city' => $resolveUserCity($founder),
-                'company_name' => $founder->company_name,
-                'is_online' => (bool) ($founder->is_online ?? false),
-            ] : null,
+            'founder' => $userMini($founder),
+            'circle_founder' => $userMini($founder),
             'director' => $userMini($director),
+            'circle_director' => $userMini($director),
             'industry_director' => $userMini($industryDirector),
             'ded' => $userMini($ded),
             'eed' => $userMini($eed),
@@ -382,17 +405,17 @@ class CircleResource extends JsonResource
 
     private function resolveRegionalLeaders(): array
     {
-        $founder = $this->relationLoaded('circleFounder') && $this->circleFounder
+        $founder = ($this->relationLoaded('circleFounder') && $this->circleFounder)
             ? $this->circleFounder
-            : ($this->relationLoaded('founder') && $this->founder
+            : (($this->relationLoaded('founder') && $this->founder)
                 ? $this->founder
-                : ($this->circle_founder_user_id ?? $this->founder_user_id ?? null));
+                : ($this->circle_founder_user_id ?: $this->founder_user_id ?: $this->calendarGet('leadership.circle_founder_user_id') ?: $this->calendarGet('leadership.founder_user_id') ?: null));
 
-        $director = $this->relationLoaded('circleDirector') && $this->circleDirector
+        $director = ($this->relationLoaded('circleDirector') && $this->circleDirector)
             ? $this->circleDirector
-            : ($this->relationLoaded('director') && $this->director
+            : (($this->relationLoaded('director') && $this->director)
                 ? $this->director
-                : ($this->circle_director_user_id ?? $this->director_user_id ?? null));
+                : ($this->circle_director_user_id ?: $this->director_user_id ?: $this->calendarGet('leadership.circle_director_user_id') ?: $this->calendarGet('leadership.director_user_id') ?: null));
 
         $industryDirector = $this->relationLoaded('industryDirector') && $this->industryDirector
             ? $this->industryDirector
