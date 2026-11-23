@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Ai;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -406,5 +407,126 @@ class GeminiService
             'attachments' => [],
             'suggested_follow_ups' => [],
         ];
+    }
+
+    /**
+     * Inspect a profile photo using Gemini Vision to verify if it is an actual photograph
+     * of a person rather than a default letter/initials avatar, graphic, or placeholder.
+     *
+     * @return array{is_real_photo: bool, is_initials_or_placeholder: bool, reason: string}
+     */
+    public function inspectProfilePhoto(string $imageUrl): array
+    {
+        $cacheKey = 'avatar_inspection_'.md5($imageUrl);
+
+        return Cache::remember($cacheKey, now()->addDays(7), function () use ($imageUrl) {
+            $apiKey = (string) config('services.gemini.api_key');
+            if (blank($apiKey)) {
+                return [
+                    'is_real_photo' => true,
+                    'is_initials_or_placeholder' => false,
+                    'reason' => 'Gemini API key not configured; skipped AI inspection.',
+                ];
+            }
+
+            try {
+                $imageContent = null;
+                $mimeType = 'image/jpeg';
+
+                if (filter_var($imageUrl, FILTER_VALIDATE_URL)) {
+                    $imgRes = Http::timeout(10)->get($imageUrl);
+                    if ($imgRes->successful()) {
+                        $imageContent = $imgRes->body();
+                        $mimeType = $imgRes->header('Content-Type') ?: 'image/jpeg';
+                    }
+                } elseif (file_exists($imageUrl)) {
+                    $imageContent = file_get_contents($imageUrl);
+                    $mimeType = mime_content_type($imageUrl) ?: 'image/jpeg';
+                }
+
+                if (! $imageContent) {
+                    return [
+                        'is_real_photo' => false,
+                        'is_initials_or_placeholder' => true,
+                        'reason' => 'Unable to download or access image.',
+                    ];
+                }
+
+                if (str_contains($mimeType, ';')) {
+                    $mimeType = trim(explode(';', $mimeType)[0]);
+                }
+
+                $base64Data = base64_encode($imageContent);
+
+                $selectedModel = 'gemini-2.5-flash';
+                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
+
+                $payload = [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                [
+                                    'text' => 'Analyze this profile picture. Determine if it is a real photograph of an actual human person (face/headshot/body). Specifically check if it is just a default placeholder, single or double letter initials on a solid or colored background (like Google or Microsoft default avatar), an illustration, cartoon, icon, or blank placeholder graphic. Respond strictly in valid JSON format: {"is_real_photo": boolean, "is_initials_or_placeholder": boolean, "reason": string}',
+                                ],
+                                [
+                                    'inline_data' => [
+                                        'mime_type' => $mimeType,
+                                        'data' => $base64Data,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.1,
+                        'responseMimeType' => 'application/json',
+                    ],
+                ];
+
+                $response = Http::timeout(20)
+                    ->withHeaders([
+                        'Content-Type' => 'application/json',
+                        'x-goog-api-key' => $apiKey,
+                    ])
+                    ->post($endpoint, $payload);
+
+                if ($response->successful()) {
+                    $candidates = $response->json('candidates') ?? [];
+                    $text = $candidates[0]['content']['parts'][0]['text'] ?? '';
+                    $clean = trim((string) $text);
+                    if (str_starts_with($clean, '```json')) {
+                        $clean = substr($clean, 7);
+                    } elseif (str_starts_with($clean, '```')) {
+                        $clean = substr($clean, 3);
+                    }
+                    if (str_ends_with($clean, '```')) {
+                        $clean = substr($clean, 0, -3);
+                    }
+                    $clean = trim($clean);
+
+                    $decoded = json_decode($clean, true);
+                    if (is_array($decoded) && isset($decoded['is_real_photo'])) {
+                        return [
+                            'is_real_photo' => (bool) $decoded['is_real_photo'],
+                            'is_initials_or_placeholder' => (bool) ($decoded['is_initials_or_placeholder'] ?? (! $decoded['is_real_photo'])),
+                            'reason' => (string) ($decoded['reason'] ?? 'Gemini evaluated image.'),
+                        ];
+                    }
+                } else {
+                    Log::warning('GeminiService.inspectProfilePhoto: API call failed', [
+                        'status' => $response->status(),
+                        'body' => $response->json(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('GeminiService.inspectProfilePhoto error: '.$e->getMessage());
+            }
+
+            return [
+                'is_real_photo' => true,
+                'is_initials_or_placeholder' => false,
+                'reason' => 'Inspection could not complete; allowed with fallback.',
+            ];
+        });
     }
 }
