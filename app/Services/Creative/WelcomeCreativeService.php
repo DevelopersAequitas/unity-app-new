@@ -10,6 +10,8 @@ use App\Models\FileModel;
 use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\User;
+use App\Services\Ai\GeminiService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -221,7 +223,7 @@ class WelcomeCreativeService
                     ]);
                 } catch (\Throwable) {
                     try {
-                        \Illuminate\Support\Facades\DB::table('post_mentions')->updateOrInsert(
+                        DB::table('post_mentions')->updateOrInsert(
                             [
                                 'post_id' => $existingPost->id,
                                 'peer_id' => $user->id,
@@ -303,9 +305,11 @@ class WelcomeCreativeService
     /**
      * Determine if a user has all mandatory details needed to generate and post a welcome creative:
      * 1. Valid user name
-     * 2. Verified/completed phone number
-     * 3. Company / business name
+     * 2. Company / business name
+     * 3. Child business category (subcategory)
      * 4. Real profile photo (verified by Gemini Vision to not be a letter/initials placeholder)
+     *
+     * Note: Phone number is not required.
      */
     public function isEligibleForWelcomeCreative(User $user): bool
     {
@@ -319,14 +323,17 @@ class WelcomeCreativeService
             return false;
         }
 
-        // 2. Must have completed phone registration
-        if (blank($user->phone)) {
+        // 2. Must have company / business name
+        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
+        if ($company === '') {
             return false;
         }
 
-        // 3. Must have company / business name
-        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
-        if ($company === '') {
+        // 3. Must have child business category (subcategory)
+        $hasChildCategory = filled($user->business_category_id)
+            || filled($user->business_sub_category)
+            || ($user->relationLoaded('level4Category') && filled($user->level4Category?->name));
+        if (! $hasChildCategory) {
             return false;
         }
 
@@ -338,7 +345,7 @@ class WelcomeCreativeService
 
         // 5. Verify that avatar is an actual photo of a person (not Google letter/initials avatar)
         try {
-            $inspection = app(\App\Services\Ai\GeminiService::class)->inspectProfilePhoto($avatarUrl);
+            $inspection = app(GeminiService::class)->inspectProfilePhoto($avatarUrl);
             if (! empty($inspection['is_initials_or_placeholder']) || empty($inspection['is_real_photo'])) {
                 Log::info("WelcomeCreativeService: User {$user->id} avatar was flagged by Gemini as initials/placeholder ({$inspection['reason']}). Skipping welcome creative until real photo is uploaded.");
 
