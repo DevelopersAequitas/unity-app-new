@@ -246,21 +246,23 @@ class UserRoleResolverService
                     if (in_array('circle_founder_user_id', $circleCols, true)) {
                         $q->orWhere('circle_founder_user_id', $userId);
                     }
+                    $q->orWhereRaw("calendar->'leadership'->>'circle_founder_user_id' = ?", [$userId])
+                        ->orWhereRaw("calendar->'leadership'->>'founder_user_id' = ?", [$userId]);
                 })->exists()) {
                 $candidateRoles[] = 'circleFounder';
             }
 
-            if (in_array('circle_director_user_id', $circleCols, true) || in_array('director_user_id', $circleCols, true)) {
-                if (Circle::query()->where(function ($q) use ($userId, $circleCols): void {
-                    if (in_array('circle_director_user_id', $circleCols, true)) {
-                        $q->orWhere('circle_director_user_id', $userId);
-                    }
-                    if (in_array('director_user_id', $circleCols, true)) {
-                        $q->orWhere('director_user_id', $userId);
-                    }
-                })->exists()) {
-                    $candidateRoles[] = 'circleDirector';
+            if (Circle::query()->where(function ($q) use ($userId, $circleCols): void {
+                if (in_array('circle_director_user_id', $circleCols, true)) {
+                    $q->orWhere('circle_director_user_id', $userId);
                 }
+                if (in_array('director_user_id', $circleCols, true)) {
+                    $q->orWhere('director_user_id', $userId);
+                }
+                $q->orWhereRaw("calendar->'leadership'->>'circle_director_user_id' = ?", [$userId])
+                    ->orWhereRaw("calendar->'leadership'->>'director_user_id' = ?", [$userId]);
+            })->exists()) {
+                $candidateRoles[] = 'circleDirector';
             }
 
             if (in_array('industry_director_user_id', $circleCols, true) && Circle::query()->where('industry_director_user_id', $userId)->exists()) {
