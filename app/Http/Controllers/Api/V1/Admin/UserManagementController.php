@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\AdminPeerIndexRequest;
 use App\Http\Requests\Admin\AdminPeerUpgradeRequest;
 use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\CircleMember;
+use App\Models\City;
 use App\Models\Impact;
 use App\Models\LifeImpactHistory;
 use App\Models\Payment;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Celebrations\CelebrationScheduleSyncService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
@@ -116,20 +118,59 @@ class UserManagementController extends BaseApiController
         }
 
         $circleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
-        unset($validated['active_circle_id'], $validated['circle_id']);
+        if ($circleId) {
+            $validated['active_circle_id'] = $circleId;
+        }
+        unset($validated['circle_id']);
+
+        // Resolve city_id for cross-compatibility with legacy admin panel
+        if (! empty($validated['city']) && Schema::hasTable('cities') && Schema::hasColumn('users', 'city_id')) {
+            try {
+                $cityModel = City::where('name', 'ILIKE', trim((string) $validated['city']))->first();
+                if ($cityModel) {
+                    $validated['city_id'] = $cityModel->id;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        // Sync membership dates
+        if (! empty($validated['membership_ends_at'])) {
+            $validated['membership_expiry'] = $validated['membership_ends_at'];
+        } elseif (! empty($validated['membership_expiry'])) {
+            $validated['membership_ends_at'] = $validated['membership_expiry'];
+        } else {
+            $validated['membership_starts_at'] = now();
+            $validated['membership_ends_at'] = now()->addYear();
+            $validated['membership_expiry'] = now()->addYear();
+        }
+
+        if (Schema::hasColumn('users', 'approval_status')) {
+            $validated['approval_status'] = 'approved';
+        }
 
         $user = DB::transaction(function () use ($validated, $circleId) {
             $cols = Schema::getColumnListing('users');
             $user = User::create(Arr::only($validated, $cols));
 
+            // Attach standard member role
+            try {
+                $memberRole = Role::where('key', 'member')->first();
+                if ($memberRole) {
+                    $user->roles()->syncWithoutDetaching([$memberRole->id]);
+                }
+            } catch (\Throwable) {
+            }
+
             if ($circleId) {
-                CircleMember::create([
-                    'circle_id' => $circleId,
-                    'user_id' => $user->id,
-                    'status' => 'approved',
-                    'joined_at' => $validated['circle_joined_at'] ?? now(),
-                    'expires_at' => $validated['circle_expires_at'] ?? null,
-                ]);
+                CircleMember::updateOrCreate(
+                    ['circle_id' => $circleId, 'user_id' => $user->id],
+                    [
+                        'status' => 'approved',
+                        'joined_at' => $validated['circle_joined_at'] ?? now(),
+                        'expires_at' => $validated['circle_expires_at'] ?? $validated['membership_ends_at'] ?? now()->addYear(),
+                    ]
+                );
             }
 
             return $user;
@@ -155,7 +196,7 @@ class UserManagementController extends BaseApiController
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $user = User::query()
+        $user = User::withTrashed()
             ->with([
                 'roles:id,key,name',
                 'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
@@ -172,8 +213,33 @@ class UserManagementController extends BaseApiController
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $target = User::query()->findOrFail($id);
-        $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
+        $target = User::withTrashed()->find($id);
+        if ($target && $target->trashed()) {
+            $target->restore();
+            if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
+                $target->forceFill(['gdpr_deleted_at' => null]);
+            }
+        }
+        if (! $target && $request->filled('email')) {
+            $target = User::withTrashed()->where('email', $request->input('email'))->first();
+            if ($target && $target->trashed()) {
+                $target->restore();
+                if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
+                    $target->forceFill(['gdpr_deleted_at' => null]);
+                }
+            }
+        }
+        if (! $target) {
+            $target = User::query()->findOrFail($id);
+        }
+
+        try {
+            $this->scope->applyUserScope(User::query()->where('id', $target->id), $request->user())->firstOrFail();
+        } catch (\Throwable) {
+            if (! $this->scope->isGlobal($request->user())) {
+                abort(403, 'Unauthorized to edit this peer.');
+            }
+        }
 
         $validated = $request->validate([
             'first_name' => ['sometimes', 'string', 'max:120'],
@@ -257,11 +323,11 @@ class UserManagementController extends BaseApiController
 
         if (array_key_exists('dob', $validated)) {
             $rawDob = trim((string) ($validated['dob'] ?? ''));
-            $validated['dob'] = $rawDob !== '' ? \Illuminate\Support\Carbon::parse($rawDob)->format('Y-m-d') : null;
+            $validated['dob'] = $rawDob !== '' ? Carbon::parse($rawDob)->format('Y-m-d') : null;
         }
         if (array_key_exists('anniversary_date', $validated)) {
             $rawAnniv = trim((string) ($validated['anniversary_date'] ?? ''));
-            $validated['anniversary_date'] = $rawAnniv !== '' ? \Illuminate\Support\Carbon::parse($rawAnniv)->format('Y-m-d') : null;
+            $validated['anniversary_date'] = $rawAnniv !== '' ? Carbon::parse($rawAnniv)->format('Y-m-d') : null;
         }
 
         $old = $target->only(array_keys($validated));
@@ -272,7 +338,7 @@ class UserManagementController extends BaseApiController
         $fresh = $target->fresh();
         if ($fresh && (array_key_exists('dob', $validated) || array_key_exists('anniversary_date', $validated))) {
             try {
-                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($fresh, 'admin_user_update');
+                app(CelebrationScheduleSyncService::class)->syncForUser($fresh, 'admin_user_update');
             } catch (\Throwable) {
                 // Non-blocking celebration schedule sync
             }
@@ -287,18 +353,201 @@ class UserManagementController extends BaseApiController
 
     public function destroy(Request $request, string $id): JsonResponse
     {
-        $target = User::query()->findOrFail($id);
-        $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
-
-        $old = $target->toArray();
-        if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
-            $target->forceFill(['gdpr_deleted_at' => now(), 'status' => 'inactive'])->save();
+        $target = User::withTrashed()->find($id);
+        if (! $target && $request->filled('email')) {
+            $target = User::withTrashed()->where('email', $request->input('email'))->first();
         }
-        $target->delete();
+        if (! $target) {
+            return $this->success(null, 'Peer deleted permanently.');
+        }
 
-        $this->audit->log($request->user(), 'admin.user.delete', 'users', $id, $old, [], $request);
+        $userId = (string) $target->id;
+        $old = $target->toArray();
 
-        return $this->success(null, 'Peer deleted successfully.');
+        // Perform Complete Permanent Purge in DB Transaction
+        DB::transaction(function () use ($userId, $target) {
+            // 1. Nullify circles foreign keys
+            if (Schema::hasTable('circles')) {
+                $circleCols = ['founder_user_id', 'circle_founder_user_id', 'director_user_id', 'circle_director_user_id', 'chair_user_id', 'vice_chair_user_id', 'secretary_user_id', 'industry_director_user_id', 'ded_user_id', 'eed_user_id'];
+                foreach ($circleCols as $col) {
+                    if (Schema::hasColumn('circles', $col)) {
+                        DB::table('circles')->where($col, $userId)->update([$col => null]);
+                    }
+                }
+            }
+
+            // 2. Nullify districts
+            if (Schema::hasTable('districts') && Schema::hasColumn('districts', 'ded_user_id')) {
+                DB::table('districts')->where('ded_user_id', $userId)->update(['ded_user_id' => null]);
+            }
+            if (Schema::hasTable('admin_ded_districts')) {
+                DB::table('admin_ded_districts')->where('user_id', $userId)->delete();
+            }
+
+            // 3. Nullify & clean events
+            if (Schema::hasTable('events')) {
+                if (Schema::hasColumn('events', 'created_by_user_id')) {
+                    DB::table('events')->where('created_by_user_id', $userId)->update(['created_by_user_id' => null]);
+                }
+                if (Schema::hasColumn('events', 'organizer_user_id')) {
+                    DB::table('events')->where('organizer_user_id', $userId)->update(['organizer_user_id' => null]);
+                }
+            }
+            if (Schema::hasTable('event_expenses')) {
+                if (Schema::hasColumn('event_expenses', 'paid_by')) {
+                    DB::table('event_expenses')->where('paid_by', $userId)->update(['paid_by' => null]);
+                }
+                if (Schema::hasColumn('event_expenses', 'added_by')) {
+                    DB::table('event_expenses')->where('added_by', $userId)->delete();
+                }
+            }
+            if (Schema::hasTable('event_feedback') && Schema::hasColumn('event_feedback', 'respondent_user_id')) {
+                DB::table('event_feedback')->where('respondent_user_id', $userId)->update(['respondent_user_id' => null]);
+            }
+            if (Schema::hasTable('event_sponsors') && Schema::hasColumn('event_sponsors', 'added_by')) {
+                DB::table('event_sponsors')->where('added_by', $userId)->delete();
+            }
+
+            // 4. Clean orders & child tables
+            if (Schema::hasTable('orders')) {
+                $orderIds = DB::table('orders')->where('user_id', $userId)->pluck('id')->all();
+                if (! empty($orderIds)) {
+                    if (Schema::hasTable('order_payments')) {
+                        DB::table('order_payments')->whereIn('order_id', $orderIds)->delete();
+                    }
+                    if (Schema::hasTable('receipts')) {
+                        DB::table('receipts')->whereIn('order_id', $orderIds)->delete();
+                    }
+                    if (Schema::hasTable('shipments')) {
+                        DB::table('shipments')->whereIn('order_id', $orderIds)->delete();
+                    }
+                    if (Schema::hasTable('order_items')) {
+                        DB::table('order_items')->whereIn('order_id', $orderIds)->delete();
+                    }
+                    DB::table('orders')->where('user_id', $userId)->delete();
+                }
+            }
+
+            // 5. Clean activity tables with NO ACTION foreign keys
+            if (Schema::hasTable('circle_members')) {
+                DB::table('circle_members')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('p2p_meetings')) {
+                DB::table('p2p_meetings')->where('initiator_user_id', $userId)->orWhere('peer_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('business_deals')) {
+                DB::table('business_deals')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('referrals')) {
+                DB::table('referrals')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('testimonials')) {
+                DB::table('testimonials')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('wallet_adjustment_requests')) {
+                DB::table('wallet_adjustment_requests')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('leader_reports')) {
+                DB::table('leader_reports')->where('submitted_by_user_id', $userId)->delete();
+            }
+
+            // 6. Attendance & absences
+            if (Schema::hasTable('attendance_records')) {
+                DB::table('attendance_records')->where('marked_by', $userId)->update(['marked_by' => null]);
+                if (Schema::hasColumn('attendance_records', 'substitute_approved_by')) {
+                    DB::table('attendance_records')->where('substitute_approved_by', $userId)->update(['substitute_approved_by' => null]);
+                }
+                if (Schema::hasColumn('attendance_records', 'substitute_user_id')) {
+                    DB::table('attendance_records')->where('substitute_user_id', $userId)->update(['substitute_user_id' => null]);
+                }
+                DB::table('attendance_records')->where('member_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('absence_warnings')) {
+                if (Schema::hasColumn('absence_warnings', 'escalated_to')) {
+                    DB::table('absence_warnings')->where('escalated_to', $userId)->update(['escalated_to' => null]);
+                }
+                if (Schema::hasColumn('absence_warnings', 'resolved_by')) {
+                    DB::table('absence_warnings')->where('resolved_by', $userId)->update(['resolved_by' => null]);
+                }
+                DB::table('absence_warnings')->where('user_id', $userId)->delete();
+            }
+
+            // 7. Coins, activities, impacts, support
+            if (Schema::hasTable('coins_ledger')) {
+                DB::table('coins_ledger')->where('created_by', $userId)->update(['created_by' => null]);
+                DB::table('coins_ledger')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('impacts')) {
+                DB::table('impacts')->where('approved_by', $userId)->update(['approved_by' => null]);
+                DB::table('impacts')->where('rejected_by', $userId)->update(['rejected_by' => null]);
+                DB::table('impacts')->where('impacted_peer_id', $userId)->delete();
+                DB::table('impacts')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('activities')) {
+                DB::table('activities')->where('related_user_id', $userId)->update(['related_user_id' => null]);
+                DB::table('activities')->where('verified_by_admin_id', $userId)->update(['verified_by_admin_id' => null]);
+                DB::table('activities')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('support_requests')) {
+                DB::table('support_requests')->where('routed_to_user_id', $userId)->update(['routed_to_user_id' => null]);
+                DB::table('support_requests')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('support_tickets')) {
+                DB::table('support_tickets')->where('user_id', $userId)->update(['user_id' => null]);
+            }
+            if (Schema::hasTable('audit_logs')) {
+                DB::table('audit_logs')->where('actor_user_id', $userId)->update(['actor_user_id' => null]);
+            }
+            if (Schema::hasTable('member_renewals')) {
+                DB::table('member_renewals')->where('last_followup_by', $userId)->update(['last_followup_by' => null]);
+                DB::table('member_renewals')->where('user_id', $userId)->delete();
+            }
+
+            // 8. Self and other user references
+            if (Schema::hasColumn('users', 'introduced_by')) {
+                DB::table('users')->where('introduced_by', $userId)->update(['introduced_by' => null]);
+            }
+            if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                DB::table('users')->where('referred_by_user_id', $userId)->update(['referred_by_user_id' => null]);
+            }
+
+            // 9. Dynamic FK constraint cleanup for any other table referencing users(id)
+            try {
+                $fks = DB::select("
+                    SELECT tc.table_name, kcu.column_name, rc.delete_rule, c.is_nullable
+                    FROM information_schema.table_constraints tc 
+                    JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name 
+                    JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name 
+                    JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name 
+                    JOIN information_schema.columns c ON c.table_name = tc.table_name AND c.column_name = kcu.column_name
+                    WHERE tc.constraint_type = 'FOREIGN KEY' 
+                      AND ccu.table_name = 'users'
+                      AND rc.delete_rule IN ('NO ACTION', 'RESTRICT')
+                ");
+                foreach ($fks as $fk) {
+                    if ($fk->table_name === 'users') {
+                        continue;
+                    }
+                    if ($fk->is_nullable === 'YES') {
+                        DB::table($fk->table_name)->where($fk->column_name, $userId)->update([$fk->column_name => null]);
+                    } else {
+                        DB::table($fk->table_name)->where($fk->column_name, $userId)->delete();
+                    }
+                }
+            } catch (\Throwable) {
+            }
+
+            // 10. Finally, permanently delete from users table
+            DB::table('users')->where('id', $userId)->delete();
+            try {
+                $target->forceDelete();
+            } catch (\Throwable) {
+            }
+        });
+
+        $this->audit->log($request->user(), 'admin.user.delete', 'users', $userId, $old, [], $request);
+
+        return $this->success(null, 'Peer permanently deleted successfully.');
     }
 
     private function becameActiveMembership(string $oldStatus, string $newStatus): bool

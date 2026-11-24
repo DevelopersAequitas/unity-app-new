@@ -17,6 +17,7 @@ use App\Models\AppSocialLink;
 use App\Models\AppTutorialStep;
 use App\Models\LeaderAppConfig;
 use App\Services\AppConfigService;
+use App\Services\TimelineCardConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -106,6 +107,7 @@ class AppConfigAdminController extends Controller
             'label_groups' => $labelGroups,
             'icons' => $icons,
             'features' => $features,
+            'timeline_cards' => app(TimelineCardConfigService::class)->getTimelineCardsConfig(),
             'tutorial_steps' => AppConfigController::tutorialSteps($appInstanceId),
             'navigation_items' => $navigationItems,
             'dashboard_widgets' => $dashboardWidgets,

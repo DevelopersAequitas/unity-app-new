@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Models\TimelineCardConfig;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -63,11 +65,7 @@ class TimelineCardConfigService
             $payload['updated_by_user_id'] = $userId;
         }
 
-        if (! Schema::hasTable('timeline_card_configs')) {
-            Log::warning('[TimelineCardConfigService] Table timeline_card_configs does not exist.');
-
-            return $this->defaultConfig();
-        }
+        $this->ensureTableExists();
 
         try {
             $config = TimelineCardConfig::query()->find(1);
@@ -80,6 +78,7 @@ class TimelineCardConfigService
             }
 
             Cache::forget(self::CACHE_KEY);
+            AppConfigController::clearCache();
 
             return [
                 'profile_completion_enabled' => (bool) $config->profile_completion_enabled,
@@ -101,6 +100,7 @@ class TimelineCardConfigService
     public function clearCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        AppConfigController::clearCache();
     }
 
     /**
@@ -114,15 +114,17 @@ class TimelineCardConfigService
      */
     private function resolveConfigFromDatabase(): array
     {
-        if (! Schema::hasTable('timeline_card_configs')) {
-            return $this->defaultConfig();
-        }
+        $this->ensureTableExists();
 
         try {
             $config = TimelineCardConfig::query()->find(1);
 
             if (! $config) {
-                return $this->defaultConfig();
+                try {
+                    $config = TimelineCardConfig::query()->create(array_merge($this->defaultConfig(), ['id' => 1]));
+                } catch (Throwable) {
+                    return $this->defaultConfig();
+                }
             }
 
             return [
@@ -138,6 +140,29 @@ class TimelineCardConfigService
             ]);
 
             return $this->defaultConfig();
+        }
+    }
+
+    private function ensureTableExists(): void
+    {
+        if (! Schema::hasTable('timeline_card_configs')) {
+            try {
+                DB::statement('
+                    CREATE TABLE IF NOT EXISTS timeline_card_configs (
+                        id SERIAL PRIMARY KEY,
+                        profile_completion_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        you_can_help_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        events_spotlight_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        circle_vacancy_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        suggested_peers_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        updated_by_user_id VARCHAR(255) NULL,
+                        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                ');
+            } catch (Throwable $e) {
+                Log::warning('[TimelineCardConfigService] Failed to auto-create table', ['error' => $e->getMessage()]);
+            }
         }
     }
 

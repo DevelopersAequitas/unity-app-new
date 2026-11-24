@@ -34,7 +34,9 @@ class AdminPeerIndexRequest extends FormRequest
             'sort_by' => ['sometimes', 'nullable', 'string', 'in:created_at,name,first_name,display_name,email,coins,coins_balance,life_impacted,life_impacted_count,last_login_at,last_login,membership_expiry,expiry'],
             'sort_dir' => ['sometimes', 'nullable', 'string', 'in:asc,desc'],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5000'],
+            'all' => ['sometimes', 'nullable'],
+            'with_trashed' => ['sometimes', 'nullable'],
         ];
     }
 }
