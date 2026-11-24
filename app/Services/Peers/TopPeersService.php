@@ -373,16 +373,16 @@ class TopPeersService
             ->select('u.id as user_id')
             ->selectRaw("coalesce(agg.{$primarySortColumn}, 0) as {$primarySortColumn}");
 
-        if ($secondarySortColumn) {
+        if ($secondarySortColumn && $secondarySortColumn !== $primarySortColumn) {
             $query->selectRaw("coalesce(agg.{$secondarySortColumn}, 0) as {$secondarySortColumn}");
         }
 
         ActivityUserFilter::applyToUserQuery($query, 'u.id', 'u');
         $this->applyCircleAndSearchFilters($query, $filters);
 
-        $query->orderByDesc("agg.{$primarySortColumn}");
-        if ($secondarySortColumn) {
-            $query->orderByDesc("agg.{$secondarySortColumn}");
+        $query->orderByRaw("coalesce(agg.{$primarySortColumn}, 0) DESC");
+        if ($secondarySortColumn && $secondarySortColumn !== $primarySortColumn) {
+            $query->orderByRaw("coalesce(agg.{$secondarySortColumn}, 0) DESC");
         }
         $query->orderBy('u.id');
 
