@@ -69,16 +69,14 @@ class WelcomeCreativeImageGenerator
 
         $this->drawAvatarOrInitial($canvas, $user, $centerX, $circleCenterY, $targetDiameter, $darkCircleBg, $fontBold);
 
-        // 1. Peer Name (Uppercase, Dark Navy, Montserrat Bold)
+        // 1. Peer Name (Uppercase, Dark Navy, Bold)
         $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($name === '') {
             $name = 'PEER MEMBER';
         }
         $name = strtoupper($name);
 
-        // 2. City • Company (Uppercase, Slate Gray, Montserrat SemiBold)
-        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
-
+        // 2. Peer City (Uppercase, Gray, SemiBold)
         $cityModel = null;
         try {
             $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
@@ -100,20 +98,9 @@ class WelcomeCreativeImageGenerator
         if (in_array(strtolower($cityName), ['null', 'none', 'n/a'], true)) {
             $cityName = '';
         }
+        $cityText = ! empty($cityName) ? strtoupper($cityName) : 'PEERS GLOBAL';
 
-        $line2Parts = [];
-        if (! empty($cityName)) {
-            $line2Parts[] = strtoupper($cityName);
-        }
-        if (! empty($company)) {
-            $line2Parts[] = strtoupper($company);
-        }
-        $line2Text = implode('  •  ', $line2Parts);
-        if (empty($line2Text)) {
-            $line2Text = 'PEERS GLOBAL MEMBER';
-        }
-
-        // 3. Category / Subcategory / Designation (Uppercase, Deep Navy / Indigo, Montserrat Bold)
+        // 3. Peer Category (Uppercase, Vibrant Navy / Accent, Bold)
         $categoryName = '';
         try {
             if ($user->relationLoaded('level4Category') && $user->level4Category) {
@@ -172,27 +159,27 @@ class WelcomeCreativeImageGenerator
             }
         };
 
-        // Render matching exact style from snippet:
+        // Render Only: Peer Name, Peer Category, and Peer City
         // Scale baseline coordinates proportionally to canvas height (1024 standard)
         $scaleY = $height / 1024.0;
         $scaleX = $width / 819.0;
 
-        // Line 1: Member Name (Dark Navy #002F6C, Montserrat Bold, ~25pt, Baseline Y ~ 762)
+        // Line 1: Peer Name (Navy #002F6C, Bold, ~25pt, Baseline Y ~ 762)
         $nameBaselineY = (int) round(762 * $scaleY);
         $nameFontSize = (int) round(25 * min($scaleX, $scaleY));
         $drawCenterText($canvas, $nameFontSize, $nameBaselineY, $colorNavy, $fontBold, $name, (int) round(680 * $scaleX));
 
-        // Line 2: CITY • COMPANY (Slate Gray #616161, Montserrat SemiBold, ~14pt, Baseline Y ~ 798)
-        $line2BaselineY = (int) round(798 * $scaleY);
-        $line2FontSize = (int) round(14 * min($scaleX, $scaleY));
-        $drawCenterText($canvas, $line2FontSize, $line2BaselineY, $colorGray, $fontSemiBold, $line2Text, (int) round(680 * $scaleX));
+        // Line 2: Peer City (Gray #616161, SemiBold, ~15pt, Baseline Y ~ 798)
+        $cityBaselineY = (int) round(798 * $scaleY);
+        $cityFontSize = (int) round(15 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $cityFontSize, $cityBaselineY, $colorGray, $fontSemiBold, $cityText, (int) round(680 * $scaleX));
 
-        // Divider: Gradient line (navy-to-crimson) with central crimson dot (Y ~ 818)
+        // Divider: Gradient line with central crimson dot (Y ~ 818)
         $dividerY = (int) round(818 * $scaleY);
         $dividerHalfWidth = (int) round(135 * $scaleX);
         $this->drawGradientDivider($canvas, $centerX, $dividerY, $dividerHalfWidth, $colorNavy, $colorCrimson);
 
-        // Line 3: Category / Industry (Deep Navy / Indigo #002F6C, Montserrat Bold, ~14pt, Baseline Y ~ 848)
+        // Line 3: Peer Category (Navy Blue #002F6C, Bold, ~14pt, Baseline Y ~ 848)
         $categoryBaselineY = (int) round(848 * $scaleY);
         $categoryFontSize = (int) round(14 * min($scaleX, $scaleY));
         $drawCenterText($canvas, $categoryFontSize, $categoryBaselineY, $colorNavy, $fontBold, $categoryText, (int) round(680 * $scaleX));
