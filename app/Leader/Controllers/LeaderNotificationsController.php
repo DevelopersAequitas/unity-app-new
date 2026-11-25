@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -541,29 +542,36 @@ class LeaderNotificationsController extends Controller
         $policy = app(LeaderNotificationPolicyService::class);
         $defaultConfig = $policy->getDefaultRoleConfig();
 
-        // Fetch custom saved overrides if table exists (backward-compatible with legacy 6-key saves)
-        if (Schema::hasTable('app_configs')) {
-            $saved = DB::table('app_configs')
-                ->where('key', 'leader_notification_flow_config')
-                ->value('value');
-            if ($saved) {
-                $decoded = json_decode((string) $saved, true);
-                if (is_array($decoded)) {
-                    $defaultConfig = array_replace_recursive($defaultConfig, $decoded);
-                    foreach ($defaultConfig as $rKey => &$roleBlock) {
-                        $overrides = is_array($decoded[$rKey]['events_override'] ?? null) ? $decoded[$rKey]['events_override'] : [];
-                        if (! empty($overrides) && is_array($roleBlock['events'] ?? null)) {
-                            foreach ($roleBlock['events'] as &$ev) {
-                                $evKey = (string) ($ev['key'] ?? '');
-                                if ($evKey !== '' && array_key_exists($evKey, $overrides) && empty($ev['critical'])) {
-                                    $ev['enabled'] = (bool) $overrides[$evKey];
-                                }
-                            }
+        foreach ($policy->getDynamicRolesCatalog() as $roleMeta) {
+            $rKey = (string) ($roleMeta['role_key'] ?? '');
+            if ($rKey === '') {
+                continue;
+            }
+            if (! isset($defaultConfig[$rKey])) {
+                $defaultConfig[$rKey] = $policy->buildRoleMatrixBlock($roleMeta);
+            } else {
+                $defaultConfig[$rKey]['role_label'] = (string) ($roleMeta['role_label'] ?? $defaultConfig[$rKey]['role_label']);
+                $defaultConfig[$rKey]['description'] = (string) ($roleMeta['description'] ?? $defaultConfig[$rKey]['description']);
+                $defaultConfig[$rKey]['hierarchy_depth'] = (int) ($roleMeta['hierarchy_depth'] ?? 99);
+            }
+        }
+
+        // Fetch custom saved overrides (app_configs or file fallback)
+        $decoded = $policy->readGovernanceStore('leader_notification_flow_config', []);
+        if (! empty($decoded)) {
+            $defaultConfig = array_replace_recursive($defaultConfig, $decoded);
+            foreach ($defaultConfig as $rKey => &$roleBlock) {
+                $overrides = is_array($decoded[$rKey]['events_override'] ?? null) ? $decoded[$rKey]['events_override'] : [];
+                if (! empty($overrides) && is_array($roleBlock['events'] ?? null)) {
+                    foreach ($roleBlock['events'] as &$ev) {
+                        $evKey = (string) ($ev['key'] ?? '');
+                        if ($evKey !== '' && array_key_exists($evKey, $overrides) && empty($ev['critical'])) {
+                            $ev['enabled'] = (bool) $overrides[$evKey];
                         }
                     }
-                    unset($roleBlock, $ev);
                 }
             }
+            unset($roleBlock, $ev);
         }
 
         return response()->json([
@@ -594,26 +602,14 @@ class LeaderNotificationsController extends Controller
             ], 422);
         }
 
-        if (Schema::hasTable('app_configs')) {
-            $existing = DB::table('app_configs')
-                ->where('key', 'leader_notification_flow_config')
-                ->value('value');
-            $currentData = $existing ? (json_decode((string) $existing, true) ?: []) : [];
-
-            if (is_array($fullConfig) && ! empty($fullConfig)) {
-                $currentData = $fullConfig;
-            } elseif (! empty($roleKey) && ! empty($eventKey)) {
-                $currentData[$roleKey]['events_override'][$eventKey] = $isEnabled;
-            }
-
-            DB::table('app_configs')->updateOrInsert(
-                ['key' => 'leader_notification_flow_config'],
-                [
-                    'value' => json_encode($currentData),
-                    'updated_at' => now(),
-                ]
-            );
+        $policy = app(LeaderNotificationPolicyService::class);
+        $currentData = $policy->readGovernanceStore('leader_notification_flow_config', []);
+        if (is_array($fullConfig) && ! empty($fullConfig)) {
+            $currentData = $fullConfig;
+        } elseif (! empty($roleKey) && ! empty($eventKey)) {
+            $currentData[$roleKey]['events_override'][$eventKey] = $isEnabled;
         }
+        $policy->writeGovernanceStore('leader_notification_flow_config', $currentData);
 
         return response()->json([
             'success' => true,
@@ -710,26 +706,96 @@ class LeaderNotificationsController extends Controller
         $search = trim((string) $request->input('search', ''));
         $roleFilter = trim((string) $request->input('role', ''));
         $page = max(1, (int) $request->input('page', 1));
-        $perPage = max(1, min(100, (int) $request->input('per_page', 25)));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 50)));
 
         $permissionService = app(LeaderPermissionService::class);
         $leaders = [];
 
         if (Schema::hasTable('users')) {
             $cols = Schema::getColumnListing('users');
-            $q = User::query()->whereNull('deleted_at');
+            $candidateIds = [];
+            $candidateEmails = [];
 
-            if ($search !== '') {
-                $q->where(function ($sub) use ($search, $cols): void {
-                    $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('id', 'like', "%{$search}%");
-                    if (in_array('email', $cols, true)) {
-                        $sub->orWhere('email', 'like', "%{$search}%");
+            // 1. Direct leader role column on users table
+            if (in_array('role', $cols, true)) {
+                $directIds = DB::table('users')
+                    ->whereNull('deleted_at')
+                    ->whereNotNull('role')
+                    ->whereNotIn(DB::raw('LOWER(role)'), ['', 'member', 'user', 'peer'])
+                    ->pluck('id')
+                    ->all();
+                foreach ($directIds as $uid) {
+                    $candidateIds[(string) $uid] = true;
+                }
+            }
+
+            // 2. AdminUser records (by id & email)
+            if (Schema::hasTable('admin_users')) {
+                $adminRows = DB::table('admin_users')->select(['id', 'email'])->get();
+                foreach ($adminRows as $ar) {
+                    $candidateIds[(string) $ar->id] = true;
+                    if (! empty($ar->email)) {
+                        $candidateEmails[strtolower(trim((string) $ar->email))] = true;
                     }
-                    if (in_array('phone', $cols, true)) {
-                        $sub->orWhere('phone', 'like', "%{$search}%");
+                }
+            }
+
+            // 3. Dynamic RBAC assignments (admin_user_roles)
+            if (Schema::hasTable('admin_user_roles')) {
+                foreach (DB::table('admin_user_roles')->distinct()->pluck('user_id')->all() as $uid) {
+                    $candidateIds[(string) $uid] = true;
+                }
+            }
+
+            // 4. Industry director assignments
+            if (Schema::hasTable('industry_director_assignments')) {
+                $idaCols = Schema::getColumnListing('industry_director_assignments');
+                $idaRows = DB::table('industry_director_assignments')->where('is_active', true)->get();
+                foreach ($idaRows as $row) {
+                    if (in_array('admin_user_id', $idaCols, true) && ! empty($row->admin_user_id)) {
+                        $candidateIds[(string) $row->admin_user_id] = true;
                     }
-                });
+                    if (in_array('user_id', $idaCols, true) && ! empty($row->user_id)) {
+                        $candidateIds[(string) $row->user_id] = true;
+                    }
+                }
+            }
+
+            // 5. Circle leadership columns & calendar JSON (single query instead of per-user N+1)
+            if (Schema::hasTable('circles')) {
+                $circleLeaderCols = [
+                    'founder_user_id',
+                    'circle_founder_user_id',
+                    'circle_director_user_id',
+                    'director_user_id',
+                    'industry_director_user_id',
+                    'ded_user_id',
+                    'eed_user_id',
+                    'business_growth_committee_chair_user_id',
+                    'membership_growth_committee_chair_user_id',
+                    'events_impacts_committee_chair_user_id',
+                    'vice_chair_user_id',
+                    'secretary_user_id',
+                    'chair_user_id',
+                ];
+                $circles = Circle::query()->whereNull('deleted_at')->get();
+                foreach ($circles as $c) {
+                    foreach ($circleLeaderCols as $col) {
+                        if (! empty($c->{$col})) {
+                            $candidateIds[(string) $c->{$col}] = true;
+                        }
+                    }
+                    $leadership = data_get($c->calendar, 'leadership', []);
+                    if (is_array($leadership)) {
+                        foreach ($leadership as $val) {
+                            if (is_string($val) && $val !== '') {
+                                $candidateIds[$val] = true;
+                            } elseif (is_array($val) && ! empty($val['id'])) {
+                                $candidateIds[(string) $val['id']] = true;
+                            }
+                        }
+                    }
+                }
             }
 
             $tokenUsers = [];
@@ -747,7 +813,36 @@ class LeaderNotificationsController extends Controller
                 }
             }
 
-            $q->orderBy('id')->chunkById(500, function ($users) use ($permissionService, $roleFilter, $tokenUsers, &$leaders): void {
+            $idList = array_keys($candidateIds);
+            $emailList = array_keys($candidateEmails);
+
+            if (! empty($idList) || ! empty($emailList)) {
+                $q = User::query()
+                    ->with('activeCircle:id,name')
+                    ->whereNull('deleted_at')
+                    ->where(function ($scope) use ($idList, $emailList, $cols): void {
+                        if (! empty($idList)) {
+                            $scope->whereIn('id', $idList);
+                        }
+                        if (! empty($emailList) && in_array('email', $cols, true)) {
+                            $scope->orWhereIn(DB::raw('LOWER(email)'), $emailList);
+                        }
+                    });
+
+                if ($search !== '') {
+                    $q->where(function ($sub) use ($search, $cols): void {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('id', 'like', "%{$search}%");
+                        if (in_array('email', $cols, true)) {
+                            $sub->orWhere('email', 'like', "%{$search}%");
+                        }
+                        if (in_array('phone', $cols, true)) {
+                            $sub->orWhere('phone', 'like', "%{$search}%");
+                        }
+                    });
+                }
+
+                $users = $q->orderBy('name')->take(250)->get();
                 foreach ($users as $u) {
                     if (! $permissionService->isLeader($u)) {
                         continue;
@@ -756,8 +851,12 @@ class LeaderNotificationsController extends Controller
                     $canon = (string) ($roleInfo['role'] ?? 'leader');
                     $roleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canon);
 
-                    if ($roleFilter !== '' && $roleFilter !== 'all' && strtolower($canon) !== strtolower($roleFilter)) {
-                        continue;
+                    if ($roleFilter !== '' && $roleFilter !== 'all') {
+                        $canonSnake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $canon));
+                        $filterNorm = strtolower($roleFilter);
+                        if (strtolower($canon) !== $filterNorm && $canonSnake !== $filterNorm) {
+                            continue;
+                        }
                     }
 
                     $circleName = $u->activeCircle?->name ?? 'National Scope';
@@ -779,7 +878,7 @@ class LeaderNotificationsController extends Controller
                         'avatar_url' => $u->avatar_url ?? null,
                     ];
                 }
-            });
+            }
         }
 
         $total = count($leaders);
@@ -960,6 +1059,16 @@ class LeaderNotificationsController extends Controller
 
             foreach ($results as $item) {
                 $payload = is_array($item->data) ? $item->data : [];
+                $policy = app(LeaderNotificationPolicyService::class);
+                if (! $policy->isLeadershipAudiencePayload(
+                    $payload,
+                    (string) ($item->type ?? ''),
+                    (string) ($item->category ?? ''),
+                    (string) ($item->screen ?? '')
+                )) {
+                    continue;
+                }
+
                 $created = $item->created_at ?: now();
 
                 // Format in target timezone
@@ -979,19 +1088,25 @@ class LeaderNotificationsController extends Controller
 
                 if ($userObj) {
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
-                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
+                    $roleKey = (string) ($resolvedRole['role'] ?? '');
+                    $roleSnake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $roleKey));
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
 
                     // Strictly filter: For automated events, skip non-leader roles
-                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true))) {
+                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array(strtolower($roleKey), ['peermember', 'peer_member', 'peer', 'member'], true))) {
                         continue;
                     }
                 } elseif (! $isAdminBroadcast) {
                     continue;
+                } else {
+                    $roleSnake = $roleKey;
                 }
 
-                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
-                    continue;
+                if (! empty($roleFilter) && $roleFilter !== 'all') {
+                    $filterNorm = strtolower($roleFilter);
+                    if (strtolower($roleKey) !== $filterNorm && $roleSnake !== $filterNorm) {
+                        continue;
+                    }
                 }
 
                 $triggerType = ($payload['sent_by_admin'] ?? false)
@@ -1234,6 +1349,20 @@ class LeaderNotificationsController extends Controller
         $events = [];
         $categories = [];
 
+        $latestByType = [];
+        if (Schema::hasTable('app_notifications')) {
+            $latestRows = AppNotification::query()
+                ->select('type', DB::raw('MAX(created_at) as last_triggered_at'))
+                ->whereNotNull('type')
+                ->groupBy('type')
+                ->get();
+            foreach ($latestRows as $lr) {
+                $latestByType[(string) $lr->type] = $lr->last_triggered_at
+                    ? Carbon::parse($lr->last_triggered_at)->toIso8601String()
+                    : null;
+            }
+        }
+
         foreach ($catalogue as $key => $spec) {
             $isCritical = $policy->isCriticalNotification(
                 $key,
@@ -1244,15 +1373,8 @@ class LeaderNotificationsController extends Controller
             $cat = (string) ($spec['category'] ?? 'system');
             $categories[$cat] = true;
 
-            $lastTriggeredAt = null;
-            $lastStatus = null;
-            if (Schema::hasTable('app_notifications')) {
-                $latest = AppNotification::query()->where('type', $key)->orderByDesc('created_at')->first();
-                if ($latest) {
-                    $lastTriggeredAt = $latest->created_at?->toIso8601String();
-                    $lastStatus = $latest->failed_at !== null ? 'failed' : ($latest->sent_at !== null ? 'sent' : (string) $latest->status);
-                }
-            }
+            $lastTriggeredAt = $latestByType[$key] ?? null;
+            $lastStatus = $lastTriggeredAt !== null ? 'recorded' : null;
 
             $events[] = [
                 'event_id' => (string) ($spec['id'] ?? $key),
@@ -1328,12 +1450,7 @@ class LeaderNotificationsController extends Controller
         ];
         $states[$eventKey] = $nextState;
 
-        if (Schema::hasTable('app_configs')) {
-            DB::table('app_configs')->updateOrInsert(
-                ['key' => 'leader_notification_flow_states'],
-                ['value' => json_encode($states), 'updated_at' => now()]
-            );
-        }
+        $policy->writeGovernanceStore('leader_notification_flow_states', $states);
 
         $policy->recordAdminAudit([
             'actor_id' => $actor ? (string) $actor->id : null,
@@ -1542,16 +1659,8 @@ class LeaderNotificationsController extends Controller
      */
     public function getAuditLogs(Request $request): JsonResponse
     {
-        $logs = [];
-        if (Schema::hasTable('app_configs')) {
-            $raw = DB::table('app_configs')
-                ->where('key', 'leader_notification_audit_logs')
-                ->value('value');
-            $decoded = $raw ? json_decode((string) $raw, true) : [];
-            if (is_array($decoded)) {
-                $logs = $decoded;
-            }
-        }
+        $policy = app(LeaderNotificationPolicyService::class);
+        $logs = $policy->readGovernanceStore('leader_notification_audit_logs', []);
 
         return response()->json(['success' => true, 'data' => $logs]);
     }
@@ -1561,6 +1670,7 @@ class LeaderNotificationsController extends Controller
      */
     public function getPolicies(Request $request): JsonResponse
     {
+        $policy = app(LeaderNotificationPolicyService::class);
         $defaults = [
             'quiet_hours_default_start' => '22:00',
             'quiet_hours_default_end' => '07:00',
@@ -1571,14 +1681,9 @@ class LeaderNotificationsController extends Controller
             'version' => 1,
         ];
 
-        if (Schema::hasTable('app_configs')) {
-            $raw = DB::table('app_configs')
-                ->where('key', 'leader_notification_global_policies')
-                ->value('value');
-            $decoded = $raw ? json_decode((string) $raw, true) : [];
-            if (is_array($decoded)) {
-                $defaults = array_merge($defaults, $decoded);
-            }
+        $saved = $policy->readGovernanceStore('leader_notification_global_policies', []);
+        if (! empty($saved)) {
+            $defaults = array_merge($defaults, $saved);
         }
 
         return response()->json(['success' => true, 'data' => $defaults]);
@@ -1599,12 +1704,7 @@ class LeaderNotificationsController extends Controller
             'version' => ((int) ($current['version'] ?? 1)) + 1,
         ]);
 
-        if (Schema::hasTable('app_configs')) {
-            DB::table('app_configs')->updateOrInsert(
-                ['key' => 'leader_notification_global_policies'],
-                ['value' => json_encode($next), 'updated_at' => now()]
-            );
-        }
+        $policy->writeGovernanceStore('leader_notification_global_policies', $next);
 
         $actor = $request->user();
         $policy->recordAdminAudit([

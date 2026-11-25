@@ -106,7 +106,9 @@ class FcmService
 
     public function sendToUser(User $user, string $title, string $body, array $data, ?AppNotification $notification = null): array
     {
-        $tokens = $this->activeTokensForUser($user->id);
+        $rawApp = strtolower((string) ($data['app'] ?? ($data['app_name'] ?? ($data['audience'] ?? 'member'))));
+        $targetApp = in_array($rawApp, ['leader', 'leader_app', 'leadership'], true) ? 'leader' : 'member';
+        $tokens = $this->activeTokensForUser($user->id, $targetApp);
 
         if ($tokens->isEmpty()) {
             if ($notification) {
@@ -149,9 +151,10 @@ class FcmService
         return ['success' => collect($results)->contains('success', true), 'results' => $results];
     }
 
-    public function activeTokensForUser(string $userId): Collection
+    public function activeTokensForUser(string $userId, string $targetApp = 'member'): Collection
     {
         $tokens = collect();
+        $isLeaderApp = $targetApp === 'leader';
 
         if (Schema::hasTable('user_push_tokens')) {
             try {
@@ -159,6 +162,18 @@ class FcmService
                     ->where(UserPushToken::getUserIdColumn(), $userId)
                     ->whereNotNull('token')
                     ->where('token', '!=', '');
+
+                if (Schema::hasColumn('user_push_tokens', 'app')) {
+                    if ($isLeaderApp) {
+                        $query->where('app', 'leader');
+                    } else {
+                        $query->where(function ($appQuery): void {
+                            $appQuery->whereNull('app')
+                                ->orWhere('app', '')
+                                ->orWhere('app', '!=', 'leader');
+                        });
+                    }
+                }
 
                 if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
                     $query->whereNull('deleted_at');
@@ -199,50 +214,55 @@ class FcmService
 
         $user = User::find($userId);
         if ($user) {
-            if (filled($user->android_fcm_token)) {
-                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => (strtolower((string) $t->platform) === 'android' || $t->token === $user->android_fcm_token));
-                if (! $hasAndroidToken) {
-                    $tokens->push(new UserPushToken([
-                        UserPushToken::getUserIdColumn() => $userId,
-                        'token' => $user->android_fcm_token,
-                        'platform' => 'android',
-                        'is_active' => true,
-                    ]));
+            if (! $isLeaderApp) {
+                if (filled($user->android_fcm_token)) {
+                    $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => (strtolower((string) $t->platform) === 'android' || $t->token === $user->android_fcm_token));
+                    if (! $hasAndroidToken) {
+                        $tokens->push(new UserPushToken([
+                            UserPushToken::getUserIdColumn() => $userId,
+                            'token' => $user->android_fcm_token,
+                            'platform' => 'android',
+                            'app' => 'member',
+                            'is_active' => true,
+                        ]));
+                    }
                 }
-            }
-            if (filled($user->ios_fcm_token)) {
-                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => (in_array(strtolower((string) $t->platform), ['ios', 'apple', 'iphone'], true) || $t->token === $user->ios_fcm_token));
-                if (! $hasIosToken) {
-                    $tokens->push(new UserPushToken([
-                        UserPushToken::getUserIdColumn() => $userId,
-                        'token' => $user->ios_fcm_token,
-                        'platform' => 'ios',
-                        'is_active' => true,
-                    ]));
+                if (filled($user->ios_fcm_token)) {
+                    $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => (in_array(strtolower((string) $t->platform), ['ios', 'apple', 'iphone'], true) || $t->token === $user->ios_fcm_token));
+                    if (! $hasIosToken) {
+                        $tokens->push(new UserPushToken([
+                            UserPushToken::getUserIdColumn() => $userId,
+                            'token' => $user->ios_fcm_token,
+                            'platform' => 'ios',
+                            'app' => 'member',
+                            'is_active' => true,
+                        ]));
+                    }
                 }
-            }
-            if (Schema::hasColumn('users', 'leader_android_fcm_token') && filled($user->leader_android_fcm_token)) {
-                $hasLeaderAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_android_fcm_token);
-                if (! $hasLeaderAndroidToken) {
-                    $tokens->push(new UserPushToken([
-                        UserPushToken::getUserIdColumn() => $userId,
-                        'token' => $user->leader_android_fcm_token,
-                        'platform' => 'android',
-                        'app' => 'leader',
-                        'is_active' => true,
-                    ]));
+            } else {
+                if (Schema::hasColumn('users', 'leader_android_fcm_token') && filled($user->leader_android_fcm_token)) {
+                    $hasLeaderAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_android_fcm_token);
+                    if (! $hasLeaderAndroidToken) {
+                        $tokens->push(new UserPushToken([
+                            UserPushToken::getUserIdColumn() => $userId,
+                            'token' => $user->leader_android_fcm_token,
+                            'platform' => 'android',
+                            'app' => 'leader',
+                            'is_active' => true,
+                        ]));
+                    }
                 }
-            }
-            if (Schema::hasColumn('users', 'leader_ios_fcm_token') && filled($user->leader_ios_fcm_token)) {
-                $hasLeaderIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_ios_fcm_token);
-                if (! $hasLeaderIosToken) {
-                    $tokens->push(new UserPushToken([
-                        UserPushToken::getUserIdColumn() => $userId,
-                        'token' => $user->leader_ios_fcm_token,
-                        'platform' => 'ios',
-                        'app' => 'leader',
-                        'is_active' => true,
-                    ]));
+                if (Schema::hasColumn('users', 'leader_ios_fcm_token') && filled($user->leader_ios_fcm_token)) {
+                    $hasLeaderIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->leader_ios_fcm_token);
+                    if (! $hasLeaderIosToken) {
+                        $tokens->push(new UserPushToken([
+                            UserPushToken::getUserIdColumn() => $userId,
+                            'token' => $user->leader_ios_fcm_token,
+                            'platform' => 'ios',
+                            'app' => 'leader',
+                            'is_active' => true,
+                        ]));
+                    }
                 }
             }
         }
