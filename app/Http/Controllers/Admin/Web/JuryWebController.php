@@ -177,7 +177,7 @@ class JuryWebController extends Controller
         $cacheKey = "jury_otp_{$user->id}";
         $cachedOtp = Cache::get($cacheKey);
 
-        if ($otp === $cachedOtp || $otp === '123456') {
+        if (is_string($cachedOtp) && $cachedOtp !== '' && hash_equals($cachedOtp, $otp)) {
             Cache::forget($cacheKey);
 
             $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
@@ -516,36 +516,62 @@ class JuryWebController extends Controller
             $contactMasked = "{$maskedPhone} · {$maskedEmail}";
 
             $f2Answers = is_array($rawF2) ? ($rawF2['form_2'] ?? $rawF2) : [];
-            
+
             // Build rich executive bio from Form 2 if standard field not directly present
             $bioParts = [];
-            if (!empty($f2Answers['roles_held'])) $bioParts[] = "Roles Held: " . $f2Answers['roles_held'];
-            if (!empty($f2Answers['largest_community'])) $bioParts[] = "Largest Community Stewarded: " . $f2Answers['largest_community'];
-            if (!empty($f2Answers['developed_leader_1'])) $bioParts[] = "Developed Leaders: " . $f2Answers['developed_leader_1'];
-            if (!empty($f2Answers['leadership_failure'])) $bioParts[] = "Leadership Lessons: " . $f2Answers['leadership_failure'];
-            $executiveBio = $isF2Submitted 
-                ? ($f2Answers['executive_bio'] ?? ($f2Answers['bio'] ?? (!empty($bioParts) ? implode("\n", $bioParts) : ($snap['bio'] ?? '')))) 
+            if (! empty($f2Answers['roles_held'])) {
+                $bioParts[] = 'Roles Held: '.$f2Answers['roles_held'];
+            }
+            if (! empty($f2Answers['largest_community'])) {
+                $bioParts[] = 'Largest Community Stewarded: '.$f2Answers['largest_community'];
+            }
+            if (! empty($f2Answers['developed_leader_1'])) {
+                $bioParts[] = 'Developed Leaders: '.$f2Answers['developed_leader_1'];
+            }
+            if (! empty($f2Answers['leadership_failure'])) {
+                $bioParts[] = 'Leadership Lessons: '.$f2Answers['leadership_failure'];
+            }
+            $executiveBio = $isF2Submitted
+                ? ($f2Answers['executive_bio'] ?? ($f2Answers['bio'] ?? (! empty($bioParts) ? implode("\n", $bioParts) : ($snap['bio'] ?? ''))))
                 : '';
 
             // Build operational blueprint from Form 2
             $planParts = [];
-            if (!empty($f2Answers['targets_12_months'])) $planParts[] = "12-Month Targets:\n" . $f2Answers['targets_12_months'];
-            if (!empty($f2Answers['action_90_day_1'])) $planParts[] = "90-Day Actions:\n1. " . $f2Answers['action_90_day_1'];
-            if (!empty($f2Answers['action_90_day_2'])) $planParts[] = "2. " . $f2Answers['action_90_day_2'];
-            if (!empty($f2Answers['action_90_day_3'])) $planParts[] = "3. " . $f2Answers['action_90_day_3'];
-            if (!empty($f2Answers['funding_plan'])) $planParts[] = "\nFunding / Resource Plan: " . $f2Answers['funding_plan'];
-            if (!empty($f2Answers['biggest_risk'])) $planParts[] = "Risks: " . $f2Answers['biggest_risk'];
-            $operationalBlueprint = $isF2Submitted 
-                ? ($f2Answers['operational_blueprint'] ?? ($f2Answers['vision'] ?? (!empty($planParts) ? implode("\n", $planParts) : ($snap['vision_statement'] ?? '')))) 
+            if (! empty($f2Answers['targets_12_months'])) {
+                $planParts[] = "12-Month Targets:\n".$f2Answers['targets_12_months'];
+            }
+            if (! empty($f2Answers['action_90_day_1'])) {
+                $planParts[] = "90-Day Actions:\n1. ".$f2Answers['action_90_day_1'];
+            }
+            if (! empty($f2Answers['action_90_day_2'])) {
+                $planParts[] = '2. '.$f2Answers['action_90_day_2'];
+            }
+            if (! empty($f2Answers['action_90_day_3'])) {
+                $planParts[] = '3. '.$f2Answers['action_90_day_3'];
+            }
+            if (! empty($f2Answers['funding_plan'])) {
+                $planParts[] = "\nFunding / Resource Plan: ".$f2Answers['funding_plan'];
+            }
+            if (! empty($f2Answers['biggest_risk'])) {
+                $planParts[] = 'Risks: '.$f2Answers['biggest_risk'];
+            }
+            $operationalBlueprint = $isF2Submitted
+                ? ($f2Answers['operational_blueprint'] ?? ($f2Answers['vision'] ?? (! empty($planParts) ? implode("\n", $planParts) : ($snap['vision_statement'] ?? ''))))
                 : '';
 
             $benchValue = $isF2Submitted ? ($f2Answers['bench_value'] ?? ($f2Answers['bench'] ?? ($f2Answers['bench_members'] ?? []))) : [];
-            
+
             $docList = [];
-            if (!empty($f2Answers['deck_url'])) $docList[] = ['title' => 'Pitch Deck / Strategic Presentation', 'type' => 'PDF / Deck', 'url' => $f2Answers['deck_url']];
-            if (!empty($f2Answers['identity_proof_url'])) $docList[] = ['title' => 'Identity Proof Document', 'type' => 'ID Proof', 'url' => $f2Answers['identity_proof_url']];
-            if (!empty($f2Answers['business_proof_url'])) $docList[] = ['title' => 'Business Track Record Proof', 'type' => 'Proof Document', 'url' => $f2Answers['business_proof_url']];
-            $documents = $isF2Submitted ? (!empty($docList) ? $docList : ($f2Answers['documents'] ?? ($nom->documents ? $nom->documents->toArray() : []))) : [];
+            if (! empty($f2Answers['deck_url'])) {
+                $docList[] = ['title' => 'Pitch Deck / Strategic Presentation', 'type' => 'PDF / Deck', 'url' => $f2Answers['deck_url']];
+            }
+            if (! empty($f2Answers['identity_proof_url'])) {
+                $docList[] = ['title' => 'Identity Proof Document', 'type' => 'ID Proof', 'url' => $f2Answers['identity_proof_url']];
+            }
+            if (! empty($f2Answers['business_proof_url'])) {
+                $docList[] = ['title' => 'Business Track Record Proof', 'type' => 'Proof Document', 'url' => $f2Answers['business_proof_url']];
+            }
+            $documents = $isF2Submitted ? (! empty($docList) ? $docList : ($f2Answers['documents'] ?? ($nom->documents ? $nom->documents->toArray() : []))) : [];
 
             $candidatesList[] = [
                 'id' => $nom->id,

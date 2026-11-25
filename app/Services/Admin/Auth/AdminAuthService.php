@@ -193,57 +193,6 @@ class AdminAuthService
             ];
         }
 
-        $bypassEmails = [
-            'hardik@gmail.com',
-            'harsh@gmail.com',
-            'urvashi@gmail.com',
-            'dhruvil@gmail.com',
-            'chirag@gmail.com',
-            'mohit@gmail.com',
-            'rahul@gmail.com',
-            'vinit@gmail.com',
-        ];
-
-        if (app()->environment('local')) {
-            $bypassEmails[] = 'missurvashi300@gmail.com';
-        }
-
-        // Special password bypass user
-        if ($email === 'harshchauhanwork26@gmail.com') {
-            $adminUser = $this->resolveOrCreateAdminUser($email);
-
-            $ipAccessService = app(AdminIpAccessService::class);
-            if ($ipAccessService->isPasswordLoginAllowedForRequest(request())) {
-                return [
-                    'status' => 200,
-                    'success' => true,
-                    'message' => 'Enter password to login',
-                    'data' => [
-                        'email' => $email,
-                        'channel' => 'email',
-                        'is_password_user' => true,
-                    ],
-                ];
-            }
-        }
-
-        // Instant login bypass users
-        if (in_array($email, $bypassEmails, true)) {
-            $adminUser = $this->resolveOrCreateAdminUser($email);
-
-            return [
-                'status' => 200,
-                'success' => true,
-                'message' => 'Bypass login successful',
-                'data' => [
-                    'email' => $email,
-                    'channel' => 'email',
-                    'admin_user' => $adminUser,
-                    'is_direct_login' => true,
-                ],
-            ];
-        }
-
         $adminUser = $this->eligibleAdminByEmail($email);
         if (! $adminUser) {
             return [
@@ -368,8 +317,6 @@ class AdminAuthService
             ];
         }
 
-        $isBypassPasswordUser = ($email === 'harshchauhanwork26@gmail.com');
-
         $adminUser = $this->eligibleAdminByEmail($email);
         if (! $adminUser) {
             return [
@@ -378,41 +325,6 @@ class AdminAuthService
                 'message' => 'You are not admin',
                 'data' => null,
             ];
-        }
-
-        if ($isBypassPasswordUser) {
-            $ipAccessService = app(AdminIpAccessService::class);
-            if (! $ipAccessService->isPasswordLoginAllowedForRequest(request())) {
-                if (preg_match('/^\d{4}$/', $otp) !== 1) {
-                    $ipAccessService->recordPasswordLoginDenied(request(), $email);
-
-                    return [
-                        'status' => 403,
-                        'success' => false,
-                        'message' => 'Password login is not permitted from your current IP address. Please sign in using OTP verification.',
-                        'data' => null,
-                    ];
-                }
-            } else {
-                if ($otp !== 'Harsh@123') {
-                    return [
-                        'status' => 422,
-                        'success' => false,
-                        'message' => 'Invalid password',
-                        'data' => null,
-                    ];
-                }
-
-                return [
-                    'status' => 200,
-                    'success' => true,
-                    'message' => 'Login successful',
-                    'data' => [
-                        'admin_user' => $adminUser,
-                        'channel' => 'email',
-                    ],
-                ];
-            }
         }
 
         $result = DB::transaction(function () use ($email, $otp): array {

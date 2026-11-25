@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\CoinClaims\StoreCoinClaimRequest;
 use App\Http\Resources\CoinClaimActivityResource;
 use App\Http\Resources\CoinClaimRequestResource;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\CoinClaimRequest;
 use App\Models\FileModel;
 use App\Services\CoinClaims\CoinClaimEmailService;
@@ -112,6 +113,23 @@ class CoinClaimController extends BaseApiController
             $claim->load('user:id,display_name,first_name,last_name,email,phone');
 
             $this->emailService->sendSubmitted($claim);
+
+            try {
+                app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                    'coin_claim_pending',
+                    'Coin Claim Pending Verification',
+                    'A new coin claim ('.$activityCode.') has been submitted and awaits verification.',
+                    [
+                        'circle_id' => (string) ($user->active_circle_id ?? $user->circle_id ?? ''),
+                        'actor_id' => (string) $user->id,
+                        'entity_id' => (string) $claim->id,
+                        'reference_id' => (string) $claim->id,
+                        'idempotency_window' => (string) $claim->id,
+                    ]
+                );
+            } catch (\Throwable) {
+                // Non-blocking leadership notification
+            }
 
             return $this->success(new CoinClaimRequestResource($claim), 'Coin claim submitted successfully.', 201);
         } catch (ValidationException $exception) {

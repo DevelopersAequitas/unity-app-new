@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Models\AdminUser;
 use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\Circular;
 use App\Models\District;
+use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\Impact;
+use App\Models\LeadershipCertificationSubmission;
 use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Testimonial;
@@ -55,7 +59,7 @@ class LeaderDashboardService
         $permissionService = app(LeaderPermissionService::class);
         $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $role = $roleInfo['role'];
-        $isAdminRole = in_array($role, ['superAdmin', 'countryDirector'], true);
+        $isAdminRole = in_array($role, ['superAdmin', 'globalFounder'], true);
         $admin = ($user && Schema::hasTable('admin_users'))
             ? AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first()
             : null;
@@ -70,9 +74,10 @@ class LeaderDashboardService
 
         // 1. If explicit circle_id is provided in request and valid UUID
         if ($circleId && Str::isUuid($circleId)) {
-            if ($isAdminRole || $scopedCircleIds === null || in_array($circleId, $scopedCircleIds, true)) {
-                $circle = Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first();
+            if (! $isAdminRole && $scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+                abort(403, 'You are not authorized to access this circle.');
             }
+            $circle = Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first();
         } elseif (! empty($circleId) && in_array(strtolower(trim((string) $circleId)), ['mine', 'my_circle', 'own'], true) && $scopedCircleIds !== null && count($scopedCircleIds) >= 1) {
             $circle = Circle::query()->where('id', $scopedCircleIds[0])->whereNull('deleted_at')->first();
         }
@@ -308,7 +313,7 @@ class LeaderDashboardService
             ]);
             $subReq->setUserResolver(fn () => $currentUser);
             $subReq->attributes->set('leader_scope_forced', true);
-            $pendingRes = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+            $pendingRes = app(PendingRequestAdminController::class)
                 ->index($subReq)
                 ->getData(true);
             $pendingPeersCount = (int) (
@@ -751,6 +756,48 @@ class LeaderDashboardService
 
         $activeCirclesTotal = count($targetCircleIds);
 
+        $openAsksCount = 0;
+        $inProgressAsksCount = 0;
+        $fulfilledAsksCount = 0;
+        if (Schema::hasTable('asks') && Schema::hasColumn('asks', 'status')) {
+            $askStatusQuery = DB::table('asks')->whereNull('deleted_at');
+            if (! $isGlobalScope && ! empty($scopedMemberUserIds)) {
+                $askStatusQuery->whereIn('user_id', $scopedMemberUserIds);
+            } elseif (! $isGlobalScope) {
+                $askStatusQuery->whereRaw('1 = 0');
+            }
+            $openAsksCount = (clone $askStatusQuery)->whereIn(DB::raw('LOWER(status::text)'), ['open', 'published', 'active'])->count();
+            $inProgressAsksCount = (clone $askStatusQuery)->whereIn(DB::raw('LOWER(status::text)'), ['in_progress', 'in-progress', 'processing'])->count();
+            $fulfilledAsksCount = (clone $askStatusQuery)->whereIn(DB::raw('LOWER(status::text)'), ['fulfilled', 'completed', 'closed'])->count();
+        }
+
+        $entrepreneurCertsCount = 0;
+        $leadershipCertsCount = 0;
+        $scopedEmails = null;
+        if (! $isGlobalScope) {
+            $scopedEmails = ! empty($scopedMemberUserIds)
+                ? User::query()->whereIn('id', $scopedMemberUserIds)->whereNotNull('email')->pluck('email')->map(fn ($e): string => strtolower(trim((string) $e)))->filter()->unique()->values()->all()
+                : [];
+        }
+        if (Schema::hasTable('entrepreneur_certification_submissions')) {
+            $ecQuery = EntrepreneurCertificationSubmission::query();
+            if ($scopedEmails !== null) {
+                $ecQuery->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails ?: ['__none__']);
+            }
+            $entrepreneurCertsCount = $ecQuery->count();
+        }
+        if (Schema::hasTable('leadership_certification_submissions')) {
+            $lcQuery = LeadershipCertificationSubmission::query();
+            if ($scopedEmails !== null) {
+                $lcQuery->whereIn(DB::raw('LOWER(TRIM(email))'), $scopedEmails ?: ['__none__']);
+            }
+            $leadershipCertsCount = $lcQuery->count();
+        }
+
+        $publishedCircularsCount = Schema::hasTable('circulars')
+            ? Circular::query()->whereNull('deleted_at')->where('status', 'published')->count()
+            : 0;
+
         return [
             'circle_id' => $resolvedCircleId,
             'circle_name' => $resolvedCircleName,
@@ -781,9 +828,9 @@ class LeaderDashboardService
             'referral_asks' => $referralAsksCount,
             'help_asks' => $helpAsksCount,
             'all_asks' => $allAsksCount,
-            'open_asks' => (int) round($allAsksCount * 0.6),
-            'in_progress_asks' => (int) round($allAsksCount * 0.25),
-            'fulfilled_asks' => (int) round($allAsksCount * 0.15),
+            'open_asks' => $openAsksCount,
+            'in_progress_asks' => $inProgressAsksCount,
+            'fulfilled_asks' => $fulfilledAsksCount,
             'posts' => $postsCount,
             'creatives' => $creativesCount,
             'coin_claims' => $coinClaimsCount,
@@ -793,9 +840,9 @@ class LeaderDashboardService
             'speaker_applications' => $speakerApplicationsCount,
             'partner_inquiries' => $partnerInquiriesCount,
             'certifications' => $certificationsCount,
-            'entrepreneur_certifications' => (int) round($certificationsCount * 0.7),
-            'leadership_certifications' => (int) round($certificationsCount * 0.3),
-            'circulars' => 5,
+            'entrepreneur_certifications' => $entrepreneurCertsCount,
+            'leadership_certifications' => $leadershipCertsCount,
+            'circulars' => $publishedCircularsCount,
             'event_registrations' => $eventRegistrationsCount,
             'event_attendance' => $eventAttendanceCount,
         ];
@@ -847,24 +894,13 @@ class LeaderDashboardService
             ->take(5)
             ->get();
 
-        // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters for global admin
-        if ($users->isEmpty() && $isAdmin) {
+        // If scoped query returned empty and user has global scope without an explicit circle/district filter
+        if ($users->isEmpty() && $isAdmin && ! $circleId && ! $districtId) {
             $users = (clone $baseQuery)
                 ->when($hasLifeImpactedCol, fn ($q) => $q->orderByDesc('life_impacted_count'))
                 ->orderByDesc('coins_balance')
                 ->take(5)
                 ->get();
-        }
-
-        // If still fewer than 5, fill from other platform members only for global admin scope
-        if ($users->count() < 5 && $isAdmin) {
-            $existingIds = $users->pluck('id')->all();
-            $fillers = (clone $baseQuery)
-                ->whereNotIn('id', $existingIds)
-                ->orderByDesc('coins_balance')
-                ->take(5 - $users->count())
-                ->get();
-            $users = $users->merge($fillers);
         }
 
         $result = [];
@@ -919,11 +955,7 @@ class LeaderDashboardService
                     // Fallback
                 }
             }
-            if ($lives <= 0) {
-                $lives = max(50 - ($rank * 8), 5);
-            }
-
-            $coins = (int) ($u->coins_balance ?? max(1400 - ($rank * 220), 200));
+            $coins = (int) ($u->coins_balance ?? 0);
 
             $result[] = [
                 'id' => (string) $u->id,

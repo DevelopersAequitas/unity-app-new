@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\ReportPostRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\Post;
 use App\Models\PostReport;
 use App\Models\PostReportReason;
@@ -46,6 +47,42 @@ class PostReportController extends BaseApiController
             'reason' => $reason?->title,
             'status' => 'open',
         ]);
+
+        try {
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'post_reported',
+                'Post Reported for Moderation',
+                'A peer post was reported ('.(string) ($reason?->title ?? 'Policy review').') and requires moderation.',
+                [
+                    'circle_id' => (string) ($post->circle_id ?? ''),
+                    'actor_id' => (string) $user->id,
+                    'entity_type' => 'peer',
+                    'entity_id' => (string) $post->user_id,
+                    'reference_id' => (string) $report->id,
+                    'idempotency_window' => (string) $report->id,
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking leadership notification
+        }
+
+        try {
+            app(\App\Leader\Services\LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'post_reported',
+                'Post Reported for Moderation',
+                'A peer post was reported (' . (string) ($reason?->title ?? 'Policy review') . ') and requires moderation.',
+                [
+                    'circle_id' => (string) ($post->circle_id ?? ''),
+                    'actor_id' => (string) $user->id,
+                    'entity_type' => 'peer',
+                    'entity_id' => (string) $post->user_id,
+                    'reference_id' => (string) $report->id,
+                    'idempotency_window' => (string) $report->id,
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking leadership notification
+        }
 
         return $this->success([
             'id' => $report->id,

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Models\BusinessDeal;
 use App\Models\Impact;
 use App\Models\P2pMeeting;
+use App\Models\Post;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\Testimonial;
@@ -1738,7 +1740,7 @@ class LeaderActivitiesService
         $sub->setUserResolver($request->getUserResolver());
         $sub->attributes->set('leader_scope_forced', true);
 
-        $rows = app(\App\Http\Controllers\Api\Admin\PendingRequestAdminController::class)
+        $rows = app(PendingRequestAdminController::class)
             ->index($sub)
             ->getData(true)['data'] ?? [];
 
@@ -2724,5 +2726,127 @@ class LeaderActivitiesService
                 badgeLabel: $isCheckedIn ? 'Attended' : 'Registered',
             );
         })->values()->all();
+    }
+
+    /**
+     * Get organization-scoped community timeline posts in paginated format for Leader App.
+     *
+     * @return array<string, mixed>
+     */
+    public function getScopedPostsPaginated(Request $request): array
+    {
+        if (! Schema::hasTable('posts')) {
+            return [
+                'items' => [],
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => 50,
+                    'total' => 0,
+                ],
+            ];
+        }
+
+        $user = $request->user();
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $role = (string) (app(LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
+        if ($role === 'guest') {
+            abort(403, 'Unauthorized. Leadership role required.');
+        }
+
+        $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+        $scope = app(LeaderDashboardService::class)->resolveLeaderScope($circleId, $districtId, $user);
+        $scopedUserIds = $scope['scoped_member_user_ids'];
+
+        $perPage = max(1, min(100, (int) $request->query('per_page', $request->query('limit', 50))));
+
+        if (is_array($scopedUserIds) && $scopedUserIds === []) {
+            return [
+                'items' => [],
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                ],
+            ];
+        }
+
+        $query = Post::query()
+            ->with([
+                'user:id,first_name,last_name,display_name,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
+                'circle:id,name',
+            ])
+            ->orderByDesc('created_at');
+
+        if (Schema::hasColumn('posts', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('posts', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+        if ($scopedUserIds !== null) {
+            $query->whereIn('user_id', $scopedUserIds);
+        }
+        if ($circleId && Str::isUuid($circleId) && Schema::hasColumn('posts', 'circle_id')) {
+            $query->where('circle_id', $circleId);
+        }
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'ILIKE', "%{$search}%")
+                    ->orWhere('content_text', 'ILIKE', "%{$search}%")
+                    ->orWhere('description', 'ILIKE', "%{$search}%");
+            });
+        }
+
+        $paginator = $query->paginate($perPage);
+        $items = collect($paginator->items())->map(function (Post $post): array {
+            $author = $post->user;
+            $userData = $author ? [
+                'id' => (string) $author->id,
+                'first_name' => $author->first_name,
+                'last_name' => $author->last_name,
+                'display_name' => $author->display_name,
+                'company_name' => $author->company_name,
+                'profile_photo_url' => $author->profile_photo_url,
+                'active_circle_id' => $author->active_circle_id,
+                'circle' => $author->circle ? [
+                    'id' => (string) $author->circle->id,
+                    'name' => $author->circle->name,
+                ] : null,
+            ] : null;
+
+            return [
+                'id' => (string) $post->id,
+                'user_id' => (string) ($post->user_id ?? ''),
+                'circle_id' => $post->circle_id ? (string) $post->circle_id : null,
+                'post_type' => $post->post_type ?? 'general',
+                'title' => $post->title,
+                'content_text' => $post->content_text,
+                'description' => $post->description,
+                'media_url' => $post->media_url ?? null,
+                'image_url' => $post->image_url ?? null,
+                'media' => $post->media ?? [],
+                'status' => $post->status ?? 'active',
+                'moderation_status' => $post->moderation_status ?? null,
+                'created_at' => $post->created_at?->toIso8601String(),
+                'user' => $userData,
+            ];
+        })->values()->all();
+
+        return [
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ];
     }
 }

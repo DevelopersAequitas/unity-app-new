@@ -6,6 +6,7 @@ namespace App\Leader\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderSubmitReportRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Leader\Services\LeaderReportsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,22 @@ class LeaderReportsController extends Controller
 
         $data = $this->reportsService->submitReport($request->validated(), $userId, $user);
 
+        try {
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'circle_report_submitted',
+                'Circle Leadership Report Submitted',
+                'A Circle leadership report has been submitted for review.',
+                [
+                    'actor_id' => $userId,
+                    'circle_id' => (string) ($data['circle_id'] ?? $request->input('circle_id', '')),
+                    'entity_id' => (string) ($data['id'] ?? ''),
+                    'reference_id' => (string) ($data['id'] ?? ''),
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking notification dispatch
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Report submitted successfully and routed to higher leadership.',
@@ -100,7 +117,7 @@ class LeaderReportsController extends Controller
             return $this->reportsService->downloadReportPdf($id, $request);
         }
 
-        $data = $this->reportsService->getDownloadUrl($id);
+        $data = $this->reportsService->getDownloadUrl($id, $request->user());
 
         return response()->json([
             'success' => true,

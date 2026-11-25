@@ -15,8 +15,11 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 class LeaderReportsService
@@ -43,17 +46,22 @@ class LeaderReportsService
     ): array {
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user, $districtId);
 
+        if ($circleId && Str::isUuid($circleId) && $scopedCircleIds !== null && ! in_array($circleId, array_map('strval', $scopedCircleIds), true)) {
+            abort(403, 'You are not authorized to access reports for this circle.');
+        }
+
         $query = LeaderReport::query()
             ->with(['circle.district', 'submitter'])
             ->when($circleId, fn (Builder $q) => $q->where('circle_id', $circleId))
-            ->when(! $circleId && $scopedCircleIds !== null, function (Builder $q) use ($scopedCircleIds, $user, $districtId) {
-                $q->where(function (Builder $sub) use ($scopedCircleIds, $user, $districtId) {
-                    $sub->whereIn('circle_id', $scopedCircleIds);
+            ->when(! $circleId && $scopedCircleIds !== null, function (Builder $q) use ($scopedCircleIds, $user) {
+                $q->where(function (Builder $sub) use ($scopedCircleIds, $user) {
+                    if (empty($scopedCircleIds)) {
+                        $sub->whereRaw('1 = 0');
+                    } else {
+                        $sub->whereIn('circle_id', $scopedCircleIds);
+                    }
                     if ($user) {
                         $sub->orWhere('submitted_by_user_id', (string) $user->id);
-                    }
-                    if ($districtId) {
-                        $sub->orWhere('district_id', $districtId);
                     }
                 });
             })
@@ -108,16 +116,17 @@ class LeaderReportsService
      */
     public function submitReport(array $data, string $userId, User|AdminUser|null $user = null): array
     {
-        $circleId = $data['circle_id'] ?? null;
-        $circle = null;
-
-        if ($circleId && Str::isUuid($circleId)) {
-            $circle = Circle::query()->where('id', $circleId)->first();
-        }
+        $requestedCircleId = isset($data['circle_id']) && Str::isUuid((string) $data['circle_id'])
+            ? (string) $data['circle_id']
+            : null;
+        $scope = $this->dashboardService->resolveLeaderScope($requestedCircleId, null, $user);
+        $circleId = $scope['resolved_circle_id'] ?? ($scope['target_circle_ids'][0] ?? null);
+        $circle = $circleId ? Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first() : null;
 
         if (! $circle) {
-            $circle = Circle::query()->whereNull('deleted_at')->first();
-            $circleId = $circle ? (string) $circle->id : (string) Str::uuid();
+            throw ValidationException::withMessages([
+                'circle_id' => ['A valid authorized circle_id is required to submit a report.'],
+            ]);
         }
 
         $districtId = $circle?->district_id ?? null;
@@ -168,14 +177,14 @@ class LeaderReportsService
             'submitter_role' => $submitterRole,
             'report_type' => $data['report_type'] ?? 'Monthly',
             'period' => $data['period'] ?? now()->format('F Y'),
-            'attendance_percentage' => (float) ($data['attendance_percentage'] ?? 94.5),
-            'deals_closed_value' => (string) ($data['deals_closed_value'] ?? '₹18.5L'),
-            'total_revenue' => (string) ($data['total_revenue'] ?? '₹24.0L'),
+            'attendance_percentage' => isset($data['attendance_percentage']) ? (float) $data['attendance_percentage'] : 0.0,
+            'deals_closed_value' => isset($data['deals_closed_value']) ? (string) $data['deals_closed_value'] : null,
+            'total_revenue' => isset($data['total_revenue']) ? (string) $data['total_revenue'] : null,
             'content' => $data['content'] ?? null,
-            'summary_text' => $data['summary_text'] ?? Str::limit((string) ($data['content'] ?? 'Strong monthly participation with 4 new peer referrals closed.'), 120),
-            'highlights' => $data['highlights'] ?? 'Launched 2 new FinTech partnerships and added 3 verified peers.',
-            'challenges_faced' => $data['challenges_faced'] ?? 'Need faster turnaround on peer onboarding verification.',
-            'action_items' => $data['action_items'] ?? 'Follow up with 3 pending members for fee renewal and schedule Q4 assemblies.',
+            'summary_text' => $data['summary_text'] ?? (isset($data['content']) ? Str::limit((string) $data['content'], 120) : null),
+            'highlights' => $data['highlights'] ?? null,
+            'challenges_faced' => $data['challenges_faced'] ?? null,
+            'action_items' => $data['action_items'] ?? null,
             'included_sections' => $includedSections,
             'peers_roster' => $peersRoster,
             'status' => 'Under Review',
@@ -208,9 +217,13 @@ class LeaderReportsService
             abort(404, 'Report not found.');
         }
 
+        if (! $user) {
+            abort(401, 'Authentication is required to access this report.');
+        }
+
         // Leaders may only open reports that belong to circles inside their role scope.
         $scopedCircleIds = $this->peersService->resolveScopedCircleIds($user);
-        if ($user && $scopedCircleIds !== null && ! in_array((string) $report->circle_id, array_map('strval', $scopedCircleIds), true)) {
+        if ($scopedCircleIds !== null && ! in_array((string) $report->circle_id, array_map('strval', $scopedCircleIds), true)) {
             abort(403, 'This report does not belong to your circles.');
         }
         $circle = $report->circle;
@@ -278,12 +291,21 @@ class LeaderReportsService
             return [];
         }
 
-        $members = CircleMember::query()
+        $membersQuery = CircleMember::query()
             ->where('circle_id', $circleId)
-            ->whereNull('deleted_at')
-            ->with(['user'])
-            ->take(20)
-            ->get();
+            ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('circle_members', 'left_at')) {
+            $membersQuery->whereNull('left_at');
+        }
+        if (Schema::hasColumn('circle_members', 'status')) {
+            $membersQuery->where(function ($q): void {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active']);
+            });
+        }
+
+        $members = $membersQuery->with(['user'])->get();
 
         if ($members->isEmpty()) {
             return [];
@@ -360,19 +382,11 @@ class LeaderReportsService
      *
      * @return array<string, mixed>
      */
-    public function getDownloadUrl(string $reportId): array
+    public function getDownloadUrl(string $reportId, User|AdminUser|null $user = null): array
     {
-        $report = null;
-        if (Str::isUuid($reportId)) {
-            try {
-                $report = LeaderReport::query()->where('id', $reportId)->first();
-            } catch (\Throwable) {
-                $report = null;
-            }
-        }
-
-        $type = $report ? (string) $report->report_type : 'Performance';
-        $period = $report ? (string) $report->period : '2026';
+        $details = $this->getReportDetails($reportId, $user);
+        $type = (string) ($details['report_type'] ?? 'Performance');
+        $period = (string) ($details['period'] ?? '2026');
         $fileName = "Report-{$type}-{$period}.pdf";
 
         return [
@@ -380,7 +394,7 @@ class LeaderReportsService
             'file_name' => $fileName,
             'file_format' => 'PDF',
             'file_size' => '2.4 MB',
-            'download_url' => url("api/v1/files/{$reportId}/download?type=pdf"),
+            'download_url' => url("api/v1/leader/reports/{$reportId}/file"),
             'expires_in_seconds' => 3600,
         ];
     }
@@ -388,9 +402,9 @@ class LeaderReportsService
     /**
      * Render the Leader Performance Report as a PDF binary string.
      */
-    public function renderReportPdf(string $reportId): string
+    public function renderReportPdf(string $reportId, User|AdminUser|null $user = null): string
     {
-        $details = $this->getReportDetails($reportId);
+        $details = $this->getReportDetails($reportId, $user);
         $type = (string) ($details['report_type'] ?? 'Performance');
         $period = (string) ($details['period'] ?? '2026');
         $fileName = "Report-{$type}-{$period}.pdf";
@@ -428,12 +442,13 @@ class LeaderReportsService
      */
     public function downloadReportPdf(string $reportId, ?Request $request = null): Response
     {
-        $details = $this->getReportDetails($reportId);
+        $user = $request?->user() ?? auth('sanctum')->user();
+        $details = $this->getReportDetails($reportId, $user);
         $type = (string) ($details['report_type'] ?? 'Performance');
         $period = (string) ($details['period'] ?? '2026');
         $fileName = "Report-{$type}-{$period}.pdf";
 
-        $pdfContent = $this->renderReportPdf($reportId);
+        $pdfContent = $this->renderReportPdf($reportId, $user);
         $disposition = ($request && $request->boolean('download')) ? 'attachment' : 'inline';
 
         return response($pdfContent, 200, [

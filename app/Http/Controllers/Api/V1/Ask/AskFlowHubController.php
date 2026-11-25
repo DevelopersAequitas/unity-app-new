@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Ask;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ask\UpdateAskFlowStatusRequest;
+use App\Leader\Services\LeaderDashboardService;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskResponse;
 use App\Models\User;
@@ -49,6 +50,13 @@ class AskFlowHubController extends Controller
         /** @var User $currentUser */
         $currentUser = $request->user();
         $targetUserId = $request->query('user_id');
+        if ($request->is('*leader/*', '*leaders/*') && $targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId)) {
+            $scope = app(LeaderDashboardService::class)->resolveLeaderScope(null, null, $currentUser);
+            $scopedUserIds = $scope['scoped_member_user_ids'];
+            if ($scopedUserIds !== null && (string) $currentUser->id !== $targetUserId && ! in_array($targetUserId, $scopedUserIds, true)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden: user outside your organizational scope.'], 403);
+            }
+        }
         $targetUser = ($targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId))
             ? (User::find($targetUserId) ?? $currentUser)
             : $currentUser;
@@ -74,6 +82,13 @@ class AskFlowHubController extends Controller
         /** @var User $currentUser */
         $currentUser = $request->user();
         $targetUserId = $request->query('user_id');
+        if ($request->is('*leader/*', '*leaders/*') && $targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId)) {
+            $scope = app(LeaderDashboardService::class)->resolveLeaderScope(null, null, $currentUser);
+            $scopedUserIds = $scope['scoped_member_user_ids'];
+            if ($scopedUserIds !== null && (string) $currentUser->id !== $targetUserId && ! in_array($targetUserId, $scopedUserIds, true)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden: user outside your organizational scope.'], 403);
+            }
+        }
         $targetUser = ($targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId))
             ? (User::find($targetUserId) ?? $currentUser)
             : $currentUser;
@@ -98,6 +113,13 @@ class AskFlowHubController extends Controller
     {
         /** @var User $currentUser */
         $currentUser = $request->user();
+        if ($request->is('*leader/*', '*leaders/*')) {
+            $scope = app(LeaderDashboardService::class)->resolveLeaderScope(null, null, $currentUser);
+            $scopedUserIds = $scope['scoped_member_user_ids'];
+            if ($scopedUserIds !== null && (string) $currentUser->id !== $userId && ! in_array($userId, $scopedUserIds, true)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden: user outside your organizational scope.'], 403);
+            }
+        }
         $targetUser = User::find($userId) ?? $currentUser;
 
         $params = array_merge($request->query(), [
@@ -122,6 +144,15 @@ class AskFlowHubController extends Controller
         $user = $request->user();
 
         $data = $this->flowHubService->getAskDetails($user, $flow, $id);
+
+        if ($request->is('*leader/*', '*leaders/*')) {
+            $scope = app(LeaderDashboardService::class)->resolveLeaderScope(null, null, $user);
+            $scopedUserIds = $scope['scoped_member_user_ids'];
+            $askOwnerId = (string) ($data['user_id'] ?? ($data['user']['id'] ?? ''));
+            if ($scopedUserIds !== null && $askOwnerId !== '' && (string) $user->id !== $askOwnerId && ! in_array($askOwnerId, $scopedUserIds, true)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden: ask outside your organizational scope.'], 403);
+            }
+        }
 
         return response()->json([
             'success' => true,

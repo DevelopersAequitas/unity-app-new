@@ -84,3 +84,9 @@ Schedule::command('whatsapp:dispatch-scheduled-campaigns')->everyMinute()->timez
 
 // Speed networking auto-start engine (checked every minute)
 Schedule::command('speed-networking:auto-start')->everyMinute()->withoutOverlapping();
+
+// Leadership App scheduled notifications (tenure expiry & overdue report compliance)
+Schedule::command('leader:dispatch-scheduled-notifications')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Kolkata')
+    ->withoutOverlapping();

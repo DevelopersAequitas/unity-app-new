@@ -14,15 +14,13 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdvertiserApplicationService
 {
     public function __construct(
         protected AdvertiserNotificationService $notificationService
-    ) {
-    }
+    ) {}
 
     /**
      * Generate sequential application number. e.g. ADV-2026-00001
@@ -33,11 +31,11 @@ class AdvertiserApplicationService
         $prefix = "ADV-{$year}-";
 
         $count = AdvertiserApplication::where('application_number', 'LIKE', "{$prefix}%")->count() + 1;
-        $candidate = $prefix . str_pad((string) $count, 5, '0', STR_PAD_LEFT);
+        $candidate = $prefix.str_pad((string) $count, 5, '0', STR_PAD_LEFT);
 
         while (AdvertiserApplication::where('application_number', $candidate)->exists()) {
             $count++;
-            $candidate = $prefix . str_pad((string) $count, 5, '0', STR_PAD_LEFT);
+            $candidate = $prefix.str_pad((string) $count, 5, '0', STR_PAD_LEFT);
         }
 
         return $candidate;
@@ -50,7 +48,7 @@ class AdvertiserApplicationService
     {
         // 1. Check idempotency if provided
         $idempotencyKey = $data['idempotency_key'] ?? null;
-        if (!empty($idempotencyKey)) {
+        if (! empty($idempotencyKey)) {
             $existing = AdvertiserApplication::where('idempotency_key', $idempotencyKey)->first();
             if ($existing) {
                 return $existing->loadMissing(['package', 'assets', 'statusHistory']);
@@ -60,7 +58,7 @@ class AdvertiserApplicationService
         // 2. Validate package existence and active state
         $packageId = $data['package_id'] ?? null;
         $package = AdvertiserPackage::find($packageId);
-        if (!$package || !$package->is_active) {
+        if (! $package || ! $package->is_active) {
             throw ValidationException::withMessages([
                 'package_id' => ['The selected advertising package is currently not available.'],
             ]);
@@ -99,7 +97,7 @@ class AdvertiserApplicationService
             ?? null;
 
         try {
-            $parsedStartDate = !empty($rawStartDate)
+            $parsedStartDate = ! empty($rawStartDate)
                 ? Carbon::parse((string) $rawStartDate)->startOfDay()
                 : now()->startOfDay();
         } catch (\Throwable) {
@@ -126,7 +124,7 @@ class AdvertiserApplicationService
                 'company_type' => $company['business_type'] ?? ($company['company_type'] ?? null),
                 'industry' => $company['industry'] ?? ($company['category_id'] ?? 'General'),
                 'company_website' => $company['website'] ?? null,
-                'company_email' => !empty($company['official_email']) ? strtolower(trim($company['official_email'])) : null,
+                'company_email' => ! empty($company['official_email']) ? strtolower(trim($company['official_email'])) : null,
                 'company_phone' => $company['phone'] ?? null,
                 'whatsapp_number' => $company['whatsapp'] ?? ($company['whatsapp_number'] ?? null),
                 'address_line' => $company['address_line_1'] ?? ($company['address_line'] ?? null),
@@ -165,7 +163,7 @@ class AdvertiserApplicationService
             ]);
 
             // Save initial assets if provided
-            if (!empty($data['assets']) && is_array($data['assets'])) {
+            if (! empty($data['assets']) && is_array($data['assets'])) {
                 foreach ($data['assets'] as $index => $assetData) {
                     if (empty($assetData['storage_key'])) {
                         continue;
@@ -174,7 +172,7 @@ class AdvertiserApplicationService
                     AdvertiserApplicationAsset::create([
                         'application_id' => $application->id,
                         'asset_type' => $assetData['asset_type'] ?? AdvertiserApplicationAsset::TYPE_CAMPAIGN_CREATIVE,
-                        'original_filename' => $assetData['original_file_name'] ?? ($assetData['file_name'] ?? 'asset_' . $index),
+                        'original_filename' => $assetData['original_file_name'] ?? ($assetData['file_name'] ?? 'asset_'.$index),
                         'storage_disk' => $assetData['storage_disk'] ?? 'public',
                         'storage_key' => $assetData['storage_key'],
                         'mime_type' => $assetData['mime_type'] ?? 'image/jpeg',
@@ -209,7 +207,7 @@ class AdvertiserApplicationService
                 'new_status' => $initialStatus,
                 'changed_by' => $userId,
                 'actor_type' => $userId ? 'applicant' : 'system',
-                'notes' => 'Application submitted through ' . $source . ' (ready for direct payment)',
+                'notes' => 'Application submitted through '.$source.' (ready for direct payment)',
                 'metadata' => [
                     'package_id' => $package->id,
                     'package_price' => $package->price,
@@ -229,7 +227,7 @@ class AdvertiserApplicationService
     public function createEmailVerificationChallenge(AdvertiserApplication $application): AdvertiserEmailVerification
     {
         // Rate-limit resends: check if a challenge was created in the last 45 seconds (bypass in local/testing)
-        if (!app()->environment('local', 'testing')) {
+        if (! app()->environment('local', 'testing')) {
             $recent = AdvertiserEmailVerification::where('application_id', $application->id)
                 ->where('created_at', '>=', now()->subSeconds(45))
                 ->first();
@@ -246,18 +244,10 @@ class AdvertiserApplicationService
             ->whereNull('consumed_at')
             ->update(['consumed_at' => now()]);
 
-        $isDevHost = (bool) (request()?->getHost() && (
-            str_contains(request()->getHost(), 'dev.') ||
-            str_contains(request()->getHost(), 'staging.') ||
-            str_contains(request()->getHost(), 'localhost') ||
-            str_contains(request()->getHost(), '127.0.0.1')
-        ));
-
-        // In local/testing/dev/staging environments or dev domain hosts, support standard test OTP 123456
-        $plainOtp = (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost) ? '123456' : (string) random_int(100000, 999999);
+        $plainOtp = (string) random_int(100000, 999999);
         $otpHash = hash('sha256', $plainOtp);
 
-        Log::info("Advertiser verification OTP generated: {$plainOtp} for application: {$application->application_number} ({$application->applicant_email})");
+        Log::info("Advertiser verification OTP generated for application: {$application->application_number}");
 
         $verification = AdvertiserEmailVerification::create([
             'application_id' => $application->id,
@@ -286,14 +276,6 @@ class AdvertiserApplicationService
             return true;
         }
 
-        $isDevHost = (bool) (request()?->getHost() && (
-            str_contains(request()->getHost(), 'dev.') ||
-            str_contains(request()->getHost(), 'staging.') ||
-            str_contains(request()->getHost(), 'localhost') ||
-            str_contains(request()->getHost(), '127.0.0.1')
-        ));
-
-        $isTestOtp = ($code === '123456') && (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging') || $isDevHost);
         $hashedInput = hash('sha256', $code);
 
         $verification = AdvertiserEmailVerification::where('application_id', $application->id)
@@ -302,31 +284,22 @@ class AdvertiserApplicationService
             ->latest('created_at')
             ->first();
 
-        // In local/testing, if verification expired/consumed but 123456 was used, fallback to latest verification or allow
-        if (!$verification && $isTestOtp) {
-            $verification = AdvertiserEmailVerification::where('application_id', $application->id)
-                ->latest('created_at')
-                ->first();
-        }
-
-        if (!$verification && !$isTestOtp) {
+        if (! $verification) {
             throw ValidationException::withMessages([
                 'verification_code' => ['The verification code has expired or is invalid. Please request a new code.'],
             ]);
         }
 
-        if ($verification && $verification->attempts >= $verification->max_attempts && !$isTestOtp) {
+        if ($verification->attempts >= $verification->max_attempts) {
             $verification->update(['consumed_at' => now()]);
             throw ValidationException::withMessages([
                 'verification_code' => ['Maximum verification attempts exceeded. Please request a new code.'],
             ]);
         }
 
-        if ($verification) {
-            $verification->increment('attempts');
-        }
+        $verification->increment('attempts');
 
-        if ($verification && !hash_equals($verification->otp_hash, $hashedInput) && !$isTestOtp) {
+        if (! hash_equals($verification->otp_hash, $hashedInput)) {
             $remaining = max(0, $verification->max_attempts - $verification->attempts);
             throw ValidationException::withMessages([
                 'verification_code' => ["Invalid verification code. {$remaining} attempts remaining."],
@@ -390,7 +363,7 @@ class AdvertiserApplicationService
         ?string $notes = null,
         array $metadata = []
     ): AdvertiserApplication {
-        if (!$application->canTransitionTo($newStatus)) {
+        if (! $application->canTransitionTo($newStatus)) {
             throw ValidationException::withMessages([
                 'status' => ["Cannot transition application from '{$application->status}' to '{$newStatus}'."],
             ]);
@@ -418,7 +391,7 @@ class AdvertiserApplicationService
                 $application->approved_at = now();
             } elseif ($newStatus === AdvertiserApplication::STATUS_REJECTED) {
                 $application->rejected_at = now();
-                if (!empty($metadata['rejection_reason'])) {
+                if (! empty($metadata['rejection_reason'])) {
                     $application->rejection_reason = $metadata['rejection_reason'];
                 }
             }
@@ -471,7 +444,7 @@ class AdvertiserApplicationService
     ): AdvertiserApplication {
         // Allow edits if in draft, changes_requested, submitted, or approved state
         if (
-            !in_array($application->status, [
+            ! in_array($application->status, [
                 AdvertiserApplication::STATUS_DRAFT,
                 AdvertiserApplication::STATUS_CHANGES_REQUESTED,
                 AdvertiserApplication::STATUS_SUBMITTED,
@@ -487,7 +460,7 @@ class AdvertiserApplicationService
             $company = $data['company'] ?? [];
             $campaign = $data['campaign'] ?? [];
 
-            if (!empty($company['company_name'])) {
+            if (! empty($company['company_name'])) {
                 $application->company_name = trim($company['company_name']);
             }
             if (isset($company['website'])) {
@@ -509,7 +482,7 @@ class AdvertiserApplicationService
                 $application->additional_requirements = $campaign['additional_requirements'];
             }
 
-            if (!empty($data['applicant_response'])) {
+            if (! empty($data['applicant_response'])) {
                 $application->applicant_response = $data['applicant_response'];
             }
 
@@ -558,7 +531,7 @@ class AdvertiserApplicationService
         $userEmail = strtolower(trim((string) $user->email));
         $appEmail = strtolower(trim($application->applicant_email));
 
-        if ($userEmail !== $appEmail && !$application->applicant_email_verified) {
+        if ($userEmail !== $appEmail && ! $application->applicant_email_verified) {
             throw ValidationException::withMessages([
                 'claim' => ['The application email must be verified before linking.'],
             ]);
@@ -574,7 +547,7 @@ class AdvertiserApplicationService
             'new_status' => $application->status,
             'changed_by' => $user->id,
             'actor_type' => 'applicant',
-            'notes' => 'Application linked to Peer user ' . $user->display_name,
+            'notes' => 'Application linked to Peer user '.$user->display_name,
             'created_at' => now(),
         ]);
 

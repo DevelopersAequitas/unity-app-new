@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events;
 
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
@@ -471,6 +472,25 @@ class EventFlowService
             'referral_code' => $referralCode,
             'invited_by_user_id' => $inviterUserId,
         ]);
+
+        try {
+            $peerName = trim((string) ($user->display_name ?? $user->name ?? 'Peer'));
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'event_join_request_pending',
+                'Cross-Circle Event Joining Request',
+                "{$peerName} requested to join event \"".(string) ($event->title ?? 'Circle Event').'".',
+                [
+                    'circle_id' => (string) ($event->circle_id ?? ''),
+                    'actor_id' => (string) $user->id,
+                    'entity_type' => 'event',
+                    'entity_id' => (string) $event->id,
+                    'reference_id' => (string) $request->id,
+                    'idempotency_window' => (string) $request->id,
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking leadership notification
+        }
 
         return [
             'status' => 'PENDING',

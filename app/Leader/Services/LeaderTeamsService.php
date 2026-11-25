@@ -10,6 +10,7 @@ use App\Models\CircleCategory;
 use App\Models\CircleMember;
 use App\Models\District;
 use App\Models\Industry;
+use App\Models\PeerRecommendation;
 use App\Models\User;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LeaderTeamsService
 {
@@ -27,12 +29,13 @@ class LeaderTeamsService
      */
     public function resolveDedDistrictId(?string $districtId = null, User|AdminUser|null $user = null): ?string
     {
-        if ($districtId && Str::isUuid($districtId)) {
-            return $districtId;
+        if (! $user) {
+            return ($districtId && Str::isUuid($districtId)) ? $districtId : null;
         }
 
-        if (! $user) {
-            return null;
+        $roleInfo = app(LeaderPermissionService::class)->resolveUserRole($user);
+        if (($roleInfo['role'] ?? '') === 'superAdmin' && $districtId && Str::isUuid($districtId)) {
+            return $districtId;
         }
 
         // 1. Check admin_ded_districts table directly or via AdminUser
@@ -196,7 +199,7 @@ class LeaderTeamsService
             $roleInfo = $permissionService->resolveUserRole($user);
             $role = $roleInfo['role'];
 
-            if (! in_array($role, ['superAdmin', 'countryDirector'], true)) {
+            if ($role !== 'superAdmin') {
                 $isOwnCircleOrScoped = true;
             }
 
@@ -477,16 +480,29 @@ class LeaderTeamsService
      */
     public function calculateCircleRevenue(Circle $circle, int $peersCount): string
     {
-        if ($peersCount === 0) {
+        if (! Schema::hasTable('payments')) {
             return '₹0.0';
         }
 
-        $unitPrice = (float) ($circle->circle_price_amount ?? 120000);
-        if ($unitPrice <= 0) {
-            $unitPrice = 120000;
-        }
+        $total = (float) DB::table('payments')
+            ->where(function ($q) use ($circle): void {
+                $q->where('circle_id', $circle->id)
+                    ->orWhere(function ($legacy) use ($circle): void {
+                        $legacy->whereNull('circle_id')
+                            ->whereIn('user_id', function ($sub) use ($circle): void {
+                                $sub->select('user_id')
+                                    ->from('circle_members')
+                                    ->where('circle_id', $circle->id)
+                                    ->whereNull('deleted_at');
+                            });
+                    });
+            })
+            ->whereRaw("LOWER(COALESCE(status, '')) IN ('paid', 'completed', 'captured', 'success')")
+            ->sum(DB::raw('COALESCE(NULLIF(total_amount, 0), NULLIF(amount, 0), base_amount, 0)'));
 
-        $total = $unitPrice * $peersCount;
+        if ($total <= 0) {
+            return '₹0.0';
+        }
 
         if ($total >= 10000000) {
             return '₹'.number_format($total / 10000000, 2).'Cr';
@@ -940,7 +956,7 @@ class LeaderTeamsService
             $query->where('status', strtolower($status));
         }
 
-        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members', 'categories', 'circleCategory', 'circleImageFile', 'coverFile'])->orderBy('name')->take(50)->get();
+        $circles = $query->with(['city', 'district', 'chairUser', 'founderUser', 'director', 'members', 'categories', 'circleCategory', 'circleImageFile', 'coverFile'])->orderBy('name')->take(50)->get();
 
         return $circles->map(function (Circle $c): array {
             $peersCount = CircleMember::query()
@@ -950,14 +966,16 @@ class LeaderTeamsService
                 ->count();
 
             $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
-            if (empty($tags) || ! is_array($tags)) {
-                $tags = ['Technology', 'Ahmedabad', 'B2B SaaS'];
+            if (! is_array($tags)) {
+                $tags = [];
             }
 
             $categoryName = $this->resolveCircleCategory($c);
-            $location = (string) ($c->city?->name ?? $c->location ?? 'Ahmedabad');
+            $location = (string) ($c->city?->name ?? $c->location ?? '');
+            $countryName = trim((string) ($c->country ?? $c->district?->country ?? ''));
+            $districtName = trim((string) ($c->district?->name ?? $location));
 
-            $healthPercentage = $peersCount > 0 ? (int) ($c->health_score ?: 92) : 0;
+            $healthPercentage = $peersCount > 0 ? (int) ($c->health_score ?? 0) : 0;
             $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($c, $peersCount) : '₹0.0';
             $launchDate = $c->launch_date ? (is_string($c->launch_date) ? substr($c->launch_date, 0, 10) : $c->launch_date->format('Y-m-d')) : ($c->created_at ? $c->created_at->format('Y-m-d') : '2026-08-26');
 
@@ -987,6 +1005,9 @@ class LeaderTeamsService
                 'name' => (string) $c->name,
                 'category' => $categoryName,
                 'location' => $location,
+                'city' => $location,
+                'district' => $districtName,
+                'country' => $countryName,
                 'description' => (string) ($c->description ?? ''),
                 'stage' => (string) ($c->stage ?: 'Active Circle'),
                 'meeting_frequency' => (string) ($cadence['frequency'] ?: 'Monthly'),
@@ -1156,15 +1177,19 @@ class LeaderTeamsService
         $link = (string) ($circle->meeting_link ?? data_get($calendar, 'settings.meeting_link') ?? '');
 
         $formatTime12 = function (?string $t): string {
-            if (! $t) return '';
+            if (! $t) {
+                return '';
+            }
             $tClean = trim($t);
             if (preg_match('/^(\d{1,2}):(\d{2})/', $tClean, $m)) {
                 $h = (int) $m[1];
                 $min = $m[2];
                 $ampm = $h >= 12 ? 'PM' : 'AM';
                 $h12 = $h % 12 === 0 ? 12 : $h % 12;
+
                 return sprintf('%02d:%s %s', $h12, $min, $ampm);
             }
+
             return $tClean;
         };
 
@@ -1239,14 +1264,14 @@ class LeaderTeamsService
             ->count();
 
         $tags = is_array($circle->industry_tags) ? $circle->industry_tags : (is_string($circle->industry_tags) ? json_decode($circle->industry_tags, true) : []);
-        if (empty($tags) || ! is_array($tags)) {
-            $tags = ['Technology', 'Cloud Infra', 'FinTech'];
+        if (! is_array($tags)) {
+            $tags = [];
         }
 
         $categoryName = $this->resolveCircleCategory($circle);
-        $location = (string) ($circle->city?->name ?? $circle->location ?? 'Ahmedabad');
+        $location = (string) ($circle->city?->name ?? $circle->location ?? '');
 
-        $healthPercentage = $peersCount > 0 ? (int) ($circle->health_score ?: 92) : 0;
+        $healthPercentage = $peersCount > 0 ? (int) ($circle->health_score ?? 0) : 0;
         $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($circle, $peersCount) : '₹0.0';
         $launchDate = $circle->launch_date ? (is_string($circle->launch_date) ? substr($circle->launch_date, 0, 10) : $circle->launch_date->format('Y-m-d')) : ($circle->created_at ? $circle->created_at->format('Y-m-d') : '2026-01-15');
 
@@ -1276,6 +1301,9 @@ class LeaderTeamsService
             'name' => (string) $circle->name,
             'category' => $categoryName,
             'location' => $location,
+            'city' => $location,
+            'district' => trim((string) ($circle->district?->name ?? $location)),
+            'country' => trim((string) ($circle->country ?? $circle->district?->country ?? '')),
             'description' => (string) ($circle->description ?? ''),
             'stage' => (string) ($circle->stage ?: 'Active Circle'),
             'meeting_frequency' => (string) ($cadence['frequency'] ?: 'Monthly'),
@@ -1603,19 +1631,54 @@ class LeaderTeamsService
             $timeRange = $endFmt ? "{$startFmt} - {$endFmt}" : $startFmt;
             $cadenceSumm = "{$ordText} {$dayName}";
 
+            $attendeeCount = 0;
+            $attendeesList = [];
+            if (Schema::hasTable('event_registrations')) {
+                $regRows = DB::table('event_registrations')
+                    ->leftJoin('users', 'event_registrations.user_id', '=', 'users.id')
+                    ->where('event_registrations.event_id', $evt->id)
+                    ->when(Schema::hasColumn('event_registrations', 'deleted_at'), fn ($q) => $q->whereNull('event_registrations.deleted_at'))
+                    ->select([
+                        'users.id',
+                        'users.first_name',
+                        'users.last_name',
+                        'users.display_name',
+                        'users.company_name',
+                        'users.designation',
+                        'users.profile_photo_url',
+                    ])
+                    ->get();
+                $attendeeCount = $regRows->count();
+                $attendeesList = $regRows->filter(fn ($r): bool => ! empty($r->id))->map(function ($r): array {
+                    $name = trim(((string) ($r->first_name ?? '')).' '.((string) ($r->last_name ?? '')));
+                    if ($name === '') {
+                        $name = (string) ($r->display_name ?? 'Peer Member');
+                    }
+
+                    return [
+                        'id' => (string) $r->id,
+                        'name' => $name,
+                        'company_name' => (string) ($r->company_name ?? ''),
+                        'designation' => (string) ($r->designation ?? 'Member'),
+                        'profile_photo_url' => $r->profile_photo_url,
+                    ];
+                })->values()->all();
+            }
+
             return [
                 'id' => (string) $evt->id,
                 'circle_id' => (string) ($evt->circle_id ?? $circleId),
-                'title' => (string) ($evt->title ?: 'Chapter Launch Assembly'),
+                'title' => (string) ($evt->title ?: 'Chapter Assembly'),
                 'date' => $start->format('Y-m-d'),
                 'time' => $timeRange,
                 'start_time' => $startFmt,
                 'end_time' => $endFmt,
                 'time_range' => $timeRange,
-                'location' => (string) ($evt->location_text ?: ($evt->is_virtual ? 'Zoom Online' : 'Grand Ballroom, Hyatt Regency, Ahmedabad')),
+                'location' => (string) ($evt->location_text ?: ($evt->is_virtual ? 'Online' : '')),
                 'mode' => $evt->is_virtual ? 'Online' : 'In-Person',
                 'status' => $isCompleted ? 'Completed' : 'Upcoming',
-                'attendees_count' => (int) ($evt->registration_limit ?: 25),
+                'attendees_count' => $attendeeCount,
+                'attendees' => $attendeesList,
                 'cadence_summary' => $cadenceSumm,
                 'cadence_text' => "{$cadenceSumm} from {$timeRange}",
                 'ordinal' => $ordText,
@@ -1856,7 +1919,7 @@ class LeaderTeamsService
 
         if (Schema::hasTable('peer_recommendations') && $user) {
             try {
-                $rec = \App\Models\PeerRecommendation::create([
+                $rec = PeerRecommendation::create([
                     'user_id' => (string) $user->id,
                     'peer_name' => $peerName !== '' ? $peerName : 'Referred Peer',
                     'peer_mobile' => $peerMobile,
@@ -1940,10 +2003,9 @@ class LeaderTeamsService
                 ->whereRaw("LOWER(COALESCE(full_name, '')) NOT LIKE '%genie%'")
                 ->orderByDesc('created_at');
             if ($user) {
-                $userCount = (clone $query)->where('user_id', (string) $user->id)->count();
-                if ($userCount > 0) {
-                    $query->where('user_id', (string) $user->id);
-                }
+                $query->where('user_id', (string) $user->id);
+            } else {
+                $query->whereRaw('1 = 0');
             }
 
             if ($search && trim($search) !== '') {
@@ -1980,5 +2042,108 @@ class LeaderTeamsService
         }
 
         return $contacts;
+    }
+
+    /**
+     * Assign a circle officer or committee role (Chair, Vice Chair, Secretary, Committee Leader)
+     * within the actor's authorized organizational scope.
+     *
+     * @return array<string, mixed>
+     */
+    public function assignCircleRole(
+        string $circleId,
+        string $targetUserId,
+        string $roleKey,
+        User|AdminUser|null $actor,
+        ?string $committeeName = null,
+    ): array {
+        if (! $actor) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $circle = Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first();
+        if (! $circle) {
+            abort(404, 'Circle not found.');
+        }
+
+        $roleInfo = $this->permissionService->resolveUserRole($actor);
+        $actorRole = (string) ($roleInfo['role'] ?? 'member');
+        $matrix = $this->permissionService->resolvePermissionMatrix($actorRole);
+        if (empty($matrix['can_assign_circle_chair'])) {
+            abort(403, 'You do not have permission to assign circle officers or chairs.');
+        }
+
+        // Enforce organizational scope (aborts 403 if actor cannot manage this circle)
+        app(LeaderDashboardService::class)->resolveLeaderScope($circleId, null, $actor);
+
+        $memberQuery = CircleMember::query()
+            ->where('circle_id', $circleId)
+            ->where('user_id', $targetUserId)
+            ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('circle_members', 'left_at')) {
+            $memberQuery->whereNull('left_at');
+        }
+        if (Schema::hasColumn('circle_members', 'status')) {
+            $memberQuery->where(function ($q): void {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active']);
+            });
+        }
+
+        $member = $memberQuery->first();
+        if (! $member) {
+            throw ValidationException::withMessages([
+                'user_id' => ['Selected user is not an active approved member of this circle.'],
+            ]);
+        }
+
+        if (strtolower(trim((string) ($member->role ?? ''))) === strtolower(trim($roleKey))) {
+            throw ValidationException::withMessages([
+                'role' => ['This peer already holds the selected role in this circle.'],
+            ]);
+        }
+
+        $update = ['role' => $roleKey];
+        if (Schema::hasTable('roles')) {
+            $roleId = DB::table('roles')->where('key', $roleKey)->value('id');
+            if ($roleId) {
+                $update['role_id'] = $roleId;
+            }
+        }
+        $member->update($update);
+
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+        $leadership = is_array($calendar['leadership'] ?? null) ? $calendar['leadership'] : [];
+        $slotMap = [
+            'chair' => 'chair_user_id',
+            'circle_chair' => 'chair_user_id',
+            'chair_business_growth_committee' => 'business_growth_committee_chair_user_id',
+            'chair_membership_growth_committee' => 'membership_growth_committee_chair_user_id',
+            'chair_events_impacts_committee' => 'events_impacts_committee_chair_user_id',
+            'vice_chair' => 'vice_chair_user_id',
+            'secretary' => 'secretary_user_id',
+            'committee_leader' => 'committee_leader_user_id',
+        ];
+        if (isset($slotMap[$roleKey])) {
+            $leadership[$slotMap[$roleKey]] = $targetUserId;
+        }
+        if ($committeeName) {
+            $leadership['committee_name'] = $committeeName;
+        }
+        $calendar['leadership'] = $leadership;
+        $circle->calendar = $calendar;
+        if (in_array($roleKey, ['chair', 'circle_chair'], true) && Schema::hasColumn('circles', 'chair_user_id')) {
+            $circle->chair_user_id = $targetUserId;
+        }
+        $circle->save();
+
+        return [
+            'circle_id' => (string) $circle->id,
+            'user_id' => $targetUserId,
+            'role' => $roleKey,
+            'committee_name' => $committeeName,
+            'assigned_by' => (string) $actor->id,
+        ];
     }
 }

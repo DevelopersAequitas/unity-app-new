@@ -140,14 +140,13 @@ class LeadershipCandidateLedgerController extends Controller
         }
         RateLimiter::hit($throttleKey, 300);
 
-        $otp = app()->environment('local', 'testing') ? '123456' : (string) random_int(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
         $verificationId = (string) Str::uuid();
 
         Cache::put('ledger_otp:'.$verificationId, [
             'nomination_id' => $nomination->id,
             'email' => $inputEmail,
             'otp_hash' => Hash::make($otp),
-            'otp_plain' => config('app.debug') ? $otp : null,
             'attempts' => 0,
         ], 600); // 10 minutes TTL
 
@@ -200,46 +199,42 @@ class LeadershipCandidateLedgerController extends Controller
         $cacheKey = $verificationId ? 'ledger_otp:'.$verificationId : null;
         $challenge = $cacheKey ? Cache::get($cacheKey) : null;
 
-        $isMasterBypass = (config('app.debug') || app()->environment('local', 'testing', 'staging')) && $otp === '123456';
-
-        if (! $challenge && ! $isMasterBypass) {
+        if (! $challenge) {
             return response()->json([
                 'status' => false,
                 'message' => 'Verification code has expired or is invalid. Please request a new code.',
             ], 422);
         }
 
-        if ($challenge) {
-            if ($challenge['nomination_id'] !== $nomination->id) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Verification challenge does not match this nomination.',
-                ], 422);
-            }
-
-            if (($challenge['attempts'] ?? 0) >= 5) {
-                Cache::forget($cacheKey);
-
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Maximum verification attempts exceeded. Please request a new code.',
-                ], 422);
-            }
-
-            $matched = Hash::check($otp, $challenge['otp_hash']) || (($challenge['otp_plain'] ?? null) === $otp) || $isMasterBypass;
-
-            if (! $matched) {
-                $challenge['attempts'] = ($challenge['attempts'] ?? 0) + 1;
-                Cache::put($cacheKey, $challenge, 300);
-
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid verification code. Please check your email and try again.',
-                ], 422);
-            }
-
-            Cache::forget($cacheKey);
+        if ($challenge['nomination_id'] !== $nomination->id || ($challenge['email'] ?? '') !== $inputEmail) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Verification challenge does not match this nomination.',
+            ], 422);
         }
+
+        if (($challenge['attempts'] ?? 0) >= 5) {
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Maximum verification attempts exceeded. Please request a new code.',
+            ], 422);
+        }
+
+        $matched = Hash::check($otp, $challenge['otp_hash']);
+
+        if (! $matched) {
+            $challenge['attempts'] = ($challenge['attempts'] ?? 0) + 1;
+            Cache::put($cacheKey, $challenge, 300);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid verification code. Please check your email and try again.',
+            ], 422);
+        }
+
+        Cache::forget($cacheKey);
 
         $accessToken = 'clat_'.Str::random(40);
         Cache::put('ledger_session:'.$accessToken, [
