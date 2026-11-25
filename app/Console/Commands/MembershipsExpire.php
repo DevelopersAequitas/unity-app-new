@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\User;
 use App\Models\UserMembership;
 use App\Services\Membership\MembershipUpgradeService;
@@ -92,6 +93,28 @@ class MembershipsExpire extends Command
                     'membership_ends_at' => $furthestExpiredEnd,
                     'membership_expiry' => $furthestExpiredEnd,
                 ]);
+
+                try {
+                    $memberUser = User::query()->find($userId);
+                    $circleId = (string) ($memberUser?->active_circle_id ?? $memberUser?->circle_id ?? '');
+                    if ($circleId !== '') {
+                        $peerName = trim((string) ($memberUser?->display_name ?? $memberUser?->name ?? 'Peer'));
+                        app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                            'peer_membership_expired',
+                            'Peer Membership Expired',
+                            "{$peerName}'s membership has expired and reverted to free peer.",
+                            [
+                                'circle_id' => $circleId,
+                                'actor_id' => (string) $userId,
+                                'entity_type' => 'peer',
+                                'entity_id' => (string) $userId,
+                                'reference_id' => (string) $userId,
+                            ]
+                        );
+                    }
+                } catch (\Throwable $le) {
+                    Log::warning('Failed dispatching leader peer_membership_expired', ['error' => $le->getMessage()]);
+                }
             });
         }
 

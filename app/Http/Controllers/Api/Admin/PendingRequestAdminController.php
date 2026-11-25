@@ -7,20 +7,26 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Events\PendingRequestChangedEvent;
 use App\Http\Controllers\Controller;
 use App\Leader\Services\LeaderPeersService;
+use App\Leader\Services\LeaderPermissionService;
 use App\Models\Certification;
 use App\Models\CertificationSubmission;
+use App\Models\CircleJoinRequest;
 use App\Models\Notification;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Certifications\CertificateGeneratorService;
+use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Contracts\Database\Query\Expression;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PendingRequestAdminController extends Controller
 {
@@ -34,31 +40,31 @@ class PendingRequestAdminController extends Controller
             $status = 'pending';
         }
 
-        return \Illuminate\Support\Facades\Cache::remember("admin.pending_requests.summary.{$status}", 30, function () use ($status): array {
+        return Cache::remember("admin.pending_requests.summary.{$status}", 30, function () use ($status): array {
             $breakdown = [
-            'visitor_registrations' => $this->getCategoryCount($status, 'visitor_registrations'),
-            'coin_claims' => $this->getCategoryCount($status, 'coin_claim_requests', 'coin_claims'),
-            'circle_joining_requests' => $this->getCategoryCount($status, 'circle_join_requests'),
-            'certifications' => $this->getCategoryCount($status, 'certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'),
-            'pending_impacts' => $this->getCategoryCount($status, 'impacts', 'life_impacts'),
-            'ad_booking_requests' => $this->getCategoryCount($status, 'ad_bookings'),
-            'account_deletion_requests' => $this->getCategoryCount($status, 'account_deletion_requests'),
-            'account_deletion_emails' => $this->getCategoryCount($status, 'account_deletion_emails'),
-            'introduction_requests' => $this->getCategoryCount($status, 'introduction_requests'),
-            'circle_peer_referrals' => $this->getCategoryCount($status, 'circle_peer_referrals', 'peer_referrals', 'peer_recommendations', 'referrals'),
-            'event_joining_requests' => $this->getCategoryCount($status, 'event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
-        ];
+                'visitor_registrations' => $this->getCategoryCount($status, 'visitor_registrations'),
+                'coin_claims' => $this->getCategoryCount($status, 'coin_claim_requests', 'coin_claims'),
+                'circle_joining_requests' => $this->getCategoryCount($status, 'circle_join_requests'),
+                'certifications' => $this->getCategoryCount($status, 'certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'),
+                'pending_impacts' => $this->getCategoryCount($status, 'impacts', 'life_impacts'),
+                'ad_booking_requests' => $this->getCategoryCount($status, 'ad_bookings'),
+                'account_deletion_requests' => $this->getCategoryCount($status, 'account_deletion_requests'),
+                'account_deletion_emails' => $this->getCategoryCount($status, 'account_deletion_emails'),
+                'introduction_requests' => $this->getCategoryCount($status, 'introduction_requests'),
+                'circle_peer_referrals' => $this->getCategoryCount($status, 'circle_peer_referrals', 'peer_referrals', 'peer_recommendations', 'referrals'),
+                'event_joining_requests' => $this->getCategoryCount($status, 'event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
+            ];
 
-        // Total calculated strictly as unique categories without duplicate counting
-        $total = array_sum($breakdown);
+            // Total calculated strictly as unique categories without duplicate counting
+            $total = array_sum($breakdown);
 
-        // Normalize aliases for frontend compatibility without inflating total
-        $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
-        $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
-        $breakdown['visitors'] = $breakdown['visitor_registrations'];
-        $breakdown['peer_referrals'] = $breakdown['circle_peer_referrals'];
-        $breakdown['peer_recommendations'] = $breakdown['circle_peer_referrals'];
-        $breakdown['referrals'] = $breakdown['circle_peer_referrals'];
+            // Normalize aliases for frontend compatibility without inflating total
+            $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
+            $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
+            $breakdown['visitors'] = $breakdown['visitor_registrations'];
+            $breakdown['peer_referrals'] = $breakdown['circle_peer_referrals'];
+            $breakdown['peer_recommendations'] = $breakdown['circle_peer_referrals'];
+            $breakdown['referrals'] = $breakdown['circle_peer_referrals'];
 
             return [
                 'status' => $status,
@@ -523,7 +529,7 @@ class PendingRequestAdminController extends Controller
             ?? \Illuminate\Support\Facades\Auth::guard('admin')->user()
             ?? \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
         if ($actor instanceof User) {
-            $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($actor)['role'] ?? 'guest');
+            $role = (string) (app(LeaderPermissionService::class)->resolveUserRole($actor)['role'] ?? 'guest');
 
             return [$actor, $role];
         }
@@ -537,7 +543,7 @@ class PendingRequestAdminController extends Controller
      */
     private function approveCircleJoinRequestViaService(string $id): JsonResponse
     {
-        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        $record = CircleJoinRequest::query()->find($id);
         if (! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
@@ -547,18 +553,18 @@ class PendingRequestAdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $service = app(CircleJoinRequestService::class);
         $status = (string) $record->status;
 
         try {
             if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
                 $updated = $service->approveAndJoinCircle($record, $actor);
                 $message = 'Request approved and applicant added to the circle.';
-            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+            } elseif ($status === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
                 $updated = $service->approveByCd($record, $actor);
                 $message = 'Approved at Circle Director stage. Sent for Industry Director approval.';
             } elseif (
-                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                $status === CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
                 && in_array($role, ['industryDirector', 'districtExecDirector'], true)
             ) {
                 $updated = $service->approveById($record, $actor);
@@ -569,7 +575,7 @@ class PendingRequestAdminController extends Controller
                     'message' => "This request is at '{$status}' and is not waiting for your approval.",
                 ], 422);
             }
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
@@ -592,7 +598,7 @@ class PendingRequestAdminController extends Controller
      */
     private function rejectCircleJoinRequestViaService(string $id, string $reason): JsonResponse
     {
-        $record = \App\Models\CircleJoinRequest::query()->find($id);
+        $record = CircleJoinRequest::query()->find($id);
         if (! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
@@ -602,16 +608,16 @@ class PendingRequestAdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $service = app(CircleJoinRequestService::class);
         $status = (string) $record->status;
 
         try {
             if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
                 $updated = $service->rejectGeneric($record, $actor, $reason);
-            } elseif ($status === \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+            } elseif ($status === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
                 $updated = $service->rejectByCd($record, $actor, $reason);
             } elseif (
-                $status === \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                $status === CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
                 && in_array($role, ['industryDirector', 'districtExecDirector'], true)
             ) {
                 $updated = $service->rejectById($record, $actor, $reason);
@@ -621,7 +627,7 @@ class PendingRequestAdminController extends Controller
                     'message' => "This request is at '{$status}' and cannot be rejected by your role.",
                 ], 422);
             }
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => (string) collect($e->errors())->flatten()->first() ?: 'Validation failed.',
@@ -638,6 +644,7 @@ class PendingRequestAdminController extends Controller
             'data' => ['id' => (string) $updated->id, 'status' => (string) $updated->status],
         ], 200);
     }
+
     private function processApproval(string $id, ?string $category = null): JsonResponse
     {
         if ($category === 'certifications') {
@@ -1375,7 +1382,7 @@ class PendingRequestAdminController extends Controller
             return null;
         }
 
-        $role = (string) (app(\App\Leader\Services\LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
+        $role = (string) (app(LeaderPermissionService::class)->resolveUserRole($user)['role'] ?? 'guest');
 
         // Strictly authorized moderation roles: DED, CD, CF, ID, Super Admin, Country Director
         $allowedRoles = [
@@ -1434,7 +1441,7 @@ class PendingRequestAdminController extends Controller
     /**
      * Restrict a circle_join_requests query to the leader's circles or main categories.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  Builder  $query
      * @param  array{circle_ids: array<int, string>, category_ids: array<int, int>}  $scope
      */
     private function applyLeaderScopeToJoinRequests($query, array $scope): void
@@ -1604,6 +1611,7 @@ class PendingRequestAdminController extends Controller
             'message' => 'This request does not belong to your circles or main category.',
         ], 403);
     }
+
     private function fetchCircleJoinRequests(?string $search, string $status = 'pending', ?array $scope = null): Collection
     {
         if (! Schema::hasTable('circle_join_requests')) {
@@ -1623,8 +1631,8 @@ class PendingRequestAdminController extends Controller
             // Circle Director/Founder -> pending_cd_approval, Industry Director/DED -> pending_id_approval.
             if ($status === 'pending' && Schema::hasColumn('circle_join_requests', 'status')) {
                 $stage = in_array($scope['role'] ?? '', ['industryDirector', 'districtExecDirector'], true)
-                    ? \App\Models\CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
-                    : \App\Models\CircleJoinRequest::STATUS_PENDING_CD_APPROVAL;
+                    ? CircleJoinRequest::STATUS_PENDING_ID_APPROVAL
+                    : CircleJoinRequest::STATUS_PENDING_CD_APPROVAL;
                 $query->whereRaw('CAST(circle_join_requests.status AS TEXT) = ?', [$stage]);
             }
         }
@@ -1831,14 +1839,18 @@ class PendingRequestAdminController extends Controller
 
     private function fetchCoinClaims(?string $search, string $status = 'pending'): Collection
     {
-        if (! Schema::hasTable('coin_claims')) {
+        $table = Schema::hasTable('coin_claim_requests')
+            ? 'coin_claim_requests'
+            : (Schema::hasTable('coin_claims') ? 'coin_claims' : null);
+
+        if (! $table) {
             return collect();
         }
 
-        $query = DB::table('coin_claims')
-            ->leftJoin('users', 'coin_claims.user_id', '=', 'users.id');
+        $query = DB::table($table)
+            ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
 
-        $this->applyStatusFilter($query, 'coin_claims', $status);
+        $this->applyStatusFilter($query, $table, $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -1850,7 +1862,7 @@ class PendingRequestAdminController extends Controller
         }
 
         return $query->select(
-            'coin_claims.*',
+            "{$table}.*",
             $this->getUserNameExpression(),
             'users.email as applicant_email',
             'users.phone as applicant_phone',

@@ -147,6 +147,13 @@ class LeaderPermissionService
                 'request_actions',
                 'view_reports',
             ],
+            'committeeLeader' => [
+                'access_dashboard',
+                'access_teams',
+                'view_peers',
+                'request_actions',
+                'view_reports',
+            ],
             'viceChair' => [
                 'access_dashboard',
                 'view_peers',
@@ -211,6 +218,20 @@ class LeaderPermissionService
                 'view_reports',
                 'manage_finance',
                 'coin_payouts',
+            ],
+            'globalFounder' => [
+                'access_dashboard',
+                'access_teams',
+                'access_finance',
+                'regional_data',
+                'view_peers',
+                'manage_peers',
+                'request_actions',
+                'view_reports',
+                'manage_finance',
+                'coin_payouts',
+                'manage_roles',
+                'system_configs',
             ],
             'superAdmin' => [
                 'access_dashboard',
@@ -471,7 +492,7 @@ class LeaderPermissionService
     public function resolvePermissionMatrix(string $role): array
     {
         $enabledCapabilities = $this->getEnabledCapabilitiesForRole($role);
-        $isSuper = in_array($role, ['superAdmin', 'super_admin', 'global_admin'], true);
+        $isSuper = in_array($role, ['superAdmin', 'super_admin', 'global_admin', 'globalFounder', 'global_founder'], true);
 
         $hasCap = fn (string $cap): bool => in_array($cap, $enabledCapabilities, true);
 
@@ -514,8 +535,13 @@ class LeaderPermissionService
 
         $circleCols = Schema::hasTable('circles') ? Schema::getColumnListing('circles') : [];
 
-        if ($role === 'superAdmin' || $role === 'countryDirector') {
+        if ($role === 'superAdmin') {
             $circles = $query->orderBy('name')->get();
+        } elseif ($role === 'countryDirector') {
+            $countryCircleIds = app(LeaderPeersService::class)->resolveScopedCircleIds($user);
+            $circles = empty($countryCircleIds)
+                ? collect()
+                : $query->whereIn('id', $countryCircleIds)->orderBy('name')->get();
         } elseif ($role === 'districtExecDirector') {
             $admin = AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first();
             $circleIds = $admin ? AdminCircleScope::getDedCircleIds($admin) : [];

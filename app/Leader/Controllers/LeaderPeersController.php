@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderCreateP2pMeetingRequest;
 use App\Leader\Requests\LeaderSendWishRequest;
 use App\Leader\Requests\LeaderUpdatePeerRequest;
+use App\Leader\Services\LeaderDashboardService;
 use App\Leader\Services\LeaderPeersService;
 use App\Leader\Services\LeaderPermissionService;
 use App\Models\User;
@@ -100,10 +101,14 @@ class LeaderPeersController extends Controller
     public function sendWish(LeaderSendWishRequest $request, string $id): JsonResponse
     {
         $user = $request->user();
-        $senderId = $user ? (string) $user->id : '8ef4c5ad-13c5-4b08-8e6f-cbde39df23a5';
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $this->peersService->assertPeerInScope($id, $user);
 
         $message = $this->peersService->sendWish(
-            $senderId,
+            (string) $user->id,
             $id,
             (string) $request->validated('type'),
             (string) $request->validated('message'),
@@ -118,8 +123,10 @@ class LeaderPeersController extends Controller
     /**
      * Get historical and scheduled meetings for a peer.
      */
-    public function meetings(string $id): JsonResponse
+    public function meetings(string $id, Request $request): JsonResponse
     {
+        $this->peersService->assertPeerInScope($id, $request->user());
+
         $peer = User::query()->where('id', $id)->first();
         if (! $peer || $peer->isSystemUser()) {
             return response()->json([
@@ -142,6 +149,8 @@ class LeaderPeersController extends Controller
      */
     public function activities(string $id, Request $request): JsonResponse
     {
+        $this->peersService->assertPeerInScope($id, $request->user());
+
         $peer = User::query()->where('id', $id)->first();
         if (! $peer || $peer->isSystemUser()) {
             return response()->json([
@@ -188,7 +197,7 @@ class LeaderPeersController extends Controller
         $roleInfo = $permissionService->resolveUserRole($authUser);
         $userRole = (string) ($roleInfo['role'] ?? 'member');
 
-        $canEdit = in_array($userRole, ['superAdmin', 'countryDirector', 'districtExecDirector'], true)
+        $canEdit = in_array($userRole, ['superAdmin', 'globalFounder', 'countryDirector', 'districtExecDirector'], true)
             || in_array('manage_peers', $permissionService->getEnabledCapabilitiesForRole($userRole), true);
 
         if (! $canEdit && (string) $authUser->id !== $id) {
@@ -196,6 +205,16 @@ class LeaderPeersController extends Controller
                 'success' => false,
                 'message' => 'You do not have permission to edit this peer profile.',
                 'error_code' => 'FORBIDDEN',
+            ], 403);
+        }
+
+        $scope = app(LeaderDashboardService::class)->resolveLeaderScope(null, null, $authUser);
+        $scopedUserIds = $scope['scoped_member_user_ids'];
+        if ($scopedUserIds !== null && (string) $authUser->id !== $id && ! in_array($id, $scopedUserIds, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not authorized to edit a peer outside your organizational scope.',
+                'error_code' => 'FORBIDDEN_SCOPE',
             ], 403);
         }
 

@@ -18,12 +18,9 @@ class AllowFixedMembersToken
         }
 
         $providedToken = substr($authorization, 7);
-        $fixedToken = (string) config(
-            'services.members_with_circles.fixed_token',
-            '302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d'
-        );
+        $fixedToken = trim((string) config('services.members_with_circles.fixed_token', ''));
 
-        if (! hash_equals($fixedToken, $providedToken)) {
+        if ($fixedToken === '' || ! hash_equals($fixedToken, $providedToken)) {
             return $this->unauthorized();
         }
 

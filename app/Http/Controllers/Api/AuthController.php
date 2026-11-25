@@ -1483,18 +1483,7 @@ class AuthController extends BaseApiController
      */
     protected function isSpecialBypassUser(string $email, Request $request): bool
     {
-        $normalized = strtolower(trim($email));
-        if ($normalized !== 'harsh@gmail.com') {
-            return false;
-        }
-
-        $env = app()->environment();
-        $isLocalOrDev = in_array($env, ['local', 'development', 'dev', 'testing'], true);
-        $headerEnv = strtolower((string) ($request->header('X-Environment') ?? $request->header('X-App-Env') ?? ''));
-        $hasDevHeader = in_array($headerEnv, ['local', 'development', 'dev'], true);
-        $bypassFlag = $request->boolean('bypass_otp');
-
-        return $isLocalOrDev || $hasDevHeader || $bypassFlag || true;
+        return false;
     }
 
     /**
@@ -1946,7 +1935,7 @@ class AuthController extends BaseApiController
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        if ($user instanceof \App\Models\AdminUser) {
+        if ($user instanceof AdminUser) {
             return response()->json([
                 'success' => true,
                 'message' => 'Admin profile retrieved successfully.',

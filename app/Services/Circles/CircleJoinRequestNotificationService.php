@@ -3,6 +3,7 @@
 namespace App\Services\Circles;
 
 use App\Jobs\SendPushNotificationJob;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Mail\CircleJoinCongratulationsMail;
 use App\Mail\CircleJoinRequestStatusMail;
 use App\Models\Circle;
@@ -31,6 +32,25 @@ class CircleJoinRequestNotificationService
         $body = "Your request to join {$circleName} has been approved by Circle Director and is now pending Industry Director approval.";
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_cd_approved', 'pending_id_approval', null, 'Your Circle Join Request is Pending Industry Director Approval');
+
+        try {
+            $peerName = trim((string) ($request->user?->display_name ?? $request->user?->name ?? 'Peer'));
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'circle_join_stage2_clearance',
+                'Stage-2 Circle Join Clearance Required',
+                "{$peerName} was approved by Circle Director for {$circleName} and awaits Industry Director / DED clearance.",
+                [
+                    'circle_id' => (string) $request->circle_id,
+                    'industry_id' => (string) ($request->circle?->circle_category_id ?? ''),
+                    'actor_id' => (string) ($request->user_id ?? ''),
+                    'entity_id' => (string) $request->id,
+                    'reference_id' => (string) $request->id,
+                    'idempotency_window' => (string) $request->id.'_stage2',
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Failed to dispatch leader stage-2 join notification', ['error' => $e->getMessage()]);
+        }
     }
 
     public function sendCdRejectedToUser(CircleJoinRequest $request): void
@@ -69,6 +89,25 @@ class CircleJoinRequestNotificationService
         $body = "Your payment is successful and you are now a Circle Member of {$circleName}.";
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_member_confirmed', 'circle_member', null, 'Your Circle Membership is Confirmed');
+
+        try {
+            $peerName = trim((string) ($request->user?->display_name ?? $request->user?->name ?? 'New Peer'));
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'new_peer_chartered',
+                'New Peer Chartered in Circle',
+                "{$peerName} completed fee payment and joined {$circleName} as a Circle Member.",
+                [
+                    'circle_id' => (string) $request->circle_id,
+                    'industry_id' => (string) ($request->circle?->circle_category_id ?? ''),
+                    'actor_id' => (string) ($request->user_id ?? ''),
+                    'entity_id' => (string) ($request->user_id ?? $request->id),
+                    'reference_id' => (string) $request->id,
+                    'idempotency_window' => (string) $request->id.'_chartered',
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Failed to dispatch leader new_peer_chartered notification', ['error' => $e->getMessage()]);
+        }
     }
 
     private function sendUserUpdate(

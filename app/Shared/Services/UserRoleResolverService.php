@@ -15,6 +15,7 @@ class UserRoleResolverService
 {
     public const ROLE_HIERARCHY_RANK = [
         'superAdmin' => 100,
+        'globalFounder' => 100,
         'countryDirector' => 90,
         'industryDirector' => 85,
         'districtExecDirector' => 80,
@@ -24,6 +25,7 @@ class UserRoleResolverService
         'chairMembership' => 38,
         'chairEventsPrograms' => 36,
         'circleChair' => 34,
+        'committeeLeader' => 32,
         'viceChair' => 30,
         'secretary' => 20,
     ];
@@ -38,7 +40,8 @@ class UserRoleResolverService
         $lowerNormalized = str_replace(['_', '-'], ' ', $lower);
 
         return match (true) {
-            in_array($lower, ['superadmin', 'super_admin', 'global_admin', 'admin'], true) || str_contains($lowerNormalized, 'super admin') || str_contains($lowerNormalized, 'global admin') => 'superAdmin',
+            in_array($lower, ['globalfounder', 'global_founder'], true) || in_array($lowerNormalized, ['global founder', 'globalfounder'], true) => 'globalFounder',
+            in_array($lower, ['superadmin', 'super_admin', 'global_admin', 'admin'], true) || in_array($lowerNormalized, ['super admin', 'superadmin', 'global admin', 'globaladmin', 'super administrator', 'global administrator'], true) => 'superAdmin',
             in_array($lower, ['countrydirector', 'country_director', 'eed'], true) || str_contains($lowerNormalized, 'country director') => 'countryDirector',
             in_array($lower, ['districtexecdirector', 'district_exec_director', 'ded'], true) || str_contains($lowerNormalized, 'district exec director') || str_contains($lowerNormalized, 'district director') => 'districtExecDirector',
             in_array($lower, ['industrydirector', 'industry_director', 'id', 'ied'], true) || str_contains($lowerNormalized, 'industry director') => 'industryDirector',
@@ -47,7 +50,8 @@ class UserRoleResolverService
             in_array($lower, ['chair_business_growth_committee', 'chair business growth committee', 'business_growth_committee', 'business growth committee', 'chairbusinessgrowth', 'chair_business_growth', 'businessgrowthcommitteechair', 'business_growth_committee_chair', 'business_growth_chair', 'chair - business growth committee', 'business_growth'], true) || str_contains($lowerNormalized, 'business growth') => 'chairBusinessGrowth',
             in_array($lower, ['chair_membership_growth_committee', 'chair membership growth committee', 'membership_growth_committee', 'membership growth committee', 'chairmembership', 'chair_membership', 'membershipgrowthcommitteechair', 'membership_growth_committee_chair', 'membership_committee_chair', 'membershipgrowthchair', 'membership_chair', 'chair - membership committee', 'chair - membership growth committee', 'membership_growth'], true) || str_contains($lowerNormalized, 'membership growth') || str_contains($lowerNormalized, 'membership committee') => 'chairMembership',
             in_array($lower, ['chair_events_impacts_committee', 'chair events impacts committee', 'events_impacts_committee', 'events impacts committee', 'chaireventsprograms', 'chair_events_programs', 'eventsimpactscommitteechair', 'events_impacts_committee_chair', 'events_programs_committee_chair', 'eventsprogramscommitteechair', 'events_impacts_chair', 'events_chair', 'chair - events & programs committee', 'chair - events & impacts committee', 'events_programs_committee', 'events_impacts'], true) || str_contains($lowerNormalized, 'events impacts') || str_contains($lowerNormalized, 'events programs') || str_contains($lowerNormalized, 'events & programs') || str_contains($lowerNormalized, 'events & impacts') => 'chairEventsPrograms',
-            in_array($lower, ['circlechair', 'circle_chair', 'chair'], true) => 'chairBusinessGrowth',
+            in_array($lower, ['circlechair', 'circle_chair', 'chair'], true) => 'circleChair',
+            in_array($lower, ['committeeleader', 'committee_leader', 'committee_lead'], true) || str_contains($lowerNormalized, 'committee leader') => 'committeeLeader',
             in_array($lower, ['vice_chair', 'vicechair', 'vice chair'], true) || str_contains($lowerNormalized, 'vice chair') => 'viceChair',
             in_array($lower, ['secretary', 'circle_secretary'], true) || str_contains($lowerNormalized, 'secretary') => 'secretary',
             default => $cleaned,
@@ -63,6 +67,7 @@ class UserRoleResolverService
 
         return in_array($normalized, [
             'superAdmin',
+            'globalFounder',
             'countryDirector',
             'districtExecDirector',
             'industryDirector',
@@ -72,6 +77,7 @@ class UserRoleResolverService
             'chairMembership',
             'chairEventsPrograms',
             'circleChair',
+            'committeeLeader',
             'viceChair',
             'secretary',
         ], true);
@@ -98,6 +104,7 @@ class UserRoleResolverService
     {
         return match ($canonicalRole) {
             'superAdmin' => 'Super Admin',
+            'globalFounder' => 'Global Founder',
             'countryDirector' => 'Country Director',
             'districtExecDirector' => 'District Exec Director',
             'industryDirector' => 'Industry Director',
@@ -106,7 +113,8 @@ class UserRoleResolverService
             'chairBusinessGrowth' => 'Chair - Business Growth Committee',
             'chairMembership' => 'Chair - Membership Growth Committee',
             'chairEventsPrograms' => 'Chair - Events & Impacts Committee',
-            'circleChair' => 'Chair - Business Growth Committee',
+            'circleChair' => 'Circle Chair',
+            'committeeLeader' => 'Committee Leader',
             'viceChair' => 'Vice Chair',
             'secretary' => 'Secretary',
             'member' => 'Peer Member',
@@ -175,10 +183,10 @@ class UserRoleResolverService
 
         if (! empty($user->role) && $this->isLeaderRole((string) $user->role)) {
             $userDirectRole = $this->normalizeRoleKey((string) $user->role);
-            if ($userDirectRole === 'superAdmin') {
+            if ($userDirectRole === 'superAdmin' || $userDirectRole === 'globalFounder') {
                 return [
-                    'role' => 'superAdmin',
-                    'custom_role_label' => 'Super Admin',
+                    'role' => $userDirectRole,
+                    'custom_role_label' => $this->getRoleLabel($userDirectRole),
                     'regional_scope' => 'Global Scope',
                     'is_leader' => true,
                 ];
@@ -200,10 +208,10 @@ class UserRoleResolverService
                 foreach ([$row->key, $row->name, $row->role_code] as $field) {
                     if ($field && $this->isLeaderRole((string) $field)) {
                         $norm = $this->normalizeRoleKey((string) $field);
-                        if ($norm === 'superAdmin') {
+                        if ($norm === 'superAdmin' || $norm === 'globalFounder') {
                             return [
-                                'role' => 'superAdmin',
-                                'custom_role_label' => 'Super Admin',
+                                'role' => $norm,
+                                'custom_role_label' => $this->getRoleLabel($norm),
                                 'regional_scope' => 'Global Scope',
                                 'is_leader' => true,
                             ];
@@ -324,12 +332,23 @@ class UserRoleResolverService
             }
         }
 
-        // 3. Check circle_members role & roleRef
+        // 3. Check active circle_members role & roleRef (exclude pending, rejected, and departed memberships)
         if (Schema::hasTable('circle_members')) {
-            $circleMembers = DB::table('circle_members')
+            $cmQuery = DB::table('circle_members')
                 ->where('user_id', $userId)
-                ->whereNull('deleted_at')
-                ->get();
+                ->whereNull('deleted_at');
+
+            if (Schema::hasColumn('circle_members', 'left_at')) {
+                $cmQuery->whereNull('left_at');
+            }
+            if (Schema::hasColumn('circle_members', 'status')) {
+                $cmQuery->where(function ($q): void {
+                    $q->whereNull('status')
+                        ->orWhereIn(DB::raw('LOWER(status::text)'), ['approved', 'active']);
+                });
+            }
+
+            $circleMembers = $cmQuery->get();
 
             foreach ($circleMembers as $cm) {
                 $rawRole = (string) ($cm->role ?? '');
@@ -387,7 +406,7 @@ class UserRoleResolverService
     public function resolveRegionalScope(string $role): string
     {
         return match ($role) {
-            'superAdmin' => 'Global Scope',
+            'superAdmin', 'globalFounder' => 'Global Scope',
             'countryDirector' => 'Country Scope',
             'districtExecDirector' => 'District Scope',
             'industryDirector' => 'Industry Scope',

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Mail\CircleMembershipExpiryReminderMail;
 use App\Models\CircleMember;
 use App\Models\Notification;
@@ -113,6 +114,7 @@ class SendCircleMembershipExpiryReminders extends Command
                         'priority' => 'high',
                         'screen' => '/profile',
                         'data' => array_merge($notifPayload, [
+                            'audience' => 'member',
                             'circle_id' => (string) $circleMember->circle_id,
                             'circle_member_id' => (string) $circleMember->id,
                             'navigation_screen' => '/profile',
@@ -153,6 +155,7 @@ class SendCircleMembershipExpiryReminders extends Command
                     (string) $notifPayload['title'],
                     (string) $notifPayload['body'],
                     [
+                        'audience' => 'member',
                         'notification_type' => 'circle_membership_expiry_reminder',
                         'notification_id' => (string) ($appNotificationId ?: $dbNotification->id),
                         'navigation_screen' => '/profile',
@@ -161,6 +164,25 @@ class SendCircleMembershipExpiryReminders extends Command
                         'type' => 'circle_membership_expiry_reminder',
                     ]
                 );
+
+                // Notify Circle leadership (M-05: peer_renewal_due)
+                try {
+                    $peerName = trim((string) ($user->display_name ?? $user->name ?? 'Peer'));
+                    app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                        'peer_renewal_due',
+                        'Peer Circle Renewal Due',
+                        "{$peerName}'s circle membership is approaching expiry.",
+                        [
+                            'circle_id' => (string) $circleMember->circle_id,
+                            'actor_id' => (string) $user->id,
+                            'entity_type' => 'peer',
+                            'entity_id' => (string) $user->id,
+                            'reference_id' => (string) $circleMember->id,
+                        ]
+                    );
+                } catch (Throwable $le) {
+                    Log::warning('Failed dispatching leader peer_renewal_due', ['error' => $le->getMessage()]);
+                }
 
                 if ($emailSent) {
                     // Log to EmailLogService

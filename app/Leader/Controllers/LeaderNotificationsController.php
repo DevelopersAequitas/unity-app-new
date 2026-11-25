@@ -6,12 +6,21 @@ namespace App\Leader\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderMarkNotificationReadRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
+use App\Leader\Services\LeaderNotificationPolicyService;
 use App\Leader\Services\LeaderPermissionService;
+use App\Models\Circle;
+use App\Models\Circular;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
+use App\Models\UserPushToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -76,6 +85,7 @@ class LeaderNotificationsController extends Controller
         'connections',
         'member_feed',
     ];
+
     /**
      * Get leader user notifications list with rich metadata and strict role-wise scoping.
      */
@@ -88,45 +98,39 @@ class LeaderNotificationsController extends Controller
         $requestedCategory = strtolower((string) $request->query('category', 'all'));
 
         $userRoleLabel = 'Leader';
-        $canonicalRole = 'circle_director';
+        $canonicalRole = 'circleDirector';
         $isSuperAdmin = false;
-        $circleName = 'Ahmedabad Tech Pioneers';
-        $districtName = 'Gujarat Central';
-        $industryName = 'Technology & Software';
+        $canAccessFinance = false;
 
         if ($user) {
             $permissionService = app(LeaderPermissionService::class);
             $roleInfo = $permissionService->resolveUserRole($user);
-            $canonicalRole = strtolower($roleInfo['canonical_role'] ?? 'circle_director');
+            $canonicalRole = (string) ($roleInfo['role'] ?? 'circleDirector');
             $userRoleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canonicalRole);
-            $isSuperAdmin = in_array($canonicalRole, ['super_admin', 'superadmin', 'country_director', 'cdir'], true);
-
-            if ($user->activeCircle) {
-                $circleName = (string) $user->activeCircle->name;
-            }
+            $isSuperAdmin = $canonicalRole === 'superAdmin';
+            $canAccessFinance = $isSuperAdmin || $permissionService->hasCapability($user, 'access_finance');
         }
 
-        if ($user) {
-            // Exclude fixed-time spam/cron reminder types AND all consumer member app types
-            $excludedTypes = array_unique(array_merge(self::CONSUMER_EXCLUDED_TYPES, [
-                'engagement_reminder',
-                'daily_engagement_reminder',
-                'daily_reminder',
-                'engagement',
-                'engagement_founder',
-                'streak_reminder',
-                'streak',
-            ]));
+        $policyService = app(LeaderNotificationPolicyService::class);
 
-            // If NOT Super Admin / Country Director, remove raw micro-financial ledger cuts
-            if (! $isSuperAdmin) {
-                $excludedTypes[] = 'commission_credited';
-                $excludedTypes[] = 'commission_payout';
-                $excludedTypes[] = 'joining_cut_credited';
-                $excludedTypes[] = 'ledger_entry';
+        if ($user) {
+            $excludedTypes = array_unique(array_merge(
+                self::CONSUMER_EXCLUDED_TYPES,
+                LeaderNotificationPolicyService::CONSUMER_EXCLUDED_TYPES
+            ));
+
+            // Enforce financial confidentiality: roles without access_finance never see financial alerts
+            if (! $canAccessFinance) {
+                $excludedTypes = array_unique(array_merge(
+                    $excludedTypes,
+                    LeaderNotificationPolicyService::FINANCIAL_SENSITIVE_TYPES
+                ));
             }
 
-            $excludedScreens = self::CONSUMER_EXCLUDED_SCREENS;
+            $excludedScreens = array_unique(array_merge(
+                self::CONSUMER_EXCLUDED_SCREENS,
+                LeaderNotificationPolicyService::CONSUMER_EXCLUDED_SCREENS
+            ));
 
             $userId = (string) $user->id;
 
@@ -140,22 +144,6 @@ class LeaderNotificationsController extends Controller
                     ->where(function ($q) use ($excludedScreens): void {
                         $q->whereNull('screen')
                             ->orWhereNotIn('screen', $excludedScreens);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('category')
-                            ->orWhereNotIn('category', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('data->notification_type')
-                            ->orWhereNotIn('data->notification_type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('data->type')
-                            ->orWhereNotIn('data->type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedScreens): void {
-                        $q->whereNull('data->screen')
-                            ->orWhereNotIn('data->screen', $excludedScreens);
                     });
 
                 $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(500)->get();
@@ -167,9 +155,10 @@ class LeaderNotificationsController extends Controller
                     $screen = (string) ($an->screen ?: ($dataPayload['screen'] ?? $dataPayload['navigation_screen'] ?? '/dashboard'));
                     $isRead = $an->read_at !== null;
 
-                    if (in_array(strtolower($type), $excludedTypes, true) 
-                        || in_array(strtolower($category), $excludedTypes, true)
-                        || in_array(strtolower($screen), $excludedScreens, true)) {
+                    if (! $policyService->isLeadershipAudiencePayload($dataPayload, $type, $category, $screen)) {
+                        continue;
+                    }
+                    if (! $canAccessFinance && $policyService->isFinancialSensitive($type, $category, $dataPayload)) {
                         continue;
                     }
 
@@ -180,11 +169,15 @@ class LeaderNotificationsController extends Controller
                         'body' => (string) ($an->body ?: ($dataPayload['body'] ?? ($dataPayload['message'] ?? 'You have a new update.'))),
                         'category' => $category,
                         'type' => $type,
+                        'priority' => (string) ($an->priority ?? ($dataPayload['priority'] ?? 'medium')),
+                        'delivery_tier' => (string) ($dataPayload['delivery_tier'] ?? 'important'),
+                        'requires_action' => (bool) ($dataPayload['requires_action'] ?? false),
+                        'audience' => (string) ($dataPayload['audience'] ?? 'leadership'),
                         'is_unread' => ! $isRead,
                         'is_read' => $isRead,
                         'read_at' => $isRead ? ($an->read_at ? $an->read_at->toIso8601String() : now()->toIso8601String()) : null,
                         'status' => $isRead ? 'read' : 'unread',
-                        'screen' => (string) ($an->screen ?: ($dataPayload['screen'] ?? $dataPayload['navigation_screen'] ?? '/dashboard')),
+                        'screen' => $screen,
                         'data' => $dataPayload,
                         'created_at' => $an->created_at ? $an->created_at->toIso8601String() : now()->toIso8601String(),
                     ];
@@ -201,34 +194,20 @@ class LeaderNotificationsController extends Controller
 
                 foreach ($notifs as $n) {
                     $payload = is_array($n->payload) ? $n->payload : [];
-                    $type = (string) ($n->type ?: ($payload['notification_type'] ?? ($payload['type'] ?? 'general')));
+                    $type = (string) ($payload['notification_type'] ?? ($payload['type'] ?? ($n->source_event ?? $n->type ?? 'general')));
                     $category = (string) ($payload['category'] ?? ($payload['notification_type'] ?? $type));
                     $screen = (string) ($payload['screen'] ?? ($payload['data']['screen'] ?? ($payload['navigation_screen'] ?? '/dashboard')));
                     $isRead = (bool) ($n->is_read ?? false) || $n->read_at !== null;
 
-                    if (in_array(strtolower($type), $excludedTypes, true) 
-                        || in_array(strtolower($category), $excludedTypes, true)
-                        || in_array(strtolower($screen), $excludedScreens, true)) {
+                    if (! $policyService->isLeadershipAudiencePayload($payload, $type, $category, $screen)) {
+                        continue;
+                    }
+                    if (! $canAccessFinance && $policyService->isFinancialSensitive($type, $category, $payload)) {
                         continue;
                     }
 
-                    $title = (string) ($payload['title'] ?? ($payload['data']['title'] ?? 'Leader Notification'));
-                    $msg = (string) ($payload['body'] ?? ($payload['message'] ?? ($payload['data']['body'] ?? ($payload['data']['message'] ?? 'You have a new update.'))));
-
-                    if ($title === 'Leader Notification' || $title === '') {
-                        $title = match ($type) {
-                            'p2p_meeting_accepted' => 'P2P Meeting Accepted',
-                            'p2p_meeting_rejected' => 'P2P Meeting Rescheduled',
-                            'activity_p2p_meeting' => 'New P2P Meeting Scheduled',
-                            'referral_received', 'new_referral' => 'New Referral Received',
-                            'membership_approved' => 'New Circle Member Approved',
-                            'join_request' => 'New Circle Join Request',
-                            'weekly_report' => 'Weekly Leadership Report',
-                            'milestone_unlocked' => 'Milestone Unlocked! 🎉',
-                            'withdrawal_request' => 'Withdrawal Request Update',
-                            default => ucwords(str_replace(['_', '-'], ' ', $type)),
-                        };
-                    }
+                    $title = (string) ($n->title ?: ($payload['title'] ?? ($payload['data']['title'] ?? 'Leader Notification')));
+                    $msg = (string) ($n->message ?: ($payload['body'] ?? ($payload['message'] ?? ($payload['data']['body'] ?? ($payload['data']['message'] ?? 'You have a new update.')))));
 
                     $notifications[] = [
                         'id' => (string) $n->id,
@@ -237,11 +216,15 @@ class LeaderNotificationsController extends Controller
                         'body' => $msg,
                         'category' => $category,
                         'type' => $type,
+                        'priority' => (string) ($payload['priority'] ?? 'medium'),
+                        'delivery_tier' => (string) ($payload['delivery_tier'] ?? 'important'),
+                        'requires_action' => (bool) ($payload['requires_action'] ?? false),
+                        'audience' => (string) ($payload['audience'] ?? 'leadership'),
                         'is_unread' => ! $isRead,
                         'is_read' => $isRead,
                         'read_at' => $isRead ? ($n->read_at ? $n->read_at->toIso8601String() : now()->toIso8601String()) : null,
                         'status' => $isRead ? 'read' : 'unread',
-                        'screen' => (string) ($payload['screen'] ?? ($payload['data']['screen'] ?? '/dashboard')),
+                        'screen' => $screen,
                         'data' => $payload,
                         'created_at' => $n->created_at ? $n->created_at->toIso8601String() : now()->toIso8601String(),
                     ];
@@ -249,356 +232,41 @@ class LeaderNotificationsController extends Controller
             }
         }
 
-        // Deduplicate and sort by created_at desc
+        // Deduplicate and sort by created_at desc (no synthetic/fabricated demo fallback items)
         $collection = collect($notifications)->unique('id')->sortByDesc('created_at')->values();
 
-        // 3. Fallback: If collection has 0 notifications, generate dynamic, role-appropriate activity notifications
-        if ($collection->isEmpty()) {
-            $userKey = $user ? (string) $user->id : 'demo';
-            $hash = substr(md5($userKey), 0, 6);
-
-            if ($isSuperAdmin) {
-                // Super Admin: App-Owner Comprehensive Ecosystem Feed
-                $collection = collect([
-                    [
-                        'id' => 'sa_notif_001_' . $hash,
-                        'title' => 'Pending Withdrawal Request',
-                        'message' => 'Vikram Mehta (Circle Director) requested a withdrawal of ₹25,000. Review and approve.',
-                        'body' => 'Vikram Mehta (Circle Director) requested a withdrawal of ₹25,000. Review and approve.',
-                        'category' => 'finance',
-                        'type' => 'withdrawal_request',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/finance',
-                        'data' => ['action' => 'review_withdrawal', 'amount' => 25000, 'leader_name' => 'Vikram Mehta'],
-                        'created_at' => now()->subMinutes(25)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_002_' . $hash,
-                        'title' => 'Milestone Bonus Approval Required',
-                        'message' => 'Ananya Roy (Circle Founder) achieved \"10 Peers in 10 Days\" milestone (₹25,000 reward). Tap to review & approve payout.',
-                        'body' => 'Ananya Roy (Circle Founder) achieved \"10 Peers in 10 Days\" milestone (₹25,000 reward). Tap to review & approve payout.',
-                        'category' => 'milestones',
-                        'type' => 'milestone_award_approval',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/finance',
-                        'data' => ['action' => 'review_milestone', 'leader_name' => 'Ananya Roy', 'bonus_amount' => 25000],
-                        'created_at' => now()->subHours(1)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_003_' . $hash,
-                        'title' => 'Offline Payment Awaiting Verification',
-                        'message' => '₹45,000 offline membership fee recorded for Rajesh Patel by CD awaiting bank receipt confirmation.',
-                        'body' => '₹45,000 offline membership fee recorded for Rajesh Patel by CD awaiting bank receipt confirmation.',
-                        'category' => 'finance',
-                        'type' => 'offline_payment_verification',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/finance',
-                        'data' => ['action' => 'verify_offline_payment', 'amount' => 45000, 'peer_name' => 'Rajesh Patel'],
-                        'created_at' => now()->subHours(3)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_004_' . $hash,
-                        'title' => 'New Circle Chartered! 🚀',
-                        'message' => 'Surat Diamond Pioneers has been chartered under Gujarat South District with 28 founding peers.',
-                        'body' => 'Surat Diamond Pioneers has been chartered under Gujarat South District with 28 founding peers.',
-                        'category' => 'circle',
-                        'type' => 'circle_chartered',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/teams',
-                        'data' => ['circle_name' => 'Surat Diamond Pioneers', 'district_name' => 'Gujarat South'],
-                        'created_at' => now()->subHours(5)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_005_' . $hash,
-                        'title' => 'New Leadership Tenure Assigned',
-                        'message' => 'Kavita Joshi appointed as Circle Director for Vadodara Innovators Circle.',
-                        'body' => 'Kavita Joshi appointed as Circle Director for Vadodara Innovators Circle.',
-                        'category' => 'system',
-                        'type' => 'tenure_assigned',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/teams',
-                        'data' => ['leader_name' => 'Kavita Joshi', 'role' => 'Circle Director', 'circle_name' => 'Vadodara Innovators'],
-                        'created_at' => now()->subHours(8)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_006_' . $hash,
-                        'title' => 'Circle Health & Compliance Warning',
-                        'message' => 'Ahmedabad South Circle has 0 weekly reports submitted for 2 consecutive weeks. Follow-up required.',
-                        'body' => 'Ahmedabad South Circle has 0 weekly reports submitted for 2 consecutive weeks. Follow-up required.',
-                        'category' => 'reports',
-                        'type' => 'compliance_warning',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/reports',
-                        'data' => ['circle_name' => 'Ahmedabad South Circle', 'issue' => 'missing_reports'],
-                        'created_at' => now()->subDay()->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'sa_notif_007_' . $hash,
-                        'title' => 'Peers Global Milestone Achieved! 🎉',
-                        'message' => 'Platform milestone: 500 active peers and ₹5 Crore business exchanged network-wide.',
-                        'body' => 'Platform milestone: 500 active peers and ₹5 Crore business exchanged network-wide.',
-                        'category' => 'milestones',
-                        'type' => 'platform_milestone',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/dashboard',
-                        'data' => ['total_peers' => 500, 'total_revenue' => '₹5 Crore'],
-                        'created_at' => now()->subDays(2)->toIso8601String(),
-                    ],
-                ]);
-            } elseif ($canonicalRole === 'district_exec_director' || $canonicalRole === 'ded') {
-                // District Executive Director (DED) Feed
-                $collection = collect([
-                    [
-                        'id' => 'ded_notif_001_' . $hash,
-                        'title' => 'New Circle in Your District',
-                        'message' => 'Surat Diamond Pioneers circle has been chartered under ' . $districtName . '.',
-                        'body' => 'Surat Diamond Pioneers circle has been chartered under ' . $districtName . '.',
-                        'category' => 'circle',
-                        'type' => 'circle_chartered',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/teams',
-                        'data' => ['district_name' => $districtName],
-                        'created_at' => now()->subHours(2)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'ded_notif_002_' . $hash,
-                        'title' => 'New Circle Director Appointed',
-                        'message' => 'Rohan Patel appointed as Circle Director for ' . $circleName . ' in your district.',
-                        'body' => 'Rohan Patel appointed as Circle Director for ' . $circleName . ' in your district.',
-                        'category' => 'circle',
-                        'type' => 'tenure_assigned',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/teams',
-                        'data' => ['circle_name' => $circleName],
-                        'created_at' => now()->subHours(5)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'ded_notif_003_' . $hash,
-                        'title' => 'District Scale Milestone Achieved',
-                        'message' => 'Your district has surpassed 100 active members across all chartered circles.',
-                        'body' => 'Your district has surpassed 100 active members across all chartered circles.',
-                        'category' => 'milestones',
-                        'type' => 'milestone_unlocked',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/profile',
-                        'data' => ['milestone' => '100 Members in District'],
-                        'created_at' => now()->subDay()->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'ded_notif_004_' . $hash,
-                        'title' => 'Circle Attention Needed',
-                        'message' => $circleName . ' attendance dipped below 70% in the last weekly meeting. Review circle roster.',
-                        'body' => $circleName . ' attendance dipped below 70% in the last weekly meeting. Review circle roster.',
-                        'category' => 'reports',
-                        'type' => 'attendance_warning',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/teams',
-                        'data' => ['circle_name' => $circleName],
-                        'created_at' => now()->subDays(2)->toIso8601String(),
-                    ],
-                ]);
-            } elseif ($canonicalRole === 'industry_director' || $canonicalRole === 'id') {
-                // Industry Director (ID) Feed
-                $collection = collect([
-                    [
-                        'id' => 'id_notif_001_' . $hash,
-                        'title' => 'New Peer in ' . $industryName,
-                        'message' => 'Sanjay Verma (Cloud Solutions) joined ' . $circleName . ' under your industry sector.',
-                        'body' => 'Sanjay Verma (Cloud Solutions) joined ' . $circleName . ' under your industry sector.',
-                        'category' => 'peers',
-                        'type' => 'new_peer_onboarded',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/peers',
-                        'data' => ['industry_name' => $industryName, 'peer_name' => 'Sanjay Verma'],
-                        'created_at' => now()->subHours(2)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'id_notif_002_' . $hash,
-                        'title' => 'Industry Collaboration Deal',
-                        'message' => '₹15,00,000 cross-circle deal closed between Tech Pioneers and Digital Leaders under ' . $industryName . '.',
-                        'body' => '₹15,00,000 cross-circle deal closed between Tech Pioneers and Digital Leaders under ' . $industryName . '.',
-                        'category' => 'peers',
-                        'type' => 'cross_circle_deal',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/peers',
-                        'data' => ['industry_name' => $industryName],
-                        'created_at' => now()->subHours(6)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'id_notif_003_' . $hash,
-                        'title' => 'Industry Sector Milestone Achieved',
-                        'message' => 'Your industry sector reached 50 active peers network-wide.',
-                        'body' => 'Your industry sector reached 50 active peers network-wide.',
-                        'category' => 'milestones',
-                        'type' => 'milestone_unlocked',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/profile',
-                        'data' => ['milestone' => '50 Peers in Industry'],
-                        'created_at' => now()->subDay()->toIso8601String(),
-                    ],
-                ]);
-            } elseif ($canonicalRole === 'circle_founder' || $canonicalRole === 'cf') {
-                // Circle Founder (CF) Feed
-                $collection = collect([
-                    [
-                        'id' => 'cf_notif_001_' . $hash,
-                        'title' => 'Founder Speed Milestone Achieved',
-                        'message' => 'Congratulations! You achieved 10 peers in 10 days for ' . $circleName . '! Bonus unlocked.',
-                        'body' => 'Congratulations! You achieved 10 peers in 10 days for ' . $circleName . '! Bonus unlocked.',
-                        'category' => 'milestones',
-                        'type' => 'milestone_unlocked',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/profile',
-                        'data' => ['milestone' => '10 Peers in 10 Days', 'reward' => '₹25,000'],
-                        'created_at' => now()->subHours(2)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cf_notif_002_' . $hash,
-                        'title' => 'Circle Scale Milestone Reached',
-                        'message' => $circleName . ' crossed 40 active peers! Founder retreat perk is now unlocked.',
-                        'body' => $circleName . ' crossed 40 active peers! Founder retreat perk is now unlocked.',
-                        'category' => 'milestones',
-                        'type' => 'circle_scale_milestone',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/profile',
-                        'data' => ['circle_name' => $circleName],
-                        'created_at' => now()->subHours(7)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cf_notif_003_' . $hash,
-                        'title' => 'New Peer Join Request',
-                        'message' => 'Pooja Shah submitted a membership application for ' . $circleName . '. Review roster.',
-                        'body' => 'Pooja Shah submitted a membership application for ' . $circleName . '. Review roster.',
-                        'category' => 'circle',
-                        'type' => 'circle_join_request',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/teams',
-                        'data' => ['circle_name' => $circleName, 'peer_name' => 'Pooja Shah'],
-                        'created_at' => now()->subDay()->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cf_notif_004_' . $hash,
-                        'title' => 'Circle Charter Milestone',
-                        'message' => $circleName . ' completed 6 months of continuous active operation.',
-                        'body' => $circleName . ' completed 6 months of continuous active operation.',
-                        'category' => 'circle',
-                        'type' => 'charter_anniversary',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/teams',
-                        'data' => ['circle_name' => $circleName],
-                        'created_at' => now()->subDays(3)->toIso8601String(),
-                    ],
-                ]);
-            } else {
-                // Circle Director (CD) & Committee Chairs Feed
-                $collection = collect([
-                    [
-                        'id' => 'cd_notif_001_' . $hash,
-                        'title' => 'New Peer Join Request',
-                        'message' => 'Rahul Sharma submitted a join request for ' . $circleName . '. Review and verify.',
-                        'body' => 'Rahul Sharma submitted a join request for ' . $circleName . '. Review and verify.',
-                        'category' => 'circle',
-                        'type' => 'circle_join_request',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/teams',
-                        'data' => [
-                            'action' => 'review_join_request',
-                            'circle_name' => $circleName,
-                            'peer_name' => 'Rahul Sharma',
-                        ],
-                        'created_at' => now()->subHours(2)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cd_notif_002_' . $hash,
-                        'title' => 'Weekly Leadership Report Due',
-                        'message' => 'Weekly attendance and KPI report window for ' . $userRoleLabel . ' is now open.',
-                        'body' => 'Weekly attendance and KPI report window for ' . $userRoleLabel . ' is now open.',
-                        'category' => 'reports',
-                        'type' => 'weekly_report',
-                        'is_unread' => true,
-                        'is_read' => false,
-                        'screen' => '/reports',
-                        'data' => [
-                            'action' => 'submit_report',
-                        ],
-                        'created_at' => now()->subHours(6)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cd_notif_003_' . $hash,
-                        'title' => 'Attendance Health Alert',
-                        'message' => 'Meeting attendance for ' . $circleName . ' was 72% last week. Review member check-ins.',
-                        'body' => 'Meeting attendance for ' . $circleName . ' was 72% last week. Review member check-ins.',
-                        'category' => 'reports',
-                        'type' => 'attendance_alert',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/reports',
-                        'data' => [
-                            'circle_name' => $circleName,
-                        ],
-                        'created_at' => now()->subDay()->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cd_notif_004_' . $hash,
-                        'title' => 'Milestone Unlocked! 🎉',
-                        'message' => '10 new Peers in 20 days milestone achieved! Speed Bonus reward is now unlocked.',
-                        'body' => '10 new Peers in 20 days milestone achieved! Speed Bonus reward is now unlocked.',
-                        'category' => 'milestones',
-                        'type' => 'milestone_unlocked',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/profile',
-                        'data' => [
-                            'milestone' => '10 new Peers in 20 days',
-                            'reward' => '₹10,000',
-                        ],
-                        'created_at' => now()->subDays(2)->toIso8601String(),
-                    ],
-                    [
-                        'id' => 'cd_notif_005_' . $hash,
-                        'title' => 'Circle Referral Exchanged',
-                        'message' => 'High-value inside referral logged between Amit Dave and Priya Nair in ' . $circleName . '.',
-                        'body' => 'High-value inside referral logged between Amit Dave and Priya Nair in ' . $circleName . '.',
-                        'category' => 'peers',
-                        'type' => 'new_referral',
-                        'is_unread' => false,
-                        'is_read' => true,
-                        'screen' => '/peers',
-                        'data' => [
-                            'circle_name' => $circleName,
-                        ],
-                        'created_at' => now()->subDays(3)->toIso8601String(),
-                    ],
-                ]);
-            }
-        }
-
-        // Apply category filter if requested
+        // Apply optional category / unread / action_required / priority filters
         if ($requestedCategory !== 'all' && ! empty($requestedCategory)) {
-            $collection = $collection->filter(function ($item) use ($requestedCategory) {
+            $collection = $collection->filter(function ($item) use ($requestedCategory): bool {
+                if ($requestedCategory === 'unread') {
+                    return (bool) ($item['is_unread'] ?? false);
+                }
+                if ($requestedCategory === 'action_required') {
+                    return (bool) ($item['requires_action'] ?? false);
+                }
+                if ($requestedCategory === 'critical') {
+                    return strtolower((string) ($item['delivery_tier'] ?? '')) === 'critical'
+                        || in_array(strtolower((string) ($item['priority'] ?? '')), ['urgent', 'critical'], true);
+                }
+
                 $c = strtolower((string) ($item['category'] ?? ''));
                 $t = strtolower((string) ($item['type'] ?? ''));
+
                 return $c === $requestedCategory || str_contains($c, $requestedCategory) || str_contains($t, $requestedCategory);
             })->values();
+        }
+
+        if ($request->boolean('unread_only')) {
+            $collection = $collection->where('is_unread', true)->values();
+        }
+
+        if ($request->boolean('action_required')) {
+            $collection = $collection->where('requires_action', true)->values();
+        }
+
+        $requestedPriority = strtolower(trim((string) $request->query('priority', '')));
+        if ($requestedPriority !== '') {
+            $collection = $collection->filter(fn ($item): bool => strtolower((string) ($item['priority'] ?? '')) === $requestedPriority)->values();
         }
 
         $total = $collection->count();
@@ -783,35 +451,26 @@ class LeaderNotificationsController extends Controller
 
         if ($user) {
             $userId = (string) $user->id;
-            $excludedTypes = array_unique(array_merge(self::CONSUMER_EXCLUDED_TYPES, [
-                'engagement_reminder',
-                'daily_engagement_reminder',
-                'daily_reminder',
-                'engagement',
-                'engagement_founder',
-                'streak_reminder',
-                'streak',
-            ]));
-            $excludedScreens = self::CONSUMER_EXCLUDED_SCREENS;
+            $policyService = app(LeaderNotificationPolicyService::class);
+            $canAccessFinance = $policyService->canUserReceiveFinancialNotification($user);
 
             if (Schema::hasTable('notifications')) {
                 $rawNotifs = Notification::query()
                     ->where('user_id', $userId)
-                    ->where(function ($q) {
+                    ->where(function ($q): void {
                         $q->where('is_read', false)->orWhereNull('is_read');
                     })
                     ->whereNull('read_at')
-                    ->take(100)
+                    ->take(200)
                     ->get();
 
                 foreach ($rawNotifs as $rn) {
                     $p = is_array($rn->payload) ? $rn->payload : [];
-                    $t = (string) ($rn->type ?: ($p['notification_type'] ?? ($p['type'] ?? 'general')));
+                    $t = (string) ($p['notification_type'] ?? ($p['type'] ?? ($rn->source_event ?? $rn->type ?? 'general')));
                     $c = (string) ($p['category'] ?? ($p['notification_type'] ?? $t));
                     $s = (string) ($p['screen'] ?? ($p['data']['screen'] ?? ($p['navigation_screen'] ?? '/dashboard')));
-                    if (! in_array(strtolower($t), $excludedTypes, true) 
-                        && ! in_array(strtolower($c), $excludedTypes, true)
-                        && ! in_array(strtolower($s), $excludedScreens, true)) {
+                    if ($policyService->isLeadershipAudiencePayload($p, $t, $c, $s)
+                        && ($canAccessFinance || ! $policyService->isFinancialSensitive($t, $c, $p))) {
                         $count++;
                     }
                 }
@@ -820,33 +479,22 @@ class LeaderNotificationsController extends Controller
             if (Schema::hasTable('app_notifications')) {
                 $appQuery = AppNotification::query()
                     ->where('user_id', $userId)
-                    ->whereNull('read_at')
-                    ->whereNotIn('type', $excludedTypes)
-                    ->where(function ($q) use ($excludedScreens): void {
-                        $q->whereNull('screen')
-                            ->orWhereNotIn('screen', $excludedScreens);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('category')
-                            ->orWhereNotIn('category', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('data->notification_type')
-                            ->orWhereNotIn('data->notification_type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedTypes): void {
-                        $q->whereNull('data->type')
-                            ->orWhereNotIn('data->type', $excludedTypes);
-                    })
-                    ->where(function ($q) use ($excludedScreens): void {
-                        $q->whereNull('data->screen')
-                            ->orWhereNotIn('data->screen', $excludedScreens);
-                    });
+                    ->whereNull('read_at');
 
                 if (Schema::hasColumn('app_notifications', 'deleted_at')) {
                     $appQuery->whereNull('deleted_at');
                 }
-                $count += $appQuery->count();
+
+                foreach ($appQuery->take(200)->get() as $an) {
+                    $p = is_array($an->data) ? $an->data : [];
+                    $t = (string) ($an->type ?: ($p['type'] ?? $p['notification_type'] ?? 'general'));
+                    $c = (string) ($an->category ?: ($p['category'] ?? $t));
+                    $s = (string) ($an->screen ?: ($p['screen'] ?? $p['navigation_screen'] ?? '/dashboard'));
+                    if ($policyService->isLeadershipAudiencePayload($p, $t, $c, $s)
+                        && ($canAccessFinance || ! $policyService->isFinancialSensitive($t, $c, $p))) {
+                        $count++;
+                    }
+                }
             }
         }
 
@@ -891,83 +539,39 @@ class LeaderNotificationsController extends Controller
      */
     public function getRoleConfig(Request $request): JsonResponse
     {
-        $defaultConfig = [
-            'super_admin' => [
-                'role_label' => 'Super Admin (App Owner)',
-                'description' => 'Comprehensive platform-wide governance, approvals, and compliance alerts.',
-                'events' => [
-                    ['key' => 'withdrawal_requests', 'label' => 'Leader Wallet Withdrawal Approvals', 'category' => 'finance', 'enabled' => true],
-                    ['key' => 'milestone_awards', 'label' => 'Milestone Cash Bonus Approvals', 'category' => 'milestones', 'enabled' => true],
-                    ['key' => 'offline_payments', 'label' => 'Offline Payment Verifications', 'category' => 'finance', 'enabled' => true],
-                    ['key' => 'circle_charters', 'label' => 'New Circle Chartered Anywhere', 'category' => 'circle', 'enabled' => true],
-                    ['key' => 'tenure_assignments', 'label' => 'Leadership Tenures Assigned/Renewed', 'category' => 'system', 'enabled' => true],
-                    ['key' => 'compliance_warnings', 'label' => 'Circle Inactivity & Attendance Warnings', 'category' => 'reports', 'enabled' => true],
-                    ['key' => 'platform_milestones', 'label' => 'Platform Growth Milestones (Peers/Deals)', 'category' => 'milestones', 'enabled' => true],
-                ],
-            ],
-            'district_exec_director' => [
-                'role_label' => 'District Executive Director (DED)',
-                'description' => 'District aggregated circles, appointments, and regional milestones.',
-                'events' => [
-                    ['key' => 'district_circle_chartered', 'label' => 'New Circle in District', 'category' => 'circle', 'enabled' => true],
-                    ['key' => 'cd_appointed', 'label' => 'Circle Director Appointed in District', 'category' => 'circle', 'enabled' => true],
-                    ['key' => 'district_scale_milestone', 'label' => 'District 100-Peer Scale Milestone', 'category' => 'milestones', 'enabled' => true],
-                    ['key' => 'circle_attendance_warning', 'label' => 'District Circle Low Attendance Warning', 'category' => 'reports', 'enabled' => true],
-                ],
-            ],
-            'industry_director' => [
-                'role_label' => 'Industry Director (ID)',
-                'description' => 'Industry sector peers, cross-circle deals, and vertical milestones.',
-                'events' => [
-                    ['key' => 'industry_peer_onboarded', 'label' => 'New Peer in Industry Sector', 'category' => 'peers', 'enabled' => true],
-                    ['key' => 'cross_circle_deal', 'label' => 'Cross-Circle Industry Collaboration Deal', 'category' => 'peers', 'enabled' => true],
-                    ['key' => 'industry_scale_milestone', 'label' => '50-Peers Industry Vertical Milestone', 'category' => 'milestones', 'enabled' => true],
-                ],
-            ],
-            'circle_director' => [
-                'role_label' => 'Circle Director (CD)',
-                'description' => 'Circle operational management, join requests, meeting attendance, and weekly reports.',
-                'events' => [
-                    ['key' => 'peer_join_request', 'label' => 'New Peer Join Request in Circle', 'category' => 'circle', 'enabled' => true],
-                    ['key' => 'attendance_health_alert', 'label' => 'Circle Meeting Attendance Health Alert', 'category' => 'reports', 'enabled' => true],
-                    ['key' => 'weekly_report_due', 'label' => 'Weekly Leadership Report Due Window', 'category' => 'reports', 'enabled' => true],
-                    ['key' => 'speed_scale_milestone', 'label' => 'CD Speed & Scale Milestone Unlocked', 'category' => 'milestones', 'enabled' => true],
-                    ['key' => 'referral_exchanged', 'label' => 'Circle High-Value Referral Logged', 'category' => 'peers', 'enabled' => true],
-                ],
-            ],
-            'circle_founder' => [
-                'role_label' => 'Circle Founder (CF)',
-                'description' => 'Circle founding milestones, growth benchmarks, and charter anniversaries.',
-                'events' => [
-                    ['key' => 'founder_speed_milestone', 'label' => 'Founder Speed Milestone (10 in 10/20d)', 'category' => 'milestones', 'enabled' => true],
-                    ['key' => 'circle_scale_milestone', 'label' => 'Circle Scale Milestone (30/40/50 Peers)', 'category' => 'milestones', 'enabled' => true],
-                    ['key' => 'charter_anniversary', 'label' => 'Circle Charter Milestone & Anniversary', 'category' => 'circle', 'enabled' => true],
-                    ['key' => 'peer_join_request', 'label' => 'New Peer Onboarded in Founded Circle', 'category' => 'circle', 'enabled' => true],
-                ],
-            ],
-            'committee_chair' => [
-                'role_label' => 'Circle Committee Chairs',
-                'description' => 'Membership verification, referral deals, and meeting attendance confirmations.',
-                'events' => [
-                    ['key' => 'peer_verification_pending', 'label' => 'Peer KYC Document Verification Pending', 'category' => 'peers', 'enabled' => true],
-                    ['key' => 'peer_renewal_notice', 'label' => 'Peer Annual Renewal Warning (7 Days)', 'category' => 'peers', 'enabled' => true],
-                    ['key' => 'referral_logged', 'label' => 'Circle Business Deal / Referral Logged', 'category' => 'peers', 'enabled' => true],
-                    ['key' => 'meeting_rsvps_confirmed', 'label' => 'Circle Meeting RSVPs Quorum Reached', 'category' => 'reports', 'enabled' => true],
-                ],
-            ],
-        ];
+        $policy = app(LeaderNotificationPolicyService::class);
+        $defaultConfig = $policy->getDefaultRoleConfig();
 
-        // Fetch custom saved overrides if table exists
-        if (Schema::hasTable('app_configs')) {
-            $saved = \Illuminate\Support\Facades\DB::table('app_configs')
-                ->where('key', 'leader_notification_flow_config')
-                ->value('value');
-            if ($saved) {
-                $decoded = json_decode((string) $saved, true);
-                if (is_array($decoded)) {
-                    $defaultConfig = array_replace_recursive($defaultConfig, $decoded);
+        foreach ($policy->getDynamicRolesCatalog() as $roleMeta) {
+            $rKey = (string) ($roleMeta['role_key'] ?? '');
+            if ($rKey === '') {
+                continue;
+            }
+            if (! isset($defaultConfig[$rKey])) {
+                $defaultConfig[$rKey] = $policy->buildRoleMatrixBlock($roleMeta);
+            } else {
+                $defaultConfig[$rKey]['role_label'] = (string) ($roleMeta['role_label'] ?? $defaultConfig[$rKey]['role_label']);
+                $defaultConfig[$rKey]['description'] = (string) ($roleMeta['description'] ?? $defaultConfig[$rKey]['description']);
+                $defaultConfig[$rKey]['hierarchy_depth'] = (int) ($roleMeta['hierarchy_depth'] ?? 99);
+            }
+        }
+
+        // Fetch custom saved overrides (app_configs or file fallback)
+        $decoded = $policy->readGovernanceStore('leader_notification_flow_config', []);
+        if (! empty($decoded)) {
+            $defaultConfig = array_replace_recursive($defaultConfig, $decoded);
+            foreach ($defaultConfig as $rKey => &$roleBlock) {
+                $overrides = is_array($decoded[$rKey]['events_override'] ?? null) ? $decoded[$rKey]['events_override'] : [];
+                if (! empty($overrides) && is_array($roleBlock['events'] ?? null)) {
+                    foreach ($roleBlock['events'] as &$ev) {
+                        $evKey = (string) ($ev['key'] ?? '');
+                        if ($evKey !== '' && array_key_exists($evKey, $overrides) && empty($ev['critical'])) {
+                            $ev['enabled'] = (bool) $overrides[$evKey];
+                        }
+                    }
                 }
             }
+            unset($roleBlock, $ev);
         }
 
         return response()->json([
@@ -981,6 +585,7 @@ class LeaderNotificationsController extends Controller
 
     /**
      * Update automated notification flow configuration for a role or all roles.
+     * Critical security events cannot be disabled via configuration.
      */
     public function updateRoleConfig(Request $request): JsonResponse
     {
@@ -989,22 +594,97 @@ class LeaderNotificationsController extends Controller
         $isEnabled = (bool) $request->input('is_enabled', true);
         $fullConfig = $request->input('config');
 
-        if (Schema::hasTable('app_configs')) {
-            $existing = \Illuminate\Support\Facades\DB::table('app_configs')
-                ->where('key', 'leader_notification_flow_config')
+        if (! $isEnabled && $eventKey !== '' && in_array($eventKey, LeaderNotificationPolicyService::CRITICAL_NON_DISABLEABLE_TYPES, true)) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Critical security notifications cannot be disabled.',
+            ], 422);
+        }
+
+        $policy = app(LeaderNotificationPolicyService::class);
+        $currentData = $policy->readGovernanceStore('leader_notification_flow_config', []);
+        if (is_array($fullConfig) && ! empty($fullConfig)) {
+            $currentData = $fullConfig;
+        } elseif (! empty($roleKey) && ! empty($eventKey)) {
+            $currentData[$roleKey]['events_override'][$eventKey] = $isEnabled;
+        }
+        $policy->writeGovernanceStore('leader_notification_flow_config', $currentData);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Notification flow configuration updated successfully.',
+        ]);
+    }
+
+    /**
+     * Get the authenticated leader's personal notification preferences (quiet hours, digest, categories).
+     */
+    public function getPreferences(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        $defaults = [
+            'quiet_hours_enabled' => false,
+            'quiet_hours_start' => '22:00',
+            'quiet_hours_end' => '07:00',
+            'timezone' => config('app.timezone', 'Asia/Kolkata'),
+            'digest_mode' => 'immediate',
+            'disabled_categories' => [],
+        ];
+
+        if ($user && Schema::hasTable('app_configs')) {
+            $raw = DB::table('app_configs')
+                ->where('key', 'leader_notification_user_prefs_'.(string) $user->id)
                 ->value('value');
-            $currentData = $existing ? (json_decode((string) $existing, true) ?: []) : [];
-
-            if (is_array($fullConfig) && ! empty($fullConfig)) {
-                $currentData = $fullConfig;
-            } elseif (! empty($roleKey) && ! empty($eventKey)) {
-                $currentData[$roleKey]['events_override'][$eventKey] = $isEnabled;
+            if ($raw) {
+                $decoded = json_decode((string) $raw, true);
+                if (is_array($decoded)) {
+                    $defaults = array_merge($defaults, $decoded);
+                }
             }
+        }
 
-            \Illuminate\Support\Facades\DB::table('app_configs')->updateOrInsert(
-                ['key' => 'leader_notification_flow_config'],
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'data' => $defaults,
+        ]);
+    }
+
+    /**
+     * Update the authenticated leader's notification preferences (cannot disable critical/security).
+     */
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $disabledCategories = array_values(array_diff(
+            array_map('strtolower', (array) $request->input('disabled_categories', [])),
+            ['security', 'critical']
+        ));
+
+        $prefs = [
+            'quiet_hours_enabled' => (bool) $request->input('quiet_hours_enabled', false),
+            'quiet_hours_start' => (string) $request->input('quiet_hours_start', '22:00'),
+            'quiet_hours_end' => (string) $request->input('quiet_hours_end', '07:00'),
+            'timezone' => (string) $request->input('timezone', config('app.timezone', 'Asia/Kolkata')),
+            'digest_mode' => in_array((string) $request->input('digest_mode', 'immediate'), ['immediate', 'daily_digest'], true)
+                ? (string) $request->input('digest_mode', 'immediate')
+                : 'immediate',
+            'disabled_categories' => $disabledCategories,
+        ];
+
+        if (Schema::hasTable('app_configs')) {
+            DB::table('app_configs')->updateOrInsert(
+                ['key' => 'leader_notification_user_prefs_'.(string) $user->id],
                 [
-                    'value' => json_encode($currentData),
+                    'value' => json_encode($prefs),
                     'updated_at' => now(),
                 ]
             );
@@ -1013,7 +693,8 @@ class LeaderNotificationsController extends Controller
         return response()->json([
             'success' => true,
             'status' => true,
-            'message' => 'Notification flow configuration updated successfully.',
+            'data' => $prefs,
+            'message' => 'Notification preferences updated.',
         ]);
     }
 
@@ -1024,60 +705,197 @@ class LeaderNotificationsController extends Controller
     {
         $search = trim((string) $request->input('search', ''));
         $roleFilter = trim((string) $request->input('role', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 50)));
 
         $permissionService = app(LeaderPermissionService::class);
         $leaders = [];
 
         if (Schema::hasTable('users')) {
             $cols = Schema::getColumnListing('users');
-            $q = User::query();
+            $candidateIds = [];
+            $candidateEmails = [];
 
-            if (! empty($search)) {
-                $q->where(function ($sub) use ($search, $cols): void {
-                    $sub->where('name', 'like', "%{$search}%");
-                    if (in_array('email', $cols, true)) {
-                        $sub->orWhere('email', 'like', "%{$search}%");
-                    }
-                    if (in_array('phone', $cols, true)) {
-                        $sub->orWhere('phone', 'like', "%{$search}%");
-                    }
-                });
+            // 1. Direct leader role column on users table
+            if (in_array('role', $cols, true)) {
+                $directIds = DB::table('users')
+                    ->whereNull('deleted_at')
+                    ->whereNotNull('role')
+                    ->whereNotIn(DB::raw('LOWER(role)'), ['', 'member', 'user', 'peer'])
+                    ->pluck('id')
+                    ->all();
+                foreach ($directIds as $uid) {
+                    $candidateIds[(string) $uid] = true;
+                }
             }
 
-            $users = $q->take(100)->get();
-
-            foreach ($users as $u) {
-                if (! $permissionService->isLeader($u)) {
-                    continue;
+            // 2. AdminUser records (by id & email)
+            if (Schema::hasTable('admin_users')) {
+                $adminRows = DB::table('admin_users')->select(['id', 'email'])->get();
+                foreach ($adminRows as $ar) {
+                    $candidateIds[(string) $ar->id] = true;
+                    if (! empty($ar->email)) {
+                        $candidateEmails[strtolower(trim((string) $ar->email))] = true;
+                    }
                 }
-                $roleInfo = $permissionService->resolveUserRole($u);
-                $canon = strtolower((string) ($roleInfo['role'] ?? 'leader'));
-                $roleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canon);
+            }
 
-                if (! empty($roleFilter) && $roleFilter !== 'all' && $canon !== strtolower($roleFilter)) {
-                    continue;
+            // 3. Dynamic RBAC assignments (admin_user_roles)
+            if (Schema::hasTable('admin_user_roles')) {
+                foreach (DB::table('admin_user_roles')->distinct()->pluck('user_id')->all() as $uid) {
+                    $candidateIds[(string) $uid] = true;
                 }
+            }
 
-                $circleName = $u->activeCircle?->name ?? 'National Scope';
+            // 4. Industry director assignments
+            if (Schema::hasTable('industry_director_assignments')) {
+                $idaCols = Schema::getColumnListing('industry_director_assignments');
+                $idaRows = DB::table('industry_director_assignments')->where('is_active', true)->get();
+                foreach ($idaRows as $row) {
+                    if (in_array('admin_user_id', $idaCols, true) && ! empty($row->admin_user_id)) {
+                        $candidateIds[(string) $row->admin_user_id] = true;
+                    }
+                    if (in_array('user_id', $idaCols, true) && ! empty($row->user_id)) {
+                        $candidateIds[(string) $row->user_id] = true;
+                    }
+                }
+            }
 
-                $leaders[] = [
-                    'id' => (string) $u->id,
-                    'name' => (string) ($u->name ?? 'Leader'),
-                    'email' => (string) ($u->email ?? ''),
-                    'phone' => (string) ($u->phone ?? ''),
-                    'role_key' => $canon,
-                    'role_label' => $roleLabel,
-                    'circle_name' => $circleName,
-                    'avatar_url' => $u->avatar_url ?? null,
+            // 5. Circle leadership columns & calendar JSON (single query instead of per-user N+1)
+            if (Schema::hasTable('circles')) {
+                $circleLeaderCols = [
+                    'founder_user_id',
+                    'circle_founder_user_id',
+                    'circle_director_user_id',
+                    'director_user_id',
+                    'industry_director_user_id',
+                    'ded_user_id',
+                    'eed_user_id',
+                    'business_growth_committee_chair_user_id',
+                    'membership_growth_committee_chair_user_id',
+                    'events_impacts_committee_chair_user_id',
+                    'vice_chair_user_id',
+                    'secretary_user_id',
+                    'chair_user_id',
                 ];
+                $circles = Circle::query()->whereNull('deleted_at')->get();
+                foreach ($circles as $c) {
+                    foreach ($circleLeaderCols as $col) {
+                        if (! empty($c->{$col})) {
+                            $candidateIds[(string) $c->{$col}] = true;
+                        }
+                    }
+                    $leadership = data_get($c->calendar, 'leadership', []);
+                    if (is_array($leadership)) {
+                        foreach ($leadership as $val) {
+                            if (is_string($val) && $val !== '') {
+                                $candidateIds[$val] = true;
+                            } elseif (is_array($val) && ! empty($val['id'])) {
+                                $candidateIds[(string) $val['id']] = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            $tokenUsers = [];
+            if (Schema::hasTable('user_push_tokens')) {
+                $tokenQuery = DB::table('user_push_tokens');
+                if (Schema::hasColumn('user_push_tokens', 'app')) {
+                    $tokenQuery->where('app', 'leader');
+                }
+                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                    $tokenQuery->where('is_active', true);
+                }
+                $userCol = UserPushToken::getUserIdColumn();
+                foreach ($tokenQuery->pluck($userCol)->all() as $uid) {
+                    $tokenUsers[(string) $uid] = true;
+                }
+            }
+
+            $idList = array_keys($candidateIds);
+            $emailList = array_keys($candidateEmails);
+
+            if (! empty($idList) || ! empty($emailList)) {
+                $q = User::query()
+                    ->with('activeCircle:id,name')
+                    ->whereNull('deleted_at')
+                    ->where(function ($scope) use ($idList, $emailList, $cols): void {
+                        if (! empty($idList)) {
+                            $scope->whereIn('id', $idList);
+                        }
+                        if (! empty($emailList) && in_array('email', $cols, true)) {
+                            $scope->orWhereIn(DB::raw('LOWER(email)'), $emailList);
+                        }
+                    });
+
+                if ($search !== '') {
+                    $q->where(function ($sub) use ($search, $cols): void {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('id', 'like', "%{$search}%");
+                        if (in_array('email', $cols, true)) {
+                            $sub->orWhere('email', 'like', "%{$search}%");
+                        }
+                        if (in_array('phone', $cols, true)) {
+                            $sub->orWhere('phone', 'like', "%{$search}%");
+                        }
+                    });
+                }
+
+                $users = $q->orderBy('name')->take(250)->get();
+                foreach ($users as $u) {
+                    if (! $permissionService->isLeader($u)) {
+                        continue;
+                    }
+                    $roleInfo = $permissionService->resolveUserRole($u);
+                    $canon = (string) ($roleInfo['role'] ?? 'leader');
+                    $roleLabel = $roleInfo['custom_role_label'] ?? $permissionService->getRoleLabel($canon);
+
+                    if ($roleFilter !== '' && $roleFilter !== 'all') {
+                        $canonSnake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $canon));
+                        $filterNorm = strtolower($roleFilter);
+                        if (strtolower($canon) !== $filterNorm && $canonSnake !== $filterNorm) {
+                            continue;
+                        }
+                    }
+
+                    $circleName = $u->activeCircle?->name ?? 'National Scope';
+                    $hasToken = isset($tokenUsers[(string) $u->id])
+                        || ! empty($u->leader_android_fcm_token)
+                        || ! empty($u->leader_ios_fcm_token);
+
+                    $leaders[] = [
+                        'id' => (string) $u->id,
+                        'name' => (string) ($u->name ?? 'Leader'),
+                        'email' => (string) ($u->email ?? ''),
+                        'phone' => (string) ($u->phone ?? ''),
+                        'role_key' => $canon,
+                        'role_label' => $roleLabel,
+                        'regional_scope' => (string) ($roleInfo['regional_scope'] ?? 'Circle Scope'),
+                        'circle_id' => $u->active_circle_id ? (string) $u->active_circle_id : null,
+                        'circle_name' => $circleName,
+                        'has_leader_push_token' => $hasToken,
+                        'avatar_url' => $u->avatar_url ?? null,
+                    ];
+                }
             }
         }
+
+        $total = count($leaders);
+        $offset = ($page - 1) * $perPage;
+        $paged = array_slice($leaders, $offset, $perPage);
 
         return response()->json([
             'success' => true,
             'status' => true,
-            'data' => $leaders,
-            'count' => count($leaders),
+            'data' => $paged,
+            'count' => $total,
+            'meta' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => max(1, (int) ceil($total / $perPage)),
+            ],
         ]);
     }
 
@@ -1104,8 +922,8 @@ class LeaderNotificationsController extends Controller
             ], 422);
         }
 
-        $permissionService = app(\App\Leader\Services\LeaderPermissionService::class);
-        $dispatcher = app(\App\Leader\Services\LeaderNotificationDispatcherService::class);
+        $permissionService = app(LeaderPermissionService::class);
+        $dispatcher = app(LeaderNotificationDispatcherService::class);
         $dispatchedCount = 0;
         $targetUserIds = [];
 
@@ -1241,18 +1059,28 @@ class LeaderNotificationsController extends Controller
 
             foreach ($results as $item) {
                 $payload = is_array($item->data) ? $item->data : [];
+                $policy = app(LeaderNotificationPolicyService::class);
+                if (! $policy->isLeadershipAudiencePayload(
+                    $payload,
+                    (string) ($item->type ?? ''),
+                    (string) ($item->category ?? ''),
+                    (string) ($item->screen ?? '')
+                )) {
+                    continue;
+                }
+
                 $created = $item->created_at ?: now();
-                
+
                 // Format in target timezone
                 try {
                     $localTime = $created->copy()->setTimezone($timezone);
-                    $formattedTime = $localTime->format('d M Y, h:i A') . ' (' . $timezone . ')';
+                    $formattedTime = $localTime->format('d M Y, h:i A').' ('.$timezone.')';
                 } catch (\Throwable) {
                     $formattedTime = $created->format('d M Y, h:i A');
                 }
 
                 $userObj = $usersMap[(string) $item->user_id] ?? null;
-                $recipientName = $userObj ? (string) ($userObj->name ?: $userObj->email) : ('Leader ID: ' . substr((string) $item->user_id, 0, 8));
+                $recipientName = $userObj ? (string) ($userObj->name ?: $userObj->email) : ('Leader ID: '.substr((string) $item->user_id, 0, 8));
                 $permissionService = app(LeaderPermissionService::class);
                 $roleLabel = 'Circle Leader';
                 $roleKey = 'leader';
@@ -1260,19 +1088,25 @@ class LeaderNotificationsController extends Controller
 
                 if ($userObj) {
                     $resolvedRole = $permissionService->resolveUserRole($userObj);
-                    $roleKey = strtolower((string) ($resolvedRole['role'] ?? ''));
+                    $roleKey = (string) ($resolvedRole['role'] ?? '');
+                    $roleSnake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $roleKey));
                     $roleLabel = $resolvedRole['custom_role_label'] ?? $permissionService->getRoleLabel($roleKey);
 
                     // Strictly filter: For automated events, skip non-leader roles
-                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array($roleKey, ['peermember', 'peer_member', 'peer', 'member'], true))) {
+                    if (! $isAdminBroadcast && (! ($resolvedRole['is_leader'] ?? false) || in_array(strtolower($roleKey), ['peermember', 'peer_member', 'peer', 'member'], true))) {
                         continue;
                     }
                 } elseif (! $isAdminBroadcast) {
                     continue;
+                } else {
+                    $roleSnake = $roleKey;
                 }
 
-                if (! empty($roleFilter) && $roleFilter !== 'all' && $roleKey !== strtolower($roleFilter)) {
-                    continue;
+                if (! empty($roleFilter) && $roleFilter !== 'all') {
+                    $filterNorm = strtolower($roleFilter);
+                    if (strtolower($roleKey) !== $filterNorm && $roleSnake !== $filterNorm) {
+                        continue;
+                    }
                 }
 
                 $triggerType = ($payload['sent_by_admin'] ?? false)
@@ -1350,13 +1184,13 @@ class LeaderNotificationsController extends Controller
                 $created = $nItem->created_at ?: now();
                 try {
                     $localTime = $created->copy()->setTimezone($timezone);
-                    $formattedTime = $localTime->format('d M Y, h:i A') . ' (' . $timezone . ')';
+                    $formattedTime = $localTime->format('d M Y, h:i A').' ('.$timezone.')';
                 } catch (\Throwable) {
                     $formattedTime = $created->format('d M Y, h:i A');
                 }
 
                 $userObj = $nUsersMap[(string) $nItem->user_id] ?? null;
-                $recipientName = $userObj ? (string) ($userObj->name ?? $userObj->email) : ('Leader ID: ' . substr((string) $nItem->user_id, 0, 8));
+                $recipientName = $userObj ? (string) ($userObj->name ?? $userObj->email) : ('Leader ID: '.substr((string) $nItem->user_id, 0, 8));
 
                 $roleLabel = 'Circle Leader';
                 $roleKey = 'leader';
@@ -1405,96 +1239,6 @@ class LeaderNotificationsController extends Controller
             }
         }
 
-        if (empty($logs)) {
-            $sampleDate = now()->setTimezone($timezone);
-            $logs = [
-                [
-                    'id' => 'sec_log_001',
-                    'title' => 'Pending Withdrawal Request',
-                    'message' => 'Vikram Mehta (Circle Director) requested a withdrawal of ₹25,000.',
-                    'category' => 'finance',
-                    'type' => 'withdrawal_request',
-                    'screen' => '/finance',
-                    'recipient_id' => 'usr_sa_01',
-                    'recipient_name' => 'Harsh Chauhan',
-                    'recipient_role' => 'Super Administrator',
-                    'recipient_circle' => 'National Scope',
-                    'trigger_type' => 'Automated Escalation',
-                    'channel' => 'In-App Push',
-                    'priority' => 'high',
-                    'status' => 'Delivered',
-                    'is_read' => false,
-                    'timezone' => $timezone,
-                    'sent_at' => now()->subMinutes(15)->toIso8601String(),
-                    'sent_at_formatted' => now()->subMinutes(15)->setTimezone($timezone)->format('d M Y, h:i A') . ' (' . $timezone . ')',
-                    'time_ago' => '15 mins ago',
-                ],
-                [
-                    'id' => 'sec_log_002',
-                    'title' => 'Founder Speed Milestone Achieved',
-                    'message' => 'Ananya Roy achieved 10 peers in 10 days! ₹25,000 bonus unlocked.',
-                    'category' => 'milestones',
-                    'type' => 'milestone_unlocked',
-                    'screen' => '/profile',
-                    'recipient_id' => 'usr_cf_02',
-                    'recipient_name' => 'Ananya Roy',
-                    'recipient_role' => 'Circle Founder',
-                    'recipient_circle' => 'Ahmedabad Tech Pioneers',
-                    'trigger_type' => 'Milestone Automation',
-                    'channel' => 'In-App Push',
-                    'priority' => 'high',
-                    'status' => 'Read',
-                    'is_read' => true,
-                    'timezone' => $timezone,
-                    'sent_at' => now()->subHours(2)->toIso8601String(),
-                    'sent_at_formatted' => now()->subHours(2)->setTimezone($timezone)->format('d M Y, h:i A') . ' (' . $timezone . ')',
-                    'time_ago' => '2 hours ago',
-                ],
-                [
-                    'id' => 'sec_log_003',
-                    'title' => 'New Peer Join Request',
-                    'message' => 'Rahul Sharma submitted a membership join request for Ahmedabad Pioneers.',
-                    'category' => 'circle',
-                    'type' => 'circle_join_request',
-                    'screen' => '/teams',
-                    'recipient_id' => 'usr_cd_03',
-                    'recipient_name' => 'Vikram Mehta',
-                    'recipient_role' => 'Circle Director',
-                    'recipient_circle' => 'Ahmedabad Tech Pioneers',
-                    'trigger_type' => 'Circle Event Escalation',
-                    'channel' => 'In-App Push',
-                    'priority' => 'medium',
-                    'status' => 'Delivered',
-                    'is_read' => false,
-                    'timezone' => $timezone,
-                    'sent_at' => now()->subHours(4)->toIso8601String(),
-                    'sent_at_formatted' => now()->subHours(4)->setTimezone($timezone)->format('d M Y, h:i A') . ' (' . $timezone . ')',
-                    'time_ago' => '4 hours ago',
-                ],
-                [
-                    'id' => 'sec_log_004',
-                    'title' => 'Quarterly Leadership Strategy Broadcast',
-                    'message' => 'All Circle Directors and Founders must complete Q4 charter roadmap.',
-                    'category' => 'system',
-                    'type' => 'admin_broadcast',
-                    'screen' => '/dashboard',
-                    'recipient_id' => 'usr_all_leaders',
-                    'recipient_name' => 'All Circle Leaders (Broadcast)',
-                    'recipient_role' => 'Circle Directors & Founders',
-                    'recipient_circle' => 'All Active Circles',
-                    'trigger_type' => 'Super Admin Broadcast',
-                    'channel' => 'In-App Push',
-                    'priority' => 'urgent',
-                    'status' => 'Delivered',
-                    'is_read' => true,
-                    'timezone' => $timezone,
-                    'sent_at' => now()->subDay()->toIso8601String(),
-                    'sent_at_formatted' => now()->subDay()->setTimezone($timezone)->format('d M Y, h:i A') . ' (' . $timezone . ')',
-                    'time_ago' => '1 day ago',
-                ],
-            ];
-        }
-
         return response()->json([
             'success' => true,
             'status' => true,
@@ -1504,6 +1248,477 @@ class LeaderNotificationsController extends Controller
         ]);
     }
 
+    /**
+     * Tab A: Overview metrics from real database records (no synthetic/dummy counts).
+     */
+    public function getOverview(Request $request): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $catalogue = $policy->getEventCatalogue();
+        $flowStates = $policy->getFlowStates();
+
+        $activeFlows = 0;
+        $disabledFlows = 0;
+        foreach ($catalogue as $key => $spec) {
+            if ($policy->isFlowEnabled($key)) {
+                $activeFlows++;
+            } else {
+                $disabledFlows++;
+            }
+        }
+
+        $total = 0;
+        $delivered = 0;
+        $failed = 0;
+        $pending = 0;
+        $read = 0;
+        $unread = 0;
+        $criticalFailures = 0;
+
+        if (Schema::hasTable('app_notifications')) {
+            $q = AppNotification::query();
+            if ($request->filled('date_from')) {
+                $q->where('created_at', '>=', (string) $request->input('date_from'));
+            }
+            if ($request->filled('date_to')) {
+                $q->where('created_at', '<=', (string) $request->input('date_to').' 23:59:59');
+            }
+            if ($request->filled('category') && $request->input('category') !== 'all') {
+                $q->where('category', (string) $request->input('category'));
+            }
+            if ($request->filled('type') && $request->input('type') !== 'all') {
+                $q->where('type', (string) $request->input('type'));
+            }
+
+            $rows = $q->orderByDesc('created_at')->take(2000)->get();
+            foreach ($rows as $row) {
+                $data = is_array($row->data) ? $row->data : [];
+                $type = (string) ($row->type ?: ($data['type'] ?? ''));
+                $cat = (string) ($row->category ?: ($data['category'] ?? ''));
+                $screen = (string) ($row->screen ?: ($data['screen'] ?? ''));
+                if (! $policy->isLeadershipAudiencePayload($data, $type, $cat, $screen)) {
+                    continue;
+                }
+                $total++;
+                if ($row->failed_at !== null || strtolower((string) $row->status) === 'failed') {
+                    $failed++;
+                    if (in_array(strtolower((string) $row->priority), ['urgent', 'critical'], true)
+                        || ($data['delivery_tier'] ?? '') === 'critical') {
+                        $criticalFailures++;
+                    }
+                } elseif ($row->sent_at !== null || strtolower((string) $row->status) === 'delivered') {
+                    $delivered++;
+                } else {
+                    $pending++;
+                }
+                if ($row->read_at !== null) {
+                    $read++;
+                } else {
+                    $unread++;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_notifications' => $total,
+                'delivered_count' => $delivered,
+                'failed_count' => $failed,
+                'pending_count' => $pending,
+                'read_count' => $read,
+                'unread_count' => $unread,
+                'active_flows_count' => $activeFlows,
+                'disabled_flows_count' => $disabledFlows,
+                'critical_failures_count' => $criticalFailures,
+                'flow_overrides_count' => count($flowStates),
+            ],
+        ]);
+    }
+
+    /**
+     * Authoritative dynamic event registry, categories, dynamic roles, and flow states.
+     */
+    public function getEventRegistry(Request $request): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $catalogue = $policy->getEventCatalogue();
+        $flowStates = $policy->getFlowStates();
+        $roles = $policy->getDynamicRolesCatalog();
+
+        $events = [];
+        $categories = [];
+
+        $latestByType = [];
+        if (Schema::hasTable('app_notifications')) {
+            $latestRows = AppNotification::query()
+                ->select('type', DB::raw('MAX(created_at) as last_triggered_at'))
+                ->whereNotNull('type')
+                ->groupBy('type')
+                ->get();
+            foreach ($latestRows as $lr) {
+                $latestByType[(string) $lr->type] = $lr->last_triggered_at
+                    ? Carbon::parse($lr->last_triggered_at)->toIso8601String()
+                    : null;
+            }
+        }
+
+        foreach ($catalogue as $key => $spec) {
+            $isCritical = $policy->isCriticalNotification(
+                $key,
+                (string) ($spec['priority'] ?? ''),
+                (string) ($spec['delivery_tier'] ?? '')
+            );
+            $enabled = $policy->isFlowEnabled($key);
+            $cat = (string) ($spec['category'] ?? 'system');
+            $categories[$cat] = true;
+
+            $lastTriggeredAt = $latestByType[$key] ?? null;
+            $lastStatus = $lastTriggeredAt !== null ? 'recorded' : null;
+
+            $events[] = [
+                'event_id' => (string) ($spec['id'] ?? $key),
+                'notification_type' => $key,
+                'label' => ucwords(str_replace('_', ' ', $key)),
+                'category' => $cat,
+                'delivery_tier' => (string) ($spec['delivery_tier'] ?? 'important'),
+                'priority' => (string) ($spec['priority'] ?? 'medium'),
+                'requires_action' => (bool) ($spec['requires_action'] ?? false),
+                'financial_sensitive' => (bool) ($spec['financial_sensitive'] ?? false),
+                'non_disableable' => $isCritical,
+                'enabled' => $enabled,
+                'entity_type' => (string) ($spec['entity_type'] ?? 'system'),
+                'screen' => (string) ($spec['screen'] ?? '/dashboard'),
+                'primary_roles' => $spec['primary_roles'] ?? [],
+                'backup_roles' => $spec['backup_roles'] ?? [],
+                'info_roles' => $spec['info_roles'] ?? [],
+                'global_founder' => (bool) ($spec['global_founder'] ?? false),
+                'super_admin_push' => (bool) ($spec['super_admin_push'] ?? false),
+                'last_triggered_at' => $lastTriggeredAt,
+                'last_delivery_status' => $lastStatus,
+                'updated_by' => $flowStates[$key]['updated_by'] ?? null,
+                'disabled_reason' => $flowStates[$key]['reason'] ?? null,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'events' => $events,
+                'categories' => array_values(array_keys($categories)),
+                'roles' => $roles,
+            ],
+        ]);
+    }
+
+    /**
+     * Enable or disable an optional notification flow (blocks critical/non-disableable flows).
+     */
+    public function updateFlowState(Request $request, string $eventKey): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $catalogue = $policy->getEventCatalogue();
+
+        if (! isset($catalogue[$eventKey])) {
+            return response()->json(['success' => false, 'message' => 'Unknown notification event type.'], 404);
+        }
+
+        $spec = $catalogue[$eventKey];
+        $enabled = (bool) $request->input('enabled', true);
+        $reason = trim((string) $request->input('reason', ''));
+        $isCritical = $policy->isCriticalNotification(
+            $eventKey,
+            (string) ($spec['priority'] ?? ''),
+            (string) ($spec['delivery_tier'] ?? '')
+        );
+
+        if (! $enabled && $isCritical) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This critical governance/security/financial notification flow is mandatory (non_disableable) and cannot be disabled.',
+            ], 422);
+        }
+
+        $states = $policy->getFlowStates();
+        $previous = $states[$eventKey] ?? ['enabled' => true];
+        $actor = $request->user();
+        $nextState = [
+            'enabled' => $enabled,
+            'reason' => $reason !== '' ? $reason : null,
+            'updated_by' => $actor ? (string) ($actor->email ?? $actor->id) : 'admin',
+            'updated_at' => now()->toIso8601String(),
+        ];
+        $states[$eventKey] = $nextState;
+
+        $policy->writeGovernanceStore('leader_notification_flow_states', $states);
+
+        $policy->recordAdminAudit([
+            'actor_id' => $actor ? (string) $actor->id : null,
+            'action' => $enabled ? 'flow_enabled' : 'flow_disabled',
+            'event_key' => $eventKey,
+            'previous_config' => $previous,
+            'new_config' => $nextState,
+            'reason' => $reason !== '' ? $reason : null,
+            'ip' => $request->ip(),
+            'correlation_id' => (string) Str::uuid(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Notification flow {$eventKey} ".($enabled ? 'enabled' : 'disabled').'.',
+            'data' => $nextState,
+        ]);
+    }
+
+    /**
+     * Fetch real target records for a given notification type & recipient.
+     */
+    public function getTargetRecords(Request $request): JsonResponse
+    {
+        $eventKey = (string) $request->query('type', '');
+        $search = trim((string) $request->query('search', ''));
+        $records = [];
+
+        $policy = app(LeaderNotificationPolicyService::class);
+        $spec = $policy->getEventCatalogue()[$eventKey] ?? null;
+        if (! $spec) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $entityType = (string) ($spec['entity_type'] ?? '');
+
+        if ($entityType === 'circular' && Schema::hasTable('circulars')) {
+            $rows = Circular::query()
+                ->whereNull('deleted_at')
+                ->when($search !== '', fn ($q) => $q->where('title', 'like', "%{$search}%"))
+                ->orderByDesc('created_at')
+                ->take(20)
+                ->get(['id', 'title', 'status']);
+            foreach ($rows as $r) {
+                $records[] = ['id' => (string) $r->id, 'label' => (string) $r->title, 'subtitle' => (string) $r->status];
+            }
+        } elseif (($entityType === 'circle' || $entityType === 'event') && Schema::hasTable('circles')) {
+            $rows = Circle::query()
+                ->whereNull('deleted_at')
+                ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                ->orderBy('name')
+                ->take(20)
+                ->get(['id', 'name', 'status']);
+            foreach ($rows as $r) {
+                $records[] = ['id' => (string) $r->id, 'label' => (string) $r->name, 'subtitle' => (string) ($r->status ?? 'active')];
+            }
+        } elseif ($entityType === 'role_assignment' || $entityType === 'security') {
+            foreach ($policy->getDynamicRolesCatalog() as $r) {
+                $records[] = ['id' => (string) $r['role_key'], 'label' => (string) $r['role_label'], 'subtitle' => $r['is_active'] ? 'Active' : 'Inactive'];
+            }
+        }
+
+        return response()->json(['success' => true, 'data' => $records]);
+    }
+
+    /**
+     * Send a single-recipient test notification with is_test=true, correlation_id, and audit trail.
+     */
+    public function sendTestNotification(Request $request): JsonResponse
+    {
+        $recipientId = trim((string) $request->input('recipient_id', ''));
+        $eventKey = trim((string) $request->input('notification_type', ''));
+        $targetRecordId = trim((string) $request->input('target_record_id', ''));
+        $customTitle = trim((string) $request->input('title', ''));
+        $customMessage = trim((string) $request->input('message', ''));
+
+        if ($recipientId === '' || $eventKey === '') {
+            return response()->json(['success' => false, 'message' => 'Recipient and notification type are required.'], 422);
+        }
+
+        $policy = app(LeaderNotificationPolicyService::class);
+        $permissionService = app(LeaderPermissionService::class);
+        $spec = $policy->getEventCatalogue()[$eventKey] ?? null;
+        if (! $spec) {
+            return response()->json(['success' => false, 'message' => 'Unknown notification type in backend registry.'], 422);
+        }
+
+        $recipient = Schema::hasTable('users') ? User::query()->find($recipientId) : null;
+        if (! $recipient || ! $permissionService->isLeader($recipient)) {
+            return response()->json(['success' => false, 'message' => 'Selected recipient is not an active Leadership App user.'], 422);
+        }
+
+        if ($policy->isFinancialSensitive($eventKey, (string) $spec['category'], [])
+            && ! $policy->canUserReceiveFinancialNotification($recipient)) {
+            return response()->json(['success' => false, 'message' => 'Recipient lacks financial permission (access_finance) for this notification type.'], 403);
+        }
+
+        $correlationId = (string) Str::uuid();
+        $title = $customTitle !== '' ? $customTitle : '[TEST] '.ucwords(str_replace('_', ' ', $eventKey));
+        $message = $customMessage !== '' ? $customMessage : 'Test notification initiated from Leadership Notification Control Center.';
+        $actor = $request->user();
+
+        $appNotification = app(LeaderNotificationDispatcherService::class)->dispatchToUser(
+            $recipientId,
+            $eventKey,
+            $title,
+            $message,
+            (string) ($spec['screen'] ?? '/dashboard'),
+            [
+                'is_test' => true,
+                'correlation_id' => $correlationId,
+                'initiated_by_admin_id' => $actor ? (string) $actor->id : null,
+                'entity_type' => $spec['entity_type'] ?? 'system',
+                'entity_id' => $targetRecordId !== '' ? $targetRecordId : null,
+                'target_record_id' => $targetRecordId !== '' ? $targetRecordId : null,
+                'requires_action' => (bool) ($spec['requires_action'] ?? false),
+                'delivery_tier' => (string) ($spec['delivery_tier'] ?? 'important'),
+                'idempotency_window' => $correlationId,
+            ],
+            (string) ($spec['category'] ?? 'system'),
+            (string) ($spec['priority'] ?? 'high')
+        );
+
+        $policy->recordAdminAudit([
+            'actor_id' => $actor ? (string) $actor->id : null,
+            'action' => 'send_test_notification',
+            'event_key' => $eventKey,
+            'recipient_id' => $recipientId,
+            'correlation_id' => $correlationId,
+            'new_config' => ['target_record_id' => $targetRecordId !== '' ? $targetRecordId : null],
+            'ip' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'notification_id' => $appNotification ? (string) $appNotification->id : null,
+                'correlation_id' => $correlationId,
+                'persisted' => $appNotification !== null,
+                'fcm_dispatched' => $appNotification?->sent_at !== null,
+                'delivery_status' => $appNotification?->failed_at !== null ? 'failed' : ($appNotification?->sent_at !== null ? 'sent_to_fcm' : 'persisted'),
+                'expected_destination' => (string) ($spec['screen'] ?? '/dashboard'),
+                'failure_reason' => $appNotification?->failure_reason,
+            ],
+        ]);
+    }
+
+    /**
+     * Detailed notification delivery lifecycle & masked payload inspection.
+     */
+    public function getNotificationLogDetail(Request $request, string $id): JsonResponse
+    {
+        if (! Schema::hasTable('app_notifications')) {
+            return response()->json(['success' => false, 'message' => 'Notification not found.'], 404);
+        }
+
+        $notif = AppNotification::query()->find($id);
+        if (! $notif) {
+            return response()->json(['success' => false, 'message' => 'Notification not found.'], 404);
+        }
+
+        $data = is_array($notif->data) ? $notif->data : [];
+        $policy = app(LeaderNotificationPolicyService::class);
+        $actor = $request->user();
+        $canViewSensitive = $actor ? $policy->canUserReceiveFinancialNotification($actor) : false;
+
+        if (! $canViewSensitive && $policy->isFinancialSensitive((string) $notif->type, (string) $notif->category, $data)) {
+            $data = ['masked' => true, 'reason' => 'Restricted financial/security payload'];
+        }
+
+        $deliveryLogs = Schema::hasTable('notification_delivery_logs')
+            ? NotificationDeliveryLog::query()
+                ->where('notification_id', $notif->id)
+                ->orderByDesc('attempted_at')
+                ->get(['id', 'channel', 'provider', 'status', 'error_message', 'attempted_at', 'delivered_at'])
+            : [];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => (string) $notif->id,
+                'type' => (string) $notif->type,
+                'category' => (string) $notif->category,
+                'title' => (string) $notif->title,
+                'body' => (string) $notif->body,
+                'screen' => (string) $notif->screen,
+                'priority' => (string) $notif->priority,
+                'lifecycle' => [
+                    'persisted' => true,
+                    'sent_to_fcm' => $notif->sent_at !== null,
+                    'failed' => $notif->failed_at !== null,
+                    'read' => $notif->read_at !== null,
+                ],
+                'sent_at' => $notif->sent_at?->toIso8601String(),
+                'failed_at' => $notif->failed_at?->toIso8601String(),
+                'failure_reason' => $notif->failure_reason,
+                'read_at' => $notif->read_at?->toIso8601String(),
+                'payload' => $data,
+                'delivery_attempts' => $deliveryLogs,
+            ],
+        ]);
+    }
+
+    /**
+     * Administrative audit trail for notification governance changes & test sends.
+     */
+    public function getAuditLogs(Request $request): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $logs = $policy->readGovernanceStore('leader_notification_audit_logs', []);
+
+        return response()->json(['success' => true, 'data' => $logs]);
+    }
+
+    /**
+     * Get & update global notification routing & privacy policies.
+     */
+    public function getPolicies(Request $request): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $defaults = [
+            'quiet_hours_default_start' => '22:00',
+            'quiet_hours_default_end' => '07:00',
+            'mask_financial_push_preview' => true,
+            'mask_security_push_preview' => true,
+            'overdue_report_days' => (int) config('leader.overdue_report_days', 14),
+            'critical_bypass_quiet_hours' => true,
+            'version' => 1,
+        ];
+
+        $saved = $policy->readGovernanceStore('leader_notification_global_policies', []);
+        if (! empty($saved)) {
+            $defaults = array_merge($defaults, $saved);
+        }
+
+        return response()->json(['success' => true, 'data' => $defaults]);
+    }
+
+    public function updatePolicies(Request $request): JsonResponse
+    {
+        $policy = app(LeaderNotificationPolicyService::class);
+        $current = $this->getPolicies($request)->getData(true)['data'] ?? [];
+        $next = array_merge($current, [
+            'quiet_hours_default_start' => (string) $request->input('quiet_hours_default_start', $current['quiet_hours_default_start'] ?? '22:00'),
+            'quiet_hours_default_end' => (string) $request->input('quiet_hours_default_end', $current['quiet_hours_default_end'] ?? '07:00'),
+            'overdue_report_days' => max(1, (int) $request->input('overdue_report_days', $current['overdue_report_days'] ?? 14)),
+            // Security & financial masking and critical bypass remain locked true server-side
+            'mask_financial_push_preview' => true,
+            'mask_security_push_preview' => true,
+            'critical_bypass_quiet_hours' => true,
+            'version' => ((int) ($current['version'] ?? 1)) + 1,
+        ]);
+
+        $policy->writeGovernanceStore('leader_notification_global_policies', $next);
+
+        $actor = $request->user();
+        $policy->recordAdminAudit([
+            'actor_id' => $actor ? (string) $actor->id : null,
+            'action' => 'policies_updated',
+            'event_key' => 'global_policies',
+            'previous_config' => $current,
+            'new_config' => $next,
+            'ip' => $request->ip(),
+            'correlation_id' => (string) Str::uuid(),
+        ]);
+
+        return response()->json(['success' => true, 'data' => $next, 'message' => 'Policies updated.']);
+    }
 
     /**
      * Store or update Leader App FCM push token.
@@ -1526,24 +1741,24 @@ class LeaderNotificationsController extends Controller
             $platform = strtolower((string) $validated['platform']);
 
             // Prefix device_id with 'leader_' to prevent collisions with Peers Global member app
-            $rawDeviceId = $validated['device_id'] ?? ('device_' . substr(md5($user->id . $platform), 0, 12));
-            $leaderDeviceId = str_starts_with((string) $rawDeviceId, 'leader_') ? $rawDeviceId : 'leader_' . $rawDeviceId;
+            $rawDeviceId = $validated['device_id'] ?? ('device_'.substr(md5($user->id.$platform), 0, 12));
+            $leaderDeviceId = str_starts_with((string) $rawDeviceId, 'leader_') ? $rawDeviceId : 'leader_'.$rawDeviceId;
 
             // Delete token if it belongs to a different user
             if (Schema::hasTable('user_push_tokens')) {
-                \App\Models\UserPushToken::where('token', $token)
-                    ->where(\App\Models\UserPushToken::getUserIdColumn(), '!=', $user->id)
+                UserPushToken::where('token', $token)
+                    ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                     ->delete();
 
                 // Clean up duplicates for this user for Leader App on this device
-                \App\Models\UserPushToken::where('device_id', $leaderDeviceId)
-                    ->where(\App\Models\UserPushToken::getUserIdColumn(), $user->id)
+                UserPushToken::where('device_id', $leaderDeviceId)
+                    ->where(UserPushToken::getUserIdColumn(), $user->id)
                     ->where('token', '!=', $token)
                     ->delete();
             }
 
             $updates = [
-                \App\Models\UserPushToken::getUserIdColumn() => $user->id,
+                UserPushToken::getUserIdColumn() => $user->id,
                 'platform' => $platform,
                 'device_id' => $leaderDeviceId,
                 'app_version' => $validated['app_version'] ?? '1.0.0',
@@ -1574,7 +1789,7 @@ class LeaderNotificationsController extends Controller
                 $updates['failure_reason'] = null;
             }
 
-            $pushToken = \App\Models\UserPushToken::updateOrCreate(
+            $pushToken = UserPushToken::updateOrCreate(
                 ['token' => $token],
                 $updates
             );
@@ -1611,7 +1826,7 @@ class LeaderNotificationsController extends Controller
                 ],
             ]);
         } catch (\Throwable $throwable) {
-            \Illuminate\Support\Facades\Log::error('LeaderNotificationsController storePushToken exception: ' . $throwable->getMessage(), [
+            Log::error('LeaderNotificationsController storePushToken exception: '.$throwable->getMessage(), [
                 'user_id' => $request->user()?->id,
             ]);
 
@@ -1637,7 +1852,7 @@ class LeaderNotificationsController extends Controller
         try {
             $token = (string) ($validated['fcm_token'] ?? $validated['token']);
 
-            $deleted = \App\Models\UserPushToken::where(\App\Models\UserPushToken::getUserIdColumn(), $request->user()->id)
+            $deleted = UserPushToken::where(UserPushToken::getUserIdColumn(), $request->user()->id)
                 ->where('token', $token)
                 ->delete();
 

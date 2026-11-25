@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Forms;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Forms\StoreVisitorRegistrationRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\VisitorRegistration;
 use Illuminate\Http\Request;
 
@@ -85,6 +86,23 @@ class VisitorRegistrationController extends BaseApiController
             'status' => $registration->status,
             'created_at' => $registration->created_at,
         ], $rewardData);
+
+        try {
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'visitor_registration_pending',
+                'Visitor Registration Pending Approval',
+                'A new visitor registration ('.(string) ($registration->visitor_full_name ?? 'Visitor').') is awaiting leadership verification.',
+                [
+                    'circle_id' => (string) ($authUser->active_circle_id ?? $authUser->circle_id ?? ''),
+                    'actor_id' => (string) $authUser->id,
+                    'entity_id' => (string) $registration->id,
+                    'reference_id' => (string) $registration->id,
+                    'idempotency_window' => (string) $registration->id,
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking leadership notification
+        }
 
         return $this->success($responseData, 'Visitor registration submitted successfully.', 201);
     }

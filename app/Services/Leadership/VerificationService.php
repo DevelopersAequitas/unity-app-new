@@ -48,7 +48,7 @@ class VerificationService
         }
         RateLimiter::hit($throttleKey, 300);
 
-        $otp = app()->environment('local', 'testing') ? '123456' : (string) random_int(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
         $verificationId = (string) Str::uuid();
 
         // 1. Cache the OTP challenge for 10 minutes (600 seconds)
@@ -57,7 +57,6 @@ class VerificationService
             'contact_type' => $contactType,
             'contact' => $normalizedContact,
             'otp_hash' => Hash::make($otp),
-            'otp_plain' => config('app.debug') ? $otp : null,
             'attempts' => 0,
         ], 600);
 
@@ -104,12 +103,10 @@ class VerificationService
         $cacheKey = 'nomination_challenge:'.$verificationId;
         $challenge = Cache::get($cacheKey);
 
-        $isMasterBypass = (config('app.debug') || app()->environment('local', 'testing', 'staging')) && $otp === '123456';
-
         /** @var LeadershipVoterVerification|null $dbRecord */
         $dbRecord = LeadershipVoterVerification::find($verificationId);
 
-        if (! $challenge && ! $dbRecord && ! $isMasterBypass) {
+        if (! $challenge && ! $dbRecord) {
             throw new RuntimeException('Verification challenge has expired or does not exist.');
         }
 
@@ -120,41 +117,39 @@ class VerificationService
             $contact = $contactType === 'email' ? $u?->email : $u?->phone;
         }
 
-        if (! $isMasterBypass) {
-            $verified = false;
+        $verified = false;
 
-            if ($challenge) {
-                if ($challenge['attempts'] >= 5) {
-                    Cache::forget($cacheKey);
-                    throw new RuntimeException('Maximum OTP verification attempts exceeded.');
-                }
-                if (Hash::check($otp, $challenge['otp_hash']) || ($challenge['otp_plain'] ?? null) === $otp) {
-                    $verified = true;
-                } else {
-                    $challenge['attempts']++;
-                    Cache::put($cacheKey, $challenge, 300);
-                }
+        if ($challenge) {
+            if ($challenge['attempts'] >= 5) {
+                Cache::forget($cacheKey);
+                throw new RuntimeException('Maximum OTP verification attempts exceeded.');
             }
+            if (Hash::check($otp, $challenge['otp_hash'])) {
+                $verified = true;
+            } else {
+                $challenge['attempts']++;
+                Cache::put($cacheKey, $challenge, 300);
+            }
+        }
 
-            if (! $verified && $dbRecord) {
-                if ($dbRecord->status !== 'pending' || ($dbRecord->expires_at && Carbon::now()->gt($dbRecord->expires_at))) {
-                    $dbRecord->update(['status' => 'expired']);
-                    throw new RuntimeException('Verification code has expired. Please request a new one.');
-                }
-                if ($dbRecord->attempt_count >= 5) {
-                    $dbRecord->update(['status' => 'locked']);
-                    throw new RuntimeException('Maximum verification attempts exceeded.');
-                }
-                if (Hash::check($otp, (string) $dbRecord->otp_hash)) {
-                    $verified = true;
-                } else {
-                    $dbRecord->increment('attempt_count');
-                }
+        if (! $verified && $dbRecord) {
+            if ($dbRecord->status !== 'pending' || ($dbRecord->expires_at && Carbon::now()->gt($dbRecord->expires_at))) {
+                $dbRecord->update(['status' => 'expired']);
+                throw new RuntimeException('Verification code has expired. Please request a new one.');
             }
+            if ($dbRecord->attempt_count >= 5) {
+                $dbRecord->update(['status' => 'locked']);
+                throw new RuntimeException('Maximum verification attempts exceeded.');
+            }
+            if (Hash::check($otp, (string) $dbRecord->otp_hash)) {
+                $verified = true;
+            } else {
+                $dbRecord->increment('attempt_count');
+            }
+        }
 
-            if (! $verified) {
-                throw new RuntimeException('Invalid verification code.');
-            }
+        if (! $verified) {
+            throw new RuntimeException('Invalid verification code.');
         }
 
         if ($challenge) {
@@ -260,7 +255,7 @@ class VerificationService
             throw new RuntimeException('A vote has already been submitted using this contact.');
         }
 
-        $otp = app()->environment('local', 'testing') ? '123456' : (string) random_int(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
         $masked = $this->maskContact($contactType, $normalizedContact);
 
         // Find existing user if registered
@@ -369,17 +364,14 @@ class VerificationService
             throw new RuntimeException('Contact details do not match the nominated candidate.');
         }
 
-        // For development/mocking or test suite, check standard OTP; or check cached challenge
         $cacheKey = 'res_otp:'.$record->id;
         $cachedOtp = Cache::get($cacheKey);
 
-        if (! $cachedOtp && app()->environment('local', 'testing')) {
-            $cachedOtp = '123456';
-        }
-
-        if ($cachedOtp !== $otp && $otp !== '123456') {
+        if (! is_string($cachedOtp) || $cachedOtp === '' || ! hash_equals($cachedOtp, $otp)) {
             throw new RuntimeException('Invalid verification code.');
         }
+
+        Cache::forget($cacheKey);
 
         $record->update(['last_verified_at' => Carbon::now()]);
 

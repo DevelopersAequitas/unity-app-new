@@ -383,4 +383,18 @@ class LeaderActivitiesController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Get organization-scoped community timeline posts for the Leader App.
+     */
+    public function posts(Request $request): JsonResponse
+    {
+        $data = $this->activitiesService->getScopedPostsPaginated($request);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'data' => $data,
+        ]);
+    }
 }

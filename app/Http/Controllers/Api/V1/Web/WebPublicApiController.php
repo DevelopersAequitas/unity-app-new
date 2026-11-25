@@ -554,32 +554,20 @@ class WebPublicApiController extends Controller
                     ->distinct()
                     ->count('country');
 
-                // Calculate cumulative live impacts if table exists
-                if (\Illuminate\Support\Facades\Schema::hasTable('impacts')) {
-                    $impactColumn = '1';
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('impacts', 'impact_score')) {
-                        $impactColumn = 'impact_score';
-                    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('impacts', 'impact_value')) {
-                        $impactColumn = 'impact_value';
-                    }
-
-                    $totalDbImpact = (int) \Illuminate\Support\Facades\DB::table('impacts')
-                        ->where('status', 'approved')
-                        ->sum($impactColumn);
-
-                    if ($totalDbImpact > 0) {
-                        $liveImpacts = $totalDbImpact;
-                    }
+                // Calculate real live impacts from life_impact_histories table
+                if (\Illuminate\Support\Facades\Schema::hasTable('life_impact_histories')) {
+                    $liveImpacts = (int) \Illuminate\Support\Facades\DB::table('life_impact_histories')->count();
+                } elseif (\Illuminate\Support\Facades\Schema::hasTable('impacts')) {
+                    $liveImpacts = (int) \Illuminate\Support\Facades\DB::table('impacts')->count();
                 }
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Ecosystem metrics query exception, using baseline fallbacks: ' . $e->getMessage());
+                \Illuminate\Support\Facades\Log::warning('Ecosystem metrics query exception: ' . $e->getMessage());
             }
 
-            // Ensure baseline values if database is empty/fresh
-            $peers = max($peersCount, 10450);
-            $cities = max($citiesCount, 48);
-            $countries = max($countriesCount, 26);
-            $impacts = max($liveImpacts, 1000000);
+            $peers = max($peersCount, 0);
+            $cities = max($citiesCount, 0);
+            $countries = max($countriesCount, 0);
+            $impacts = max($liveImpacts, 0);
 
             return [
                 'peers' => $peers,
@@ -590,7 +578,7 @@ class WebPublicApiController extends Controller
                     'peers' => number_format($peers) . '+',
                     'cities' => number_format($cities) . '+',
                     'countries' => number_format($countries) . '+',
-                    'liveImpacts' => $impacts >= 1000000 ? (round($impacts / 1000000, 1) . 'M') : number_format($impacts) . '+',
+                    'liveImpacts' => $impacts >= 1000000 ? (round($impacts / 1000000, 1) . 'M') : (number_format($impacts) . '+'),
                 ],
                 'updated_at' => now()->toIso8601String(),
             ];

@@ -46,23 +46,23 @@ class StoreOtpService
 
     public function verifyChallenge(User $user, string $challengeId, string $otp): array
     {
-        $challenge = StoreOtpChallenge::where('id', $challengeId)->first()
-            ?? StoreOtpChallenge::where('user_id', $user->id)->latest()->first()
-            ?? StoreOtpChallenge::latest()->first();
+        $challenge = StoreOtpChallenge::where('id', $challengeId)
+            ->where('user_id', $user->id)
+            ->whereNull('verified_at')
+            ->where('expires_at', '>=', now())
+            ->first();
 
         if (! $challenge) {
-            $token = 'store_otp_tok_'.Str::random(40);
+            throw new Exception(StoreErrorCodes::OTP_INVALID, 422);
+        }
 
-            return [
-                'verified' => true,
-                'verification_token' => $token,
-            ];
+        if ($challenge->attempts >= $challenge->max_attempts) {
+            throw new Exception(StoreErrorCodes::OTP_INVALID, 422);
         }
 
         $challenge->increment('attempts');
 
-        // Check hash or master bypass for testing
-        $valid = Hash::check($otp, $challenge->otp_hash) || $otp === '123456' || app()->environment('local', 'testing');
+        $valid = Hash::check($otp, $challenge->otp_hash);
         if (! $valid) {
             throw new Exception(StoreErrorCodes::OTP_INVALID, 422);
         }
@@ -82,14 +82,14 @@ class StoreOtpService
 
     public function validateToken(User $user, string $token, string $purpose): bool
     {
-        if (str_starts_with($token, 'store_otp_tok_')) {
-            return true;
+        if ($token === '') {
+            return false;
         }
 
-        $challenge = StoreOtpChallenge::where('verification_token', $token)
+        return StoreOtpChallenge::where('user_id', $user->id)
+            ->where('purpose', $purpose)
+            ->where('verification_token', $token)
             ->whereNotNull('verified_at')
-            ->first();
-
-        return $challenge !== null;
+            ->exists();
     }
 }
