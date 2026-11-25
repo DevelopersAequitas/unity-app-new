@@ -151,7 +151,12 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/impacts', [LeaderActivitiesController::class, 'impacts']);
     Route::get('/leader/life-impacts', [LeaderActivitiesController::class, 'impacts']);
     Route::get('/leader/impact', [LeaderActivitiesController::class, 'impacts']);
+    Route::get('/leader/impacts/{id}', [LeaderActivitiesController::class, 'showImpact'])->whereUuid('id');
     Route::post('/leader/impacts', [LeaderActivitiesController::class, 'storeImpact']);
+    Route::middleware('leader.can:can_review_pending_peers')->group(function (): void {
+        Route::post('/leader/impacts/{id}/approve', [LeaderActivitiesController::class, 'approveImpact'])->whereUuid('id');
+        Route::post('/leader/impacts/{id}/reject', [LeaderActivitiesController::class, 'rejectImpact'])->whereUuid('id');
+    });
 
     Route::get('/leader/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
     Route::get('/leader/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
@@ -347,7 +352,12 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::post('testimonials', [LeaderActivitiesController::class, 'storeTestimonial']);
         Route::get('peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
         Route::get('impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('impacts/{id}', [LeaderActivitiesController::class, 'showImpact'])->whereUuid('id');
         Route::post('impacts', [LeaderActivitiesController::class, 'storeImpact']);
+        Route::middleware('leader.can:can_review_pending_peers')->group(function (): void {
+            Route::post('impacts/{id}/approve', [LeaderActivitiesController::class, 'approveImpact'])->whereUuid('id');
+            Route::post('impacts/{id}/reject', [LeaderActivitiesController::class, 'rejectImpact'])->whereUuid('id');
+        });
         Route::get('p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
         Route::post('p2p-meetings', [LeaderActivitiesController::class, 'storeP2pMeeting']);
         Route::get('business-deals', [LeaderActivitiesController::class, 'businessDeals']);

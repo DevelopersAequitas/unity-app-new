@@ -20,18 +20,78 @@ class LeaderActivitiesController extends Controller
     ) {}
 
     /**
-     * Get impacts list with full peer details.
+     * Get impacts list with full peer details, pagination, and status counts.
      */
     public function impacts(Request $request): JsonResponse
     {
-        $data = $this->activitiesService->getImpacts($request);
+        $page = max((int) $request->query('page', 1), 1);
+        $limit = min(max((int) ($request->query('limit', $request->query('per_page', 25))), 1), 100);
+        $offset = ($page - 1) * $limit;
+        $total = 0;
+
+        $data = $this->activitiesService->getImpacts($request, $limit, $offset, $total);
+        $statusCounts = $this->activitiesService->getImpactStatusCounts($request);
 
         return response()->json([
             'success' => true,
             'status' => true,
             'message' => 'Impacts retrieved successfully.',
             'data' => $data,
+            'status_counts' => $statusCounts,
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'total' => $total,
+                'last_page' => max(1, (int) ceil($total / max($limit, 1))),
+                'has_more' => ($offset + count($data)) < $total,
+                'status_counts' => $statusCounts,
+            ],
         ]);
+    }
+
+    /**
+     * Get complete detail and verification history for a single Life Impact submission.
+     */
+    public function showImpact(Request $request, string $id): JsonResponse
+    {
+        $result = $this->activitiesService->getImpactDetail($id, $request);
+
+        return response()->json([
+            'success' => $result['success'],
+            'status' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['data'],
+        ], $result['status_code']);
+    }
+
+    /**
+     * Approve a pending Life Impact submission (Super Admin & in-scope DED only).
+     */
+    public function approveImpact(Request $request, string $id): JsonResponse
+    {
+        $result = $this->activitiesService->approveLeaderImpact($id, $request);
+
+        return response()->json([
+            'success' => $result['success'],
+            'status' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['data'],
+        ], $result['status_code']);
+    }
+
+    /**
+     * Reject a pending Life Impact submission with mandatory reason (Super Admin & in-scope DED only).
+     */
+    public function rejectImpact(Request $request, string $id): JsonResponse
+    {
+        $result = $this->activitiesService->rejectLeaderImpact($id, $request);
+
+        return response()->json([
+            'success' => $result['success'],
+            'status' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['data'],
+        ], $result['status_code']);
     }
 
     /**
@@ -362,25 +422,35 @@ class LeaderActivitiesController extends Controller
 
         $offset = $paginated['offset'] ?? (($page - 1) * $limit);
         $hasMore = ($offset + count($items)) < $totalItemsCount;
+        $statusCounts = in_array(strtolower(trim($type)), ['impacts', 'impact', 'life-impacts'], true)
+            ? $this->activitiesService->getImpactStatusCounts($request)
+            : null;
+
+        $dataPayload = [
+            'peers' => $peers,
+            'items' => $items,
+        ];
+        $metaPayload = [
+            'type' => $type,
+            'unit_label' => $unitLabel,
+            'total_activities' => $totalActivitiesCount,
+            'total_peers' => count($peers),
+            'total' => $totalItemsCount,
+            'page' => $page,
+            'per_page' => $limit,
+            'total_pages' => (int) ceil($totalItemsCount / max($limit, 1)),
+            'has_more' => $hasMore,
+        ];
+        if ($statusCounts !== null) {
+            $dataPayload['status_counts'] = $statusCounts;
+            $metaPayload['status_counts'] = $statusCounts;
+        }
 
         return response()->json([
             'success' => true,
             'status' => true,
-            'data' => [
-                'peers' => $peers,
-                'items' => $items,
-            ],
-            'meta' => [
-                'type' => $type,
-                'unit_label' => $unitLabel,
-                'total_activities' => $totalActivitiesCount,
-                'total_peers' => count($peers),
-                'total' => $totalItemsCount,
-                'page' => $page,
-                'per_page' => $limit,
-                'total_pages' => (int) ceil($totalItemsCount / max($limit, 1)),
-                'has_more' => $hasMore,
-            ],
+            'data' => $dataPayload,
+            'meta' => $metaPayload,
         ]);
     }
 
