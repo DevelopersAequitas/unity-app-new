@@ -12,6 +12,7 @@ use App\Models\ActivityCreative;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\BusinessDeal;
+use App\Models\CelebrationSchedule;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\File;
@@ -26,6 +27,8 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\AdFeedService;
 use App\Services\Ask\AskService;
+use App\Services\Celebrations\CelebrationCreativeService;
+use App\Services\Celebrations\CelebrationPublishingService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationService;
 use App\Services\Notifications\NotifyUserService;
@@ -89,9 +92,6 @@ class PostController extends BaseApiController
 
         $userDistrictIds = array_values(array_unique(array_filter($userDistrictIds)));
         $cityId = $user->city_id;
-
-
-        
 
         try {
             if (Schema::hasTable('asks') && Schema::hasTable('ask_timeline_links')) {
@@ -402,9 +402,9 @@ class PostController extends BaseApiController
             ->all();
 
         $celebrationSchedulesByPostId = (Schema::hasTable('celebration_schedules') && $postIds !== [])
-            ? \App\Models\CelebrationSchedule::query()
+            ? CelebrationSchedule::query()
                 ->whereIn('post_id', $postIds)
-                ->where('status', \App\Models\CelebrationSchedule::STATUS_PUBLISHED)
+                ->where('status', CelebrationSchedule::STATUS_PUBLISHED)
                 ->get()
                 ->keyBy(fn ($sched): string => (string) $sched->post_id)
             : collect();
@@ -415,7 +415,7 @@ class PostController extends BaseApiController
         // displays the exact same personalized creative shown in the Admin Panel.
         if ($celebrationSchedulesByPostId->isNotEmpty()) {
             foreach ($celebrationSchedulesByPostId as $schedPostId => $sched) {
-                if ($sched->event_type !== \App\Models\CelebrationSchedule::TYPE_BIRTHDAY) {
+                if ($sched->event_type !== CelebrationSchedule::TYPE_BIRTHDAY) {
                     continue;
                 }
                 $meta = is_array($sched->meta) ? $sched->meta : [];
@@ -423,7 +423,7 @@ class PostController extends BaseApiController
                     continue;
                 }
                 try {
-                    $refreshed = app(\App\Services\Celebrations\CelebrationPublishingService::class)
+                    $refreshed = app(CelebrationPublishingService::class)
                         ->refreshPublishedCreative($sched);
                     if (! empty($refreshed['schedule'])) {
                         $celebrationSchedulesByPostId->put((string) $schedPostId, $refreshed['schedule']);
@@ -464,7 +464,7 @@ class PostController extends BaseApiController
                 if (! $celebrant) {
                     continue;
                 }
-                $generated = app(\App\Services\Celebrations\CelebrationCreativeService::class)->generateBirthdayCreative($celebrant);
+                $generated = app(CelebrationCreativeService::class)->generateBirthdayCreative($celebrant);
                 $newFileId = (string) $generated['file']->id;
                 $newUrl = (string) $generated['url'];
                 Post::query()->whereKey($bdayPostId)->update([
@@ -1123,7 +1123,103 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $recentLikesByPostId = [];
+        $latestCommentsByPostId = [];
+        if ($postIds !== []) {
+            if (Schema::hasTable('post_likes')) {
+                $rawLikes = DB::table('post_likes')
+                    ->whereIn('post_id', $postIds)
+                    ->orderByDesc('created_at')
+                    ->get(['id', 'post_id', 'user_id', 'created_at']);
+
+                $groupedLikes = [];
+                $likeUserIds = [];
+                foreach ($rawLikes as $likeRow) {
+                    $pId = (string) $likeRow->post_id;
+                    if (! isset($groupedLikes[$pId])) {
+                        $groupedLikes[$pId] = [];
+                    }
+                    if (count($groupedLikes[$pId]) < 3) {
+                        $groupedLikes[$pId][] = $likeRow;
+                        if (! empty($likeRow->user_id)) {
+                            $likeUserIds[] = (string) $likeRow->user_id;
+                        }
+                    }
+                }
+
+                $likeUsers = $likeUserIds !== []
+                    ? User::withTrashed()->whereIn('id', array_values(array_unique($likeUserIds)))->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'profile_photo_file_id', 'profile_photo_url'])->keyBy(fn ($u) => (string) $u->id)
+                    : collect();
+
+                foreach ($groupedLikes as $pId => $lRows) {
+                    $recentLikesByPostId[$pId] = array_map(function ($lRow) use ($likeUsers) {
+                        $u = $likeUsers->get((string) $lRow->user_id);
+                        $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                        if (empty($displayName) && ! empty($u?->email)) {
+                            $displayName = Str::before($u->email, '@');
+                        }
+                        $photo = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                        return [
+                            'id' => (string) ($lRow->id ?? $lRow->user_id),
+                            'user_id' => (string) $lRow->user_id,
+                            'display_name' => $displayName ?: 'User',
+                            'profile_photo_url' => $photo,
+                            'created_at' => $this->formatToDefaultDateTime($lRow->created_at),
+                        ];
+                    }, $lRows);
+                }
+            }
+
+            if (Schema::hasTable('post_comments')) {
+                $rawComments = DB::table('post_comments')
+                    ->whereIn('post_id', $postIds)
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('created_at')
+                    ->get(['id', 'post_id', 'user_id', 'content', 'created_at']);
+
+                $groupedComments = [];
+                $commentUserIds = [];
+                foreach ($rawComments as $commRow) {
+                    $pId = (string) $commRow->post_id;
+                    if (! isset($groupedComments[$pId])) {
+                        $groupedComments[$pId] = [];
+                    }
+                    if (count($groupedComments[$pId]) < 2) {
+                        $groupedComments[$pId][] = $commRow;
+                        if (! empty($commRow->user_id)) {
+                            $commentUserIds[] = (string) $commRow->user_id;
+                        }
+                    }
+                }
+
+                $commentUsers = $commentUserIds !== []
+                    ? User::withTrashed()->whereIn('id', array_values(array_unique($commentUserIds)))->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'profile_photo_file_id', 'profile_photo_url'])->keyBy(fn ($u) => (string) $u->id)
+                    : collect();
+
+                foreach ($groupedComments as $pId => $cRows) {
+                    $latestCommentsByPostId[$pId] = array_map(function ($cRow) use ($commentUsers) {
+                        $u = $commentUsers->get((string) $cRow->user_id);
+                        $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                        if (empty($displayName) && ! empty($u?->email)) {
+                            $displayName = Str::before($u->email, '@');
+                        }
+                        $photo = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                        return [
+                            'id' => (string) $cRow->id,
+                            'user_id' => (string) $cRow->user_id,
+                            'display_name' => $displayName ?: 'User',
+                            'profile_photo_url' => $photo,
+                            'content' => (string) ($cRow->content ?? ''),
+                            'created_at' => $this->formatToDefaultDateTime($cRow->created_at),
+                        ];
+                    }, $cRows);
+                }
+            }
+        }
+
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes, $recentLikesByPostId, $latestCommentsByPostId) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -1441,6 +1537,11 @@ class PostController extends BaseApiController
                 'is_wished_by_me' => (bool) ($row->is_wished_by_me ?? false),
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
+                'recent_likes' => $recentLikesByPostId[(string) $row->id] ?? [],
+                'latest_comments' => $latestCommentsByPostId[(string) $row->id] ?? [],
+                'preview_liker_name' => ($recentLikesByPostId[(string) $row->id][0]['display_name'] ?? null),
+                'preview_comment_user' => ($latestCommentsByPostId[(string) $row->id][0]['display_name'] ?? null),
+                'preview_comment_text' => ($latestCommentsByPostId[(string) $row->id][0]['content'] ?? null),
                 'created_at' => $this->formatToDefaultDateTime($row->created_at),
                 'updated_at' => $this->formatToDefaultDateTime($row->updated_at),
             ];
@@ -2028,7 +2129,14 @@ class PostController extends BaseApiController
 
     public function show(Request $request, string $id)
     {
-        $post = Post::with(['user.level4Category', 'user.businessCategory', 'user.mainBusinessCategory', 'circle'])
+        $post = Post::with([
+            'user.level4Category',
+            'user.businessCategory',
+            'user.mainBusinessCategory',
+            'circle',
+            'likes' => fn ($q) => $q->latest('created_at')->take(3)->with('user'),
+            'comments' => fn ($q) => $q->latest('created_at')->take(2)->with('user'),
+        ])
             ->withCount(['likes', 'comments', 'saves'])
             ->withExists([
                 'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
@@ -2154,6 +2262,68 @@ class PostController extends BaseApiController
             'is_wished_by_me' => (bool) ($post->is_wished_by_me ?? false),
             'saves_count' => isset($post->saves_count) ? (int) $post->saves_count : 0,
             'is_saved' => (bool) ($post->is_saved_by_me ?? false),
+            'recent_likes' => ($post->relationLoaded('likes') && $post->likes)
+                ? $post->likes->take(3)->map(function ($like) {
+                    $u = $like->user;
+                    $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                    if (empty($displayName) && ! empty($u?->email)) {
+                        $displayName = Str::before($u->email, '@');
+                    }
+                    $photo = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                    return [
+                        'id' => (string) ($like->id ?? $like->user_id),
+                        'user_id' => (string) ($like->user_id ?? $u?->id),
+                        'display_name' => $displayName ?: 'User',
+                        'profile_photo_url' => $photo,
+                        'created_at' => $this->formatToDefaultDateTime($like->created_at),
+                    ];
+                })->values()->all()
+                : [],
+            'latest_comments' => ($post->relationLoaded('comments') && $post->comments)
+                ? $post->comments->take(2)->map(function ($comment) {
+                    $u = $comment->user;
+                    $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                    if (empty($displayName) && ! empty($u?->email)) {
+                        $displayName = Str::before($u->email, '@');
+                    }
+                    $photo = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                    return [
+                        'id' => (string) $comment->id,
+                        'user_id' => (string) ($comment->user_id ?? $u?->id),
+                        'display_name' => $displayName ?: 'User',
+                        'profile_photo_url' => $photo,
+                        'content' => (string) ($comment->content ?? ''),
+                        'created_at' => $this->formatToDefaultDateTime($comment->created_at),
+                    ];
+                })->values()->all()
+                : [],
+            'preview_liker_name' => ($post->relationLoaded('likes') && $post->likes->isNotEmpty())
+                ? (function () use ($post) {
+                    $firstLikeUser = $post->likes->first()?->user;
+                    if (! $firstLikeUser) {
+                        return null;
+                    }
+                    $name = $firstLikeUser->display_name ?: trim(($firstLikeUser->first_name ?? '').' '.($firstLikeUser->last_name ?? ''));
+
+                    return $name ?: (Str::before($firstLikeUser->email ?? '', '@') ?: 'User');
+                })()
+                : null,
+            'preview_comment_user' => ($post->relationLoaded('comments') && $post->comments->isNotEmpty())
+                ? (function () use ($post) {
+                    $firstCommUser = $post->comments->first()?->user;
+                    if (! $firstCommUser) {
+                        return null;
+                    }
+                    $name = $firstCommUser->display_name ?: trim(($firstCommUser->first_name ?? '').' '.($firstCommUser->last_name ?? ''));
+
+                    return $name ?: (Str::before($firstCommUser->email ?? '', '@') ?: 'User');
+                })()
+                : null,
+            'preview_comment_text' => ($post->relationLoaded('comments') && $post->comments->isNotEmpty())
+                ? (string) ($post->comments->first()?->content ?? null)
+                : null,
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
         ];
@@ -2566,9 +2736,9 @@ class PostController extends BaseApiController
                 $meeting = P2pMeeting::where(function ($q) use ($authorId) {
                     $q->where('initiator_user_id', $authorId)->orWhere('peer_user_id', $authorId);
                 })
-                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
-                ->latest('created_at')
-                ->first();
+                    ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                    ->latest('created_at')
+                    ->first();
             }
             if ($meeting) {
                 $counterpart = (string) $meeting->initiator_user_id === $authorId ? (string) $meeting->peer_user_id : (string) $meeting->initiator_user_id;
@@ -2586,9 +2756,9 @@ class PostController extends BaseApiController
                 $deal = BusinessDeal::where(function ($q) use ($authorId) {
                     $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
                 })
-                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
-                ->latest('created_at')
-                ->first();
+                    ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                    ->latest('created_at')
+                    ->first();
             }
             if ($deal) {
                 $counterpart = (string) $deal->from_user_id === $authorId ? (string) $deal->to_user_id : (string) $deal->from_user_id;
@@ -2606,9 +2776,9 @@ class PostController extends BaseApiController
                 $test = Testimonial::where(function ($q) use ($authorId) {
                     $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
                 })
-                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
-                ->latest('created_at')
-                ->first();
+                    ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                    ->latest('created_at')
+                    ->first();
             }
             if ($test) {
                 $counterpart = (string) $test->from_user_id === $authorId ? (string) $test->to_user_id : (string) $test->from_user_id;

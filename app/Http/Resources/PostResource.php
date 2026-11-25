@@ -10,6 +10,7 @@ use App\Models\BusinessDeal;
 use App\Models\File;
 use App\Models\P2pMeeting;
 use App\Models\Post;
+use App\Models\PostComment;
 use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\Testimonial;
@@ -60,7 +61,7 @@ class PostResource extends JsonResource
             if (isset($this->is_wished_by_me)) {
                 $isWishedByMe = (bool) $this->is_wished_by_me;
             } elseif (! empty($this->id) && ($isBirthday || $isAnniversary) && Schema::hasTable('post_comments')) {
-                $isWishedByMe = \App\Models\PostComment::query()
+                $isWishedByMe = PostComment::query()
                     ->where('post_id', $this->id)
                     ->where('user_id', $authUser->id)
                     ->exists();
@@ -276,9 +277,9 @@ class PostResource extends JsonResource
                         $meeting = P2pMeeting::where(function ($q) use ($authorId) {
                             $q->where('initiator_user_id', $authorId)->orWhere('peer_user_id', $authorId);
                         })
-                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
-                        ->latest('created_at')
-                        ->first();
+                            ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                            ->latest('created_at')
+                            ->first();
                     }
                     if ($meeting) {
                         $counterpart = (string) $meeting->initiator_user_id === $authorId ? (string) $meeting->peer_user_id : (string) $meeting->initiator_user_id;
@@ -296,9 +297,9 @@ class PostResource extends JsonResource
                         $deal = BusinessDeal::where(function ($q) use ($authorId) {
                             $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
                         })
-                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
-                        ->latest('created_at')
-                        ->first();
+                            ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                            ->latest('created_at')
+                            ->first();
                     }
                     if ($deal) {
                         $counterpart = (string) $deal->from_user_id === $authorId ? (string) $deal->to_user_id : (string) $deal->from_user_id;
@@ -316,9 +317,9 @@ class PostResource extends JsonResource
                         $test = Testimonial::where(function ($q) use ($authorId) {
                             $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
                         })
-                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
-                        ->latest('created_at')
-                        ->first();
+                            ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                            ->latest('created_at')
+                            ->first();
                     }
                     if ($test) {
                         $counterpart = (string) $test->from_user_id === $authorId ? (string) $test->to_user_id : (string) $test->from_user_id;
@@ -514,6 +515,73 @@ class PostResource extends JsonResource
             'is_wished_by_me' => $isWishedByMe,
             'saves_count' => $savesCount,
             'is_saved' => $isSaved,
+
+            'recent_likes' => ($this->relationLoaded('likes') && $this->likes)
+                ? $this->likes->take(3)->map(function ($like) {
+                    $u = $like->user;
+                    $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                    if (empty($displayName) && ! empty($u?->email)) {
+                        $displayName = Str::before($u->email, '@');
+                    }
+                    $profilePhoto = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                    return [
+                        'id' => (string) ($like->id ?? $like->user_id),
+                        'user_id' => (string) ($like->user_id ?? $u?->id),
+                        'display_name' => $displayName ?: 'User',
+                        'profile_photo_url' => $profilePhoto,
+                        'created_at' => $this->formatToDefaultDateTime($like->created_at),
+                    ];
+                })->values()->all()
+                : [],
+
+            'latest_comments' => ($this->relationLoaded('comments') && $this->comments)
+                ? $this->comments->take(2)->map(function ($comment) {
+                    $u = $comment->user;
+                    $displayName = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'User';
+                    if (empty($displayName) && ! empty($u?->email)) {
+                        $displayName = Str::before($u->email, '@');
+                    }
+                    $profilePhoto = $u ? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : ($u->profile_photo_url ?: null)) : null;
+
+                    return [
+                        'id' => (string) $comment->id,
+                        'user_id' => (string) ($comment->user_id ?? $u?->id),
+                        'display_name' => $displayName ?: 'User',
+                        'profile_photo_url' => $profilePhoto,
+                        'content' => (string) ($comment->content ?? ''),
+                        'created_at' => $this->formatToDefaultDateTime($comment->created_at),
+                    ];
+                })->values()->all()
+                : [],
+
+            'preview_liker_name' => ($this->relationLoaded('likes') && $this->likes->isNotEmpty())
+                ? (function () {
+                    $firstLikeUser = $this->likes->first()?->user;
+                    if (! $firstLikeUser) {
+                        return null;
+                    }
+                    $name = $firstLikeUser->display_name ?: trim(($firstLikeUser->first_name ?? '').' '.($firstLikeUser->last_name ?? ''));
+
+                    return $name ?: (Str::before($firstLikeUser->email ?? '', '@') ?: 'User');
+                })()
+                : null,
+
+            'preview_comment_user' => ($this->relationLoaded('comments') && $this->comments->isNotEmpty())
+                ? (function () {
+                    $firstCommUser = $this->comments->first()?->user;
+                    if (! $firstCommUser) {
+                        return null;
+                    }
+                    $name = $firstCommUser->display_name ?: trim(($firstCommUser->first_name ?? '').' '.($firstCommUser->last_name ?? ''));
+
+                    return $name ?: (Str::before($firstCommUser->email ?? '', '@') ?: 'User');
+                })()
+                : null,
+
+            'preview_comment_text' => ($this->relationLoaded('comments') && $this->comments->isNotEmpty())
+                ? (string) ($this->comments->first()?->content ?? null)
+                : null,
 
             'created_at' => $this->formatToDefaultDateTime($this->created_at),
             'updated_at' => $this->formatToDefaultDateTime($this->updated_at),
