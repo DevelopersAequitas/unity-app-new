@@ -107,17 +107,14 @@ jobs:
             chmod -R ug+rwX storage/framework storage/logs bootstrap/cache || true
 
             # Media is shared with the existing domain (same database): link each media folder, never copy or delete.
+            # Note: script_stop checks every line's exit code, so each line below must exit 0.
             if [ -d "$SHARED_MEDIA" ]; then
                 for SRC in "$SHARED_MEDIA"/*/; do
                     NAME="$(basename "$SRC")"
-                    [ "$NAME" = "public" ] && continue
-                    [ -L "$SHARED_MEDIA/$NAME" ] && continue
-                    if [ ! -e "storage/app/public/$NAME" ] && [ ! -L "storage/app/public/$NAME" ]; then
-                        ln -s "$SHARED_MEDIA/$NAME" "storage/app/public/$NAME"
-                    fi
+                    if [ "$NAME" != "public" ] && [ ! -L "$SHARED_MEDIA/$NAME" ] && [ ! -e "storage/app/public/$NAME" ] && [ ! -L "storage/app/public/$NAME" ]; then ln -s "$SHARED_MEDIA/$NAME" "storage/app/public/$NAME"; fi
                 done
             fi
-            [ -e public/storage ] || [ -L public/storage ] || ln -s "$DEPLOY_PATH/storage/app/public" public/storage
+            if [ ! -e public/storage ] && [ ! -L public/storage ]; then ln -s "$DEPLOY_PATH/storage/app/public" public/storage; fi
 
             # No migrations: the database is shared with the existing domain and managed manually.
             # No cache:clear / optimize:clear: the database cache store is shared with the existing domain.
