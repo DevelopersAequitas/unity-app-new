@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Creative;
 
 use App\Models\ActivityCreative;
+use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\FileModel;
 use App\Models\Post;
@@ -305,11 +306,11 @@ class WelcomeCreativeService
     /**
      * Determine if a user has all mandatory details needed to generate and post a welcome creative:
      * 1. Valid user name
-     * 2. Company / business name
-     * 3. Child business category (subcategory)
-     * 4. Real profile photo (verified by Gemini Vision to not be a letter/initials placeholder)
+     * 2. Profile photo
+     * 3. Company / business name
+     * 4. Business category
      *
-     * Note: Phone number is not required.
+     * Note: City and designation are optional.
      */
     public function isEligibleForWelcomeCreative(User $user): bool
     {
@@ -323,23 +324,47 @@ class WelcomeCreativeService
             return false;
         }
 
-        // 2. Must have company / business name
+        // 2. Must have a profile avatar / photo
+        $avatarUrl = $this->resolveUserAvatarUrl($user);
+        if (blank($avatarUrl)) {
+            return false;
+        }
+
+        // 3. Must have company / business name
         $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
         if ($company === '') {
             return false;
         }
 
-        // 3. Must have child business category (subcategory)
-        $hasChildCategory = filled($user->business_category_id)
-            || filled($user->business_sub_category)
-            || ($user->relationLoaded('level4Category') && filled($user->level4Category?->name));
-        if (! $hasChildCategory) {
-            return false;
+        // 4. Must have business category
+        $categoryName = '';
+        try {
+            if ($user->relationLoaded('level4Category') && $user->level4Category) {
+                $categoryName = $user->level4Category->name ?? '';
+            } elseif (! empty($user->business_category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
+            } elseif (! empty($user->category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->category_id)?->name ?? '';
+            }
+
+            if (empty($categoryName) && $user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
+                $categoryName = $user->mainBusinessCategory->name ?? '';
+            }
+
+            if (empty($categoryName) && isset($user->businessCategory)) {
+                $categoryName = $user->businessCategory->name ?? '';
+            }
+        } catch (\Throwable) {
         }
 
-        // 4. Must have a valid profile avatar
-        $avatarUrl = $this->resolveUserAvatarUrl($user);
-        if (blank($avatarUrl)) {
+        if (empty($categoryName)) {
+            $categoryName = $user->category_name ?? $user->business_sub_category ?? $user->industry ?? $user->business_category ?? '';
+        }
+        if (is_array($categoryName)) {
+            $categoryName = $categoryName['name'] ?? $categoryName['label'] ?? '';
+        }
+        $categoryName = trim((string) $categoryName);
+        if (empty($categoryName) || in_array(strtolower($categoryName), ['null', 'none', 'n/a', 'peers global member', 'peer'], true)) {
             return false;
         }
 

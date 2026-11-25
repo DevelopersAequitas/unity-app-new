@@ -82,7 +82,8 @@ class WelcomeCreativeImageGenerator
         }
         $name = strtoupper($name);
 
-        // 2. City • Company (Uppercase, Slate Gray, Montserrat SemiBold)
+        // 2. Line 2: Priority City 1st, then Designation if no City, then only Company Name
+        // "if no city then use designation if no designation then direct only company name and if not both then company name at middle and also priority the city 1st"
         $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
 
         $cityModel = null;
@@ -107,19 +108,28 @@ class WelcomeCreativeImageGenerator
             $cityName = '';
         }
 
+        $designation = trim((string) ($user->designation ?? $user->job_title ?? ''));
+        if (in_array(strtolower($designation), ['null', 'none', 'n/a'], true)) {
+            $designation = '';
+        }
+
         $line2Parts = [];
         if (! empty($cityName)) {
             $line2Parts[] = strtoupper($cityName);
+        } elseif (! empty($designation)) {
+            $line2Parts[] = strtoupper($designation);
         }
+
         if (! empty($company)) {
             $line2Parts[] = strtoupper($company);
         }
+
         $line2Text = implode('  •  ', $line2Parts);
         if (empty($line2Text)) {
             $line2Text = 'PEERS GLOBAL MEMBER';
         }
 
-        // 3. Category / Subcategory / Designation (Uppercase, Deep Navy / Indigo, Montserrat Bold)
+        // 3. Category / Subcategory (Uppercase, Montserrat Bold, Horizontal Navy-to-Crimson Gradient)
         $categoryName = '';
         try {
             if ($user->relationLoaded('level4Category') && $user->level4Category) {
@@ -153,11 +163,7 @@ class WelcomeCreativeImageGenerator
             $categoryName = '';
         }
 
-        $designation = trim((string) ($user->designation ?? $user->job_title ?? ''));
-        $categoryText = ! empty($categoryName) ? $categoryName : $designation;
-        if (empty($categoryText)) {
-            $categoryText = 'COMMUNITY MEMBER';
-        }
+        $categoryText = ! empty($categoryName) ? $categoryName : ($designation ?: 'COMMUNITY MEMBER');
         $categoryText = strtoupper($categoryText);
 
         // Helper to draw center-aligned text with auto-scaling to fit within maxWidth
@@ -188,7 +194,7 @@ class WelcomeCreativeImageGenerator
         $nameFontSize = (int) round(34 * min($scaleX, $scaleY));
         $drawCenterText($canvas, $nameFontSize, $nameBaselineY, $colorNavy, $fontBold, $name, (int) round(920 * $scaleX));
 
-        // Line 2: CITY • COMPANY (Slate Gray #616161, Montserrat SemiBold, ~19pt, Baseline Y ~ 1092)
+        // Line 2: [City or Designation] • Company (Slate Gray #616161, Montserrat SemiBold, ~19pt, Baseline Y ~ 1092)
         $line2BaselineY = (int) round(1092 * $scaleY);
         $line2FontSize = (int) round(19 * min($scaleX, $scaleY));
         $drawCenterText($canvas, $line2FontSize, $line2BaselineY, $colorGray, $fontSemiBold, $line2Text, (int) round(920 * $scaleX));
@@ -198,10 +204,12 @@ class WelcomeCreativeImageGenerator
         $dividerHalfWidth = (int) round(185 * $scaleX);
         $this->drawGradientDivider($canvas, $centerX, $dividerY, $dividerHalfWidth, $colorNavy, $colorCrimson);
 
-        // Line 3: Category / Industry (Deep Navy / Indigo #002F6C, Montserrat Bold, ~19pt, Baseline Y ~ 1162)
+        // Line 3: Category / Industry (Horizontal Gradient: Navy #002F6C to Crimson #B22222, Montserrat Bold, Baseline Y ~ 1162)
+        // Auto-scales down to 9pt to display maximum letters possible on canvas
         $categoryBaselineY = (int) round(1162 * $scaleY);
         $categoryFontSize = (int) round(19 * min($scaleX, $scaleY));
-        $drawCenterText($canvas, $categoryFontSize, $categoryBaselineY, $colorNavy, $fontBold, $categoryText, (int) round(920 * $scaleX));
+        $maxCategoryWidth = (int) round(940 * $scaleX);
+        $this->drawGradientCategoryText($canvas, $categoryFontSize, $categoryBaselineY, $fontBold, $categoryText, $maxCategoryWidth, $width);
 
         // Save canvas to disk
         $tempPath = tempnam(sys_get_temp_dir(), 'welcome_');
@@ -257,6 +265,90 @@ class WelcomeCreativeImageGenerator
         @unlink($tempPath);
 
         return $fileModel;
+    }
+
+    /**
+     * Draw category text using a smooth horizontal gradient from Navy (#002F6C) to Crimson (#B22222).
+     * Auto-scales down to fit maximum letters within maxWidth.
+     */
+    private function drawGradientCategoryText($canvas, int $startFontSize, int $baselineY, string $fontBold, string $text, int $maxWidth, int $canvasWidth): void
+    {
+        if (empty($text)) {
+            return;
+        }
+
+        $size = $startFontSize;
+        $bbox = @imagettfbbox($size, 0, $fontBold, $text);
+        while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 9) {
+            $size -= 1;
+            $bbox = @imagettfbbox($size, 0, $fontBold, $text);
+        }
+
+        if (! $bbox) {
+            return;
+        }
+
+        $minX = min($bbox[0], $bbox[6]);
+        $maxX = max($bbox[2], $bbox[4]);
+        $minY = min($bbox[5], $bbox[7]);
+        $maxY = max($bbox[1], $bbox[3]);
+
+        $textWidth = abs($maxX - $minX);
+        $textHeight = abs($maxY - $minY);
+
+        if ($textWidth <= 0 || $textHeight <= 0) {
+            return;
+        }
+
+        $pad = 10;
+        $boxW = $textWidth + ($pad * 2);
+        $boxH = $textHeight + ($pad * 2);
+
+        $textMask = imagecreatetruecolor($boxW, $boxH);
+        if (! $textMask) {
+            return;
+        }
+
+        $black = imagecolorallocate($textMask, 0, 0, 0);
+        $white = imagecolorallocate($textMask, 255, 255, 255);
+        imagefill($textMask, 0, 0, $black);
+
+        $relOriginX = $pad - $minX;
+        $relOriginY = $pad - $minY;
+        imagettftext($textMask, $size, 0, $relOriginX, $relOriginY, $white, $fontBold, $text);
+
+        $destStartX = (int) (($canvasWidth - $textWidth) / 2);
+        $destStartY = $baselineY - ($pad - $minY) + $pad;
+
+        $r1 = 0;
+        $g1 = 47;
+        $b1 = 108; // Navy #002F6C
+        $r2 = 178;
+        $g2 = 34;
+        $b2 = 34;  // Crimson #B22222
+
+        for ($x = 0; $x < $boxW; $x++) {
+            $textRelX = $x - $pad;
+            $t = $textWidth > 1 ? max(0.0, min(1.0, $textRelX / (float) $textWidth)) : 0.0;
+            $r = (int) round($r1 + ($r2 - $r1) * $t);
+            $g = (int) round($g1 + ($g2 - $g1) * $t);
+            $b = (int) round($b1 + ($b2 - $b1) * $t);
+
+            $pixelColor = imagecolorallocate($canvas, $r, $g, $b);
+
+            for ($y = 0; $y < $boxH; $y++) {
+                $maskVal = imagecolorat($textMask, $x, $y) & 0xFF;
+                if ($maskVal > 20) {
+                    $dx = $destStartX - $pad + $x;
+                    $dy = $destStartY - $pad + $y;
+                    if ($dx >= 0 && $dx < imagesx($canvas) && $dy >= 0 && $dy < imagesy($canvas)) {
+                        imagesetpixel($canvas, $dx, $dy, $pixelColor);
+                    }
+                }
+            }
+        }
+
+        imagedestroy($textMask);
     }
 
     /**
