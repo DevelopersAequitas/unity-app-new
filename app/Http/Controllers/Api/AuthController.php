@@ -63,25 +63,33 @@ class AuthController extends BaseApiController
     {
         $data = $request->validated();
 
-        // Enforce phone verification token validation for non-LinkedIn registration
+        // Validate phone verification token if provided (WhatsApp pre-verification flow)
         $phoneVerificationToken = (string) ($data['phone_verification_token']
             ?? $request->input('phone_verification_token')
             ?? $request->input('verification_token')
             ?? '');
 
-        $phoneVerificationService = app(PhoneRegisterVerificationService::class);
         $phoneInput = (string) ($data['phone'] ?? $request->input('phone') ?? '');
         $countryCodeInput = $request->input('country_code') ? (string) $request->input('country_code') : null;
+        $phoneVerified = ! empty($data['phone_verified']);
 
-        if (blank($phoneVerificationToken) || ! $phoneVerificationService->validatePhoneVerificationToken($phoneVerificationToken, $phoneInput, $countryCodeInput)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Phone verification token is missing or invalid. Please verify your phone number via WhatsApp first.',
-                'errors' => [
-                    'phone_verification_token' => ['Phone verification token is missing or invalid. Please verify your phone number via WhatsApp first.'],
-                ],
-            ], 422);
+        if (filled($phoneVerificationToken)) {
+            $phoneVerificationService = app(PhoneRegisterVerificationService::class);
+
+            if (! $phoneVerificationService->validatePhoneVerificationToken($phoneVerificationToken, $phoneInput, $countryCodeInput)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Phone verification token is invalid or expired. Please verify your phone number via WhatsApp first.',
+                    'errors' => [
+                        'phone_verification_token' => ['Phone verification token is invalid or expired. Please verify your phone number via WhatsApp first.'],
+                    ],
+                ], 422);
+            }
+
+            $phoneVerified = true;
         }
+
+        $data['phone_verified'] = $phoneVerified;
 
         $data = $this->resolveRegisterCategoryPath($data);
 
@@ -975,14 +983,14 @@ class AuthController extends BaseApiController
         $user->email = $data['email'];
         $user->phone = $data['phone'] ?? null;
 
-        // Atomically set phone_verified_at since phone OTP was verified before account creation
+        // Atomically set phone_verified_at if phone OTP was verified before account creation
         if (Schema::hasColumn('users', 'phone_verified_at')) {
-            $user->phone_verified_at = now();
+            $user->phone_verified_at = ! empty($data['phone_verified']) ? now() : null;
         }
 
         // Email is not verified at signup
         if (Schema::hasColumn('users', 'email_verified_at')) {
-            $user->email_verified_at = null;
+            $user->email_verified_at = ! empty($data['email_verified']) ? now() : null;
         }
 
         $user->company_name = $data['company_name'] ?? null;

@@ -17,6 +17,7 @@ use App\Models\AppSocialLink;
 use App\Models\AppTutorialStep;
 use App\Services\AppConfigService;
 use App\Services\AppTutorialPopupService;
+use App\Services\TimelineCardConfigService;
 use App\Support\GreenpreneurIconCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,7 @@ class AppConfigController extends Controller
         Cache::forget('app_config:peers:v2');
         Cache::forget('app_config:greenpreneur:v2');
         Cache::forget('app_config:peers');
+        Cache::forget(TimelineCardConfigService::CACHE_KEY);
     }
 
     public static function buildPublicConfig(AppInstance $appInstance): array
@@ -106,6 +108,7 @@ class AppConfigController extends Controller
             ->toArray() ?: array_keys(array_filter($features));
 
         $icons = self::icons($appInstanceId);
+        $timelineCards = app(TimelineCardConfigService::class)->getTimelineCardsConfig();
 
         return [
             'app_info' => self::appInfo($branding),
@@ -113,6 +116,7 @@ class AppConfigController extends Controller
             'icons' => $icons,
             'drawer_menu' => $icons['drawer_menu'] ?? [],
             'features' => $features,
+            'timeline_cards' => $timelineCards,
             'tutorial_steps' => self::tutorialSteps($appInstanceId),
             'labels' => AppLabel::query()
                 ->where('app_instance_id', $appInstanceId)
@@ -141,6 +145,7 @@ class AppConfigController extends Controller
         if (Cache::has(AppTutorialPopupService::MASTER_CACHE_KEY)) {
             $features['tutorials'] = (bool) Cache::get(AppTutorialPopupService::MASTER_CACHE_KEY);
         }
+        $timelineCards = app(TimelineCardConfigService::class)->getTimelineCardsConfig();
 
         return [
             'app_info' => self::defaultAppInfo(),
@@ -148,6 +153,7 @@ class AppConfigController extends Controller
             'icons' => self::defaultIcons(),
             'drawer_menu' => [],
             'features' => $features,
+            'timeline_cards' => $timelineCards,
             'tutorial_steps' => self::defaultTutorialSteps(),
             'labels' => self::defaultLabels(),
             'navigation_menu' => [],

@@ -96,6 +96,7 @@ class CircleManagementController extends BaseApiController
         }
 
         $perPage = min(100, max(1, (int) $request->input('per_page', 50)));
+
         return $this->success($q->orderBy('name')->paginate($perPage));
     }
 
@@ -104,7 +105,7 @@ class CircleManagementController extends BaseApiController
         // Normalize city_id and file UUIDs before validation
         $rawCityId = $request->input('city_id');
         $resolvedCityId = null;
-        if (!empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
+        if (! empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
             $resolvedCityId = (string) $rawCityId;
         } elseif ($request->filled('city')) {
             $cityName = trim((string) $request->input('city'));
@@ -119,12 +120,12 @@ class CircleManagementController extends BaseApiController
             'city_id' => $resolvedCityId,
             'cover_file_id' => ($request->filled('cover_file_id') && Str::isUuid((string) $request->input('cover_file_id'))) ? $request->input('cover_file_id') : null,
             'circle_image_file_id' => ($request->filled('circle_image_file_id') && Str::isUuid((string) $request->input('circle_image_file_id'))) ? $request->input('circle_image_file_id') : null,
-            'chair_user_id' => (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
-            'vice_chair_user_id' => (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
-            'secretary_user_id' => (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
-            'business_growth_committee_chair_user_id' => (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
-            'membership_growth_committee_chair_user_id' => (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
-            'events_impacts_committee_chair_user_id' => (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
+            'chair_user_id' => (! empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
+            'vice_chair_user_id' => (! empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
+            'secretary_user_id' => (! empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
+            'business_growth_committee_chair_user_id' => (! empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
+            'membership_growth_committee_chair_user_id' => (! empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
+            'events_impacts_committee_chair_user_id' => (! empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
         ];
         $request->merge($mergeData);
 
@@ -141,6 +142,7 @@ class CircleManagementController extends BaseApiController
             'circle_stage' => ['nullable', 'string'],
             'industry_tags' => ['nullable'],
             'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
@@ -172,20 +174,22 @@ class CircleManagementController extends BaseApiController
         ]);
 
         $baseSlug = Str::slug((string) ($validated['name'] ?? 'circle'));
-        if ($baseSlug === '') $baseSlug = 'circle';
+        if ($baseSlug === '') {
+            $baseSlug = 'circle';
+        }
         $slug = $baseSlug;
         $counter = 1;
         while (Circle::where('slug', $slug)->exists()) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->slug = $slug;
 
         $fillableColumns = [
             'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
-            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id',
             'industry_director_user_id', 'ded_user_id', 'eed_user_id',
             'chair_user_id', 'vice_chair_user_id', 'secretary_user_id',
             'cover_file_id',
@@ -197,6 +201,16 @@ class CircleManagementController extends BaseApiController
         foreach ($fillableColumns as $col) {
             if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
                 $circle->{$col} = $validated[$col];
+            }
+        }
+
+        $founderId = $validated['circle_founder_user_id'] ?? $validated['founder_user_id'] ?? null;
+        if ($founderId !== null) {
+            if (Schema::hasColumn('circles', 'founder_user_id')) {
+                $circle->founder_user_id = $founderId;
+            }
+            if (Schema::hasColumn('circles', 'circle_founder_user_id')) {
+                $circle->circle_founder_user_id = $founderId;
             }
         }
 
@@ -222,7 +236,7 @@ class CircleManagementController extends BaseApiController
             ?? data_get($validated, 'calendar.settings.meeting_repeat')
             ?? data_get($validated, 'calendar.meeting_schedule.0')
             ?? $circle->meeting_repeat;
-        if (is_array($rawRepeat) && !empty($rawRepeat)) {
+        if (is_array($rawRepeat) && ! empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $calendar);
             $circle->meeting_repeat = $normalizedRepeat;
             data_set($calendar, 'settings.meeting_repeat', $normalizedRepeat);
@@ -267,7 +281,8 @@ class CircleManagementController extends BaseApiController
         if ($request->filled('launch_date')) {
             data_set($calendar, 'settings.launch_date', $request->input('launch_date'));
         }
-        data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_founder_user_id', $founderId);
+        data_set($calendar, 'leadership.founder_user_id', $founderId);
         data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
         data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
         data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
@@ -278,12 +293,16 @@ class CircleManagementController extends BaseApiController
         $circle->calendar = $calendar;
         $circle->save();
 
-        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
-            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories') && (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories'))) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn ($id) => (int) $id)->values()->all();
             $circle->categories()->sync($categoryIds);
         }
 
-        $circle->load(['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+        $loadRelations = ['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $loadRelations[] = 'categories';
+        }
+        $circle->load($loadRelations);
 
         return $this->success($circle, 'Circle created successfully.', 201);
     }
@@ -343,9 +362,9 @@ class CircleManagementController extends BaseApiController
 
         if (! $request) {
             return $this->success([
-                'has_proposal'      => false,
+                'has_proposal' => false,
                 'recommended_peers' => [],
-                'count'             => 0,
+                'count' => 0,
             ]);
         }
 
@@ -354,18 +373,18 @@ class CircleManagementController extends BaseApiController
         $summary = $resolver->getSummary($request, $peers);
 
         return $this->success([
-            'has_proposal'      => true,
-            'request_id'        => $request->id,
-            'circle_name'       => $request->circle_name,
-            'founder'           => [
-                'id'    => $request->user?->id,
-                'name'  => $request->user?->display_name ?: trim(($request->user?->first_name ?? '').' '.($request->user?->last_name ?? '')),
+            'has_proposal' => true,
+            'request_id' => $request->id,
+            'circle_name' => $request->circle_name,
+            'founder' => [
+                'id' => $request->user?->id,
+                'name' => $request->user?->display_name ?: trim(($request->user?->first_name ?? '').' '.($request->user?->last_name ?? '')),
                 'email' => $request->user?->email,
                 'phone' => $request->user?->phone,
             ],
             'recommended_peers' => $peers,
-            'count'             => $peers->count(),
-            'summary'           => $summary,
+            'count' => $peers->count(),
+            'summary' => $summary,
         ]);
     }
 
@@ -376,7 +395,7 @@ class CircleManagementController extends BaseApiController
         if ($request->has('city_id')) {
             $rawCityId = $request->input('city_id');
             $resolvedCityId = null;
-            if (!empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
+            if (! empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
                 $resolvedCityId = (string) $rawCityId;
             } elseif ($request->filled('city')) {
                 $cityName = trim((string) $request->input('city'));
@@ -384,10 +403,10 @@ class CircleManagementController extends BaseApiController
             }
             $request->merge(['city_id' => $resolvedCityId]);
         }
-        if ($request->has('cover_file_id') && !empty($request->input('cover_file_id')) && !Str::isUuid((string) $request->input('cover_file_id'))) {
+        if ($request->has('cover_file_id') && ! empty($request->input('cover_file_id')) && ! Str::isUuid((string) $request->input('cover_file_id'))) {
             $request->merge(['cover_file_id' => null]);
         }
-        if ($request->has('circle_image_file_id') && !empty($request->input('circle_image_file_id')) && !Str::isUuid((string) $request->input('circle_image_file_id'))) {
+        if ($request->has('circle_image_file_id') && ! empty($request->input('circle_image_file_id')) && ! Str::isUuid((string) $request->input('circle_image_file_id'))) {
             $request->merge(['circle_image_file_id' => null]);
         }
 
@@ -397,18 +416,18 @@ class CircleManagementController extends BaseApiController
 
         $mergeData = [];
         if ($request->has('business_growth_committee_chair_user_id') || $request->has('chair_user_id')) {
-            $mergeData['chair_user_id'] = (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null;
+            $mergeData['chair_user_id'] = (! empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null;
             $mergeData['business_growth_committee_chair_user_id'] = $mergeData['chair_user_id'];
         }
         if ($request->has('membership_growth_committee_chair_user_id') || $request->has('vice_chair_user_id')) {
-            $mergeData['vice_chair_user_id'] = (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null;
+            $mergeData['vice_chair_user_id'] = (! empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null;
             $mergeData['membership_growth_committee_chair_user_id'] = $mergeData['vice_chair_user_id'];
         }
         if ($request->has('events_impacts_committee_chair_user_id') || $request->has('secretary_user_id')) {
-            $mergeData['secretary_user_id'] = (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null;
+            $mergeData['secretary_user_id'] = (! empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null;
             $mergeData['events_impacts_committee_chair_user_id'] = $mergeData['secretary_user_id'];
         }
-        if (!empty($mergeData)) {
+        if (! empty($mergeData)) {
             $request->merge($mergeData);
         }
 
@@ -425,6 +444,7 @@ class CircleManagementController extends BaseApiController
             'circle_stage' => ['nullable', 'string'],
             'industry_tags' => ['nullable'],
             'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
@@ -457,7 +477,7 @@ class CircleManagementController extends BaseApiController
 
         $fillableColumns = [
             'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
-            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id',
             'industry_director_user_id', 'ded_user_id', 'eed_user_id',
             'chair_user_id', 'vice_chair_user_id', 'secretary_user_id',
             'cover_file_id',
@@ -469,6 +489,16 @@ class CircleManagementController extends BaseApiController
         foreach ($fillableColumns as $col) {
             if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
                 $circle->{$col} = $validated[$col];
+            }
+        }
+
+        $founderId = $validated['circle_founder_user_id'] ?? $validated['founder_user_id'] ?? null;
+        if ($founderId !== null) {
+            if (Schema::hasColumn('circles', 'founder_user_id')) {
+                $circle->founder_user_id = $founderId;
+            }
+            if (Schema::hasColumn('circles', 'circle_founder_user_id')) {
+                $circle->circle_founder_user_id = $founderId;
             }
         }
 
@@ -500,7 +530,7 @@ class CircleManagementController extends BaseApiController
             ?? data_get($validated, 'calendar.meeting_schedule.0')
             ?? $circle->meeting_repeat
             ?? data_get($currentCalendar, 'settings.meeting_repeat');
-        if (is_array($rawRepeat) && !empty($rawRepeat)) {
+        if (is_array($rawRepeat) && ! empty($rawRepeat)) {
             $normalizedRepeat = Circle::normalizeCadencePayload($rawRepeat, $currentCalendar);
             $circle->meeting_repeat = $normalizedRepeat;
             data_set($currentCalendar, 'settings.meeting_repeat', $normalizedRepeat);
@@ -545,8 +575,9 @@ class CircleManagementController extends BaseApiController
         if ($request->has('launch_date')) {
             data_set($currentCalendar, 'settings.launch_date', $request->input('launch_date'));
         }
-        if (array_key_exists('circle_founder_user_id', $validated)) {
-            data_set($currentCalendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id']);
+        if (array_key_exists('circle_founder_user_id', $validated) || array_key_exists('founder_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.circle_founder_user_id', $founderId);
+            data_set($currentCalendar, 'leadership.founder_user_id', $founderId);
         }
         if (array_key_exists('circle_director_user_id', $validated)) {
             data_set($currentCalendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id']);
@@ -577,12 +608,16 @@ class CircleManagementController extends BaseApiController
 
         $circle->save();
 
-        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
-            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories') && (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories'))) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn ($id) => (int) $id)->values()->all();
             $circle->categories()->sync($categoryIds);
         }
 
-        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+        $loadRelations = ['cityRef', 'circleFounder', 'founder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $loadRelations[] = 'categories';
+        }
+        $circle->load($loadRelations);
 
         return $this->success($circle, 'Circle updated successfully.');
     }
@@ -817,6 +852,7 @@ class CircleManagementController extends BaseApiController
         $roles = Role::query()->get(['id', 'name', 'key'])
             ->sortBy(function ($r) use ($priorityOrder) {
                 $k = strtolower(trim((string) ($r->key ?? '')));
+
                 return $priorityOrder[$k] ?? (100 + (abs(crc32($r->name)) % 1000));
             })
             ->values()

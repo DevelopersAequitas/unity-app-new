@@ -1523,12 +1523,155 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
-        $user->delete();
+        $user = User::withTrashed()->find($userId);
+        if ($user) {
+            DB::transaction(function () use ($userId, $user) {
+                if (Schema::hasTable('circles')) {
+                    $circleCols = ['founder_user_id', 'circle_founder_user_id', 'director_user_id', 'circle_director_user_id', 'chair_user_id', 'vice_chair_user_id', 'secretary_user_id', 'industry_director_user_id', 'ded_user_id', 'eed_user_id'];
+                    foreach ($circleCols as $col) {
+                        if (Schema::hasColumn('circles', $col)) {
+                            DB::table('circles')->where($col, $userId)->update([$col => null]);
+                        }
+                    }
+                }
+                if (Schema::hasTable('districts') && Schema::hasColumn('districts', 'ded_user_id')) {
+                    DB::table('districts')->where('ded_user_id', $userId)->update(['ded_user_id' => null]);
+                }
+                if (Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('events')) {
+                    if (Schema::hasColumn('events', 'created_by_user_id')) {
+                        DB::table('events')->where('created_by_user_id', $userId)->update(['created_by_user_id' => null]);
+                    }
+                    if (Schema::hasColumn('events', 'organizer_user_id')) {
+                        DB::table('events')->where('organizer_user_id', $userId)->update(['organizer_user_id' => null]);
+                    }
+                }
+                if (Schema::hasTable('event_expenses')) {
+                    if (Schema::hasColumn('event_expenses', 'paid_by')) {
+                        DB::table('event_expenses')->where('paid_by', $userId)->update(['paid_by' => null]);
+                    }
+                    if (Schema::hasColumn('event_expenses', 'added_by')) {
+                        DB::table('event_expenses')->where('added_by', $userId)->delete();
+                    }
+                }
+                if (Schema::hasTable('orders')) {
+                    $orderIds = DB::table('orders')->where('user_id', $userId)->pluck('id')->all();
+                    if (! empty($orderIds)) {
+                        if (Schema::hasTable('order_payments')) {
+                            DB::table('order_payments')->whereIn('order_id', $orderIds)->delete();
+                        }
+                        if (Schema::hasTable('receipts')) {
+                            DB::table('receipts')->whereIn('order_id', $orderIds)->delete();
+                        }
+                        if (Schema::hasTable('shipments')) {
+                            DB::table('shipments')->whereIn('order_id', $orderIds)->delete();
+                        }
+                        if (Schema::hasTable('order_items')) {
+                            DB::table('order_items')->whereIn('order_id', $orderIds)->delete();
+                        }
+                        DB::table('orders')->where('user_id', $userId)->delete();
+                    }
+                }
+                if (Schema::hasTable('circle_members')) {
+                    DB::table('circle_members')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('p2p_meetings')) {
+                    DB::table('p2p_meetings')->where('initiator_user_id', $userId)->orWhere('peer_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('business_deals')) {
+                    DB::table('business_deals')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('referrals')) {
+                    DB::table('referrals')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('testimonials')) {
+                    DB::table('testimonials')->where('from_user_id', $userId)->orWhere('to_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('wallet_adjustment_requests')) {
+                    DB::table('wallet_adjustment_requests')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('leader_reports')) {
+                    DB::table('leader_reports')->where('submitted_by_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('attendance_records')) {
+                    DB::table('attendance_records')->where('marked_by', $userId)->update(['marked_by' => null]);
+                    DB::table('attendance_records')->where('member_user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('absence_warnings')) {
+                    DB::table('absence_warnings')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('coins_ledger')) {
+                    DB::table('coins_ledger')->where('created_by', $userId)->update(['created_by' => null]);
+                    DB::table('coins_ledger')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('impacts')) {
+                    DB::table('impacts')->where('approved_by', $userId)->update(['approved_by' => null]);
+                    DB::table('impacts')->where('rejected_by', $userId)->update(['rejected_by' => null]);
+                    DB::table('impacts')->where('impacted_peer_id', $userId)->delete();
+                    DB::table('impacts')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('activities')) {
+                    DB::table('activities')->where('related_user_id', $userId)->update(['related_user_id' => null]);
+                    DB::table('activities')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('support_requests')) {
+                    DB::table('support_requests')->where('routed_to_user_id', $userId)->update(['routed_to_user_id' => null]);
+                    DB::table('support_requests')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasTable('support_tickets')) {
+                    DB::table('support_tickets')->where('user_id', $userId)->update(['user_id' => null]);
+                }
+                if (Schema::hasTable('audit_logs')) {
+                    DB::table('audit_logs')->where('actor_user_id', $userId)->update(['actor_user_id' => null]);
+                }
+                if (Schema::hasTable('member_renewals')) {
+                    DB::table('member_renewals')->where('user_id', $userId)->delete();
+                }
+                if (Schema::hasColumn('users', 'introduced_by')) {
+                    DB::table('users')->where('introduced_by', $userId)->update(['introduced_by' => null]);
+                }
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    DB::table('users')->where('referred_by_user_id', $userId)->update(['referred_by_user_id' => null]);
+                }
+
+                try {
+                    $fks = DB::select("
+                        SELECT tc.table_name, kcu.column_name, rc.delete_rule, c.is_nullable
+                        FROM information_schema.table_constraints tc 
+                        JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name 
+                        JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name 
+                        JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name 
+                        JOIN information_schema.columns c ON c.table_name = tc.table_name AND c.column_name = kcu.column_name
+                        WHERE tc.constraint_type = 'FOREIGN KEY' 
+                          AND ccu.table_name = 'users'
+                          AND rc.delete_rule IN ('NO ACTION', 'RESTRICT')
+                    ");
+                    foreach ($fks as $fk) {
+                        if ($fk->table_name === 'users') {
+                            continue;
+                        }
+                        if ($fk->is_nullable === 'YES') {
+                            DB::table($fk->table_name)->where($fk->column_name, $userId)->update([$fk->column_name => null]);
+                        } else {
+                            DB::table($fk->table_name)->where($fk->column_name, $userId)->delete();
+                        }
+                    }
+                } catch (Throwable) {
+                }
+
+                DB::table('users')->where('id', $userId)->delete();
+                try {
+                    $user->forceDelete();
+                } catch (Throwable) {
+                }
+            });
+        }
 
         return redirect()
             ->route('admin.users.index')
-            ->with('status', 'Peer deleted successfully.');
+            ->with('status', 'Peer permanently deleted successfully.');
     }
 
     private function findAdminUserForPeer(User $user): ?AdminUser
@@ -2556,7 +2699,7 @@ class UsersController extends Controller
         $existingColumns = Schema::getColumnListing('users');
         $userSelectColumns = array_values(array_intersect($userSelectColumns, $existingColumns));
 
-        $query = User::withTrashed()
+        $query = User::query()
             ->select($userSelectColumns)
             ->withCount(['introducedMembers'])
             ->with([

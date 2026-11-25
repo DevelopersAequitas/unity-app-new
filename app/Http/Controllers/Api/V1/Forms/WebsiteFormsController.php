@@ -354,6 +354,18 @@ class WebsiteFormsController extends BaseApiController
     public function indexPartnerWithUs(Request $request)
     {
         $query = PartnerWithUsSubmission::query();
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                if (! empty($user->email)) {
+                    $subQuery->where('email_id', $user->email);
+                }
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('mobile_number', $user->phone);
+                }
+            });
+        }
+
         $this->applyCommonFilters($query, $request, ['first_name', 'last_name', 'email_id', 'brand_or_company_name', 'city', 'industry']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -366,9 +378,22 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
-    public function showPartnerWithUs(string $id)
+    public function showPartnerWithUs(Request $request, string $id)
     {
-        $item = PartnerWithUsSubmission::find($id);
+        $query = PartnerWithUsSubmission::where('id', $id);
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                if (! empty($user->email)) {
+                    $subQuery->where('email_id', $user->email);
+                }
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('mobile_number', $user->phone);
+                }
+            });
+        }
+
+        $item = $query->first();
 
         if (! $item) {
             return $this->submissionNotFound();

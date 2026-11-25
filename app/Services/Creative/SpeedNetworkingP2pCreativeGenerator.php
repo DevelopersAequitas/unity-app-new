@@ -88,10 +88,10 @@ class SpeedNetworkingP2pCreativeGenerator
             $this->drawUserDetails($canvas, $userA, $leftCenterX, $gold, $white, $lightGray, $fontBold, $fontSemiBold, $fontRegular);
             $this->drawUserDetails($canvas, $userB, $rightCenterX, $gold, $white, $lightGray, $fontBold, $fontSemiBold, $fontRegular);
 
-            // 3. Draw Subheader: "P2P SPEED NETWORKING • ROUND X"
+            // 3. Draw Subheader: "P2P SPEED COLLABORATION • ROUND X"
             $roundNumber = $match->round_number;
-            $eventTitle = trim($event->title ?: 'Speed Networking');
-            $subHeader = "P2P SPEED NETWORKING • ROUND {$roundNumber}";
+            $eventTitle = trim($event->title ?: 'Speed Collaboration');
+            $subHeader = "P2P SPEED COLLABORATION • ROUND {$roundNumber}";
             $this->drawCenteredFittedText($canvas, $subHeader, 16, (int) ($width / 2), 655, $gold, $fontBold, 700);
 
             // 4. Congratulations / Networking Statement
@@ -105,7 +105,7 @@ class SpeedNetworkingP2pCreativeGenerator
                 $userBName = 'Peer';
             }
 
-            $paragraph = "Congratulations to {$userAName} and {$userBName} on successfully completing your 1-on-1 Speed Networking meeting. Wishing you both powerful collaboration and mutual business growth across the Peers Global Community.";
+            $paragraph = "Congratulations to {$userAName} and {$userBName} on successfully completing your 1-on-1 Speed Collaboration meeting. Wishing you both powerful collaboration and mutual business growth across the Peers Global Community.";
 
             $lines = $this->wrapTextToLines($paragraph, 15, $fontRegular, 680);
             $currentY = $textStartY + 15;
