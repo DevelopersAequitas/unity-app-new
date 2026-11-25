@@ -210,7 +210,7 @@ class WelcomeCreativeImageGenerator
         $dividerHalfWidth = (int) round(185 * $scaleX);
         $this->drawGradientDivider($canvas, $centerX, $dividerY, $dividerHalfWidth, $colorNavy, $colorCrimson);
 
-        // Line 3: Category / Industry (Horizontal Gradient: Navy #002F6C to Crimson #B22222, Montserrat Bold, Baseline Y ~ 1162)
+        // Line 3: Category / Industry (Horizontal Brand Gradient: #1D4ED8 to #E11D48, Montserrat Bold, Baseline Y ~ 1162)
         // Auto-scales down to 9pt to display maximum letters possible on canvas
         $categoryBaselineY = (int) round(1162 * $scaleY);
         $categoryFontSize = (int) round(19 * min($scaleX, $scaleY));
@@ -274,7 +274,8 @@ class WelcomeCreativeImageGenerator
     }
 
     /**
-     * Draw category text using a smooth horizontal gradient from Navy (#002F6C) to Crimson (#B22222).
+     * Draw category text using a smooth horizontal gradient matching brandGradient:
+     * Color(0xFF1D4ED8) -> Color(0xFFE11D48).
      * Auto-scales down to fit maximum letters within maxWidth.
      */
     private function drawGradientCategoryText($canvas, int $startFontSize, int $baselineY, string $fontBold, string $text, int $maxWidth, int $canvasWidth): void
@@ -326,12 +327,13 @@ class WelcomeCreativeImageGenerator
         $destStartX = (int) (($canvasWidth - $textWidth) / 2);
         $destStartY = $baselineY - ($pad - $minY) + $pad;
 
-        $r1 = 0;
-        $g1 = 47;
-        $b1 = 108; // Navy #002F6C
-        $r2 = 178;
-        $g2 = 34;
-        $b2 = 34;  // Crimson #B22222
+        // brandGradient: Color(0xFF1D4ED8) to Color(0xFFE11D48)
+        $r1 = 29;
+        $g1 = 78;
+        $b1 = 216; // #1D4ED8 Vibrant Royal Blue
+        $r2 = 225;
+        $g2 = 29;
+        $b2 = 72;  // #E11D48 Vibrant Rose/Crimson
 
         for ($x = 0; $x < $boxW; $x++) {
             $textRelX = $x - $pad;
