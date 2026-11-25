@@ -166,6 +166,12 @@ class WelcomeCreativeImageGenerator
         $categoryText = ! empty($categoryName) ? $categoryName : ($designation ?: 'COMMUNITY MEMBER');
         $categoryText = strtoupper($categoryText);
 
+        // Apply character limit to category (e.g. max 30-32 characters with ellipsis like TECHNOLOGY, IT & DIGITAL SE...)
+        $maxChars = 32;
+        if (mb_strlen($categoryText) > $maxChars) {
+            $categoryText = rtrim(mb_substr($categoryText, 0, $maxChars - 3)).'...';
+        }
+
         // Helper to draw center-aligned text with auto-scaling to fit within maxWidth
         $drawCenterText = function ($img, int $fontSize, int $baselineY, int $color, string $font, string $text, int $maxWidth = 920) use ($width): void {
             if (empty($text)) {
