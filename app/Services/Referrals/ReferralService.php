@@ -440,6 +440,9 @@ class ReferralService
         $perPage = max(1, min($perPage, 100));
 
         return ReferralData::query()
+            ->whereHas('referredUser', function ($q): void {
+                $q->whereNull('deleted_at');
+            })
             ->with(['referredUser', 'referredUser.city', 'referredUser.level4Category'])
             ->where('referrer_user_id', $user->id)
             ->whereNotNull('referred_user_id')
@@ -487,13 +490,20 @@ class ReferralService
 
     public function getReferralStats(User $user): array
     {
-        $query = ReferralData::query()->where('referrer_user_id', $user->id);
+        $query = ReferralData::query()
+            ->where('referrer_user_id', $user->id)
+            ->whereHas('referredUser', function ($q): void {
+                $q->whereNull('deleted_at');
+            });
 
         $referrer = User::query()
             ->with(['city', 'activeCircle.cityRef'])
             ->find($user->id);
 
         $referredUsers = ReferralData::query()
+            ->whereHas('referredUser', function ($q): void {
+                $q->whereNull('deleted_at');
+            })
             ->with([
                 'referredUser',
                 'referredUser.city',

@@ -20,6 +20,7 @@ class SubmitBecomeMentorRequest extends FormRequest
             'phone' => $this->trimValue($this->input('phone')),
             'city' => $this->trimValue($this->input('city')),
             'linkedin_profile' => $this->trimValue($this->input('linkedin_profile')),
+            'remarks' => $this->trimValue($this->input('remarks') ?? $this->input('remark')),
         ]);
     }
 
@@ -32,6 +33,8 @@ class SubmitBecomeMentorRequest extends FormRequest
             'phone' => ['required', 'string', 'max:30'],
             'city' => ['required', 'string', 'max:150'],
             'linkedin_profile' => ['nullable', 'url', 'max:500'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'remark' => ['nullable', 'string', 'max:2000'],
         ];
     }
 

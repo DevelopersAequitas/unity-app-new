@@ -516,4 +516,80 @@ class WebPublicApiController extends Controller
             'data' => $mapped,
         ]);
     }
+
+    /**
+     * Get read-only live ecosystem metrics for public website.
+     * Cached for 10 minutes to protect database performance.
+     */
+    public function ecosystemMetrics(): JsonResponse
+    {
+        $data = \Illuminate\Support\Facades\Cache::remember('public_ecosystem_metrics_cache', 600, function (): array {
+            $peersCount = 0;
+            $citiesCount = 0;
+            $countriesCount = 0;
+            $liveImpacts = 1000000;
+
+            try {
+                // Count active registered users in unity app
+                $peersCount = (int) \App\Models\User::query()
+                    ->where('status', '!=', 'inactive')
+                    ->count();
+
+                // If user status filtering returns 0, fallback to total users count
+                if ($peersCount === 0) {
+                    $peersCount = (int) \App\Models\User::count();
+                }
+
+                // Count unique valid cities across registered peers
+                $citiesCount = (int) \App\Models\User::query()
+                    ->whereNotNull('city')
+                    ->whereRaw("TRIM(city) != ''")
+                    ->distinct()
+                    ->count('city');
+
+                // Count unique valid countries across registered peers
+                $countriesCount = (int) \App\Models\User::query()
+                    ->whereNotNull('country')
+                    ->whereRaw("TRIM(country) != ''")
+                    ->distinct()
+                    ->count('country');
+
+                // Calculate real live impacts from life_impact_histories table
+                if (\Illuminate\Support\Facades\Schema::hasTable('life_impact_histories')) {
+                    $liveImpacts = (int) \Illuminate\Support\Facades\DB::table('life_impact_histories')->count();
+                } elseif (\Illuminate\Support\Facades\Schema::hasTable('impacts')) {
+                    $liveImpacts = (int) \Illuminate\Support\Facades\DB::table('impacts')->count();
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Ecosystem metrics query exception: ' . $e->getMessage());
+            }
+
+            $peers = max($peersCount, 0);
+            $cities = max($citiesCount, 0);
+            $countries = max($countriesCount, 0);
+            $impacts = max($liveImpacts, 0);
+
+            return [
+                'peers' => $peers,
+                'cities' => $cities,
+                'countries' => $countries,
+                'liveImpacts' => $impacts,
+                'formatted' => [
+                    'peers' => number_format($peers) . '+',
+                    'cities' => number_format($cities) . '+',
+                    'countries' => number_format($countries) . '+',
+                    'liveImpacts' => $impacts >= 1000000 ? (round($impacts / 1000000, 1) . 'M') : (number_format($impacts) . '+'),
+                ],
+                'updated_at' => now()->toIso8601String(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ])
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    }
 }
