@@ -22,9 +22,11 @@ class AdminScopeService
                 ->first();
             if ($admin) {
                 $adminKeys = $admin->roles()->pluck('roles.key')->unique()->values()->all();
+
                 return $adminKeys !== [] ? $adminKeys : ['global_admin'];
             }
         }
+
         return $keys;
     }
 
@@ -49,6 +51,7 @@ class AdminScopeService
                 }
             }
         }
+
         return (bool) array_intersect(['global_admin', 'global_founder', 'super_admin'], $keys);
     }
 
@@ -58,14 +61,33 @@ class AdminScopeService
             return Circle::query()->pluck('id')->all();
         }
 
+        $circleCols = Schema::getColumnListing('circles');
         $direct = Circle::query()
-            ->where(fn ($q) => $q->where('founder_user_id', $user->id)
-                ->orWhere('circle_founder_user_id', $user->id)
-                ->orWhere('director_user_id', $user->id)
-                ->orWhere('circle_director_user_id', $user->id)
-                ->orWhere('chair_user_id', $user->id)
-                ->orWhere('industry_director_user_id', $user->id)
-                ->orWhere('ded_user_id', $user->id))
+            ->where(function ($q) use ($user, $circleCols): void {
+                $q->where('founder_user_id', $user->id);
+                if (in_array('circle_founder_user_id', $circleCols, true)) {
+                    $q->orWhere('circle_founder_user_id', $user->id);
+                }
+                if (in_array('director_user_id', $circleCols, true)) {
+                    $q->orWhere('director_user_id', $user->id);
+                }
+                if (in_array('circle_director_user_id', $circleCols, true)) {
+                    $q->orWhere('circle_director_user_id', $user->id);
+                }
+                if (in_array('chair_user_id', $circleCols, true)) {
+                    $q->orWhere('chair_user_id', $user->id);
+                }
+                if (in_array('industry_director_user_id', $circleCols, true)) {
+                    $q->orWhere('industry_director_user_id', $user->id);
+                }
+                if (in_array('ded_user_id', $circleCols, true)) {
+                    $q->orWhere('ded_user_id', $user->id);
+                }
+                $q->orWhereRaw("calendar->'leadership'->>'founder_user_id' = ?", [(string) $user->id])
+                    ->orWhereRaw("calendar->'leadership'->>'circle_founder_user_id' = ?", [(string) $user->id])
+                    ->orWhereRaw("calendar->'leadership'->>'director_user_id' = ?", [(string) $user->id])
+                    ->orWhereRaw("calendar->'leadership'->>'circle_director_user_id' = ?", [(string) $user->id]);
+            })
             ->pluck('id');
 
         $member = CircleMember::query()
@@ -89,10 +111,10 @@ class AdminScopeService
 
         $industryIds = [];
         foreach ($visibleCircles as $c) {
-            if (!empty($c->template_id)) {
+            if (! empty($c->template_id)) {
                 $industryIds[] = (string) $c->template_id;
             }
-            if (!empty($c->industry_tags) && is_array($c->industry_tags)) {
+            if (! empty($c->industry_tags) && is_array($c->industry_tags)) {
                 foreach ($c->industry_tags as $t) {
                     $industryIds[] = (string) $t;
                 }

@@ -22,6 +22,7 @@ class BecomeMentorSubmission extends Model
         'phone',
         'city',
         'linkedin_profile',
+        'remarks',
         'status',
         'notes',
     ];

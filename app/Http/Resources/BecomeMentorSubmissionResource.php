@@ -17,6 +17,7 @@ class BecomeMentorSubmissionResource extends JsonResource
             'phone' => $this->phone,
             'city' => $this->city,
             'linkedin_profile' => $this->linkedin_profile,
+            'remarks' => $this->remarks,
             'created_at' => optional($this->created_at)?->toISOString(),
         ];
     }

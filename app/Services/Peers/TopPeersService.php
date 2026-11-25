@@ -188,11 +188,15 @@ class TopPeersService
         ];
     }
 
-    private function resolveLimit(array $filters): int
+    private function resolveLimit(array $filters): ?int
     {
-        $limit = (int) ($filters['limit'] ?? 10);
+        if (! array_key_exists('limit', $filters) || $filters['limit'] === null || $filters['limit'] === '' || $filters['limit'] === 'all') {
+            return null;
+        }
 
-        return min(max($limit, 1), 100);
+        $limit = (int) $filters['limit'];
+
+        return $limit > 0 ? $limit : null;
     }
 
     private function buildBusinessDealsAggregation(array $filters, string $type): QueryBuilder
@@ -362,23 +366,31 @@ class TopPeersService
         array $filters,
         string $primarySortColumn,
         ?string $secondarySortColumn,
-        int $limit
+        ?int $limit
     ): Collection {
-        $query = DB::query()
-            ->fromSub($subquery, 'agg')
-            ->join('users as u', 'u.id', '=', 'agg.user_id')
-            ->select('agg.*');
+        $query = DB::table('users as u')
+            ->leftJoinSub($subquery, 'agg', 'agg.user_id', '=', 'u.id')
+            ->select('u.id as user_id')
+            ->selectRaw("coalesce(agg.{$primarySortColumn}, 0) as {$primarySortColumn}");
+
+        if ($secondarySortColumn && $secondarySortColumn !== $primarySortColumn) {
+            $query->selectRaw("coalesce(agg.{$secondarySortColumn}, 0) as {$secondarySortColumn}");
+        }
 
         ActivityUserFilter::applyToUserQuery($query, 'u.id', 'u');
         $this->applyCircleAndSearchFilters($query, $filters);
 
-        $query->orderByDesc("agg.{$primarySortColumn}");
-        if ($secondarySortColumn) {
-            $query->orderByDesc("agg.{$secondarySortColumn}");
+        $query->orderByRaw("coalesce(agg.{$primarySortColumn}, 0) DESC");
+        if ($secondarySortColumn && $secondarySortColumn !== $primarySortColumn) {
+            $query->orderByRaw("coalesce(agg.{$secondarySortColumn}, 0) DESC");
         }
-        $query->orderBy('agg.user_id');
+        $query->orderBy('u.id');
 
-        return $query->limit($limit)->get();
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return $query->get();
     }
 
     private function applyUndeletedConditions(QueryBuilder $query, string $table, string $alias): void

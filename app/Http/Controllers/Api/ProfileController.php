@@ -205,6 +205,12 @@ class ProfileController extends BaseApiController
         $this->persistProfilePayloadToUsersTable($user, $data);
         $user->refresh();
 
+        try {
+            app(\App\Services\Creative\WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
+        } catch (\Throwable $e) {
+            Log::warning('ProfileController: Welcome creative generation check skipped: '.$e->getMessage());
+        }
+
         Log::info('profile_update_saved', [
             'user_id' => $user->id,
             'payload_keys' => array_keys($data),

@@ -140,13 +140,33 @@ class SocialAuthController extends Controller
 
         $normalizedEmail = strtolower(trim((string) $validated['email']));
 
-        // Check if phone or email already registered
-        $existingUser = User::query()
+        // Check if phone or email already registered (including soft-deleted accounts)
+        $existingUser = User::withTrashed()
             ->where('email', $normalizedEmail)
             ->orWhere('phone', $phone)
             ->first();
 
+        if ($existingUser && method_exists($existingUser, 'trashed') && $existingUser->trashed()) {
+            $existingUser->restore();
+            $existingUser->status = 'active';
+            $existingUser->save();
+        }
+
         if ($existingUser) {
+            if (blank($existingUser->phone)) {
+                $existingUser->phone = $phone;
+                if (Schema::hasColumn('users', 'phone_verified_at')) {
+                    $existingUser->phone_verified_at = now();
+                }
+                if (Schema::hasColumn('users', 'is_phone_verified')) {
+                    $existingUser->is_phone_verified = true;
+                }
+            }
+            if (Schema::hasColumn('users', 'dob') && filled($validated['dob'] ?? null) && blank($existingUser->dob)) {
+                $existingUser->dob = (string) $validated['dob'];
+            }
+            $existingUser->save();
+
             $this->updateUserSocialMetadata($existingUser, (string) $validated['provider'], (string) $validated['provider_user_id'], $validated['photo_url'] ?? null);
 
             $authToken = $existingUser->createToken('auth_token')->plainTextToken;
@@ -235,11 +255,15 @@ class SocialAuthController extends Controller
 
         $providerCol = $provider.'_id';
 
-        // Check if existing user is linked by provider ID or email
+        // Check if existing user is linked by provider ID or email (including soft-deleted accounts)
         /** @var User|null $user */
-        $user = User::query()
-            ->when(Schema::hasColumn('users', $providerCol), fn ($q) => $q->where($providerCol, $providerUserId))
-            ->orWhere('email', $email)
+        $user = User::withTrashed()
+            ->where(function ($q) use ($providerCol, $providerUserId, $email) {
+                if (Schema::hasColumn('users', $providerCol)) {
+                    $q->where($providerCol, $providerUserId);
+                }
+                $q->orWhere('email', $email);
+            })
             ->first();
 
         // Check social_accounts table
@@ -248,55 +272,136 @@ class SocialAuthController extends Controller
                 ->where('provider', $provider)
                 ->where('provider_id', $providerUserId)
                 ->first();
-            if ($socialAccount && $socialAccount->user) {
-                $user = $socialAccount->user;
+            if ($socialAccount) {
+                $user = $socialAccount->user()->withTrashed()->first();
             }
         }
 
-        // If existing user has completed phone verification or already has this provider linked, log them in
-        if ($user && (filled($user->phone) || (! empty($user->{$providerCol}) && (string) $user->{$providerCol} === $providerUserId))) {
-            $this->updateUserSocialMetadata($user, $provider, $providerUserId, $profile['avatar'] ?? null);
-
-            $authToken = $user->createToken('auth_token')->plainTextToken;
-
-            $this->registerPushToken($user, $request);
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Login successful.',
-                'data' => [
-                    'is_new_user' => false,
-                    'is_registered' => true,
-                    'token' => $authToken,
-                    'user' => $this->formatUserResponse($user),
-                ],
-            ], 200);
+        // If the account was soft-deleted, restore and reactivate it
+        if ($user && method_exists($user, 'trashed') && $user->trashed()) {
+            $user->restore();
+            $user->status = 'active';
+            if (Schema::hasColumn('users', 'approval_status')) {
+                $user->approval_status = 'approved';
+            }
+            if (Schema::hasColumn('users', 'membership_status') && empty($user->membership_status)) {
+                $user->membership_status = 'free_peer';
+            }
+            $user->save();
         }
 
-        // New social user: requires birthday & WhatsApp OTP
+        $isNewUser = false;
+
+        // If user does not exist, create user account immediately in database
+        if (! $user) {
+            $user = new User;
+            $user->id = (string) Str::uuid();
+            $user->first_name = ! empty($profile['first_name']) ? (string) $profile['first_name'] : ((string) ($profile['name'] ?? 'User'));
+            $user->last_name = $profile['last_name'] ?? null;
+            $user->display_name = ! empty($profile['name']) ? (string) $profile['name'] : trim($user->first_name.' '.($user->last_name ?? ''));
+            $user->email = $email;
+            $user->status = 'active';
+
+            if (Schema::hasColumn('users', 'membership_status')) {
+                $user->membership_status = 'free_peer';
+            }
+
+            $hashedPassword = Hash::make(Str::random(32));
+            if (Schema::hasColumn('users', 'password')) {
+                $user->password = $hashedPassword;
+            }
+            if (Schema::hasColumn('users', 'password_hash')) {
+                $user->password_hash = $hashedPassword;
+            }
+            if (Schema::hasColumn('users', 'approval_status')) {
+                $user->approval_status = 'approved';
+            }
+            if (Schema::hasColumn('users', 'oauth_provider')) {
+                $user->oauth_provider = $provider;
+            }
+            if (Schema::hasColumn('users', 'social_avatar_url') && filled($profile['avatar'] ?? null)) {
+                $user->social_avatar_url = (string) $profile['avatar'];
+            }
+            if (Schema::hasColumn('users', 'profile_photo_url') && filled($profile['avatar'] ?? null)) {
+                $user->profile_photo_url = (string) $profile['avatar'];
+            }
+            if (Schema::hasColumn('users', $providerCol)) {
+                $user->{$providerCol} = $providerUserId;
+            }
+
+            $user->save();
+            $user->refresh();
+
+            if (Schema::hasTable('social_accounts')) {
+                SocialAccount::query()->firstOrCreate(
+                    [
+                        'provider' => $provider,
+                        'provider_id' => $providerUserId,
+                    ],
+                    [
+                        'id' => (string) Str::uuid(),
+                        'user_id' => (string) $user->id,
+                        'email' => $email,
+                        'token_metadata' => [
+                            'name' => $user->display_name,
+                            'avatar' => $profile['avatar'] ?? null,
+                        ],
+                    ]
+                );
+            }
+
+            $isNewUser = true;
+        } else {
+            $this->updateUserSocialMetadata($user, $provider, $providerUserId, $profile['avatar'] ?? null);
+
+            if (Schema::hasTable('social_accounts')) {
+                SocialAccount::query()->firstOrCreate(
+                    [
+                        'provider' => $provider,
+                        'provider_id' => $providerUserId,
+                    ],
+                    [
+                        'id' => (string) Str::uuid(),
+                        'user_id' => (string) $user->id,
+                        'email' => $email,
+                        'token_metadata' => [
+                            'name' => $user->display_name,
+                            'avatar' => $profile['avatar'] ?? null,
+                        ],
+                    ]
+                );
+            }
+        }
+
+        $authToken = $user->createToken('auth_token')->plainTextToken;
+        $this->registerPushToken($user, $request);
+
+        $hasPhone = filled($user->phone);
+
         return response()->json([
             'status' => true,
-            'message' => 'Google account verified. Registration required.',
+            'message' => $isNewUser ? 'Account created via Google.' : 'Login successful.',
             'data' => [
-                'token' => null,
-                'user' => null,
-                'is_new_user' => true,
-                'is_registered' => false,
+                'token' => $authToken,
+                'is_new_user' => false,
+                'is_registered' => true,
+                'has_phone' => $hasPhone,
                 'provider' => $provider,
                 'provider_user_id' => $providerUserId,
                 $providerCol => $providerUserId,
                 'email' => $email,
-                'first_name' => $profile['first_name'] ?? '',
-                'last_name' => $profile['last_name'] ?? '',
-                'name' => $profile['name'] ?? '',
-                'photo_url' => $profile['avatar'] ?? null,
-                'avatar_url' => $profile['avatar'] ?? null,
+                'first_name' => $profile['first_name'] ?? ($user->first_name ?? ''),
+                'last_name' => $profile['last_name'] ?? ($user->last_name ?? ''),
+                'name' => $user->display_name,
+                'photo_url' => $profile['avatar'] ?? $user->profile_photo_url,
+                'avatar_url' => $profile['avatar'] ?? $user->profile_photo_url,
+                'user' => $this->formatUserResponse($user),
                 'social_profile' => [
                     'google_id' => $providerUserId,
                     $providerCol => $providerUserId,
                     'email' => $email,
-                    'name' => $profile['name'] ?? '',
-                    'photo_url' => $profile['avatar'] ?? null,
+                    'name' => $user->display_name,
+                    'photo_url' => $profile['avatar'] ?? $user->profile_photo_url,
                 ],
             ],
         ], 200);

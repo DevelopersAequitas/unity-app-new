@@ -50,16 +50,26 @@ class AdminPeerService
      */
     public function listPeers(array $filters = [], User|AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
-        $query = User::withTrashed()
-            ->whereNull('gdpr_deleted_at')
-            ->with([
-                'roles:id,key,name',
-                'introducedBy:id,first_name,last_name,display_name,email',
-                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
-                'mainBusinessCategory:id,name',
-                'businessCategory:id,name',
-                'cityRelation:id,name,state,country',
-            ])
+        $query = (! empty($filters['with_trashed']) || ! empty($filters['all']))
+            ? User::withTrashed()
+            : User::query();
+
+        if (empty($filters['with_trashed']) && empty($filters['all'])) {
+            if (Schema::hasColumn('users', 'deleted_at')) {
+                $query->whereNull('users.deleted_at');
+            }
+            if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
+                $query->whereNull('users.gdpr_deleted_at');
+            }
+        }
+        $query->with([
+            'roles:id,key,name',
+            'introducedBy:id,first_name,last_name,display_name,email',
+            'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+            'mainBusinessCategory:id,name',
+            'businessCategory:id,name',
+            'cityRelation:id,name,state,country',
+        ])
             ->withCount([
                 'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at'),
             ]);
@@ -71,7 +81,12 @@ class AdminPeerService
         $this->applyFilters($query, $filters);
         $this->applySorting($query, $filters);
 
-        $perPage = max(1, min(100, $perPage));
+        if (! empty($filters['all'])) {
+            $totalCount = $query->count();
+            $perPage = max(1, $totalCount);
+        } else {
+            $perPage = max(1, min(5000, $perPage));
+        }
 
         return $query->paginate($perPage);
     }
@@ -382,6 +397,7 @@ class AdminPeerService
             if (is_array($val)) {
                 return implode(', ', array_filter(array_map('strval', $val)));
             }
+
             return (string) $val;
         };
 

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Services\Creative;
 
 use App\Models\ActivityCreative;
+use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\FileModel;
 use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\User;
+use App\Services\Ai\GeminiService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -27,6 +30,12 @@ class WelcomeCreativeService
     {
         try {
             if ($user->isSystemUser()) {
+                return null;
+            }
+
+            if (! $this->isEligibleForWelcomeCreative($user)) {
+                Log::info("WelcomeCreativeService: User {$user->id} is not yet eligible for welcome creative (missing required details or valid profile photo).");
+
                 return null;
             }
 
@@ -215,7 +224,7 @@ class WelcomeCreativeService
                     ]);
                 } catch (\Throwable) {
                     try {
-                        \Illuminate\Support\Facades\DB::table('post_mentions')->updateOrInsert(
+                        DB::table('post_mentions')->updateOrInsert(
                             [
                                 'post_id' => $existingPost->id,
                                 'peer_id' => $user->id,
@@ -292,5 +301,105 @@ class WelcomeCreativeService
 
             return null;
         }
+    }
+
+    /**
+     * Determine if a user has all mandatory details needed to generate and post a welcome creative:
+     * 1. Valid user name
+     * 2. Profile photo
+     * 3. Company / business name
+     * 4. Business category
+     *
+     * Note: City and designation are optional.
+     */
+    public function isEligibleForWelcomeCreative(User $user): bool
+    {
+        if ($user->isSystemUser()) {
+            return false;
+        }
+
+        // 1. Must have a real name (not blank, User, or New Peer)
+        $userName = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
+        if ($userName === '' || strcasecmp($userName, 'User') === 0 || strcasecmp($userName, 'New Peer') === 0) {
+            return false;
+        }
+
+        // 2. Must have a profile avatar / photo
+        $avatarUrl = $this->resolveUserAvatarUrl($user);
+        if (blank($avatarUrl)) {
+            return false;
+        }
+
+        // 3. Must have company / business name
+        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
+        if ($company === '') {
+            return false;
+        }
+
+        // 4. Must have business category
+        $categoryName = '';
+        try {
+            if ($user->relationLoaded('level4Category') && $user->level4Category) {
+                $categoryName = $user->level4Category->name ?? '';
+            } elseif (! empty($user->business_category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
+            } elseif (! empty($user->category_id)) {
+                $categoryName = CircleCategoryLevel4::find($user->category_id)?->name ?? '';
+            }
+
+            if (empty($categoryName) && $user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
+                $categoryName = $user->mainBusinessCategory->name ?? '';
+            }
+
+            if (empty($categoryName) && isset($user->businessCategory)) {
+                $categoryName = $user->businessCategory->name ?? '';
+            }
+        } catch (\Throwable) {
+        }
+
+        if (empty($categoryName)) {
+            $categoryName = $user->category_name ?? $user->business_sub_category ?? $user->industry ?? $user->business_category ?? '';
+        }
+        if (is_array($categoryName)) {
+            $categoryName = $categoryName['name'] ?? $categoryName['label'] ?? '';
+        }
+        $categoryName = trim((string) $categoryName);
+        if (empty($categoryName) || in_array(strtolower($categoryName), ['null', 'none', 'n/a', 'peers global member', 'peer'], true)) {
+            return false;
+        }
+
+        // 5. Verify that avatar is an actual photo of a person (not Google letter/initials avatar)
+        try {
+            $inspection = app(GeminiService::class)->inspectProfilePhoto($avatarUrl);
+            if (! empty($inspection['is_initials_or_placeholder']) || empty($inspection['is_real_photo'])) {
+                Log::info("WelcomeCreativeService: User {$user->id} avatar was flagged by Gemini as initials/placeholder ({$inspection['reason']}). Skipping welcome creative until real photo is uploaded.");
+
+                return false;
+            }
+        } catch (\Throwable $e) {
+            Log::warning("WelcomeCreativeService: Avatar AI inspection check failed: {$e->getMessage()}");
+        }
+
+        return true;
+    }
+
+    /**
+     * Resolve the active avatar URL for a user.
+     */
+    public function resolveUserAvatarUrl(User $user): ?string
+    {
+        if (! empty($user->profile_photo_url)) {
+            return (string) $user->profile_photo_url;
+        }
+
+        if (! empty($user->profile_photo_file_id)) {
+            return url('/api/v1/files/'.$user->profile_photo_file_id);
+        }
+
+        if (! empty($user->social_avatar_url)) {
+            return (string) $user->social_avatar_url;
+        }
+
+        return null;
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Store\Wishlist;
 use App\Services\Admin\DistrictSyncService;
+use App\Services\Celebrations\CelebrationScheduleSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\Creative\WelcomeCreativeService;
 use App\Services\LifeImpact\LifeImpactService;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -529,7 +531,7 @@ class User extends Authenticatable
             if ($user->wasRecentlyCreated || $user->wasChanged(['dob', 'anniversary_date', 'status', 'is_active', 'deleted_at', 'gdpr_deleted_at'])) {
                 try {
                     $trigger = $user->wasRecentlyCreated ? 'user_registered' : 'user_updated';
-                    app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($user, $trigger);
+                    app(CelebrationScheduleSyncService::class)->syncForUser($user, $trigger);
                 } catch (Throwable $e) {
                     Log::warning('[User::saved] Failed syncing celebration schedules: '.$e->getMessage(), [
                         'user_id' => $user->id,
@@ -540,7 +542,7 @@ class User extends Authenticatable
 
         static::deleted(function (self $user): void {
             try {
-                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->cancelPendingSchedulesForUser(
+                app(CelebrationScheduleSyncService::class)->cancelPendingSchedulesForUser(
                     (string) $user->id,
                     null,
                     'account_deleted',
@@ -555,7 +557,7 @@ class User extends Authenticatable
 
         static::restored(function (self $user): void {
             try {
-                app(\App\Services\Celebrations\CelebrationScheduleSyncService::class)->syncForUser($user, 'user_restored');
+                app(CelebrationScheduleSyncService::class)->syncForUser($user, 'user_restored');
             } catch (Throwable $e) {
                 Log::warning('[User::restored] Failed re-syncing celebration schedules: '.$e->getMessage(), [
                     'user_id' => $user->id,
@@ -758,7 +760,7 @@ class User extends Authenticatable
 
     public function foundedCircles(): HasMany
     {
-        return $this->hasMany(Circle::class, 'circle_founder_user_id');
+        return $this->hasMany(Circle::class, 'founder_user_id');
     }
 
     public function circleMembers(): HasMany
@@ -1850,12 +1852,12 @@ class User extends Authenticatable
         $photoUrl = null;
         try {
             $photoUrl = $user->profile_photo_url;
-        } catch (\Throwable) {
+        } catch (Throwable) {
             $photoUrl = null;
         }
 
         $sinceDate = $user->membership_starts_at ?? $user->membership_start_date ?? $user->created_at;
-        $sinceYear = $sinceDate ? ($sinceDate instanceof \Illuminate\Support\Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
+        $sinceYear = $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->format('Y') : date('Y', strtotime((string) $sinceDate))) : date('Y');
         $memberSince = "Since {$sinceYear}";
         $lifeImpactScore = (int) ($user->life_impacted_count ?? 0);
         $industry = $user->industry_tags ?: ($user->business_sub_category ?? ($user->businessCategory?->name ?? 'Business & Industry'));
@@ -1884,7 +1886,7 @@ class User extends Authenticatable
             'life_impact_score' => $lifeImpactScore,
             'lives_impacted' => $lifeImpactScore,
             'member_since' => $memberSince,
-            'membership_starts_at' => $sinceDate ? ($sinceDate instanceof \Illuminate\Support\Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
+            'membership_starts_at' => $sinceDate ? ($sinceDate instanceof Carbon ? $sinceDate->toIso8601String() : (string) $sinceDate) : null,
             'role' => 'Peers Global Member',
             'current_role' => 'Peers Global Member',
             'current_circle' => $user->circle?->name ?? ($user->adminCircleName() ?: ''),
