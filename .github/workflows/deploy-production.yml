@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy to Production Server via SSH
@@ -68,3 +72,60 @@ jobs:
             php artisan view:cache
             php artisan queue:restart || true
             php artisan reverb:restart > /dev/null 2>&1 || true
+
+  deploy-unity-peersglobal:
+    name: Deploy to unity.peersglobal.com via SSH
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.UNITY_PG_PROD_SSH_USER || 'pgunity' }}
+          key: ${{ secrets.UNITY_PG_PROD_SSH_KEY || secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          timeout: 60s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            DEPLOY_PATH="${{ secrets.UNITY_PG_PROD_DEPLOY_PATH || '/home/pgunity/laravel' }}"
+            SHARED_MEDIA="/home/peersunity/laravel/storage/app/public"
+            case "$DEPLOY_PATH" in /home/*/laravel) ;; *) echo "ERROR: unexpected deploy path $DEPLOY_PATH"; exit 1 ;; esac
+            cd "$DEPLOY_PATH"
+            pwd
+            whoami
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            git rev-parse HEAD
+            COMPOSER_BIN="$(command -v composer || echo /usr/local/bin/composer)"
+            "$COMPOSER_BIN" install                 --no-dev                 --prefer-dist                 --optimize-autoloader                 --no-interaction
+
+            mkdir -p storage/app/public storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+            chmod -R ug+rwX storage/framework storage/logs bootstrap/cache || true
+
+            # Media is shared with the existing domain (same database): link each media folder, never copy or delete.
+            if [ -d "$SHARED_MEDIA" ]; then
+                for SRC in "$SHARED_MEDIA"/*/; do
+                    NAME="$(basename "$SRC")"
+                    [ "$NAME" = "public" ] && continue
+                    [ -L "$SHARED_MEDIA/$NAME" ] && continue
+                    if [ ! -e "storage/app/public/$NAME" ] && [ ! -L "storage/app/public/$NAME" ]; then
+                        ln -s "$SHARED_MEDIA/$NAME" "storage/app/public/$NAME"
+                    fi
+                done
+            fi
+            [ -e public/storage ] || [ -L public/storage ] || ln -s "$DEPLOY_PATH/storage/app/public" public/storage
+
+            # No migrations: the database is shared with the existing domain and managed manually.
+            # No cache:clear / optimize:clear: the database cache store is shared with the existing domain.
+            # No queue:restart / reverb:restart: workers and Reverb are shared and restarted by the existing job.
+            php artisan config:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            echo "Deployed $(git rev-parse --short HEAD) to $DEPLOY_PATH"
