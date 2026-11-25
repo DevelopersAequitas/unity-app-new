@@ -8,6 +8,7 @@ use App\Http\Requests\Forms\SubmitEntrepreneurCertificationRequest;
 use App\Http\Requests\Forms\SubmitLeadershipCertificationRequest;
 use App\Http\Requests\Forms\SubmitPartnerWithUsRequest;
 use App\Http\Requests\Forms\SubmitSmeBusinessStoryRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\AdminUser;
 use App\Models\BecomeSpeakerSubmission;
@@ -606,6 +607,22 @@ class WebsiteFormsController extends BaseApiController
                 submissionId: (string) $submission->id,
             );
 
+            try {
+                app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                    'certification_submitted',
+                    'New Leadership Certification Submitted',
+                    (string) $submission->full_name.' submitted a Leadership Certification application.',
+                    [
+                        'entity_id' => (string) $submission->id,
+                        'reference_id' => (string) $submission->id,
+                        'destination_filter' => 'certifications',
+                        'idempotency_window' => (string) $submission->id,
+                    ]
+                );
+            } catch (\Throwable) {
+                // Non-blocking leadership notification
+            }
+
             Log::info('Leadership certification submission stored successfully', [
                 'submission_id' => $submission->id,
                 'email' => $submission->email,
@@ -695,6 +712,22 @@ class WebsiteFormsController extends BaseApiController
                 relatedType: EntrepreneurCertificationSubmission::class,
                 submissionId: (string) $submission->id,
             );
+
+            try {
+                app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                    'certification_submitted',
+                    'New Entrepreneur Certification Submitted',
+                    (string) $submission->full_name.' submitted an Entrepreneur Certification application.',
+                    [
+                        'entity_id' => (string) $submission->id,
+                        'reference_id' => (string) $submission->id,
+                        'destination_filter' => 'certifications',
+                        'idempotency_window' => (string) $submission->id,
+                    ]
+                );
+            } catch (\Throwable) {
+                // Non-blocking leadership notification
+            }
 
             Log::info('Entrepreneur certification submission stored successfully', [
                 'submission_id' => $submission->id,

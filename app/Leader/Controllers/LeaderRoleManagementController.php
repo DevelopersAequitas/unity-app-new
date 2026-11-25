@@ -7,6 +7,7 @@ namespace App\Leader\Controllers;
 use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderCreateRoleRequest;
 use App\Leader\Requests\LeaderUpdateRoleMatrixRequest;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Leader\Services\LeaderRoleMatrixService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,10 +36,27 @@ class LeaderRoleManagementController extends Controller
      */
     public function updateMatrix(LeaderUpdateRoleMatrixRequest $request): JsonResponse
     {
+        $roleId = (string) $request->validated('role_id');
         $this->roleMatrixService->updateMatrix(
-            (string) $request->validated('role_id'),
+            $roleId,
             (array) $request->validated('enabled_capabilities'),
         );
+
+        try {
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'role_matrix_modified',
+                'Role Capability Matrix Updated',
+                "Permissions matrix was updated for role {$roleId}.",
+                [
+                    'actor_id' => (string) ($request->user()?->id ?? ''),
+                    'entity_id' => $roleId,
+                    'reference_id' => $roleId,
+                    'idempotency_window' => $roleId.'_'.date('Y-m-d-H'),
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking notification dispatch
+        }
 
         return response()->json([
             'success' => true,

@@ -2,6 +2,7 @@
 
 namespace App\Services\Impacts;
 
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Models\AdminUser;
 use App\Models\Impact;
 use App\Models\ImpactAction;
@@ -48,6 +49,25 @@ class ImpactService
 
         $this->notificationService->sendSubmitted($impact);
         $this->emailService->sendSubmitted($impact);
+
+        if ($impact->requires_leadership_approval) {
+            try {
+                app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                    'life_impact_pending',
+                    'Life Impact Awaiting Verification',
+                    'A peer life impact submission requires leadership verification.',
+                    [
+                        'circle_id' => (string) ($user->active_circle_id ?? $user->circle_id ?? ''),
+                        'actor_id' => (string) $user->id,
+                        'entity_id' => (string) $impact->id,
+                        'reference_id' => (string) $impact->id,
+                        'idempotency_window' => (string) $impact->id,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Failed to dispatch leader life_impact_pending notification', ['error' => $e->getMessage()]);
+            }
+        }
 
         return $impact;
     }

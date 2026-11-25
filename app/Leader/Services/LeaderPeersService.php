@@ -45,7 +45,7 @@ class LeaderPeersService
         $role = $roleInfo['role'];
         $userId = (string) $user->id;
 
-        if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
+        if (in_array($role, ['superAdmin', 'globalFounder'], true)) {
             // If a specific district is requested, scope to that district
             if ($districtId && Str::isUuid($districtId)) {
                 $circleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
@@ -54,9 +54,12 @@ class LeaderPeersService
                 }
             }
 
-            // Global Admin / Country Director has full platform-wide global scope.
-            // Returning null allows viewing ALL circles, ALL members, and platform-wide metrics.
+            // Global Admin has full platform-wide global scope.
             return null;
+        }
+
+        if ($role === 'countryDirector') {
+            return $this->resolveCountryDirectorCircleIds($user, $districtId);
         }
 
         // Resolve circles the user has directly joined or leads
@@ -283,13 +286,14 @@ class LeaderPeersService
         $query = User::query()->whereNull('deleted_at')->withoutSystemUser();
 
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
-        $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
+        $isAdmin = ($roleInfo['role'] === 'superAdmin');
 
-        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
-            || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
-
-        // If a specific circle is requested, filter strictly to that circle
+        // If a specific circle is requested, enforce scope and filter strictly to that circle
         if ($circleId && Str::isUuid($circleId)) {
+            if ($scopedCircleIds !== null && ! in_array($circleId, array_map('strval', $scopedCircleIds), true)) {
+                abort(403, 'You are not authorized to access peers outside your organizational scope.');
+            }
+
             $query->where(function (Builder $q) use ($circleId): void {
                 $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
                     $cq->where('circle_id', $circleId)->whereNull('deleted_at');
@@ -319,15 +323,27 @@ class LeaderPeersService
                 }
             });
         } elseif ($districtId && Str::isUuid($districtId)) {
-            // If a specific district is requested, scope to that district
+            // Verify requested district is within the leader's authorized scope
             $districtCircleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
+            if ($scopedCircleIds !== null) {
+                $allowedDistrictCircles = array_values(array_intersect(
+                    array_map('strval', $districtCircleIds),
+                    array_map('strval', $scopedCircleIds)
+                ));
+                if (empty($allowedDistrictCircles) && ! empty($districtCircleIds)) {
+                    abort(403, 'You are not authorized to access peers in this district.');
+                }
+                $districtCircleIds = $allowedDistrictCircles;
+            }
             if (! empty($districtCircleIds)) {
                 $query->where(function (Builder $q) use ($districtCircleIds): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at'))
                         ->orWhereIn('active_circle_id', $districtCircleIds);
                 });
+            } else {
+                $query->whereRaw('1 = 0');
             }
-        } elseif (! $isAdmin && ! $isGlobalRequested) {
+        } elseif (! $isAdmin) {
             $role = $roleInfo['role'];
             $userId = (string) ($user?->id ?? '');
             $adminUser = ($user && Schema::hasTable('admin_users'))
@@ -465,7 +481,7 @@ class LeaderPeersService
             if ($u->isSystemUser()) {
                 continue;
             }
-            $formatted[] = $this->formatPeerCard($u, $circleId);
+            $formatted[] = $this->formatPeerCard($u, $circleId, null, $user);
         }
 
         return [
@@ -484,7 +500,7 @@ class LeaderPeersService
      *
      * @return array<string, mixed>
      */
-    public function formatPeerCard(User $u, ?string $defaultCircleId = null, ?string $defaultCircleName = null): array
+    public function formatPeerCard(User $u, ?string $defaultCircleId = null, ?string $defaultCircleName = null, User|AdminUser|null $requestingUser = null): array
     {
         $name = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
         if ($name === '') {
@@ -588,6 +604,19 @@ class LeaderPeersService
         $avatarUrl = $u->profile_photo_url ?? $u->avatar_url ?? null;
         $introVideo = $u->intro_video_url ?? ($u->profile_video_id ? url('api/v1/files/'.$u->profile_video_id) : null);
 
+        $hidePhone = (bool) ($u->hide_phone ?? false);
+        $hideEmail = (bool) ($u->hide_email ?? false);
+        $canSeePrivate = false;
+        if ($requestingUser) {
+            $roleInfo = $this->permissionService->resolveUserRole($requestingUser);
+            $requesterRole = (string) ($roleInfo['role'] ?? 'member');
+            $canSeePrivate = in_array($requesterRole, ['superAdmin', 'countryDirector', 'districtExecDirector'], true)
+                || in_array('manage_peers', $this->permissionService->getEnabledCapabilitiesForRole($requesterRole), true)
+                || (string) $requestingUser->id === (string) $u->id;
+        }
+        $phone = ($hidePhone && ! $canSeePrivate) ? '********' : (string) ($u->phone ?? $u->secondary_mobile ?? '');
+        $email = ($hideEmail && ! $canSeePrivate) ? '********' : (string) ($u->email ?? '');
+
         return [
             'id' => (string) $u->id,
             'name' => $name,
@@ -613,8 +642,8 @@ class LeaderPeersService
             'deals_formatted' => $dealsFormatted,
             'coins' => $coins,
             'attendance' => '94%',
-            'phone' => (string) ($u->phone ?? $u->secondary_mobile ?? ''),
-            'email' => (string) ($u->email ?? ''),
+            'phone' => $phone,
+            'email' => $email,
             'is_verified' => (bool) ($u->is_verified ?? true),
             'intro_video_url' => $introVideo,
             'is_online' => (bool) ($u->is_online ?? false),
@@ -628,6 +657,10 @@ class LeaderPeersService
      */
     public function getPeer(string $peerId, User|AdminUser|null $requestingUser = null): array
     {
+        if ($requestingUser) {
+            $this->assertPeerInScope($peerId, $requestingUser);
+        }
+
         $user = User::query()->where('id', $peerId)->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->first();
 
         if (! $user || $user->isSystemUser()) {
@@ -1488,6 +1521,160 @@ class LeaderPeersService
             'meeting_id' => $id,
             'status' => 'Confirmed',
         ];
+    }
+
+    /**
+     * Resolve circles within a Country Director's assigned country (fail-closed if unassigned).
+     *
+     * @return array<string>
+     */
+    private function resolveCountryDirectorCircleIds(User|AdminUser $user, ?string $districtId = null): array
+    {
+        $userId = (string) $user->id;
+        $countryIds = [];
+
+        if (Schema::hasTable('user_organizational_assignments')) {
+            $uoaQuery = DB::table('user_organizational_assignments')
+                ->where('user_id', $userId)
+                ->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'active');
+                });
+
+            if (Schema::hasColumn('user_organizational_assignments', 'country_id')) {
+                $countryIds = array_merge(
+                    $countryIds,
+                    (clone $uoaQuery)->whereNotNull('country_id')->pluck('country_id')->map(fn ($v) => (string) $v)->all()
+                );
+            }
+            if (Schema::hasColumn('user_organizational_assignments', 'scope_type') && Schema::hasColumn('user_organizational_assignments', 'scope_value')) {
+                $countryIds = array_merge(
+                    $countryIds,
+                    (clone $uoaQuery)->where('scope_type', 'country')->whereNotNull('scope_value')->pluck('scope_value')->map(fn ($v) => (string) $v)->all()
+                );
+            }
+        }
+
+        if (Schema::hasTable('admin_user_roles') && Schema::hasColumn('admin_user_roles', 'scope_type') && Schema::hasColumn('admin_user_roles', 'scope_value')) {
+            $countryIds = array_merge(
+                $countryIds,
+                DB::table('admin_user_roles')
+                    ->where('user_id', $userId)
+                    ->where('scope_type', 'country')
+                    ->whereNotNull('scope_value')
+                    ->pluck('scope_value')
+                    ->map(fn ($v) => (string) $v)
+                    ->all()
+            );
+        }
+
+        if (empty($countryIds) && ! empty($user->country_id)) {
+            $countryIds[] = (string) $user->country_id;
+        }
+
+        $countryIds = array_values(array_unique(array_filter($countryIds)));
+        if (empty($countryIds)) {
+            return [];
+        }
+
+        $query = Circle::query()->whereNull('deleted_at');
+        if ($districtId && Str::isUuid($districtId)) {
+            $query->where('district_id', $districtId);
+        }
+
+        $query->where(function (Builder $q) use ($countryIds): void {
+            if (Schema::hasColumn('circles', 'country_id')) {
+                $q->whereIn('country_id', $countryIds);
+            }
+            if (Schema::hasTable('districts') && Schema::hasColumn('districts', 'country_id')) {
+                $q->orWhereIn('district_id', DB::table('districts')->whereIn('country_id', $countryIds)->select('id'));
+            }
+            if (Schema::hasTable('cities') && Schema::hasColumn('cities', 'country_id')) {
+                $q->orWhereIn('city_id', DB::table('cities')->whereIn('country_id', $countryIds)->select('id'));
+            }
+        });
+
+        return $query->pluck('id')->map(fn ($id) => (string) $id)->all();
+    }
+
+    /**
+     * Abort 403 if the requested circle UUID is outside the leader's organizational scope.
+     */
+    public function assertCircleInScope(string $circleId, User|AdminUser|null $user): void
+    {
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        if (! Str::isUuid($circleId)) {
+            abort(404, 'Circle not found.');
+        }
+
+        $scopedCircleIds = $this->resolveScopedCircleIds($user);
+        if ($scopedCircleIds !== null && ! in_array($circleId, array_map('strval', $scopedCircleIds), true)) {
+            abort(403, 'You are not authorized to access this circle.');
+        }
+    }
+
+    /**
+     * Abort 403 if the requested peer UUID is outside the leader's organizational scope.
+     */
+    public function assertPeerInScope(string $peerId, User|AdminUser|null $user): void
+    {
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        if (! Str::isUuid($peerId)) {
+            abort(404, 'Peer not found.');
+        }
+
+        $scopedCircleIds = $this->resolveScopedCircleIds($user);
+        if ($scopedCircleIds === null) {
+            return;
+        }
+
+        if (empty($scopedCircleIds)) {
+            abort(403, 'You are not authorized to access this peer.');
+        }
+
+        $inScope = DB::table('circle_members')
+            ->where('user_id', $peerId)
+            ->whereIn('circle_id', $scopedCircleIds)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (! $inScope && Schema::hasColumn('users', 'active_circle_id')) {
+            $inScope = User::query()
+                ->where('id', $peerId)
+                ->whereIn('active_circle_id', $scopedCircleIds)
+                ->exists();
+        }
+
+        if (! $inScope && Schema::hasTable('joined_circle_categories')) {
+            $inScope = DB::table('joined_circle_categories')
+                ->where('user_id', $peerId)
+                ->whereIn('circle_id', $scopedCircleIds)
+                ->exists();
+        }
+
+        if (! $inScope) {
+            $inScope = Circle::query()
+                ->whereIn('id', $scopedCircleIds)
+                ->whereNull('deleted_at')
+                ->where(function (Builder $q) use ($peerId): void {
+                    $q->where('founder_user_id', $peerId);
+                    foreach (['circle_founder_user_id', 'circle_director_user_id', 'director_user_id', 'chair_user_id', 'vice_chair_user_id', 'secretary_user_id'] as $col) {
+                        if (Schema::hasColumn('circles', $col)) {
+                            $q->orWhere($col, $peerId);
+                        }
+                    }
+                })
+                ->exists();
+        }
+
+        if (! $inScope) {
+            abort(403, 'You are not authorized to access this peer.');
+        }
     }
 
     /**

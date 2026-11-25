@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
-use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Http\Controllers\Api\CircularController;
+use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAskFlowController;
 use App\Leader\Controllers\LeaderAuthController;
+use App\Leader\Controllers\LeaderCircularsController;
 use App\Leader\Controllers\LeaderDashboardController;
 use App\Leader\Controllers\LeaderFinanceController;
+use App\Leader\Controllers\LeaderLeadsController;
 use App\Leader\Controllers\LeaderMemberController;
 use App\Leader\Controllers\LeaderNotificationsController;
 use App\Leader\Controllers\LeaderPeersController;
@@ -40,6 +41,9 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::put('/auth/profile', [LeaderAuthController::class, 'updateProfile']);
     Route::put('/leader/auth/profile', [LeaderAuthController::class, 'updateProfile']);
     Route::put('/leader/profile', [LeaderAuthController::class, 'updateProfile']);
+    Route::post('/auth/logout', [LeaderAuthController::class, 'logout']);
+    Route::post('/leader/auth/logout', [LeaderAuthController::class, 'logout']);
+    Route::post('/leader/logout', [LeaderAuthController::class, 'logout']);
     Route::post('/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
     Route::post('/leader/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
     Route::post('/leader/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
@@ -88,33 +92,49 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/contacts', [LeaderTeamsController::class, 'contacts']);
     Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
     Route::get('/leader/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
+    Route::middleware('leader.can:can_assign_circle_chair')->group(function (): void {
+        Route::post('/teams/circles/{id}/assign-role', [LeaderTeamsController::class, 'assignRole'])->whereUuid('id');
+        Route::post('/leader/teams/circles/{id}/assign-role', [LeaderTeamsController::class, 'assignRole'])->whereUuid('id');
+        Route::put('/teams/circles/{id}/roles', [LeaderTeamsController::class, 'assignRole'])->whereUuid('id');
+        Route::put('/leader/teams/circles/{id}/roles', [LeaderTeamsController::class, 'assignRole'])->whereUuid('id');
+    });
 
     // Tab 3: Finance & Accounts
-    Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
-    Route::get('/leader/finance/metrics', [LeaderFinanceController::class, 'metrics']);
-    Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
-    Route::get('/leader/finance/transactions', [LeaderFinanceController::class, 'transactions']);
-    Route::put('/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
-    Route::put('/leader/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
-    Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
-    Route::post('/leader/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
-    Route::get('/finance/milestones', [LeaderFinanceController::class, 'milestones']);
-    Route::get('/leader/finance/milestones', [LeaderFinanceController::class, 'milestones']);
-    Route::get('/leader/milestones', [LeaderFinanceController::class, 'milestones']);
+    Route::middleware('leader.can:access_finance')->group(function (): void {
+        Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
+        Route::get('/leader/finance/metrics', [LeaderFinanceController::class, 'metrics']);
+        Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+        Route::get('/leader/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+        Route::get('/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+        Route::get('/leader/finance/milestones', [LeaderFinanceController::class, 'milestones']);
+        Route::get('/leader/milestones', [LeaderFinanceController::class, 'milestones']);
+    });
+
+    Route::middleware('leader.can:manage_finance')->group(function (): void {
+        Route::put('/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+        Route::put('/leader/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+        Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+        Route::post('/leader/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+    });
 
     // Tab 4: Reports & Analytics
-    Route::get('/reports', [LeaderReportsController::class, 'index']);
-    Route::get('/leader/reports', [LeaderReportsController::class, 'index']);
-    Route::post('/reports', [LeaderReportsController::class, 'store']);
-    Route::post('/leader/reports', [LeaderReportsController::class, 'store']);
-    Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
-    Route::get('/leader/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
-    Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
-    Route::get('/leader/reports/{id}', [LeaderReportsController::class, 'show']);
-    Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
-    Route::get('/leader/reports/{id}/download', [LeaderReportsController::class, 'download']);
-    Route::get('/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
-    Route::get('/leader/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+    Route::middleware('leader.can:view_reports')->group(function (): void {
+        Route::get('/reports', [LeaderReportsController::class, 'index']);
+        Route::get('/leader/reports', [LeaderReportsController::class, 'index']);
+        Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('/leader/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
+        Route::get('/leader/reports/{id}', [LeaderReportsController::class, 'show']);
+        Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
+        Route::get('/leader/reports/{id}/download', [LeaderReportsController::class, 'download']);
+        Route::get('/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+        Route::get('/leader/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+    });
+
+    Route::middleware('leader.can:can_submit_reports')->group(function (): void {
+        Route::post('/reports', [LeaderReportsController::class, 'store']);
+        Route::post('/leader/reports', [LeaderReportsController::class, 'store']);
+    });
 
     // Activities (Scoped under /leader/ to avoid colliding with Peer/Member App APIs)
     Route::get('/leader/referrals', [LeaderActivitiesController::class, 'referrals']);
@@ -148,16 +168,34 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
 
     // Unified Leader User-Input Activities Feed by Type (Visitor Registrations, Recommendations, Asks, Posts, Creatives, Coin Claims, Stories, Leadership Interests, Mentors, Speakers, Partners, Certifications, Events)
     Route::get('/leader/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
+    Route::middleware('leader.can:access_dashboard')->group(function (): void {
+        Route::get('/leader/posts', [LeaderActivitiesController::class, 'posts']);
+        Route::get('/leaders/posts', [LeaderActivitiesController::class, 'posts']);
+    });
     Route::get('/activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
 
     // Notifications (Leader App)
     // Leader App Notification Management & Dispatcher (Super Admin Control & Logs)
-    Route::get('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'getRoleConfig']);
-    Route::post('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'updateRoleConfig']);
-    Route::get('/leader/admin/notifications/leaders', [LeaderNotificationsController::class, 'listEligibleLeaders']);
-    Route::post('/leader/admin/notifications/send', [LeaderNotificationsController::class, 'sendImmediateNotification']);
-    Route::get('/leader/admin/notifications/logs', [LeaderNotificationsController::class, 'getSecurityLogs']);
+    Route::middleware('leader.can:system_configs')->group(function (): void {
+        Route::get('/leader/admin/notifications/overview', [LeaderNotificationsController::class, 'getOverview']);
+        Route::get('/leader/admin/notifications/registry', [LeaderNotificationsController::class, 'getEventRegistry']);
+        Route::get('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'getRoleConfig']);
+        Route::post('/leader/admin/notifications/config', [LeaderNotificationsController::class, 'updateRoleConfig']);
+        Route::put('/leader/admin/notifications/flows/{eventKey}', [LeaderNotificationsController::class, 'updateFlowState']);
+        Route::get('/leader/admin/notifications/leaders', [LeaderNotificationsController::class, 'listEligibleLeaders']);
+        Route::get('/leader/admin/notifications/target-records', [LeaderNotificationsController::class, 'getTargetRecords']);
+        Route::post('/leader/admin/notifications/send', [LeaderNotificationsController::class, 'sendImmediateNotification']);
+        Route::post('/leader/admin/notifications/send-test', [LeaderNotificationsController::class, 'sendTestNotification'])
+            ->middleware('throttle:20,1');
+        Route::get('/leader/admin/notifications/logs', [LeaderNotificationsController::class, 'getSecurityLogs']);
+        Route::get('/leader/admin/notifications/logs/{id}', [LeaderNotificationsController::class, 'getNotificationLogDetail']);
+        Route::get('/leader/admin/notifications/audit', [LeaderNotificationsController::class, 'getAuditLogs']);
+        Route::get('/leader/admin/notifications/policies', [LeaderNotificationsController::class, 'getPolicies']);
+        Route::put('/leader/admin/notifications/policies', [LeaderNotificationsController::class, 'updatePolicies']);
+    });
     Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
+    Route::get('/leader/notifications/preferences', [LeaderNotificationsController::class, 'getPreferences']);
+    Route::put('/leader/notifications/preferences', [LeaderNotificationsController::class, 'updatePreferences']);
     Route::post('/leader/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
     Route::post('/leader/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
     Route::post('/leader/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
@@ -168,39 +206,48 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::delete('/leader/push-token', [LeaderNotificationsController::class, 'destroyPushToken']);
 
     // Tab 5: Role & Permission Management
-    Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
-    Route::put('/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
-    Route::post('/roles', [LeaderRoleManagementController::class, 'store']);
-    Route::put('/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
-    Route::delete('/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
-    Route::get('/leader/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
-    Route::put('/leader/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
-    Route::post('/leader/roles', [LeaderRoleManagementController::class, 'store']);
-    Route::put('/leader/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
-    Route::delete('/leader/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+    Route::middleware('leader.can:manage_roles')->group(function (): void {
+        Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+        Route::put('/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+        Route::post('/roles', [LeaderRoleManagementController::class, 'store']);
+        Route::put('/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+        Route::delete('/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+        Route::get('/leader/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+        Route::put('/leader/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+        Route::post('/leader/roles', [LeaderRoleManagementController::class, 'store']);
+        Route::put('/leader/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+        Route::delete('/leader/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+    });
 
     // ── Member 360° APIs ─────────────────────────────────────────────────────
-    Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
-    Route::delete('/leader/members/{member_id}/posts/{post_id}', [LeaderMemberController::class, 'deletePost'])->whereUuid('member_id')->whereUuid('post_id');
-    Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
-    Route::delete('/leader/members/{member_id}/creatives/{creative_id}', [LeaderMemberController::class, 'deleteCreative'])->whereUuid('member_id')->whereUuid('creative_id');
-    Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
+    Route::middleware('leader.can:view_peers')->group(function (): void {
+        Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
 
-    // Specific Activity Type APIs
-    Route::get('/leader/members/{member_id}/referrals', [LeaderMemberController::class, 'referrals'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/testimonials', [LeaderMemberController::class, 'testimonials'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/p2p-meetings', [LeaderMemberController::class, 'p2pMeetings'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/business-deals', [LeaderMemberController::class, 'businessDeals'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/requirements', [LeaderMemberController::class, 'requirements'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/impacts', [LeaderMemberController::class, 'impacts'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/attendance', [LeaderMemberController::class, 'attendance'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/coins', [LeaderMemberController::class, 'coins'])->whereUuid('member_id');
-    Route::get('/leader/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
-    Route::get('/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
+        // Specific Activity Type APIs
+        Route::get('/leader/members/{member_id}/referrals', [LeaderMemberController::class, 'referrals'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/testimonials', [LeaderMemberController::class, 'testimonials'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/p2p-meetings', [LeaderMemberController::class, 'p2pMeetings'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/business-deals', [LeaderMemberController::class, 'businessDeals'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/requirements', [LeaderMemberController::class, 'requirements'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/impacts', [LeaderMemberController::class, 'impacts'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/attendance', [LeaderMemberController::class, 'attendance'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/coins', [LeaderMemberController::class, 'coins'])->whereUuid('member_id');
+        Route::get('/leader/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
+        Route::get('/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
+    });
+
+    Route::middleware('leader.can:manage_peers')->group(function (): void {
+        Route::put('/peers/{id}', [LeaderPeersController::class, 'update'])->whereUuid('id');
+        Route::put('/leader/peers/{id}', [LeaderPeersController::class, 'update'])->whereUuid('id');
+        Route::delete('/leader/members/{member_id}/posts/{post_id}', [LeaderMemberController::class, 'deletePost'])->whereUuid('member_id')->whereUuid('post_id');
+        Route::delete('/leader/members/{member_id}/creatives/{creative_id}', [LeaderMemberController::class, 'deleteCreative'])->whereUuid('member_id')->whereUuid('creative_id');
+    });
 
     // ── 3 Core Ask Flows: Discovery, Master Data & Configuration ────────────
     Route::prefix('/leader/asks')->group(function (): void {
@@ -223,17 +270,22 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
 
     // ── Leader Pending Approvals, Leads & Circulars ─────────────────────────
     foreach (['leader', 'leaders'] as $lp) {
-        Route::get("/{$lp}/pending-requests", [PendingRequestAdminController::class, 'index']);
-        Route::get("/{$lp}/pending-requests/summary", [PendingRequestAdminController::class, 'summary']);
-        Route::post("/{$lp}/pending-requests/{category}/{id}/approve", [PendingRequestAdminController::class, 'approve']);
-        Route::post("/{$lp}/pending-requests/{id}/approve", [PendingRequestAdminController::class, 'approveDirect']);
-        Route::post("/{$lp}/pending-requests/{category}/{id}/reject", [PendingRequestAdminController::class, 'reject']);
-        Route::post("/{$lp}/pending-requests/{id}/reject", [PendingRequestAdminController::class, 'rejectDirect']);
+        Route::middleware('leader.can:can_review_pending_peers')->group(function () use ($lp): void {
+            Route::get("/{$lp}/pending-requests", [PendingRequestAdminController::class, 'index']);
+            Route::get("/{$lp}/pending-requests/summary", [PendingRequestAdminController::class, 'summary']);
+            Route::post("/{$lp}/pending-requests/{category}/{id}/approve", [PendingRequestAdminController::class, 'approve']);
+            Route::post("/{$lp}/pending-requests/{id}/approve", [PendingRequestAdminController::class, 'approveDirect']);
+            Route::post("/{$lp}/pending-requests/{category}/{id}/reject", [PendingRequestAdminController::class, 'reject']);
+            Route::post("/{$lp}/pending-requests/{id}/reject", [PendingRequestAdminController::class, 'rejectDirect']);
+        });
 
-        Route::get("/{$lp}/leads/counts", [LeadAdminApiController::class, 'counts']);
-        Route::get("/{$lp}/leads/{type}", [LeadAdminApiController::class, 'index']);
+        Route::middleware('leader.can:view_peers')->group(function () use ($lp): void {
+            Route::get("/{$lp}/leads/counts", [LeaderLeadsController::class, 'counts']);
+            Route::get("/{$lp}/leads/{type}", [LeaderLeadsController::class, 'index']);
+        });
 
-        Route::get("/{$lp}/circulars", [CircularController::class, 'index']);
+        Route::get("/{$lp}/circulars", [LeaderCircularsController::class, 'index']);
+        Route::post("/{$lp}/circulars", [LeaderCircularsController::class, 'publish']);
         Route::get("/{$lp}/circulars/{id}", [CircularController::class, 'show']);
     }
 
@@ -266,18 +318,28 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('contacts', [LeaderTeamsController::class, 'contacts']);
         Route::get('teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
 
-        Route::get('finance/metrics', [LeaderFinanceController::class, 'metrics']);
-        Route::get('finance/transactions', [LeaderFinanceController::class, 'transactions']);
-        Route::put('finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
-        Route::post('finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
-        Route::get('finance/milestones', [LeaderFinanceController::class, 'milestones']);
+        Route::middleware('leader.can:access_finance')->group(function (): void {
+            Route::get('finance/metrics', [LeaderFinanceController::class, 'metrics']);
+            Route::get('finance/transactions', [LeaderFinanceController::class, 'transactions']);
+            Route::get('finance/milestones', [LeaderFinanceController::class, 'milestones']);
+        });
 
-        Route::get('reports', [LeaderReportsController::class, 'index']);
-        Route::post('reports', [LeaderReportsController::class, 'store']);
-        Route::get('reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
-        Route::get('reports/{id}', [LeaderReportsController::class, 'show']);
-        Route::get('reports/{id}/download', [LeaderReportsController::class, 'download']);
-        Route::get('reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+        Route::middleware('leader.can:manage_finance')->group(function (): void {
+            Route::put('finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+            Route::post('finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+        });
+
+        Route::middleware('leader.can:view_reports')->group(function (): void {
+            Route::get('reports', [LeaderReportsController::class, 'index']);
+            Route::get('reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+            Route::get('reports/{id}', [LeaderReportsController::class, 'show']);
+            Route::get('reports/{id}/download', [LeaderReportsController::class, 'download']);
+            Route::get('reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+        });
+
+        Route::middleware('leader.can:can_submit_reports')->group(function (): void {
+            Route::post('reports', [LeaderReportsController::class, 'store']);
+        });
 
         Route::get('referrals', [LeaderActivitiesController::class, 'referrals']);
         Route::post('referrals', [LeaderActivitiesController::class, 'storeReferral']);
@@ -293,10 +355,12 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('requirements', [LeaderActivitiesController::class, 'requirements']);
         Route::get('activities/{type}', [LeaderActivitiesController::class, 'activitiesByType']);
 
-        Route::get('roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
-        Route::put('roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
-        Route::post('roles', [LeaderRoleManagementController::class, 'store']);
-        Route::put('roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
-        Route::delete('roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+        Route::middleware('leader.can:manage_roles')->group(function (): void {
+            Route::get('roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+            Route::put('roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+            Route::post('roles', [LeaderRoleManagementController::class, 'store']);
+            Route::put('roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+        });
     });
 });

@@ -1,0 +1,95 @@
+name: Verify Laravel Backend
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: PHP Lint, Pint & Isolated PostgreSQL Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: unity_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pgsql, pdo_pgsql, mbstring, xml, ctype, json, bcmath, gd
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare Isolated CI Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Run Pint Check on Leadership Notification Files
+        run: |
+          ./vendor/bin/pint --test \
+            app/Leader/Services/LeaderNotificationPolicyService.php \
+            app/Leader/Services/LeaderNotificationDispatcherService.php \
+            app/Leader/Controllers/LeaderNotificationsController.php \
+            app/Services/Circulars/CircularNotificationService.php \
+            app/Console/Commands/LeaderScheduledNotificationsCommand.php \
+            database/migrations/2026_11_25_000001_ensure_leader_notification_columns_on_app_notifications.php \
+            tests/Unit/Leader/LeaderNotificationSystemTest.php
+
+      - name: Initialize Baseline & Run Migrations on Isolated CI PostgreSQL DB
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: unity_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+        run: |
+          if [ -f database/sql/industry_director_assignments.sql ]; then
+            PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d unity_test -f database/sql/industry_director_assignments.sql || true
+          fi
+          php artisan migrate --force || true
+
+      - name: Run Leadership Notification Unit Tests
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: unity_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+        run: php artisan test tests/Unit/Leader/LeaderNotificationSystemTest.php
+
+      - name: Run Leadership Feature Tests
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: unity_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+        run: php artisan test tests/Feature/Leader

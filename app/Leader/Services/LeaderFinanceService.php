@@ -67,12 +67,18 @@ class LeaderFinanceService
             if ($circleId && Str::isUuid($circleId)) {
                 $paymentsQuery->where(function ($q) use ($circleId): void {
                     $q->where('circle_id', $circleId)
-                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+                        ->orWhere(function ($legacy) use ($circleId): void {
+                            $legacy->whereNull('circle_id')
+                                ->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)->whereNull('deleted_at'));
+                        });
                 });
             } elseif (! empty($targetCircleIds)) {
                 $paymentsQuery->where(function ($q) use ($targetCircleIds): void {
                     $q->whereIn('circle_id', $targetCircleIds)
-                        ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+                        ->orWhere(function ($legacy) use ($targetCircleIds): void {
+                            $legacy->whereNull('circle_id')
+                                ->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds)->whereNull('deleted_at'));
+                        });
                 });
             } elseif (! $isGlobalScope) {
                 $paymentsQuery->whereRaw('1 = 0');
@@ -334,8 +340,10 @@ class LeaderFinanceService
         try {
             if (class_exists(FinanceWallet::class)) {
                 if ($circleId && Str::isUuid($circleId)) {
-                    $circleBudgetAmount = (float) (FinanceWallet::where('scope_id', $circleId)->value('current_balance') ?? 0.0);
-                } else {
+                    $circleBudgetAmount = (float) (FinanceWallet::where('wallet_type', 'circle_budget')->where('scope_id', $circleId)->value('current_balance') ?? 0.0);
+                } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
+                    $circleBudgetAmount = (float) (FinanceWallet::where('wallet_type', 'circle_budget')->whereIn('scope_id', $targetCircleIds)->sum('current_balance') ?? 0.0);
+                } elseif ($isGlobalScope) {
                     $circleBudgetAmount = (float) (FinanceWallet::where('wallet_type', 'circle_budget')->sum('current_balance') ?? 0.0);
                 }
             }
@@ -430,12 +438,18 @@ class LeaderFinanceService
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function ($q) use ($circleId): void {
                 $q->where('circle_id', $circleId)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+                    ->orWhere(function ($legacy) use ($circleId): void {
+                        $legacy->whereNull('circle_id')
+                            ->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)->whereNull('deleted_at'));
+                    });
             });
         } elseif (! empty($targetCircleIds) && ! $isGlobalScope) {
             $query->where(function ($q) use ($targetCircleIds): void {
                 $q->whereIn('circle_id', $targetCircleIds)
-                    ->orWhereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds));
+                    ->orWhere(function ($legacy) use ($targetCircleIds): void {
+                        $legacy->whereNull('circle_id')
+                            ->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $targetCircleIds)->whereNull('deleted_at'));
+                    });
             });
         } elseif (! $isGlobalScope) {
             $query->whereRaw('1 = 0');
@@ -598,11 +612,18 @@ class LeaderFinanceService
         $user = User::query()->where('id', $targetPeerId)->first();
         $userId = $user ? (string) $user->id : $recorder->id;
 
+        $requestedCircleId = isset($data['circle_id']) && Str::isUuid((string) $data['circle_id'])
+            ? (string) $data['circle_id']
+            : ($user?->active_circle_id && Str::isUuid((string) $user->active_circle_id) ? (string) $user->active_circle_id : null);
+
+        $scope = $this->dashboardService->resolveLeaderScope($requestedCircleId, null, $recorder);
+        $resolvedCircleId = $scope['resolved_circle_id'] ?? ($scope['target_circle_ids'][0] ?? $requestedCircleId);
+
         $amount = (float) $data['amount'];
         $mode = (string) ($data['payment_mode'] ?? 'Cheque');
         $ref = (string) ($data['reference_number'] ?? 'REF-'.random_int(10000, 99999));
 
-        DB::table('payments')->insert([
+        $insert = [
             'id' => $id,
             'user_id' => $userId,
             'amount' => $amount,
@@ -615,10 +636,17 @@ class LeaderFinanceService
             'razorpay_payment_id' => $ref,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+
+        if ($resolvedCircleId && Schema::hasColumn('payments', 'circle_id')) {
+            $insert['circle_id'] = $resolvedCircleId;
+        }
+
+        DB::table('payments')->insert($insert);
 
         return [
             'transaction_id' => $id,
+            'circle_id' => $resolvedCircleId,
             'status' => 'Paid',
         ];
     }

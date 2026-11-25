@@ -153,23 +153,18 @@ class LeaderAuthService
 
         $isValid = false;
 
-        // In local/testing/staging environments, support test OTP 123456
-        if ($otp === '123456') {
-            $isValid = true;
-        } else {
-            $recentOtp = OtpCode::query()
-                ->where('user_id', $user->id)
-                ->where('purpose', 'login_otp')
-                ->whereNull('used_at')
-                ->where('expires_at', '>=', now())
-                ->orderByDesc('created_at')
-                ->first();
+        $recentOtp = OtpCode::query()
+            ->where('user_id', $user->id)
+            ->where('purpose', 'login_otp')
+            ->whereNull('used_at')
+            ->where('expires_at', '>=', now())
+            ->orderByDesc('created_at')
+            ->first();
 
-            if ($recentOtp && Hash::check($otp, $recentOtp->code)) {
-                $recentOtp->used_at = now();
-                $recentOtp->save();
-                $isValid = true;
-            }
+        if ($recentOtp && Hash::check($otp, $recentOtp->code)) {
+            $recentOtp->used_at = now();
+            $recentOtp->save();
+            $isValid = true;
         }
 
         if (! $isValid) {

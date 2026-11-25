@@ -152,4 +152,23 @@ class LeaderAuthController extends Controller
             'data' => $data,
         ]);
     }
+
+    /**
+     * Revoke the current Sanctum access token and sign out the leader.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user && method_exists($user, 'currentAccessToken')) {
+            $token = $user->currentAccessToken();
+            if ($token && method_exists($token, 'delete')) {
+                $token->delete();
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logged out successfully.',
+        ]);
+    }
 }

@@ -127,7 +127,7 @@ class LeaderCircularsController extends Controller
         $roleInfo = $this->permissionService->resolveUserRole($user);
         $userRole = (string) ($roleInfo['role'] ?? 'member');
 
-        $allowedPublishers = ['superAdmin', 'countryDirector', 'districtExecDirector', 'industryDirector'];
+        $allowedPublishers = ['superAdmin', 'globalFounder', 'countryDirector', 'districtExecDirector', 'industryDirector'];
         if (! in_array($userRole, $allowedPublishers, true)) {
             return response()->json([
                 'success' => false,

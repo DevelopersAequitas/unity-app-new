@@ -8,10 +8,11 @@ use App\Http\Controllers\Controller;
 use App\Leader\Requests\LeaderRecordOfflinePaymentRequest;
 use App\Leader\Requests\LeaderUpdateCommissionRatesRequest;
 use App\Leader\Services\LeaderFinanceService;
-use App\Services\Finance\LeaderBonusEngineService;
+use App\Leader\Services\LeaderNotificationDispatcherService;
 use App\Leader\Services\LeaderPermissionService;
 use App\Models\AdminUser;
 use App\Models\User;
+use App\Services\Finance\LeaderBonusEngineService;
 use App\Support\AdminAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -110,6 +111,22 @@ class LeaderFinanceController extends Controller
         /** @var User $user */
         $user = $request->user();
         $data = $this->financeService->recordOfflinePayment($user, $request->validated());
+
+        try {
+            app(LeaderNotificationDispatcherService::class)->dispatchEvent(
+                'offline_payment_verification',
+                'Offline Payment Verification Required',
+                'A new offline payment was recorded and requires finance verification.',
+                [
+                    'actor_id' => (string) $user->id,
+                    'circle_id' => (string) ($data['circle_id'] ?? $request->input('circle_id', '')),
+                    'entity_id' => (string) ($data['id'] ?? $data['transaction_id'] ?? ''),
+                    'reference_id' => (string) ($data['id'] ?? $data['transaction_id'] ?? ''),
+                ]
+            );
+        } catch (\Throwable) {
+            // Non-blocking notification dispatch
+        }
 
         return response()->json([
             'success' => true,
