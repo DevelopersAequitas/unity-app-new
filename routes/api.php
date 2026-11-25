@@ -2081,6 +2081,31 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-messages', [WebPublicApiController::class, 'submitMessage']);
     Route::get('/web-collaborations', [WebPublicApiController::class, 'collaborations']);
 
+    // Public Read-Only Ecosystem Metrics (Peers Global Website)
+    Route::get('/public/ecosystem-metrics', [WebPublicApiController::class, 'ecosystemMetrics']);
+    Route::get('/web/ecosystem-metrics', [WebPublicApiController::class, 'ecosystemMetrics']);
+
+    // Public Inquiries & Proposals Submissions (Peers Global Website)
+    Route::post('/public/proposals/partnership', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitPartnership']);
+    Route::post('/public/inquiries', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitInquiry']);
+    Route::post('/web-inquiries', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitInquiry']);
+
+    // Admin Inquiries & Proposals Management APIs
+    Route::prefix('admin/web/inquiries')->group(function (): void {
+        Route::get('/stats', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getStats']);
+        Route::get('/partnerships', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getPartnerships']);
+        Route::get('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getPartnershipDetails'])->whereUuid('id');
+        Route::patch('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
+        Route::put('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
+        Route::delete('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'deletePartnership'])->whereUuid('id');
+
+        Route::get('/items', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getInquiries']);
+        Route::get('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getInquiryDetails'])->whereUuid('id');
+        Route::patch('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
+        Route::put('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
+        Route::delete('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'deleteInquiry'])->whereUuid('id');
+    });
+
     // Activity Video Management API for Flutter/Mobile
     Route::get('/activities/videos', [ActivityVideoApiController::class, 'index']);
 });
