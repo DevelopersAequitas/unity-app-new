@@ -30,7 +30,11 @@ class WelcomeCreativeImageGenerator
             throw new \RuntimeException("Welcome creative template not found at {$templatePath}");
         }
 
-        $canvas = imagecreatefrompng($templatePath);
+        $templateContent = file_get_contents($templatePath);
+        $canvas = @imagecreatefromstring((string) $templateContent);
+        if (! $canvas) {
+            $canvas = @imagecreatefrompng($templatePath) ?: @imagecreatefromjpeg($templatePath);
+        }
         if (! $canvas) {
             throw new \RuntimeException('Failed to load welcome template image.');
         }
@@ -48,27 +52,31 @@ class WelcomeCreativeImageGenerator
         $fontSemiBold = $this->getFontPath('semibold');
         $fontRegular = $this->getFontPath('regular');
 
-        // Colors (matching Image 2)
-        $colorGold = imagecolorallocate($canvas, 212, 136, 6);      // #D48806 Amber/Gold for Member Name
-        $colorDark = imagecolorallocate($canvas, 15, 23, 42);       // #0F172A Deep Charcoal/Navy for Company • City
-        $colorSlate = imagecolorallocate($canvas, 71, 85, 105);     // #475569 Slate Gray for Category
-        $darkCircleBg = imagecolorallocate($canvas, 19, 34, 71);    // #132247 Navy fallback
+        // Target Colors (matching Image 2)
+        // 1. Navy Blue for Member Name & Category (#002F6C)
+        $colorNavy = imagecolorallocate($canvas, 0, 47, 108);
+        // 2. Gray for City • Company (#616161 / #555555)
+        $colorGray = imagecolorallocate($canvas, 97, 97, 97);
+        // 3. Crimson / Red Accent for Divider Dot & Gradient (#B22222 / #AE271B)
+        $colorCrimson = imagecolorallocate($canvas, 178, 34, 34);
+        // Fallback Avatar Background
+        $darkCircleBg = imagecolorallocate($canvas, 0, 47, 108);
 
-        // 1. Profile Avatar: Diameter = 450px, Center X = 561px, Center Y = 720px
-        $targetDiameter = 450;
-        $circleCenterX = (int) ($width / 2); // 561
-        $circleCenterY = 720;
+        // Center coordinates & circle avatar
+        $centerX = (int) ($width / 2); // 410 on 819w template
+        $circleCenterY = (int) round($height * 0.493); // ~505px on 1024h template
+        $targetDiameter = (int) round($width * 0.44); // ~360px on 819w template
 
-        $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg, $fontBold);
+        $this->drawAvatarOrInitial($canvas, $user, $centerX, $circleCenterY, $targetDiameter, $darkCircleBg, $fontBold);
 
-        // 1. Line 1: Member Name (Uppercase, Gold, Montserrat Bold)
+        // Line 1: Member Name (Uppercase, Dark Navy, Bold)
         $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($name === '') {
             $name = 'PEER MEMBER';
         }
         $name = strtoupper($name);
 
-        // 2. Line 2: Company • City (Dark Navy, Montserrat SemiBold)
+        // Line 2: CITY • COMPANY (Uppercase, Gray, SemiBold)
         $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
 
         $cityModel = null;
@@ -94,18 +102,18 @@ class WelcomeCreativeImageGenerator
         }
 
         $line2Parts = [];
-        if (! empty($company)) {
-            $line2Parts[] = $company;
-        }
         if (! empty($cityName)) {
-            $line2Parts[] = $cityName;
+            $line2Parts[] = strtoupper($cityName);
+        }
+        if (! empty($company)) {
+            $line2Parts[] = strtoupper($company);
         }
         $line2Text = implode('  •  ', $line2Parts);
         if (empty($line2Text)) {
-            $line2Text = 'Peers Global Member';
+            $line2Text = 'PEERS GLOBAL MEMBER';
         }
 
-        // 3. Line 3: Category / Subcategory / Designation (Slate Gray, Montserrat SemiBold)
+        // Line 3: Category / Subcategory / Designation (Uppercase, Vibrant Navy Blue, Bold)
         $categoryName = '';
         try {
             if ($user->relationLoaded('level4Category') && $user->level4Category) {
@@ -143,35 +151,53 @@ class WelcomeCreativeImageGenerator
 
         // If category is set, use category; fallback to designation if category is empty
         $line3Text = ! empty($categoryName) ? $categoryName : $designation;
+        if (empty($line3Text)) {
+            $line3Text = 'PARTNERS IN BUSINESS';
+        }
+        $line3Text = strtoupper($line3Text);
 
         // Helper to draw center-aligned text with auto-scaling to fit within maxWidth
-        $drawCenterText = function ($img, int $fontSize, int $y, int $color, string $font, string $text, int $maxWidth = 940) use ($width): void {
+        $drawCenterText = function ($img, int $fontSize, int $baselineY, int $color, string $font, string $text, int $maxWidth = 720) use ($width): void {
             if (empty($text)) {
                 return;
             }
             $size = $fontSize;
             $bbox = @imagettfbbox($size, 0, $font, $text);
-            while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 12) {
+            while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 10) {
                 $size -= 1;
                 $bbox = @imagettfbbox($size, 0, $font, $text);
             }
             if ($bbox) {
                 $textWidth = abs($bbox[4] - $bbox[0]);
                 $x = (int) (($width - $textWidth) / 2);
-                imagettftext($img, $size, 0, $x, $y, $color, $font, $text);
+                imagettftext($img, $size, 0, $x, $baselineY, $color, $font, $text);
             }
         };
 
-        // Draw Line 1: Member Name (Y = 1030, Montserrat Bold, 36pt, Vibrant Gold)
-        $drawCenterText($canvas, 36, 1030, $colorGold, $fontBold, $name, 940);
+        // Render matching Image 2 Text Box:
+        // Scale baseline coordinates proportionally to canvas height (1024 standard)
+        $scaleY = $height / 1024.0;
+        $scaleX = $width / 819.0;
 
-        // Draw Line 2: Company • City (Y = 1085, Montserrat SemiBold, 23pt, Deep Charcoal/Navy)
-        $drawCenterText($canvas, 23, 1085, $colorDark, $fontSemiBold, $line2Text, 940);
+        // Line 1: Member Name (Navy #002F6C, Bold, ~25pt, Baseline Y ~ 762)
+        $nameBaselineY = (int) round(762 * $scaleY);
+        $nameFontSize = (int) round(25 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $nameFontSize, $nameBaselineY, $colorNavy, $fontBold, $name, (int) round(680 * $scaleX));
 
-        // Draw Line 3: Category / Designation (Y = 1135, Montserrat SemiBold, 21pt, Slate Gray)
-        if (! empty($line3Text)) {
-            $drawCenterText($canvas, 21, 1135, $colorSlate, $fontSemiBold, $line3Text, 940);
-        }
+        // Line 2: CITY • COMPANY (Gray #616161, SemiBold, ~14pt, Baseline Y ~ 798)
+        $line2BaselineY = (int) round(798 * $scaleY);
+        $line2FontSize = (int) round(14 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $line2FontSize, $line2BaselineY, $colorGray, $fontSemiBold, $line2Text, (int) round(680 * $scaleX));
+
+        // Divider: Gradient line with central crimson dot (Y ~ 818)
+        $dividerY = (int) round(818 * $scaleY);
+        $dividerHalfWidth = (int) round(135 * $scaleX);
+        $this->drawGradientDivider($canvas, $centerX, $dividerY, $dividerHalfWidth, $colorNavy, $colorCrimson);
+
+        // Line 3: Category / Industry (Navy Blue #002F6C, Bold, ~14pt, Baseline Y ~ 848)
+        $line3BaselineY = (int) round(848 * $scaleY);
+        $line3FontSize = (int) round(14 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $line3FontSize, $line3BaselineY, $colorNavy, $fontBold, $line3Text, (int) round(680 * $scaleX));
 
         // Save canvas to disk
         $tempPath = tempnam(sys_get_temp_dir(), 'welcome_');
@@ -227,6 +253,33 @@ class WelcomeCreativeImageGenerator
         @unlink($tempPath);
 
         return $fileModel;
+    }
+
+    /**
+     * Draw left and right gradient divider lines with a center crimson dot.
+     */
+    private function drawGradientDivider($canvas, float $centerX, float $y, float $lineWidth, $colorNavy, $colorCrimson): void
+    {
+        $leftStart = $centerX - 6 - $lineWidth;
+        $rightStart = $centerX + 6;
+
+        for ($i = 0; $i < $lineWidth; $i++) {
+            $ratio = $i / $lineWidth;
+            $alpha = (int) (127 * (1.0 - $ratio));
+            $color = imagecolorallocatealpha($canvas, 0, 47, 108, $alpha);
+            imagesetpixel($canvas, (int) ($leftStart + $i), (int) $y, $color);
+            imagesetpixel($canvas, (int) ($leftStart + $i), (int) ($y + 1), $color);
+        }
+
+        imagefilledellipse($canvas, (int) $centerX, (int) $y, 6, 6, $colorCrimson);
+
+        for ($i = 0; $i < $lineWidth; $i++) {
+            $ratio = $i / $lineWidth;
+            $alpha = (int) (127 * $ratio);
+            $color = imagecolorallocatealpha($canvas, 178, 34, 34, $alpha);
+            imagesetpixel($canvas, (int) ($rightStart + $i), (int) $y, $color);
+            imagesetpixel($canvas, (int) ($rightStart + $i), (int) ($y + 1), $color);
+        }
     }
 
     /**
