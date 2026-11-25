@@ -25,7 +25,13 @@ class WelcomeCreativeImageGenerator
      */
     public function generate(User $user, ?FileModel $targetFileRecord = null): FileModel
     {
-        $templatePath = public_path('images/welcome-template.png');
+        $templatePath = public_path('images/wear-the-badge-template.png');
+        if (! file_exists($templatePath)) {
+            $templatePath = public_path('images/d806d2e9-05ae-427a-9359-026ea10d7f64.webp');
+        }
+        if (! file_exists($templatePath)) {
+            $templatePath = public_path('images/welcome-template.png');
+        }
         if (! file_exists($templatePath)) {
             throw new \RuntimeException("Welcome creative template not found at {$templatePath}");
         }
@@ -33,7 +39,7 @@ class WelcomeCreativeImageGenerator
         $templateContent = file_get_contents($templatePath);
         $canvas = @imagecreatefromstring((string) $templateContent);
         if (! $canvas) {
-            $canvas = @imagecreatefrompng($templatePath) ?: @imagecreatefromjpeg($templatePath);
+            $canvas = @imagecreatefrompng($templatePath) ?: @imagecreatefromwebp($templatePath) ?: @imagecreatefromjpeg($templatePath);
         }
         if (! $canvas) {
             throw new \RuntimeException('Failed to load welcome template image.');
@@ -52,31 +58,33 @@ class WelcomeCreativeImageGenerator
         $fontSemiBold = $this->getFontPath('semibold');
         $fontRegular = $this->getFontPath('regular');
 
-        // Target Colors
+        // Target Colors (matching Peers Global template & styling)
         // 1. Navy Blue for Member Name (#002F6C)
         $colorNavy = imagecolorallocate($canvas, 0, 47, 108);
         // 2. Crimson / Red Accent for Category / Divider (#B22222 / #AE271B)
         $colorCrimson = imagecolorallocate($canvas, 178, 34, 34);
-        // 3. Slate / Medium Gray for City (#616161)
+        // 3. Slate / Medium Gray for City • Company (#616161)
         $colorGray = imagecolorallocate($canvas, 97, 97, 97);
         // Fallback Avatar Background
         $darkCircleBg = imagecolorallocate($canvas, 0, 47, 108);
 
-        // Center coordinates & circle avatar
-        $centerX = (int) ($width / 2); // 410 on 819w template
-        $circleCenterY = (int) round($height * 0.493); // ~505px on 1024h template
-        $targetDiameter = (int) round($width * 0.44); // ~360px on 819w template
+        // Center coordinates & circle avatar (1122x1402 standard template or scaled)
+        $centerX = (int) ($width / 2); // 561 on 1122w template
+        $circleCenterY = (int) round($height * (720.0 / 1402.0)); // 720 on 1402h template
+        $targetDiameter = (int) round($width * (440.0 / 1122.0)); // 440 on 1122w template
 
         $this->drawAvatarOrInitial($canvas, $user, $centerX, $circleCenterY, $targetDiameter, $darkCircleBg, $fontBold);
 
-        // 1. Peer Name (Uppercase, Dark Navy, Bold)
+        // 1. Peer Name (Uppercase, Dark Navy, Montserrat Bold)
         $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($name === '') {
             $name = 'PEER MEMBER';
         }
         $name = strtoupper($name);
 
-        // 2. Peer City (Uppercase, Gray, SemiBold)
+        // 2. City • Company (Uppercase, Slate Gray, Montserrat SemiBold)
+        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
+
         $cityModel = null;
         try {
             $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
@@ -98,9 +106,20 @@ class WelcomeCreativeImageGenerator
         if (in_array(strtolower($cityName), ['null', 'none', 'n/a'], true)) {
             $cityName = '';
         }
-        $cityText = ! empty($cityName) ? strtoupper($cityName) : 'PEERS GLOBAL';
 
-        // 3. Peer Category (Uppercase, Vibrant Navy / Accent, Bold)
+        $line2Parts = [];
+        if (! empty($cityName)) {
+            $line2Parts[] = strtoupper($cityName);
+        }
+        if (! empty($company)) {
+            $line2Parts[] = strtoupper($company);
+        }
+        $line2Text = implode('  •  ', $line2Parts);
+        if (empty($line2Text)) {
+            $line2Text = 'PEERS GLOBAL MEMBER';
+        }
+
+        // 3. Category / Subcategory / Designation (Uppercase, Deep Navy / Indigo, Montserrat Bold)
         $categoryName = '';
         try {
             if ($user->relationLoaded('level4Category') && $user->level4Category) {
@@ -142,13 +161,13 @@ class WelcomeCreativeImageGenerator
         $categoryText = strtoupper($categoryText);
 
         // Helper to draw center-aligned text with auto-scaling to fit within maxWidth
-        $drawCenterText = function ($img, int $fontSize, int $baselineY, int $color, string $font, string $text, int $maxWidth = 720) use ($width): void {
+        $drawCenterText = function ($img, int $fontSize, int $baselineY, int $color, string $font, string $text, int $maxWidth = 920) use ($width): void {
             if (empty($text)) {
                 return;
             }
             $size = $fontSize;
             $bbox = @imagettfbbox($size, 0, $font, $text);
-            while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 10) {
+            while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 12) {
                 $size -= 1;
                 $bbox = @imagettfbbox($size, 0, $font, $text);
             }
@@ -159,30 +178,30 @@ class WelcomeCreativeImageGenerator
             }
         };
 
-        // Render Only: Peer Name, Peer Category, and Peer City
-        // Scale baseline coordinates proportionally to canvas height (1024 standard)
-        $scaleY = $height / 1024.0;
-        $scaleX = $width / 819.0;
+        // Render matching second image (Peers Global):
+        // Scale baseline coordinates proportionally to standard 1122x1402 canvas
+        $scaleY = $height / 1402.0;
+        $scaleX = $width / 1122.0;
 
-        // Line 1: Peer Name (Navy #002F6C, Bold, ~25pt, Baseline Y ~ 762)
-        $nameBaselineY = (int) round(762 * $scaleY);
-        $nameFontSize = (int) round(25 * min($scaleX, $scaleY));
-        $drawCenterText($canvas, $nameFontSize, $nameBaselineY, $colorNavy, $fontBold, $name, (int) round(680 * $scaleX));
+        // Line 1: Member Name (Dark Navy #002F6C, Montserrat Bold, ~34pt, Baseline Y ~ 1040)
+        $nameBaselineY = (int) round(1040 * $scaleY);
+        $nameFontSize = (int) round(34 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $nameFontSize, $nameBaselineY, $colorNavy, $fontBold, $name, (int) round(920 * $scaleX));
 
-        // Line 2: Peer City (Gray #616161, SemiBold, ~15pt, Baseline Y ~ 798)
-        $cityBaselineY = (int) round(798 * $scaleY);
-        $cityFontSize = (int) round(15 * min($scaleX, $scaleY));
-        $drawCenterText($canvas, $cityFontSize, $cityBaselineY, $colorGray, $fontSemiBold, $cityText, (int) round(680 * $scaleX));
+        // Line 2: CITY • COMPANY (Slate Gray #616161, Montserrat SemiBold, ~19pt, Baseline Y ~ 1092)
+        $line2BaselineY = (int) round(1092 * $scaleY);
+        $line2FontSize = (int) round(19 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $line2FontSize, $line2BaselineY, $colorGray, $fontSemiBold, $line2Text, (int) round(920 * $scaleX));
 
-        // Divider: Gradient line with central crimson dot (Y ~ 818)
-        $dividerY = (int) round(818 * $scaleY);
-        $dividerHalfWidth = (int) round(135 * $scaleX);
+        // Divider: Gradient line (navy-to-crimson) with central crimson dot (Y ~ 1120)
+        $dividerY = (int) round(1120 * $scaleY);
+        $dividerHalfWidth = (int) round(185 * $scaleX);
         $this->drawGradientDivider($canvas, $centerX, $dividerY, $dividerHalfWidth, $colorNavy, $colorCrimson);
 
-        // Line 3: Peer Category (Navy Blue #002F6C, Bold, ~14pt, Baseline Y ~ 848)
-        $categoryBaselineY = (int) round(848 * $scaleY);
-        $categoryFontSize = (int) round(14 * min($scaleX, $scaleY));
-        $drawCenterText($canvas, $categoryFontSize, $categoryBaselineY, $colorNavy, $fontBold, $categoryText, (int) round(680 * $scaleX));
+        // Line 3: Category / Industry (Deep Navy / Indigo #002F6C, Montserrat Bold, ~19pt, Baseline Y ~ 1162)
+        $categoryBaselineY = (int) round(1162 * $scaleY);
+        $categoryFontSize = (int) round(19 * min($scaleX, $scaleY));
+        $drawCenterText($canvas, $categoryFontSize, $categoryBaselineY, $colorNavy, $fontBold, $categoryText, (int) round(920 * $scaleX));
 
         // Save canvas to disk
         $tempPath = tempnam(sys_get_temp_dir(), 'welcome_');
