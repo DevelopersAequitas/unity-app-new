@@ -9,7 +9,7 @@
         'search_docs' => 'Search Knowledge Docs (RAG Policies & Rules)',
         'find_peers' => 'Find Peers (Live Users Table)',
         'get_events' => 'Get Upcoming Events (Live Events Table)',
-        'get_speed_networking' => 'Get Speed Networking Sessions',
+        'get_speed_networking' => 'Get Speed Collaboration Sessions',
         'get_my_stats' => 'Get Peer Referrals, Coins & Impact Summary',
     ];
     $innerOptionsJson = json_encode($settings->inner_options_json ?: \App\Models\AiChatbotSetting::DEFAULT_INNER_OPTIONS, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -477,7 +477,7 @@
                             <label class="form-label small fw-semibold">Category</label>
                             <select name="category" class="form-select" required>
                                 <option value="general">General</option>
-                                <option value="speed_networking">Speed Networking</option>
+                                <option value="speed_networking">Speed Collaboration</option>
                                 <option value="referrals">Referrals &amp; Coins</option>
                                 <option value="circles">Unity Circles</option>
                                 <option value="faq">FAQ</option>

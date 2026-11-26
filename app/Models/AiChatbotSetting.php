@@ -96,7 +96,7 @@ PROMPT;
         'search_docs' => 'Search Knowledge Docs (RAG Policies & Rules)',
         'find_peers' => 'Find Peers (Live Users Table)',
         'get_events' => 'Get Upcoming Events (Live Events Table)',
-        'get_speed_networking' => 'Get Speed Networking Sessions',
+        'get_speed_networking' => 'Get Speed Collaboration Sessions',
         'get_my_stats' => 'Get Peer Referrals, Coins & Impact Summary',
     ];
 
@@ -159,4 +159,3 @@ PROMPT;
         });
     }
 }
-

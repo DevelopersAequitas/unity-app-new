@@ -144,7 +144,7 @@ class SpeedNetworkingWebController extends Controller
 
         return redirect()
             ->route('admin.speed-networking.show', $event->id)
-            ->with('success', "Speed Networking event '{$event->title}' created successfully.");
+            ->with('success', "Speed Collaboration event '{$event->title}' created successfully.");
     }
 
     /**
@@ -157,7 +157,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking event not found.');
+                ->with('error', 'Speed Collaboration event not found.');
         }
 
         $validated = $request->validate([
@@ -201,7 +201,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking session not found or has been removed.');
+                ->with('error', 'Speed Collaboration session not found or has been removed.');
         }
 
         if ($target['type'] === 'sn') {
@@ -356,7 +356,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking event not found.');
+                ->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -394,7 +394,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking event not found.');
+                ->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -450,7 +450,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking event not found.');
+                ->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -485,7 +485,7 @@ class SpeedNetworkingWebController extends Controller
         if (! $target) {
             return redirect()
                 ->route('admin.speed-networking.index')
-                ->with('error', 'Speed Networking event not found.');
+                ->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -500,7 +500,7 @@ class SpeedNetworkingWebController extends Controller
 
         return redirect()
             ->route('admin.speed-networking.index')
-            ->with('success', 'Speed Networking event deleted.');
+            ->with('success', 'Speed Collaboration event deleted.');
     }
 
     /**
@@ -510,7 +510,7 @@ class SpeedNetworkingWebController extends Controller
     {
         $target = $this->findEventOrBaseEvent($id);
         if (! $target) {
-            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -533,7 +533,7 @@ class SpeedNetworkingWebController extends Controller
     {
         $target = $this->findEventOrBaseEvent($id);
         if (! $target) {
-            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {
@@ -556,7 +556,7 @@ class SpeedNetworkingWebController extends Controller
     {
         $target = $this->findEventOrBaseEvent($id);
         if (! $target) {
-            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Collaboration event not found.');
         }
 
         if ($target['type'] === 'sn') {

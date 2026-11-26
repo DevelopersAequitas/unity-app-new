@@ -611,7 +611,7 @@ class P2pMeetingController extends BaseApiController
 
         $cleaned = trim((string) preg_replace('/\s*\[(sn_)?match:[^\]]+\]/i', '', $remarks));
 
-        if (preg_match('/^Speed Networking Round\b/i', $cleaned)) {
+        if (preg_match('/^Speed (Networking|Collaboration) Round\b/i', $cleaned)) {
             return null;
         }
 

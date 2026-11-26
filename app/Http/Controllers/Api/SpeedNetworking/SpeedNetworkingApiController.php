@@ -136,7 +136,7 @@ class SpeedNetworkingApiController extends Controller
                 'circle_restricted' => true,
                 'circle_ids' => $eventCircleIds,
                 'circle_name' => $circleName,
-                'message' => 'Please log in to join this circle Speed Networking event.',
+                'message' => 'Please log in to join this circle Speed Collaboration event.',
             ];
         }
 
@@ -153,7 +153,7 @@ class SpeedNetworkingApiController extends Controller
             'circle_restricted' => true,
             'circle_ids' => $eventCircleIds,
             'circle_name' => $circleName,
-            'message' => $isMember ? null : 'This Speed Networking event is exclusive to members of the selected Circle.',
+            'message' => $isMember ? null : 'This Speed Collaboration event is exclusive to members of the selected Circle.',
         ];
     }
 
@@ -455,7 +455,7 @@ class SpeedNetworkingApiController extends Controller
                 'amount' => (int) round($ticketPrice * 100),
                 'currency' => (string) ($registration->currency ?: 'INR'),
                 'name' => 'Peers Global Unity',
-                'description' => 'Speed Networking Event Fee - '.(string) ($event->title ?? 'Speed Networking'),
+                'description' => 'Speed Collaboration Event Fee - '.(string) ($event->title ?? 'Speed Collaboration'),
                 'prefill' => [
                     'name' => $user->name ?? '',
                     'email' => $user->email ?? '',
@@ -574,7 +574,7 @@ class SpeedNetworkingApiController extends Controller
             return response()->json([
                 'status' => 'circle_restricted',
                 'success' => false,
-                'message' => $circleAccess['message'] ?? 'This Speed Networking event is exclusive to members of the selected Circle.',
+                'message' => $circleAccess['message'] ?? 'This Speed Collaboration event is exclusive to members of the selected Circle.',
             ], 403);
         }
 
@@ -594,7 +594,7 @@ class SpeedNetworkingApiController extends Controller
                 'status' => 'payment_required',
                 'success' => false,
                 'requires_payment' => true,
-                'message' => 'Speed Networking event fee payment required. Please complete payment via Razorpay.',
+                'message' => 'Speed Collaboration event fee payment required. Please complete payment via Razorpay.',
                 'data' => [
                     'event_id' => (string) $event->id,
                     'title' => (string) $event->title,
@@ -658,7 +658,7 @@ class SpeedNetworkingApiController extends Controller
         return response()->json([
             'status' => 'success',
             'success' => true,
-            'message' => 'Successfully registered for Speed Networking session.',
+            'message' => 'Successfully registered for Speed Collaboration session.',
             'data' => [
                 'event_id' => (string) $event->id,
                 'title' => (string) $event->title,
@@ -913,7 +913,7 @@ class SpeedNetworkingApiController extends Controller
             return response()->json([
                 'status' => true,
                 'success' => true,
-                'message' => 'No active speed networking event scheduled.',
+                'message' => 'No active speed collaboration event scheduled.',
                 'data' => null,
             ]);
         }
@@ -1283,7 +1283,7 @@ class SpeedNetworkingApiController extends Controller
                 'success' => false,
                 'requires_payment' => false,
                 'can_join' => false,
-                'message' => $circleAccess['message'] ?? 'This Speed Networking event is exclusive to members of the selected Circle.',
+                'message' => $circleAccess['message'] ?? 'This Speed Collaboration event is exclusive to members of the selected Circle.',
                 'data' => [
                     'event_id' => (string) $event->id,
                     'title' => (string) $event->title,
@@ -1316,7 +1316,7 @@ class SpeedNetworkingApiController extends Controller
                 'success' => false,
                 'requires_payment' => true,
                 'can_join' => false,
-                'message' => 'Speed Networking event fees payment required. Please complete payment via Razorpay.',
+                'message' => 'Speed Collaboration event fees payment required. Please complete payment via Razorpay.',
                 'data' => [
                     'event_id' => (string) $event->id,
                     'title' => (string) $event->title,
@@ -1513,7 +1513,7 @@ class SpeedNetworkingApiController extends Controller
         return response()->json([
             'status' => 'success',
             'success' => true,
-            'message' => 'Payment verified successfully. You can now join the Speed Networking session.',
+            'message' => 'Payment verified successfully. You can now join the Speed Collaboration session.',
             'data' => [
                 'event_id' => $eventId,
                 'registration_id' => $registration->id,
@@ -1848,7 +1848,7 @@ class SpeedNetworkingApiController extends Controller
                 : [
                     'completed' => true,
                     'has_met_all_peers' => true,
-                    'message' => 'All speed networking rounds have concluded. Great conversations made!',
+                    'message' => 'All speed collaboration rounds have concluded. Great conversations made!',
                     'total_rounds' => 0,
                     'rounds_completed' => 0,
                     'total_interactions_count' => 0,
@@ -2310,7 +2310,7 @@ class SpeedNetworkingApiController extends Controller
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Speed Networking event not found.',
+                'message' => 'Speed Collaboration event not found.',
             ], 404);
         }
 
@@ -2327,7 +2327,7 @@ class SpeedNetworkingApiController extends Controller
             $summary = [
                 'completed' => true,
                 'has_met_all_peers' => true,
-                'message' => 'All speed networking rounds have concluded. Great conversations made!',
+                'message' => 'All speed collaboration rounds have concluded. Great conversations made!',
                 'total_rounds' => $totalRounds,
                 'rounds_completed' => 0,
                 'total_interactions_count' => 0,
@@ -2403,7 +2403,7 @@ class SpeedNetworkingApiController extends Controller
             return response()->json([
                 'status' => 'error',
                 'success' => false,
-                'message' => 'Speed Networking event not found.',
+                'message' => 'Speed Collaboration event not found.',
             ], 404);
         }
 
@@ -2415,7 +2415,7 @@ class SpeedNetworkingApiController extends Controller
             return response()->json([
                 'status' => 'success',
                 'success' => true,
-                'message' => 'Event has no speed networking matches.',
+                'message' => 'Event has no speed collaboration matches.',
                 'data' => [
                     'created_meetings_count' => 0,
                     'meetings' => [],

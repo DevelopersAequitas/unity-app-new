@@ -75,32 +75,83 @@ class JuryWebController extends Controller
         try {
             Mail::send([], [], function ($message) use ($user, $jurorName, $otp): void {
                 $html = "
-                <div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;'>
-                    <div style='text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;'>
-                        <h2 style='color: #0f172a; margin: 0 0 6px 0; font-size: 22px; font-weight: 800;'>Peers Global Leadership Selection</h2>
-                        <p style='color: #64748b; font-size: 14px; margin: 0;'>Jury Evaluation Portal Authentication</p>
-                    </div>
+                <!DOCTYPE html>
+                <html lang='en' xmlns='http://www.w3.org/1999/xhtml'>
+                <head>
+                    <meta charset='UTF-8'>
+                    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+                    <meta name='color-scheme' content='light'>
+                    <meta name='supported-color-schemes' content='light'>
+                    <title>Your Jury Login OTP: {$otp}</title>
+                    <style>
+                        * { box-sizing: border-box; }
+                        body, table, td, p, a, li, blockquote { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+                        @media only screen and (max-width: 600px) {
+                            .email-wrapper { padding: 12px 6px !important; }
+                            .email-container { width: 100% !important; max-width: 100% !important; border-radius: 12px !important; }
+                            .email-body { padding: 22px 16px !important; }
+                            .email-header { padding: 24px 16px 16px 16px !important; }
+                            .otp-box { padding: 14px 16px !important; width: 100% !important; max-width: 270px !important; }
+                            .otp-code { font-size: 28px !important; letter-spacing: 5px !important; margin-left: 5px !important; }
+                        }
+                    </style>
+                </head>
+                <body style='margin:0; padding:0; background-color:#f1f5f9; font-family:\"Segoe UI\", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#334155;'>
+                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:32px 12px; background-color:#f1f5f9; border-collapse:collapse;'>
+                        <tr>
+                            <td align='center'>
+                                <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:540px; width:100%; margin:0 auto; background-color:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 4px 25px rgba(0,0,0,0.06); border-collapse:collapse;'>
+                                    <!-- Top Brand Gradient Accent Bar -->
+                                    <tr>
+                                        <td style='height:5px; background:linear-gradient(90deg, #4f46e5 0%, #9333ea 50%, #e11d48 100%); line-height:5px; font-size:1px;'>&nbsp;</td>
+                                    </tr>
 
-                    <p style='font-size: 15px; line-height: 1.6;'>Hello <strong>{$jurorName}</strong>,</p>
-                    <p style='font-size: 15px; line-height: 1.6; color: #334155;'>
-                        Use the one-time verification code below to securely log into your <strong>Jury Evaluation Dashboard</strong>:
-                    </p>
+                                    <!-- Clean Header -->
+                                    <tr>
+                                        <td align='center' class='email-header' style='background-color:#ffffff; padding:28px 20px 18px 20px; text-align:center; border-bottom:1px solid #f1f5f9;'>
+                                            <h2 style='color:#0f172a; margin:0 0 6px 0; font-size:20px; font-weight:800; letter-spacing:-0.02em;'>Peers Global Leadership Selection</h2>
+                                            <div style='display:inline-block; margin-top:4px;'>
+                                                <span style='background-color:#f8fafc; color:#475569; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:4px 14px; border-radius:20px; border:1px solid #e2e8f0;'>
+                                                    Jury Portal Authentication
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
 
-                    <div style='text-align: center; margin: 28px 0;'>
-                        <div style='display: inline-block; background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%); border: 2px dashed #6366f1; border-radius: 12px; padding: 18px 36px;'>
-                            <span style='font-family: monospace, Courier; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #4338ca;'>{$otp}</span>
-                        </div>
-                        <p style='margin-top: 10px; font-size: 12.5px; color: #64748b;'>Valid for 15 minutes. Never share this code with anyone.</p>
-                    </div>
+                                    <!-- Body -->
+                                    <tr>
+                                        <td class='email-body' style='padding:30px 24px; color:#334155; font-size:15px; line-height:1.6;'>
+                                            <p style='margin:0 0 14px 0; font-size:17px; font-weight:700; color:#0f172a;'>Hello <strong>{$jurorName}</strong>,</p>
+                                            <p style='margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#334155;'>
+                                                Use the verification code below to securely log into your <strong style='color:#4f46e5;'>Jury Evaluation Dashboard</strong>:
+                                            </p>
 
-                    <p style='font-size: 13.5px; color: #64748b; line-height: 1.5;'>
-                        If you did not request this login code, you can safely disregard this email.
-                    </p>
+                                            <!-- OTP Code Box -->
+                                            <div style='text-align:center; margin:24px 0;'>
+                                                <div class='otp-box' style='display:inline-block; box-sizing:border-box; max-width:100%; background-color:#eef2ff; border:2px dashed #6366f1; border-radius:12px; padding:18px 32px; text-align:center;'>
+                                                    <span class='otp-code' style='font-family:\"Courier New\", Courier, monospace; font-size:34px; font-weight:800; letter-spacing:6px; color:#4338ca; display:inline-block; margin-left:6px;'>{$otp}</span>
+                                                </div>
+                                                <p style='margin:10px 0 0 0; font-size:12.5px; color:#6366f1; font-weight:600;'>Valid for 15 minutes. Never share this code with anyone.</p>
+                                            </div>
 
-                    <div style='border-top: 1px solid #f1f5f9; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center;'>
-                        Peers Global Leadership Selection & Governance Committee
-                    </div>
-                </div>
+                                            <p style='margin:0 0 16px 0; font-size:13px; color:#64748b; line-height:1.5;'>
+                                                If you did not request this login code, you can safely disregard this email.
+                                            </p>
+
+                                            <div style='border-top:1px solid #e2e8f0; margin-top:24px; padding-top:16px; font-size:12px; color:#64748b; text-align:center; line-height:1.6;'>
+                                                <strong style='color:#0f172a;'>Peers Global Leadership Selection &amp; Governance Committee</strong><br>
+                                                <span style='color:#94a3b8;'>Peers are partners in business and friends in life.</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
                 ";
 
                 $message->to($user->email)

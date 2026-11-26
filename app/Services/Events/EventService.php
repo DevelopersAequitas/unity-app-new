@@ -986,7 +986,7 @@ class EventService
             'public_visitor_event' => 'public_event',
             'training_workshop' => 'training',
             'circle_meet' => 'circle_meeting',
-            'Speed Networking', 'speed_networking' => 'speed_networking',
+            'Speed Networking', 'Speed Collaboration', 'speed_collaboration', 'speed_networking' => 'speed_networking',
             default => $eventType,
         };
     }

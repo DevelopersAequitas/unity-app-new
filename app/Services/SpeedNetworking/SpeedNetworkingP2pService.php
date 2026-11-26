@@ -128,8 +128,8 @@ class SpeedNetworkingP2pService
             ? $match->started_at->toDateString()
             : ($event->start_date ? Carbon::parse($event->start_date)->toDateString() : now()->toDateString());
 
-        $meetingPlace = 'Speed Networking - '.trim($event->title ?: 'Virtual Networking');
-        $remarks = "Speed Networking Round {$match->round_number} - {$event->title} [sn_match:{$match->id}]";
+        $meetingPlace = 'Speed Collaboration - '.trim($event->title ?: 'Virtual Collaboration');
+        $remarks = "Speed Collaboration Round {$match->round_number} - {$event->title} [sn_match:{$match->id}]";
 
         // 4. Create P2pMeeting (Without Timeline Feed Post)
         $meeting = DB::transaction(function () use ($userA, $userB, $meetingDate, $meetingPlace, $remarks, $media, $match): P2pMeeting {
@@ -176,7 +176,7 @@ class SpeedNetworkingP2pService
                 $userA,
                 'p2p_meeting',
                 null,
-                'Speed Networking P2P Meeting',
+                'Speed Collaboration P2P Meeting',
                 (string) $userA->id,
                 'p2p_meeting',
                 (string) $meeting->id
@@ -186,7 +186,7 @@ class SpeedNetworkingP2pService
                 $userB,
                 'p2p_meeting',
                 null,
-                'Speed Networking P2P Meeting',
+                'Speed Collaboration P2P Meeting',
                 (string) $userB->id,
                 'p2p_meeting',
                 (string) $meeting->id
@@ -211,8 +211,8 @@ class SpeedNetworkingP2pService
                 'p2p_meeting',
                 (string) $meeting->id,
                 $impactPoints,
-                'Speed Networking 1-on-1 Meeting',
-                "Completed a Speed Networking 1-on-1 session with {$userBName}",
+                'Speed Collaboration 1-on-1 Meeting',
+                "Completed a Speed Collaboration 1-on-1 session with {$userBName}",
                 [
                     'meeting_date' => $meeting->meeting_date,
                     'meeting_place' => $meeting->meeting_place,
@@ -230,8 +230,8 @@ class SpeedNetworkingP2pService
                 'p2p_meeting',
                 (string) $meeting->id,
                 $impactPoints,
-                'Speed Networking 1-on-1 Meeting',
-                "Completed a Speed Networking 1-on-1 session with {$userAName}",
+                'Speed Collaboration 1-on-1 Meeting',
+                "Completed a Speed Collaboration 1-on-1 session with {$userAName}",
                 [
                     'meeting_date' => $meeting->meeting_date,
                     'meeting_place' => $meeting->meeting_place,

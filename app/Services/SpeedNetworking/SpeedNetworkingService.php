@@ -5199,7 +5199,7 @@ class SpeedNetworkingService
             }
 
             $users = User::whereIn('id', $userIds)->get();
-            $title = '⚡ Speed Networking is Live!';
+            $title = '⚡ Speed Collaboration is Live!';
             $body = "{$event->title} has started! Join now to meet your first peer 1-on-1.";
 
             $payload = [

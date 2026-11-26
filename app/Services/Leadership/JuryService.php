@@ -45,7 +45,6 @@ class JuryService
                 'business_category_id',
                 'main_business_category_id',
                 'business_sub_category',
-                'profile_photo_url',
                 'profile_photo_file_id',
                 'profile_photo_id',
             ])
@@ -177,63 +176,115 @@ class JuryService
                     : "You have been officially appointed as a distinguished <strong>Jury Member</strong> for the <strong>{$campaignName}</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.";
 
                 $html = "
-                <div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;'>
-                    <div style='text-align: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;'>
-                        <div style='display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Official Appointment</div>
-                        <h1 style='color: #0f172a; font-size: 22px; font-weight: 800; margin: 0 0 6px 0;'>Jury Evaluation Panel</h1>
-                        <p style='color: #64748b; font-size: 14px; margin: 0;'>{$campaignName}</p>
-                    </div>
+                <!DOCTYPE html>
+                <html lang='en' xmlns='http://www.w3.org/1999/xhtml'>
+                <head>
+                    <meta charset='UTF-8'>
+                    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+                    <meta name='color-scheme' content='light'>
+                    <meta name='supported-color-schemes' content='light'>
+                    <title>Appointment as Jury Member - {$campaignName}</title>
+                    <style>
+                        * { box-sizing: border-box; }
+                        body, table, td, p, a, li, blockquote { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+                        @media only screen and (max-width: 600px) {
+                            .email-wrapper { padding: 12px 6px !important; }
+                            .email-container { width: 100% !important; max-width: 100% !important; border-radius: 12px !important; }
+                            .email-body { padding: 22px 16px !important; }
+                            .email-header { padding: 24px 16px 16px 16px !important; }
+                            .mobile-btn { width: 100% !important; display: block !important; padding: 14px 16px !important; text-align: center !important; }
+                            .detail-table td { display: block !important; width: 100% !important; padding: 3px 0 !important; }
+                            .detail-table td.label-td { padding-top: 8px !important; }
+                        }
+                    </style>
+                </head>
+                <body style='margin:0; padding:0; background-color:#f1f5f9; font-family:\"Segoe UI\", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#334155;'>
+                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:32px 12px; background-color:#f1f5f9; border-collapse:collapse;'>
+                        <tr>
+                            <td align='center'>
+                                <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:580px; width:100%; margin:0 auto; background-color:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 4px 25px rgba(0,0,0,0.06); border-collapse:collapse;'>
+                                    <!-- Top Brand Gradient Accent Bar -->
+                                    <tr>
+                                        <td style='height:5px; background:linear-gradient(90deg, #4f46e5 0%, #9333ea 50%, #e11d48 100%); line-height:5px; font-size:1px;'>&nbsp;</td>
+                                    </tr>
 
-                    <p style='font-size: 15px; line-height: 1.6; margin-bottom: 16px;'>Dear <strong>{$jurorName}</strong>,</p>
+                                    <!-- Clean Header -->
+                                    <tr>
+                                        <td align='center' class='email-header' style='background-color:#ffffff; padding:28px 24px 18px 24px; text-align:center; border-bottom:1px solid #f1f5f9;'>
+                                            <div style='display:inline-block; margin-bottom:8px;'>
+                                                <span style='background-color:#f8fafc; color:#475569; font-size:11px; font-weight:700; padding:5px 14px; border-radius:20px; border:1px solid #e2e8f0; text-transform:uppercase; letter-spacing:0.08em;'>
+                                                    Official Appointment
+                                                </span>
+                                            </div>
+                                            <h1 style='color:#0f172a; font-size:22px; font-weight:800; margin:0 0 6px 0; letter-spacing:-0.02em;'>Jury Evaluation Panel</h1>
+                                            <p style='color:#64748b; font-size:13.5px; margin:0;'>{$campaignName}</p>
+                                        </td>
+                                    </tr>
 
-                    <p style='font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;'>
-                        {$greetingParagraph}
-                    </p>
+                                    <!-- Body -->
+                                    <tr>
+                                        <td class='email-body' style='padding:30px 24px; color:#334155; font-size:15px; line-height:1.65;'>
+                                            <p style='font-size:17px; font-weight:700; color:#0f172a; margin-bottom:14px;'>Dear <strong>{$jurorName}</strong>,</p>
 
-                    <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;'>
-                        <div style='font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Assignment Details</div>
-                        <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
-                            <tr>
-                                <td style='padding: 6px 0; color: #64748b; width: 140px;'>Selection Scope:</td>
-                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$campaignName}</td>
-                            </tr>
-                            <tr>
-                                <td style='padding: 6px 0; color: #64748b;'>Candidate / Scope:</td>
-                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$candidateName} ({$appNumber})</td>
-                            </tr>
-                            <tr>
-                                <td style='padding: 6px 0; color: #64748b;'>Target Roles:</td>
-                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$roleName}</td>
-                            </tr>
-                            <tr>
-                                <td style='padding: 6px 0; color: #64748b;'>Evaluation Due:</td>
-                                <td style='padding: 6px 0; color: #dc2626; font-weight: 700;'>{$deadline}</td>
-                            </tr>
-                        </table>
-                    </div>
+                                            <p style='font-size:15px; line-height:1.65; color:#334155; margin-bottom:20px;'>
+                                                {$greetingParagraph}
+                                            </p>
 
-                    <div style='background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 24px; margin: 28px 0; text-align: center;'>
-                        <h3 style='margin: 0 0 10px 0; color: #312e81; font-size: 17px; font-weight: 700;'>Access Your Jury Dashboard</h3>
-                        <p style='color: #475569; font-size: 14px; margin-bottom: 20px; line-height: 1.5;'>
-                            Please log into the Jury Portal using your registered email (<strong>{$juror->email}</strong>) and a one-time password (OTP) sent directly to your inbox.
-                        </p>
-                        <a href='{$portalUrl}' target='_blank' style='display: inline-block; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);'>
-                            Open Jury Evaluation Portal &rarr;
-                        </a>
-                        <p style='margin-top: 14px; font-size: 12px; color: #64748b;'>
-                            Or access via: <a href='{$portalUrl}' style='color: #4f46e5; word-break: break-all;'>{$portalUrl}</a>
-                        </p>
-                    </div>
+                                            <!-- Assignment Details Card -->
+                                            <div style='background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin:22px 0;'>
+                                                <div style='font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:8px;'>Assignment Details</div>
+                                                <table class='detail-table' role='presentation' cellpadding='0' cellspacing='0' width='100%' style='border-collapse:collapse; font-size:14px; color:#334155;'>
+                                                    <tr>
+                                                        <td class='label-td' style='padding:6px 0; color:#64748b; width:130px; font-weight:600;'>Selection Scope:</td>
+                                                        <td style='padding:6px 0; color:#0f172a; font-weight:700;'>{$campaignName}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class='label-td' style='padding:6px 0; color:#64748b; font-weight:600;'>Candidate / Scope:</td>
+                                                        <td style='padding:6px 0; color:#0f172a; font-weight:600;'>{$candidateName} ({$appNumber})</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class='label-td' style='padding:6px 0; color:#64748b; font-weight:600;'>Target Roles:</td>
+                                                        <td style='padding:6px 0; color:#4f46e5; font-weight:600;'>{$roleName}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class='label-td' style='padding:6px 0; color:#64748b; font-weight:600;'>Evaluation Due:</td>
+                                                        <td style='padding:6px 0; color:#dc2626; font-weight:700;'>{$deadline}</td>
+                                                    </tr>
+                                                </table>
+                                            </div>
 
-                    <p style='font-size: 13px; color: #64748b; line-height: 1.5;'>
-                        In your dashboard, you will find complete Form 1 credentials, verified achievements, and Form 2 operational dossiers to record your scores, strengths, and recommendations.
-                    </p>
+                                            <!-- CTA Access Dashboard -->
+                                            <div style='background-color:#eef2ff; border:1px solid #c7d2fe; border-radius:14px; padding:24px 20px; margin:24px 0; text-align:center;'>
+                                                <h3 style='margin:0 0 8px 0; color:#1e1b4b; font-size:17px; font-weight:700;'>Access Your Jury Dashboard</h3>
+                                                <p style='color:#475569; font-size:13.5px; margin-bottom:18px; line-height:1.5;'>
+                                                    Log into the Jury Portal with your registered email (<strong>{$juror->email}</strong>) and a secure one-time password (OTP).
+                                                </p>
+                                                <a href='{$portalUrl}' target='_blank' class='mobile-btn' style='display:inline-block; box-sizing:border-box; background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#ffffff; text-decoration:none; padding:13px 28px; border-radius:10px; font-weight:700; font-size:14.5px; box-shadow:0 4px 14px rgba(79, 70, 229, 0.3); letter-spacing:0.02em;'>
+                                                    Open Jury Evaluation Portal &rarr;
+                                                </a>
+                                                <p style='margin-top:14px; font-size:12px; color:#64748b; word-break:break-all;'>
+                                                    Direct URL: <a href='{$portalUrl}' style='color:#4f46e5; text-decoration:underline;'>{$portalUrl}</a>
+                                                </p>
+                                            </div>
 
-                    <div style='border-top: 1px solid #f1f5f9; margin-top: 28px; padding-top: 20px; font-size: 12px; color: #94a3b8; text-align: center;'>
-                        Peers Global Leadership Selection & Governance Committee<br/>
-                        Automated notification from Peers Unity Platform.
-                    </div>
-                </div>
+                                            <p style='font-size:13px; color:#64748b; line-height:1.6;'>
+                                                In your dashboard, you will find complete Form 1 credentials, verified achievements, and Form 2 operational dossiers to record your scores and recommendations.
+                                            </p>
+
+                                            <div style='border-top:1px solid #e2e8f0; margin-top:24px; padding-top:16px; font-size:12px; color:#64748b; text-align:center; line-height:1.6;'>
+                                                <strong style='color:#0f172a;'>Peers Global Leadership Selection &amp; Governance Committee</strong><br/>
+                                                <span style='color:#94a3b8;'>Peers are partners in business and friends in life.</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
                 ";
 
                 $message->to($juror->email)
