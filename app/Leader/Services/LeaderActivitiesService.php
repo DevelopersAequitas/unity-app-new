@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace App\Leader\Services;
 
 use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
+use App\Models\AdminAuditLog;
+use App\Models\AdminUser;
 use App\Models\BusinessDeal;
 use App\Models\Impact;
+use App\Models\LifeImpactHistory;
 use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Services\Impacts\ImpactService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -44,8 +48,8 @@ class LeaderActivitiesService
             ?: ($user->avatar_url
             ?: ($user->avatar ? (str_starts_with((string) $user->avatar, 'http') ? (string) $user->avatar : url('storage/'.$user->avatar)) : null));
 
-        $city = (string) ($user->city ?: ($user->city_of_residence ?: ($user->location ?: 'Ahmedabad')));
-        $companyName = (string) ($user->company_name ?: ($user->business_name ?: ($user->company ?: 'Enterprise Services')));
+        $city = (string) ($user->city ?: ($user->city_of_residence ?: ($user->location ?: '')));
+        $companyName = (string) ($user->company_name ?: ($user->business_name ?: ($user->company ?: '')));
 
         $circleMemberL4 = null;
         if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
@@ -57,7 +61,7 @@ class LeaderActivitiesService
             ?: ($user->business_sub_category
             ?: ($user->category_name
             ?: ($user->businessCategory?->name
-            ?: ($user->industry ?: 'Business Services'))))));
+            ?: ($user->industry ?: ''))))));
 
         $circleName = $defaultCircleName ?? '';
         $circleId = (string) ($user->active_circle_id ?? '');
@@ -103,14 +107,14 @@ class LeaderActivitiesService
     }
 
     /**
-     * Get impacts list for leader app.
+     * Build scoped Impact query shared between list pagination and status counters.
      *
-     * @return array<int, array<string, mixed>>
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Impact>
      */
-    public function getImpacts(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
+    private function buildScopedImpactsQuery(Request $request, bool $applyStatusFilter = true): \Illuminate\Database\Eloquent\Builder
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
-        $status = $request->query('status') ? strtolower((string) $request->query('status')) : null;
+        $status = $request->query('status') ? strtolower(trim((string) $request->query('status'))) : null;
         $search = $request->query('search') ? trim((string) $request->query('search')) : null;
         $user = $request->user();
 
@@ -128,6 +132,10 @@ class LeaderActivitiesService
             'impactedPeer.activeCircle',
             'impactedPeer.businessCategory',
             'impactedPeer.level4Category',
+            'approvedBy',
+            'approvedByUser',
+            'rejectedBy',
+            'rejectedByUser',
         ]);
 
         if (Schema::hasColumn('impacts', 'deleted_at')) {
@@ -138,32 +146,35 @@ class LeaderActivitiesService
         }
 
         if ($circleId && Str::isUuid($circleId)) {
+            if ($scopedCircleIds !== null && ! in_array($circleId, array_map('strval', $scopedCircleIds), true)) {
+                $query->whereRaw('1 = 0');
+
+                return $query;
+            }
             $query->where(function ($q) use ($circleId): void {
-                $q->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId))
-                    ->orWhereHas('impactedPeer.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+                $q->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)->whereNull('deleted_at'))
+                    ->orWhereHas('user', fn ($uq) => $uq->where('active_circle_id', $circleId))
+                    ->orWhereHas('impactedPeer.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)->whereNull('deleted_at'));
             });
         } elseif ($scopedUserIds !== null) {
             if (empty($scopedUserIds)) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->where(function ($q) use ($scopedUserIds): void {
-                    $q->whereIn('user_id', $scopedUserIds)
-                        ->orWhereIn('impacted_peer_id', $scopedUserIds);
-                });
+                $query->whereIn('user_id', $scopedUserIds);
             }
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
             } else {
                 $query->where(function ($q) use ($scopedCircleIds): void {
-                    $q->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds))
-                        ->orWhereHas('impactedPeer.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds));
+                    $q->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                        ->orWhereHas('user', fn ($uq) => $uq->whereIn('active_circle_id', $scopedCircleIds));
                 });
             }
         }
 
-        if ($status && $status !== 'all') {
-            $query->where('status', $status);
+        if ($applyStatusFilter && $status && $status !== 'all') {
+            $query->whereRaw('LOWER(COALESCE(status, ?)) = ?', ['approved', $status]);
         }
 
         if ($search) {
@@ -174,11 +185,538 @@ class LeaderActivitiesService
                     ->orWhereHas('user', function ($uq) use ($search): void {
                         $uq->where('first_name', 'ilike', "%{$search}%")
                             ->orWhere('last_name', 'ilike', "%{$search}%")
+                            ->orWhere('display_name', 'ilike', "%{$search}%")
+                            ->orWhere('company_name', 'ilike', "%{$search}%");
+                    })
+                    ->orWhereHas('impactedPeer', function ($uq) use ($search): void {
+                        $uq->where('first_name', 'ilike', "%{$search}%")
+                            ->orWhere('last_name', 'ilike', "%{$search}%")
+                            ->orWhere('display_name', 'ilike', "%{$search}%")
                             ->orWhere('company_name', 'ilike', "%{$search}%");
                     });
             });
         }
 
+        return $query;
+    }
+
+    /**
+     * Get scoped Life Impact status counts (`pending`, `approved`, `rejected`, `all`).
+     *
+     * @return array<string, int>
+     */
+    public function getImpactStatusCounts(Request $request): array
+    {
+        if (! Schema::hasTable('impacts')) {
+            return ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'all' => 0];
+        }
+
+        $baseQuery = $this->buildScopedImpactsQuery($request, applyStatusFilter: false);
+        $rows = (clone $baseQuery)
+            ->reorder()
+            ->selectRaw("LOWER(COALESCE(status, 'approved')) as impact_status, COUNT(*) as cnt")
+            ->groupBy(DB::raw("LOWER(COALESCE(status, 'approved'))"))
+            ->get();
+
+        $counts = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'all' => 0];
+        foreach ($rows as $row) {
+            $st = strtolower((string) ($row->impact_status ?? 'approved'));
+            $cnt = (int) ($row->cnt ?? 0);
+            if (array_key_exists($st, $counts)) {
+                $counts[$st] += $cnt;
+            }
+            $counts['all'] += $cnt;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Strict server-side authorization check for reviewing (Accept/Reject) a Life Impact.
+     * Allowed roles: ONLY Super Admin and District Executive Director (within their district scope).
+     *
+     * @return array{allowed: bool, status_code: int, message: string, role: string}
+     */
+    public function canLeaderReviewImpact(Impact $impact, User|AdminUser|null $actor): array
+    {
+        if (! $actor) {
+            return [
+                'allowed' => false,
+                'status_code' => 401,
+                'message' => 'Unauthenticated.',
+                'role' => 'guest',
+            ];
+        }
+
+        $permService = app(LeaderPermissionService::class);
+        $roleInfo = $permService->resolveUserRole($actor);
+        $role = (string) ($roleInfo['role'] ?? 'guest');
+
+        if (! in_array($role, ['superAdmin', 'districtExecDirector'], true)) {
+            return [
+                'allowed' => false,
+                'status_code' => 403,
+                'message' => 'Only Super Admin and authorized District Executive Directors can review Life Impact submissions.',
+                'role' => $role,
+            ];
+        }
+
+        if ($actor instanceof User && (string) $actor->id === (string) $impact->user_id) {
+            return [
+                'allowed' => false,
+                'status_code' => 403,
+                'message' => 'You cannot approve or reject your own Life Impact submission.',
+                'role' => $role,
+            ];
+        }
+
+        if ($role === 'districtExecDirector') {
+            $scopedCircleIds = $this->peersService->resolveScopedCircleIds($actor);
+            if (empty($scopedCircleIds)) {
+                return [
+                    'allowed' => false,
+                    'status_code' => 403,
+                    'message' => 'No circles are assigned to your district scope.',
+                    'role' => $role,
+                ];
+            }
+
+            if (! $this->isUserInAnyCircle((string) $impact->user_id, $scopedCircleIds)) {
+                return [
+                    'allowed' => false,
+                    'status_code' => 403,
+                    'message' => 'This Life Impact submission is outside your authorized district scope.',
+                    'role' => $role,
+                ];
+            }
+        }
+
+        return [
+            'allowed' => true,
+            'status_code' => 200,
+            'message' => 'Authorized',
+            'role' => $role,
+        ];
+    }
+
+    /**
+     * Check whether the given user belongs to any of the allowed circle UUIDs.
+     *
+     * @param  array<int, string>  $circleIds
+     */
+    private function isUserInAnyCircle(string $userId, array $circleIds): bool
+    {
+        if ($userId === '' || empty($circleIds)) {
+            return false;
+        }
+
+        $inMembers = DB::table('circle_members')
+            ->where('user_id', $userId)
+            ->whereIn('circle_id', $circleIds)
+            ->whereNull('deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('status')
+                    ->orWhereIn(DB::raw('status::text'), ['approved', 'active', 'pending']);
+            })
+            ->exists();
+
+        if ($inMembers) {
+            return true;
+        }
+
+        $user = User::query()->where('id', $userId)->first(['id', 'active_circle_id']);
+        if ($user && ! empty($user->active_circle_id) && in_array((string) $user->active_circle_id, $circleIds, true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether the requesting leader is permitted to view a Life Impact record.
+     */
+    private function canLeaderViewImpact(Impact $impact, User|AdminUser|null $actor): bool
+    {
+        if (! $actor) {
+            return false;
+        }
+
+        $scopedCircleIds = $this->peersService->resolveScopedCircleIds($actor);
+        if ($scopedCircleIds === null) {
+            return true;
+        }
+
+        if (empty($scopedCircleIds)) {
+            return false;
+        }
+
+        if ($this->isUserInAnyCircle((string) $impact->user_id, $scopedCircleIds)) {
+            return true;
+        }
+
+        if (! empty($impact->impacted_peer_id) && $this->isUserInAnyCircle((string) $impact->impacted_peer_id, $scopedCircleIds)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve district info `{id, name}` and circle info from a User's primary circle.
+     *
+     * @return array{circle_id: string, circle_name: string, district_id: ?string, district_name: ?string}
+     */
+    private function resolvePeerCircleAndDistrict(?User $peer): array
+    {
+        if (! $peer) {
+            return [
+                'circle_id' => '',
+                'circle_name' => '',
+                'district_id' => null,
+                'district_name' => null,
+            ];
+        }
+
+        $circle = null;
+        if ($peer->relationLoaded('circleMembers') && $peer->circleMembers && $peer->circleMembers->isNotEmpty()) {
+            $circle = $peer->circleMembers->first()?->circle;
+        }
+        if (! $circle && $peer->relationLoaded('activeCircle')) {
+            $circle = $peer->activeCircle;
+        }
+        if (! $circle && ! empty($peer->active_circle_id)) {
+            $circle = \App\Models\Circle::query()->find((string) $peer->active_circle_id);
+        }
+
+        $circleId = $circle ? (string) $circle->id : (string) ($peer->active_circle_id ?? '');
+        $circleName = $circle ? (string) ($circle->name ?? '') : '';
+        $districtId = $circle && ! empty($circle->district_id) ? (string) $circle->district_id : null;
+        $districtName = null;
+
+        if ($districtId && Schema::hasTable('districts')) {
+            $districtName = DB::table('districts')->where('id', $districtId)->value('name');
+        } elseif (! empty($peer->district)) {
+            $districtName = (string) $peer->district;
+        }
+
+        return [
+            'circle_id' => $circleId,
+            'circle_name' => $circleName,
+            'district_id' => $districtId,
+            'district_name' => $districtName !== null && $districtName !== '' ? (string) $districtName : null,
+        ];
+    }
+
+    /**
+     * Format a single Impact record cleanly with real verification & scope metadata.
+     *
+     * @return array<string, mixed>
+     */
+    public function formatImpactRecord(
+        Impact $impact,
+        User|AdminUser|null $actor = null,
+        bool $includeHistory = false,
+        bool $includeAttachments = true,
+    ): array {
+        $fromPeer = $this->formatPeerDetail($impact->user);
+        $impactedPeer = $this->formatPeerDetail($impact->impactedPeer);
+        $dateStr = $impact->impact_date
+            ? $impact->impact_date->format('Y-m-d')
+            : ($impact->created_at ? $impact->created_at->format('Y-m-d') : '');
+
+        $rawStatus = strtolower(trim((string) ($impact->status ?: 'approved')));
+        if (! in_array($rawStatus, ['pending', 'approved', 'rejected'], true)) {
+            $rawStatus = 'approved';
+        }
+        $statusLabel = ucfirst($rawStatus);
+
+        $circleDistrict = $this->resolvePeerCircleAndDistrict($impact->user);
+        $peerCode = $impact->user && ! empty($impact->user->peer_id)
+            ? (string) $impact->user->peer_id
+            : ($impact->user_id ? 'PG-'.strtoupper(substr(str_replace('-', '', (string) $impact->user_id), 0, 8)) : '');
+
+        $approvedByModel = $impact->relationLoaded('approvedByUser') && $impact->approvedByUser
+            ? $impact->approvedByUser
+            : ($impact->relationLoaded('approvedBy') ? $impact->approvedBy : null);
+        $rejectedByModel = $impact->relationLoaded('rejectedByUser') && $impact->rejectedByUser
+            ? $impact->rejectedByUser
+            : ($impact->relationLoaded('rejectedBy') ? $impact->rejectedBy : null);
+
+        $resolveActorName = static function (mixed $model): ?string {
+            if (! $model) {
+                return null;
+            }
+            $name = trim((string) (($model->first_name ?? '').' '.($model->last_name ?? '')));
+            if ($name === '') {
+                $name = trim((string) ($model->display_name ?? $model->name ?? ''));
+            }
+
+            return $name !== '' ? $name : null;
+        };
+
+        $approvedByName = $resolveActorName($approvedByModel);
+        $rejectedByName = $resolveActorName($rejectedByModel);
+
+        $reviewAuth = $this->canLeaderReviewImpact($impact, $actor);
+        $canReview = $reviewAuth['allowed'] && $rawStatus === 'pending';
+
+        $attachments = [];
+        if ($includeAttachments) {
+            foreach (['media', 'attachments'] as $col) {
+                if (Schema::hasColumn('impacts', $col) && ! empty($impact->{$col})) {
+                    $rawMedia = is_string($impact->{$col}) ? json_decode($impact->{$col}, true) : $impact->{$col};
+                    if (is_array($rawMedia)) {
+                        foreach ($rawMedia as $idx => $entry) {
+                            if (is_string($entry) && $entry !== '') {
+                                $attachments[] = [
+                                    'id' => (string) ($idx + 1),
+                                    'url' => str_starts_with($entry, 'http') ? $entry : url('storage/'.$entry),
+                                    'title' => 'Evidence '.($idx + 1),
+                                    'mime_type' => '',
+                                    'is_image' => (bool) preg_match('/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i', $entry),
+                                ];
+                            } elseif (is_array($entry)) {
+                                $u = (string) ($entry['url'] ?? $entry['file_url'] ?? $entry['path'] ?? '');
+                                if ($u !== '') {
+                                    $attachments[] = [
+                                        'id' => (string) ($entry['id'] ?? ($idx + 1)),
+                                        'url' => str_starts_with($u, 'http') ? $u : url('storage/'.$u),
+                                        'title' => (string) ($entry['title'] ?? $entry['name'] ?? 'Evidence '.($idx + 1)),
+                                        'mime_type' => (string) ($entry['mime_type'] ?? ''),
+                                        'is_image' => str_starts_with((string) ($entry['mime_type'] ?? ''), 'image/') ||
+                                            (bool) preg_match('/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i', $u),
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            foreach (['proof_url', 'evidence_url', 'attachment_url'] as $col) {
+                if (Schema::hasColumn('impacts', $col) && ! empty($impact->{$col})) {
+                    $u = (string) $impact->{$col};
+                    $attachments[] = [
+                        'id' => $col,
+                        'url' => str_starts_with($u, 'http') ? $u : url('storage/'.$u),
+                        'title' => 'Submitted Evidence',
+                        'mime_type' => '',
+                        'is_image' => (bool) preg_match('/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i', $u),
+                    ];
+                }
+            }
+            if (Schema::hasTable('life_impact_creatives')) {
+                $creativeCol = Schema::hasColumn('life_impact_creatives', 'impact_id') ? 'impact_id' : null;
+                if ($creativeCol) {
+                    $creatives = DB::table('life_impact_creatives')->where($creativeCol, (string) $impact->id)->get();
+                    foreach ($creatives as $cr) {
+                        $crUrl = (string) ($cr->image_url ?? $cr->file_url ?? $cr->url ?? '');
+                        if ($crUrl !== '') {
+                            $attachments[] = [
+                                'id' => (string) ($cr->id ?? Str::uuid()),
+                                'url' => str_starts_with($crUrl, 'http') ? $crUrl : url('storage/'.$crUrl),
+                                'title' => 'Impact Recognition Creative',
+                                'mime_type' => 'image/png',
+                                'is_image' => true,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        $actionText = trim((string) ($impact->action ?? ''));
+        $storyText = trim((string) ($impact->story_to_share ?? ''));
+        $remarksText = trim((string) ($impact->additional_remarks ?? ''));
+        $descriptionText = $storyText !== '' ? $storyText : $remarksText;
+
+        $payload = [
+            'id' => (string) $impact->id,
+            'type' => 'impacts',
+            'request_category' => 'pending_impacts',
+            'title' => $actionText !== '' ? $actionText : 'Life Impact',
+            'impact_category' => $actionText !== '' ? $actionText : 'Life Impact',
+            'impact_date' => $dateStr,
+            'date' => $dateStr,
+            'submitted_at' => $impact->created_at ? $impact->created_at->toIso8601String() : null,
+            'action' => $actionText,
+            'story' => $descriptionText,
+            'description' => $descriptionText,
+            'story_to_share' => $storyText,
+            'additional_remarks' => $remarksText,
+            'life_impacted' => (int) ($impact->life_impacted ?? 1),
+            'lives_impacted' => (int) ($impact->life_impacted ?? 1),
+            'requires_leadership_approval' => (bool) ($impact->requires_leadership_approval ?? true),
+            'status' => $rawStatus,
+            'status_label' => $statusLabel,
+            'created_at' => $impact->created_at ? $impact->created_at->toIso8601String() : null,
+            'peer_user_id' => $fromPeer['id'] ?? (string) ($impact->user_id ?? ''),
+            'user_id' => $fromPeer['id'] ?? (string) ($impact->user_id ?? ''),
+            'peer_id' => $fromPeer['id'] ?? (string) ($impact->user_id ?? ''),
+            'peer_code' => $peerCode,
+            'peer_name' => $fromPeer['name'] ?? 'Peer',
+            'name' => $fromPeer['name'] ?? 'Peer',
+            'profile_image' => $fromPeer['profile_image'] ?? null,
+            'profile_photo_url' => $fromPeer['profile_image'] ?? null,
+            'avatar_url' => $fromPeer['profile_image'] ?? null,
+            'city' => $fromPeer['city'] ?? '',
+            'location' => $fromPeer['city'] ?? '',
+            'business_name' => $fromPeer['business_name'] ?? '',
+            'company_name' => $fromPeer['company_name'] ?? '',
+            'organization_name' => $fromPeer['company_name'] ?? '',
+            'company' => $fromPeer['company_name'] ?? '',
+            'category_level4' => $fromPeer['category_level4'] ?? '',
+            'level_4_category' => $fromPeer['category_level4'] ?? '',
+            'level4_category' => $fromPeer['category_level4'] ?? '',
+            'category' => $fromPeer['category_level4'] ?? '',
+            'circle_id' => $circleDistrict['circle_id'],
+            'circle_name' => $circleDistrict['circle_name'],
+            'district_id' => $circleDistrict['district_id'],
+            'district_name' => $circleDistrict['district_name'],
+            'from_peer' => $fromPeer ? array_merge($fromPeer, [
+                'peer_code' => $peerCode,
+                'circle_id' => $circleDistrict['circle_id'],
+                'circle_name' => $circleDistrict['circle_name'],
+                'district_name' => $circleDistrict['district_name'],
+            ]) : null,
+            'submitted_by' => $fromPeer ? array_merge($fromPeer, [
+                'peer_code' => $peerCode,
+                'circle_id' => $circleDistrict['circle_id'],
+                'circle_name' => $circleDistrict['circle_name'],
+                'district_name' => $circleDistrict['district_name'],
+            ]) : null,
+            'peer' => $fromPeer,
+            'impacted_peer' => $impactedPeer,
+            'to_peer' => $impactedPeer,
+            'beneficiary' => $impactedPeer,
+            'attachments' => $attachments,
+            'attachments_count' => count($attachments),
+            'can_review' => $canReview,
+            'verification' => [
+                'status' => $rawStatus,
+                'status_label' => $statusLabel,
+                'approved_by' => $impact->approved_by ? (string) $impact->approved_by : null,
+                'approved_by_name' => $approvedByName,
+                'approved_at' => $impact->approved_at ? $impact->approved_at->toIso8601String() : null,
+                'rejected_by' => $impact->rejected_by ? (string) $impact->rejected_by : null,
+                'rejected_by_name' => $rejectedByName,
+                'rejected_at' => $impact->rejected_at ? $impact->rejected_at->toIso8601String() : null,
+                'review_remarks' => $impact->review_remarks ? (string) $impact->review_remarks : null,
+            ],
+            'permissions' => [
+                'can_approve' => $canReview,
+                'can_reject' => $canReview,
+                'denied_reason' => $canReview
+                    ? null
+                    : ($rawStatus !== 'pending'
+                        ? "This submission has already been {$rawStatus}."
+                        : $reviewAuth['message']),
+            ],
+        ];
+
+        if ($includeHistory) {
+            $history = [];
+            if ($impact->created_at) {
+                $history[] = [
+                    'event' => 'submitted',
+                    'label' => 'Submitted by Peer',
+                    'status' => 'pending',
+                    'actor_name' => $fromPeer['name'] ?? 'Peer',
+                    'actor_role' => 'Peer',
+                    'timestamp' => $impact->created_at->toIso8601String(),
+                    'remarks' => $remarksText !== '' ? $remarksText : null,
+                ];
+            }
+
+            if (Schema::hasTable('admin_audit_logs')) {
+                $auditRows = AdminAuditLog::query()
+                    ->with('admin')
+                    ->where('target_table', 'impacts')
+                    ->where('target_id', (string) $impact->id)
+                    ->orderBy('created_at')
+                    ->get();
+
+                foreach ($auditRows as $audit) {
+                    $details = is_array($audit->details) ? $audit->details : [];
+                    $auditAction = (string) ($audit->action ?? '');
+                    $auditActorName = (string) ($details['reviewer_name'] ?? $resolveActorName($audit->admin) ?? 'Reviewer');
+                    $auditStatus = str_contains($auditAction, 'reject')
+                        ? 'rejected'
+                        : (str_contains($auditAction, 'approv') ? 'approved' : $rawStatus);
+                    $history[] = [
+                        'event' => $auditAction,
+                        'label' => $auditStatus === 'rejected'
+                            ? 'Rejected by Leadership'
+                            : ($auditStatus === 'approved' ? 'Approved by Leadership' : ucfirst(str_replace('.', ' ', $auditAction))),
+                        'status' => $auditStatus,
+                        'actor_name' => $auditActorName,
+                        'actor_role' => (string) ($details['reviewer_role'] ?? 'Leader'),
+                        'timestamp' => $audit->created_at ? $audit->created_at->toIso8601String() : null,
+                        'remarks' => (string) ($details['reason'] ?? $details['remarks'] ?? '') ?: null,
+                    ];
+                }
+            }
+
+            // Ensure approved_at / rejected_at appears in verification history even if logged prior to audit logging
+            if ($rawStatus === 'approved' && $impact->approved_at && ! collect($history)->contains(fn ($h) => ($h['status'] ?? '') === 'approved')) {
+                $history[] = [
+                    'event' => 'life_impact.approved',
+                    'label' => 'Approved by Leadership',
+                    'status' => 'approved',
+                    'actor_name' => $approvedByName ?? 'Leadership',
+                    'actor_role' => 'Reviewer',
+                    'timestamp' => $impact->approved_at->toIso8601String(),
+                    'remarks' => $impact->review_remarks ? (string) $impact->review_remarks : null,
+                ];
+            } elseif ($rawStatus === 'rejected' && $impact->rejected_at && ! collect($history)->contains(fn ($h) => ($h['status'] ?? '') === 'rejected')) {
+                $history[] = [
+                    'event' => 'life_impact.rejected',
+                    'label' => 'Rejected by Leadership',
+                    'status' => 'rejected',
+                    'actor_name' => $rejectedByName ?? 'Leadership',
+                    'actor_role' => 'Reviewer',
+                    'timestamp' => $impact->rejected_at->toIso8601String(),
+                    'remarks' => $impact->review_remarks ? (string) $impact->review_remarks : null,
+                ];
+            }
+
+            if (Schema::hasTable('life_impact_histories')) {
+                $impactHistRows = LifeImpactHistory::query()
+                    ->where('activity_id', (string) $impact->id)
+                    ->orderBy('created_at')
+                    ->get();
+                foreach ($impactHistRows as $ih) {
+                    $history[] = [
+                        'event' => 'impact_credited',
+                        'label' => 'Life Impact Score Credited (+'.$ih->resolveImpactValue().')',
+                        'status' => 'approved',
+                        'actor_name' => $approvedByName ?? 'System',
+                        'actor_role' => 'Impact Ledger',
+                        'timestamp' => $ih->created_at ? $ih->created_at->toIso8601String() : null,
+                        'remarks' => $ih->remarks ? (string) $ih->remarks : null,
+                    ];
+                }
+            }
+
+            $payload['verification_history'] = $history;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Get impacts list for leader app.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getImpacts(Request $request, ?int $limit = null, ?int $offset = null, ?int &$totalCount = null): array
+    {
+        if (! Schema::hasTable('impacts')) {
+            $totalCount = 0;
+
+            return [];
+        }
+
+        $query = $this->buildScopedImpactsQuery($request, applyStatusFilter: true);
         $totalCount = (clone $query)->count();
 
         $limit = $limit ?? min(max((int) ($request->query('limit', 25)), 1), 100);
@@ -186,47 +724,316 @@ class LeaderActivitiesService
         $offset = $offset ?? (($page - 1) * $limit);
 
         $impacts = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get();
+        $actor = $request->user();
 
-        return $impacts->map(function (Impact $impact): array {
-            $fromPeer = $this->formatPeerDetail($impact->user);
-            $impactedPeer = $this->formatPeerDetail($impact->impactedPeer);
-            $dateStr = $impact->impact_date ? $impact->impact_date->format('Y-m-d') : ($impact->created_at ? $impact->created_at->format('Y-m-d') : date('Y-m-d'));
+        return $impacts
+            ->map(fn (Impact $impact): array => $this->formatImpactRecord($impact, $actor, includeHistory: false))
+            ->values()
+            ->all();
+    }
 
+    /**
+     * Fetch complete Life Impact detail with scope verification and verification history.
+     *
+     * @return array{success: bool, status_code: int, message: string, data: ?array<string, mixed>}
+     */
+    public function getImpactDetail(string $impactId, Request $request): array
+    {
+        if (! Str::isUuid($impactId)) {
             return [
-                'id' => (string) $impact->id,
-                'impact_date' => $dateStr,
-                'date' => $dateStr,
-                'action' => (string) ($impact->action ?? 'Provided Mentorship & Strategic Guidance'),
-                'story' => (string) ($impact->story_to_share ?? $impact->additional_remarks ?? ''),
-                'story_to_share' => (string) ($impact->story_to_share ?? ''),
-                'additional_remarks' => (string) ($impact->additional_remarks ?? ''),
-                'life_impacted' => (int) ($impact->life_impacted ?? 1),
-                'lives_impacted' => (int) ($impact->life_impacted ?? 1),
-                'status' => ucfirst((string) ($impact->status ?? 'Approved')),
-                'created_at' => $impact->created_at ? $impact->created_at->toIso8601String() : now()->toIso8601String(),
-                'peer_user_id' => $fromPeer['id'] ?? null,
-                'user_id' => $fromPeer['id'] ?? null,
-                'peer_id' => $fromPeer['id'] ?? null,
-                'peer_name' => $fromPeer['name'] ?? 'Peer Member',
-                'name' => $fromPeer['name'] ?? 'Peer Member',
-                'profile_image' => $fromPeer['profile_image'] ?? null,
-                'profile_photo_url' => $fromPeer['profile_image'] ?? null,
-                'avatar_url' => $fromPeer['profile_image'] ?? null,
-                'city' => $fromPeer['city'] ?? 'Ahmedabad',
-                'location' => $fromPeer['city'] ?? 'Ahmedabad',
-                'business_name' => $fromPeer['business_name'] ?? 'Enterprise Services',
-                'company_name' => $fromPeer['company_name'] ?? 'Enterprise Services',
-                'company' => $fromPeer['company_name'] ?? 'Enterprise Services',
-                'category_level4' => $fromPeer['category_level4'] ?? 'Business Services',
-                'level_4_category' => $fromPeer['category_level4'] ?? 'Business Services',
-                'level4_category' => $fromPeer['category_level4'] ?? 'Business Services',
-                'category' => $fromPeer['category_level4'] ?? 'Business Services',
-                'from_peer' => $fromPeer,
-                'peer' => $fromPeer,
-                'impacted_peer' => $impactedPeer,
-                'to_peer' => $impactedPeer,
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
             ];
-        })->values()->all();
+        }
+
+        $impact = Impact::query()
+            ->with([
+                'user.circleMembers.circle',
+                'user.circleMembers.level4Category',
+                'user.activeCircle',
+                'user.businessCategory',
+                'user.level4Category',
+                'impactedPeer.circleMembers.circle',
+                'impactedPeer.circleMembers.level4Category',
+                'impactedPeer.activeCircle',
+                'impactedPeer.businessCategory',
+                'impactedPeer.level4Category',
+                'approvedBy',
+                'approvedByUser',
+                'rejectedBy',
+                'rejectedByUser',
+            ])
+            ->where('id', $impactId)
+            ->first();
+
+        if (! $impact) {
+            return [
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
+            ];
+        }
+
+        $actor = $request->user();
+        if (! $this->canLeaderViewImpact($impact, $actor)) {
+            return [
+                'success' => false,
+                'status_code' => 403,
+                'message' => 'You are not authorized to view this Life Impact submission.',
+                'data' => null,
+            ];
+        }
+
+        $canIncludeAttachments = $this->canLeaderViewImpact($impact, $actor);
+
+        return [
+            'success' => true,
+            'status_code' => 200,
+            'message' => 'Life Impact details retrieved successfully.',
+            'data' => $this->formatImpactRecord($impact, $actor, includeHistory: true, includeAttachments: $canIncludeAttachments),
+        ];
+    }
+
+    /**
+     * Approve a pending Life Impact submission with strict role, district scope,
+     * row-lock duplicate protection, and audit logging.
+     *
+     * @return array{success: bool, status_code: int, message: string, data: ?array<string, mixed>}
+     */
+    public function approveLeaderImpact(string $impactId, Request $request): array
+    {
+        if (! Str::isUuid($impactId)) {
+            return [
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
+            ];
+        }
+
+        $actor = $request->user();
+        $impact = Impact::query()->where('id', $impactId)->first();
+        if (! $impact) {
+            return [
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
+            ];
+        }
+
+        $auth = $this->canLeaderReviewImpact($impact, $actor);
+        if (! $auth['allowed']) {
+            return [
+                'success' => false,
+                'status_code' => $auth['status_code'],
+                'message' => $auth['message'],
+                'data' => null,
+            ];
+        }
+
+        $reviewRemarks = trim((string) ($request->input('review_remarks') ?? $request->input('remarks') ?? $request->input('admin_note') ?? ''));
+        $reviewRemarks = $reviewRemarks !== '' ? $reviewRemarks : null;
+
+        try {
+            $updatedImpact = DB::transaction(function () use ($impactId, $actor, $auth, $reviewRemarks, $request): array {
+                $locked = Impact::query()->whereKey($impactId)->lockForUpdate()->first();
+                if (! $locked) {
+                    return ['status_code' => 404, 'message' => 'Life Impact submission not found.', 'impact' => null];
+                }
+
+                $currentStatus = strtolower(trim((string) ($locked->status ?? 'pending')));
+                if ($currentStatus !== 'pending') {
+                    return [
+                        'status_code' => 409,
+                        'message' => "This Life Impact submission has already been {$currentStatus} and cannot be approved again.",
+                        'impact' => null,
+                    ];
+                }
+
+                $approved = app(ImpactService::class)->approveImpact($locked, $actor, $reviewRemarks);
+                $this->recordImpactAuditLog($locked, $actor, $auth['role'], 'life_impact.approved', 'pending', 'approved', $reviewRemarks, $request);
+
+                return ['status_code' => 200, 'message' => 'Life Impact approved successfully.', 'impact' => $approved];
+            });
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'status_code' => 422,
+                'message' => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+
+        if ($updatedImpact['impact'] === null) {
+            return [
+                'success' => false,
+                'status_code' => $updatedImpact['status_code'],
+                'message' => $updatedImpact['message'],
+                'data' => null,
+            ];
+        }
+
+        $detail = $this->getImpactDetail($impactId, $request);
+
+        return [
+            'success' => true,
+            'status_code' => 200,
+            'message' => 'Life Impact approved and credited successfully.',
+            'data' => $detail['data'] ?? $this->formatImpactRecord($updatedImpact['impact'], $actor, includeHistory: true),
+        ];
+    }
+
+    /**
+     * Reject a pending Life Impact submission with required reason validation,
+     * strict role/scope protection, lock-for-update guard, and audit logging.
+     *
+     * @return array{success: bool, status_code: int, message: string, data: ?array<string, mixed>}
+     */
+    public function rejectLeaderImpact(string $impactId, Request $request): array
+    {
+        if (! Str::isUuid($impactId)) {
+            return [
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
+            ];
+        }
+
+        $reason = trim((string) ($request->input('reason') ?? $request->input('review_remarks') ?? $request->input('remarks') ?? ''));
+        if (mb_strlen($reason) < 3) {
+            return [
+                'success' => false,
+                'status_code' => 422,
+                'message' => 'A rejection reason (at least 3 characters) is required.',
+                'data' => null,
+            ];
+        }
+        if (mb_strlen($reason) > 1000) {
+            return [
+                'success' => false,
+                'status_code' => 422,
+                'message' => 'Rejection reason must not exceed 1000 characters.',
+                'data' => null,
+            ];
+        }
+
+        $actor = $request->user();
+        $impact = Impact::query()->where('id', $impactId)->first();
+        if (! $impact) {
+            return [
+                'success' => false,
+                'status_code' => 404,
+                'message' => 'Life Impact submission not found.',
+                'data' => null,
+            ];
+        }
+
+        $auth = $this->canLeaderReviewImpact($impact, $actor);
+        if (! $auth['allowed']) {
+            return [
+                'success' => false,
+                'status_code' => $auth['status_code'],
+                'message' => $auth['message'],
+                'data' => null,
+            ];
+        }
+
+        try {
+            $updatedImpact = DB::transaction(function () use ($impactId, $actor, $auth, $reason, $request): array {
+                $locked = Impact::query()->whereKey($impactId)->lockForUpdate()->first();
+                if (! $locked) {
+                    return ['status_code' => 404, 'message' => 'Life Impact submission not found.', 'impact' => null];
+                }
+
+                $currentStatus = strtolower(trim((string) ($locked->status ?? 'pending')));
+                if ($currentStatus !== 'pending') {
+                    return [
+                        'status_code' => 409,
+                        'message' => "This Life Impact submission has already been {$currentStatus} and cannot be rejected.",
+                        'impact' => null,
+                    ];
+                }
+
+                $rejected = app(ImpactService::class)->rejectImpact($locked, $actor, $reason);
+                $this->recordImpactAuditLog($locked, $actor, $auth['role'], 'life_impact.rejected', 'pending', 'rejected', $reason, $request);
+
+                return ['status_code' => 200, 'message' => 'Life Impact rejected.', 'impact' => $rejected];
+            });
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'status_code' => 422,
+                'message' => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+
+        if ($updatedImpact['impact'] === null) {
+            return [
+                'success' => false,
+                'status_code' => $updatedImpact['status_code'],
+                'message' => $updatedImpact['message'],
+                'data' => null,
+            ];
+        }
+
+        $detail = $this->getImpactDetail($impactId, $request);
+
+        return [
+            'success' => true,
+            'status_code' => 200,
+            'message' => 'Life Impact rejected with reason recorded.',
+            'data' => $detail['data'] ?? $this->formatImpactRecord($updatedImpact['impact'], $actor, includeHistory: true),
+        ];
+    }
+
+    private function recordImpactAuditLog(
+        Impact $impact,
+        User|AdminUser $actor,
+        string $role,
+        string $action,
+        string $fromStatus,
+        string $toStatus,
+        ?string $remarks,
+        Request $request,
+    ): void {
+        if (! Schema::hasTable('admin_audit_logs')) {
+            return;
+        }
+
+        $actorName = trim((string) (($actor->first_name ?? '').' '.($actor->last_name ?? '')));
+        if ($actorName === '') {
+            $actorName = trim((string) ($actor->display_name ?? $actor->name ?? 'Leader'));
+        }
+
+        try {
+            AdminAuditLog::create([
+                'admin_user_id' => (string) $actor->getKey(),
+                'action' => $action,
+                'target_table' => 'impacts',
+                'target_id' => (string) $impact->id,
+                'details' => array_filter([
+                    'previous_status' => $fromStatus,
+                    'new_status' => $toStatus,
+                    'reviewer_role' => $role,
+                    'reviewer_name' => $actorName,
+                    'peer_id' => (string) $impact->user_id,
+                    'reason' => $toStatus === 'rejected' ? $remarks : null,
+                    'remarks' => $remarks,
+                    'source' => 'leader_app',
+                ], fn ($v) => $v !== null),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable) {
+            // Do not fail primary transaction if audit log foreign key differs for AdminUser
+        }
     }
 
     /**
@@ -1171,8 +1978,17 @@ class LeaderActivitiesService
             case 'top-impacters':
                 $unitLabel = 'Impacts';
                 if (Schema::hasTable('impacts')) {
-                    $rows = DB::table('impacts')
-                        ->whereIn('user_id', $userIds)
+                    $impactsCountQuery = DB::table('impacts')
+                        ->whereIn('user_id', $userIds);
+                    if (Schema::hasColumn('impacts', 'deleted_at')) {
+                        $impactsCountQuery->whereNull('deleted_at');
+                    }
+                    if (Schema::hasColumn('impacts', 'status')) {
+                        $impactsCountQuery->where(function ($q): void {
+                            $q->whereNull('status')->orWhereRaw("LOWER(status) = 'approved'");
+                        });
+                    }
+                    $rows = $impactsCountQuery
                         ->selectRaw('user_id, COUNT(*) as cnt, COALESCE(SUM(life_impacted), COUNT(*)) as total_lives')
                         ->groupBy('user_id')
                         ->get();

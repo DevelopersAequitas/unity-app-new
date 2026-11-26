@@ -70,4 +70,14 @@ class Impact extends Model
     {
         return $this->belongsTo(AdminUser::class, 'rejected_by');
     }
+
+    public function approvedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejectedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
 }

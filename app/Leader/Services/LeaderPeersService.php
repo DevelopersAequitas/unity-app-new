@@ -685,33 +685,55 @@ class LeaderPeersService
             $circleId = (string) $user->activeCircle->id;
         }
 
-        $location = (string) ($user->city ?? $user->city_of_residence ?? 'Ahmedabad');
-        $industry = (string) ($user->industry ?? $user->businessCategory?->name ?? 'Technology');
-        $level4 = (string) ($user->level4Category?->name ?? $user->business_sub_category ?? 'FinTech SaaS');
-        $subIndustry = (string) ($user->business_sub_category ?? $user->business_type ?? 'FinTech Enterprise Solutions');
+        $location = (string) ($user->city ?? $user->city_of_residence ?? '');
+        $industry = (string) ($user->industry ?? $user->businessCategory?->name ?? '');
+        $level4 = (string) ($user->level4Category?->name ?? $user->business_sub_category ?? '');
+        $subIndustry = (string) ($user->business_sub_category ?? $user->business_type ?? '');
 
-        $birthday = $user->dob ? $user->dob->format('d F') : '25 August';
-        $anniversary = $user->anniversary_date ? $user->anniversary_date->format('d F') : '12 November';
-        $joinedDate = $user->circle_joined_at ? $user->circle_joined_at->format('d F Y') : ($user->created_at ? $user->created_at->format('d F Y') : '15 January 2024');
+        $birthday = $user->dob ? $user->dob->format('d F') : '';
+        $anniversary = $user->anniversary_date ? $user->anniversary_date->format('d F') : '';
+        $joinedDate = $user->circle_joined_at ? $user->circle_joined_at->format('d F Y') : ($user->created_at ? $user->created_at->format('d F Y') : '');
 
         $status = match (strtolower((string) ($user->status ?? 'active'))) {
             'needs_attention', 'needs attention' => 'Needs Attention',
             'at_risk', 'at risk' => 'At Risk',
             'pending' => 'Pending',
             'inactive' => 'Inactive',
+            'expired' => 'Expired',
             default => 'Active',
         };
 
         $tags = is_array($user->industry_tags) && ! empty($user->industry_tags)
-            ? array_values($user->industry_tags)
-            : [$industry, $level4];
+            ? array_values(array_filter(array_map('strval', $user->industry_tags)))
+            : array_values(array_filter([$industry, $level4]));
 
         $coins = (int) ($user->coins_balance ?? 0);
         $impact = (int) ($user->life_impacted_count ?? $user->impact_count ?? 0);
 
-        // Dynamically compute deals
+        $formatMoney = static function (float $amount): string {
+            if ($amount >= 10000000) {
+                return '₹'.round($amount / 10000000, 2).'Cr';
+            }
+            if ($amount >= 100000) {
+                return '₹'.round($amount / 100000, 1).'L';
+            }
+
+            return '₹'.number_format($amount, 0);
+        };
+
+        // Dynamically compute deals given, received, and total closed
+        $dealsGivenSum = 0.0;
+        $dealsReceivedSum = 0.0;
         $dealsSum = 0.0;
         if (Schema::hasTable('business_deals')) {
+            $dealsGivenSum = (float) DB::table('business_deals')
+                ->where('from_user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->sum('deal_amount');
+            $dealsReceivedSum = (float) DB::table('business_deals')
+                ->where('to_user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->sum('deal_amount');
             $dealsSum = (float) DB::table('business_deals')
                 ->where(function ($q) use ($user): void {
                     $q->where('from_user_id', $user->id)
@@ -721,9 +743,21 @@ class LeaderPeersService
                 ->sum('deal_amount');
         }
 
-        $dealsFormatted = $dealsSum >= 10000000
-            ? '₹'.round($dealsSum / 10000000, 2).'Cr'
-            : ($dealsSum >= 100000 ? '₹'.round($dealsSum / 100000, 1).'L' : '₹'.number_format($dealsSum, 0));
+        $dealsFormatted = $formatMoney($dealsSum);
+        $dealsGivenFormatted = $formatMoney($dealsGivenSum);
+        $dealsReceivedFormatted = $formatMoney($dealsReceivedSum);
+
+        $attendancePercentage = '';
+        if (Schema::hasTable('attendance_records')) {
+            $attTotal = DB::table('attendance_records')->where('user_id', $user->id)->count();
+            if ($attTotal > 0) {
+                $attPresent = DB::table('attendance_records')
+                    ->where('user_id', $user->id)
+                    ->whereRaw("LOWER(COALESCE(status, '')) IN ('present', 'attended', 'late')")
+                    ->count();
+                $attendancePercentage = ((int) round(($attPresent / $attTotal) * 100)).'%';
+            }
+        }
 
         $p2pMeetingsCount = 0;
         if (Schema::hasTable('p2p_meetings')) {
@@ -747,36 +781,46 @@ class LeaderPeersService
                 ->count();
         }
 
-        // Privacy masking
+        // Strict contact visibility & privacy masking
         $hidePhone = (bool) ($user->hide_phone ?? false);
         $hideEmail = (bool) ($user->hide_email ?? false);
+        $contactsDisallowed = ($user->contacts_allowed === false)
+            || strtolower((string) ($user->contact_visibility ?? '')) === 'private'
+            || strtolower((string) ($user->contact_visibility ?? '')) === 'hidden';
+        $canViewPeers = ! $requestingUser;
         $canSeePrivate = false;
 
         if ($requestingUser) {
             $permService = app(LeaderPermissionService::class);
             $roleInfo = $permService->resolveUserRole($requestingUser);
             $requesterRole = (string) ($roleInfo['role'] ?? 'member');
-            $canSeePrivate = in_array($requesterRole, ['superAdmin', 'countryDirector', 'districtExecDirector'], true)
-                || in_array('manage_peers', $permService->getEnabledCapabilitiesForRole($requesterRole), true)
+            $caps = $permService->getEnabledCapabilitiesForRole($requesterRole);
+            $canViewPeers = in_array($requesterRole, ['superAdmin', 'globalFounder', 'countryDirector', 'districtExecDirector'], true)
+                || in_array('view_peers', $caps, true)
+                || (string) $requestingUser->id === $peerId;
+            $canSeePrivate = in_array($requesterRole, ['superAdmin', 'globalFounder', 'countryDirector', 'districtExecDirector'], true)
+                || in_array('manage_peers', $caps, true)
                 || (string) $requestingUser->id === $peerId;
         }
 
-        $phone = (string) ($user->phone ?? $user->secondary_mobile ?? '');
-        $email = (string) ($user->email ?? '');
+        $contactAuthorized = $canViewPeers && (! $contactsDisallowed || $canSeePrivate);
+        $rawPhone = (string) ($user->phone ?? $user->secondary_mobile ?? '');
+        $rawEmail = (string) ($user->email ?? '');
 
-        if ($hidePhone && ! $canSeePrivate) {
-            $phone = '********';
-        }
-        if ($hideEmail && ! $canSeePrivate) {
-            $email = '********';
-        }
+        $phone = ! $contactAuthorized ? '' : (($hidePhone && ! $canSeePrivate) ? '********' : $rawPhone);
+        $email = ! $contactAuthorized ? '' : (($hideEmail && ! $canSeePrivate) ? '********' : $rawEmail);
+        $whatsapp = ! $contactAuthorized ? '' : (($hidePhone && ! $canSeePrivate) ? '********' : $rawPhone);
+        $linkedin = ! $contactAuthorized ? '' : (string) ($user->linkedin_profile ?? '');
 
-        $company = (string) ($user->company_name ?? $user->business_name ?? 'Apex Dynamics');
-        $designation = (string) ($user->designation ?? $user->job_title ?? 'Founder & CEO');
+        $company = (string) ($user->company_name ?? $user->business_name ?? '');
+        $designation = (string) ($user->designation ?? $user->job_title ?? '');
         $photoUrl = $user->profile_photo_url ?? $user->avatar_url ?? null;
 
         return [
             'id' => (string) $user->id,
+            'peer_code' => ! empty($user->peer_id)
+                ? (string) $user->peer_id
+                : 'PG-'.strtoupper(substr(str_replace('-', '', (string) $user->id), 0, 8)),
             'name' => $name,
             'first_name' => (string) ($user->first_name ?? ''),
             'last_name' => (string) ($user->last_name ?? ''),
@@ -795,33 +839,34 @@ class LeaderPeersService
                 'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
                 'quote' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['quote'],
             ],
-            'circle_name' => $circleName !== '' ? $circleName : 'Peers Global',
+            'circle_name' => $circleName,
             'circle_id' => $circleId,
             'status' => $status,
-            'is_verified' => (bool) ($user->is_verified ?? true),
+            'is_verified' => (bool) ($user->is_verified ?? false),
             'intro_video_url' => (string) ($user->intro_video_url ?? ''),
             'bio' => (string) ($user->short_bio ?? $user->long_bio_html ?? ''),
             'birthday' => $birthday,
             'anniversary' => $anniversary,
             'joined_date' => $joinedDate,
-            'hide_phone' => $hidePhone,
-            'hide_email' => $hideEmail,
+            'hide_phone' => $hidePhone || $contactsDisallowed,
+            'hide_email' => $hideEmail || $contactsDisallowed,
+            'contact_authorized' => $contactAuthorized,
             'contact' => [
                 'email' => $email,
                 'phone' => $phone,
-                'linkedin' => (string) ($user->linkedin_profile ?? ''),
-                'whatsapp' => $hidePhone && ! $canSeePrivate ? '********' : (string) ($user->phone ?? $user->secondary_mobile ?? ''),
+                'linkedin' => $linkedin,
+                'whatsapp' => $whatsapp,
             ],
             'metrics' => [
                 'life_impact' => $impact,
                 'life_impacted_count' => $impact,
                 'impact' => $impact,
                 'impact_count' => $impact,
-                'deals_given' => $dealsFormatted,
-                'deals_received' => $dealsFormatted,
+                'deals_given' => $dealsGivenFormatted,
+                'deals_received' => $dealsReceivedFormatted,
                 'deals_closed' => $dealsFormatted,
-                'attendance_percentage' => '94%',
-                'attendance_rate' => '94%',
+                'attendance_percentage' => $attendancePercentage,
+                'attendance_rate' => $attendancePercentage,
                 'p2p_meetings' => $p2pMeetingsCount,
                 'p2p_sessions' => $p2pMeetingsCount,
                 'referrals_given' => $referralsGiven,
