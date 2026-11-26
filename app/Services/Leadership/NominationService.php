@@ -454,9 +454,6 @@ class NominationService
         // Dispatch confirmation email with branded template & audit log
         $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
 
-        // Automatically assign incoming nomination to all appointed standing jurors
-        $this->autoAssignStandingJurors($nomination);
-
         return $result;
     }
 
@@ -839,9 +836,6 @@ class NominationService
 
             // Dispatch confirmation email with branded template & audit log
             $this->sendSubmissionConfirmationEmail($nomination->fresh(['campaign.role', 'scope', 'user']));
-
-            // Automatically assign incoming nomination to all appointed standing jurors
-            $this->autoAssignStandingJurors($nomination);
 
             return [
                 'id' => $nomination->id,
