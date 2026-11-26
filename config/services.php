@@ -70,6 +70,9 @@ return [
     'facebook' => [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'client_token' => env('FACEBOOK_CLIENT_TOKEN'),
+        'graph_version' => env('FACEBOOK_GRAPH_VERSION', 'v19.0'),
+        'redirect' => env('FACEBOOK_REDIRECT_URI'),
     ],
 
     'linkedin' => [

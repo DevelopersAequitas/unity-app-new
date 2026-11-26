@@ -288,6 +288,7 @@ Route::prefix('auth')->group(function () {
     Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
+    Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
     Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
@@ -416,13 +417,7 @@ Route::prefix('v1')->group(function () {
         Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
-        Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
-        Route::post('social/google', [SocialAuthController::class, 'googleLogin']);
-        Route::post('google/login', [SocialAuthController::class, 'googleLogin']);
-        Route::post('google/verify', [SocialAuthController::class, 'googleLogin']);
-        Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
-        Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
-        Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
+        Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
         Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);

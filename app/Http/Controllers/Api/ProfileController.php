@@ -16,10 +16,13 @@ use App\Models\CustomCategoryRequest;
 use App\Models\ProfileView;
 use App\Models\User;
 use App\Notifications\ProfileViewedNotification;
+use App\Services\Auth\PhoneRegisterVerificationService;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
+use App\Services\Creative\WelcomeCreativeService;
 use App\Services\ProfileVisibilityService;
 use App\Services\PushNotificationService;
+use App\Services\Referrals\ReferralService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\JsonResponse;
@@ -66,6 +69,59 @@ class ProfileController extends BaseApiController
         $data = collect($validated)
             ->only($this->profileUpdateFields())
             ->toArray();
+
+        $incomingPhone = trim((string) ($validated['phone'] ?? $validated['mobile'] ?? ''));
+        if ($incomingPhone !== '') {
+            $currentPhone = trim((string) ($user->phone ?? ''));
+
+            if ($incomingPhone !== $currentPhone) {
+                $phoneInUse = User::query()
+                    ->where('phone', $incomingPhone)
+                    ->where('id', '!=', (string) $user->id)
+                    ->whereNull('deleted_at')
+                    ->exists();
+
+                if ($phoneInUse) {
+                    return response()->json([
+                        'success' => false,
+                        'status' => false,
+                        'message' => 'This phone number is already associated with another account.',
+                    ], 422);
+                }
+
+                $phoneToken = trim((string) ($validated['phone_verification_token'] ?? ''));
+                if ($phoneToken !== '') {
+                    /** @var PhoneRegisterVerificationService $phoneVerificationService */
+                    $phoneVerificationService = app(PhoneRegisterVerificationService::class);
+                    if (! $phoneVerificationService->validatePhoneVerificationToken($phoneToken, $incomingPhone)) {
+                        return response()->json([
+                            'success' => false,
+                            'status' => false,
+                            'message' => 'Phone verification token is invalid or expired.',
+                            'error_code' => 'INVALID_PHONE_TOKEN',
+                        ], 422);
+                    }
+
+                    $data['phone'] = $incomingPhone;
+                    if (Schema::hasColumn('users', 'phone_verified_at')) {
+                        $data['phone_verified_at'] = now();
+                    }
+                    if (Schema::hasColumn('users', 'is_phone_verified')) {
+                        $data['is_phone_verified'] = true;
+                    }
+                } elseif (blank($user->phone)) {
+                    $data['phone'] = $incomingPhone;
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'status' => false,
+                        'message' => 'Phone verification token is required to change your phone number.',
+                    ], 422);
+                }
+            }
+        } else {
+            unset($data['phone']);
+        }
 
         foreach ($this->arrayProfileFields() as $field) {
             if (array_key_exists($field, $data)) {
@@ -187,8 +243,20 @@ class ProfileController extends BaseApiController
             $data['custom_category_name'],
             $data['business_category'],
             $data['latitude'],
-            $data['longitude']
+            $data['longitude'],
+            $data['mobile'],
+            $data['phone_verification_token'],
+            $data['location'],
+            $data['address'],
+            $data['website'],
+            $data['referral_code']
         );
+
+        foreach (['city', 'city_of_residence', 'business_address', 'business_website'] as $optionalColumn) {
+            if (array_key_exists($optionalColumn, $data) && ! Schema::hasColumn('users', $optionalColumn)) {
+                unset($data[$optionalColumn]);
+            }
+        }
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
             $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
@@ -203,10 +271,36 @@ class ProfileController extends BaseApiController
 
         $user->saveOrFail();
         $this->persistProfilePayloadToUsersTable($user, $data);
+
+        $incomingReferralCode = trim((string) ($validated['referral_code'] ?? ''));
+        if (
+            $incomingReferralCode !== ''
+            && blank($user->referred_by_user_id ?? null)
+            && blank($user->introduced_by ?? null)
+        ) {
+            /** @var ReferralService $referralService */
+            $referralService = app(ReferralService::class);
+            $referralService->validateReferralCodeOrFail($incomingReferralCode);
+            $referralMeta = $referralService->applyReferralOnRegistration($user, $incomingReferralCode);
+            $referrerId = (string) ($referralMeta['referrer_user_id'] ?? '');
+            if ($referrerId !== '' && $referrerId !== (string) $user->id) {
+                $referrerUpdates = [];
+                if (Schema::hasColumn('users', 'introduced_by') && blank($user->introduced_by)) {
+                    $referrerUpdates['introduced_by'] = $referrerId;
+                }
+                if (Schema::hasColumn('users', 'referred_by_user_id') && blank($user->referred_by_user_id)) {
+                    $referrerUpdates['referred_by_user_id'] = $referrerId;
+                }
+                if ($referrerUpdates !== []) {
+                    $user->forceFill($referrerUpdates)->save();
+                }
+            }
+        }
+
         $user->refresh();
 
         try {
-            app(\App\Services\Creative\WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
+            app(WelcomeCreativeService::class)->generateAndPostWelcomeCreative($user);
         } catch (\Throwable $e) {
             Log::warning('ProfileController: Welcome creative generation check skipped: '.$e->getMessage());
         }
@@ -334,6 +428,7 @@ class ProfileController extends BaseApiController
         $fields = [
             'first_name',
             'last_name',
+            'phone',
             'company_name',
             'designation',
             'business_type',

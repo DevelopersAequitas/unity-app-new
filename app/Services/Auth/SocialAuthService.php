@@ -44,7 +44,7 @@ class SocialAuthService
     {
         $normalizedProvider = strtolower(trim($provider));
 
-        // 1. Check if social account is already linked
+        // 1. Check if social account is already linked or provider column exists on users
         /** @var SocialAccount|null $socialAccount */
         $socialAccount = SocialAccount::query()
             ->where('provider', $normalizedProvider)
@@ -70,13 +70,24 @@ class SocialAuthService
             }
         }
 
-        // 2. Find existing user by email (including soft-deleted accounts)
-        $normalizedEmail = strtolower(trim((string) $profile['email']));
+        $providerColumn = "{$normalizedProvider}_id";
         /** @var User|null $user */
-        $user = User::withTrashed()
-            ->where('email', $normalizedEmail)
-            ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
-            ->first();
+        $user = null;
+
+        if (Schema::hasColumn('users', $providerColumn)) {
+            $user = User::withTrashed()
+                ->where($providerColumn, (string) $profile['id'])
+                ->first();
+        }
+
+        // 2. Find existing user by verified non-empty email (including soft-deleted accounts)
+        $normalizedEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+        if (! $user && $normalizedEmail !== '') {
+            $user = User::withTrashed()
+                ->where('email', $normalizedEmail)
+                ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
+                ->first();
+        }
 
         if ($user && method_exists($user, 'trashed') && $user->trashed()) {
             $user->restore();
@@ -91,15 +102,23 @@ class SocialAuthService
             $lastName = ! empty($profile['last_name']) ? (string) $profile['last_name'] : null;
             $displayName = ! empty($profile['name']) ? (string) $profile['name'] : trim($firstName.' '.($lastName ?? ''));
 
+            $persistedEmail = $normalizedEmail !== ''
+                ? $normalizedEmail
+                : "{$normalizedProvider}_{$profile['id']}@{$normalizedProvider}.local";
+
             $hashedRandomPassword = Hash::make($randomPassword);
             $userData = [
                 'id' => (string) Str::uuid(),
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'display_name' => $displayName ?: 'User',
-                'email' => $normalizedEmail,
+                'email' => $persistedEmail,
                 'status' => 'active',
             ];
+
+            if (Schema::hasColumn('users', $providerColumn)) {
+                $userData[$providerColumn] = (string) $profile['id'];
+            }
 
             if (Schema::hasColumn('users', 'password')) {
                 $userData['password'] = $hashedRandomPassword;
@@ -141,7 +160,7 @@ class SocialAuthService
             [
                 'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'email' => $profile['email'],
+                'email' => $normalizedEmail !== '' ? $normalizedEmail : null,
                 'token_metadata' => [
                     'name' => $profile['name'] ?? null,
                     'avatar' => $profile['avatar'] ?? null,
@@ -190,42 +209,23 @@ class SocialAuthService
     }
 
     /**
-     * Verify Facebook access token via Facebook Graph API.
+     * Verify Facebook credentials (classic OAuth token or iOS Limited Login OIDC JWT).
      *
-     * @return array{id: string, email: string, first_name: string, last_name: string, name: string, avatar: ?string}
+     * @return array{
+     *     id: string,
+     *     email: ?string,
+     *     first_name: string,
+     *     last_name: string,
+     *     name: string,
+     *     avatar: ?string,
+     *     dob: ?string,
+     *     location: ?string,
+     *     token_type: string
+     * }
      */
-    public function verifyFacebook(string $accessToken): array
+    public function verifyFacebook(string $accessToken, string $tokenType = 'classic', ?string $nonce = null): array
     {
-        $response = Http::timeout(10)->get('https://graph.facebook.com/v19.0/me', [
-            'fields' => 'id,first_name,last_name,name,email,picture.type(large)',
-            'access_token' => $accessToken,
-        ]);
-
-        if ($response->failed()) {
-            Log::warning('SocialAuth.verifyFacebook: Graph API call failed', [
-                'status' => $response->status(),
-                'body' => $response->json(),
-            ]);
-            throw new RuntimeException('Invalid Facebook access token.');
-        }
-
-        $data = $response->json();
-        $id = $data['id'] ?? null;
-
-        if (! $id) {
-            throw new RuntimeException('Facebook profile did not return a valid user ID.');
-        }
-
-        $email = $data['email'] ?? "{$id}@facebook.com";
-
-        return [
-            'id' => (string) $id,
-            'email' => (string) $email,
-            'first_name' => (string) ($data['first_name'] ?? ''),
-            'last_name' => (string) ($data['last_name'] ?? ''),
-            'name' => (string) ($data['name'] ?? ''),
-            'avatar' => isset($data['picture']['data']['url']) ? (string) $data['picture']['data']['url'] : null,
-        ];
+        return app(FacebookAuthService::class)->verifyToken($accessToken, $tokenType, $nonce);
     }
 
     /**
