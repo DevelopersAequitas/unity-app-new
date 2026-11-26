@@ -219,12 +219,12 @@ class EventFlowService
      */
     public function getActionButtonPayload(Event $event, array $userContext, array $pricing): array
     {
-        // 1. Confirmed / Paid -> Directly opens QR ticket for offline, or Join Speed Networking
+        // 1. Confirmed / Paid -> Directly opens QR ticket for offline, or Join Speed Collaboration
         if ($userContext['is_attending']) {
             if ($event->event_type === 'speed_networking') {
                 return [
                     'action_type' => 'JOIN_SPEED_NETWORKING',
-                    'label' => 'Join Speed Networking',
+                    'label' => 'Join Speed Collaboration',
                     'is_enabled' => true,
                     'helper_text' => 'Tap to join live 1-on-1 video networking',
                     'event_id' => (string) $event->id,
@@ -284,7 +284,7 @@ class EventFlowService
                     'action_type' => 'PAY_AND_JOIN',
                     'label' => 'Pay '.$pricing['currency'].' '.$pricing['applicable_price'].' to Join',
                     'is_enabled' => true,
-                    'helper_text' => 'Circle members join Speed Networking by paying the event fee',
+                    'helper_text' => 'Circle members join Speed Collaboration by paying the event fee',
                 ];
             }
 
@@ -296,7 +296,7 @@ class EventFlowService
             ];
         }
 
-        // 4. Speed Networking special rules
+        // 4. Speed Collaboration special rules
         if ($event->event_type === 'speed_networking') {
             // Circle is selected -> only circle members can join
             if (! empty($event->circle_id)) {
@@ -304,7 +304,7 @@ class EventFlowService
                     'action_type' => 'RESTRICTED_CIRCLE',
                     'label' => 'Circle Members Only',
                     'is_enabled' => false,
-                    'helper_text' => 'Only members of this circle can join this Speed Networking event.',
+                    'helper_text' => 'Only members of this circle can join this Speed Collaboration event.',
                 ];
             }
 
@@ -313,7 +313,7 @@ class EventFlowService
                 'action_type' => 'PAY_AND_JOIN',
                 'label' => $pricing['applicable_price'] > 0
                     ? ('Pay '.$pricing['currency'].' '.$pricing['applicable_price'].' to Join')
-                    : 'Join Speed Networking',
+                    : 'Join Speed Collaboration',
                 'is_enabled' => true,
                 'helper_text' => 'Open to all users. Pay event fees to join.',
             ];
@@ -743,7 +743,7 @@ class EventFlowService
             'qr_image_url' => null,
             'action_type' => 'JOIN_SPEED_NETWORKING',
             'event_id' => (string) $event->id,
-            'message' => 'Speed Networking registration confirmed. You can now join the session.',
+            'message' => 'Speed Collaboration registration confirmed. You can now join the session.',
         ];
     }
 

@@ -134,7 +134,7 @@
         'global_event' => 'Global Event',
         'state_event' => 'State Event',
         'public_event' => 'City Event',
-        'speed_networking' => 'Speed Networking Event',
+        'speed_networking' => 'Speed Collaboration Event',
     ];
     $days = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
     $weeks = [1 => 'First', 2 => 'Second', 3 => 'Third', 4 => 'Fourth', 5 => 'Last'];
@@ -325,7 +325,7 @@
                             <div class="p-3 rounded-3 border border-indigo-200 bg-indigo-50/50">
                                 <div class="d-flex align-items-center gap-2 mb-2">
                                     <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
-                                    <h6 class="mb-0 fw-bold text-indigo-900">Speed Networking Configuration</h6>
+                                    <h6 class="mb-0 fw-bold text-indigo-900">Speed Collaboration Configuration</h6>
                                 </div>
                                 <p class="text-muted small mb-3">Participants will be rotated through automated 1-on-1 breakout tables with live video and timers.</p>
                                 <div class="row g-3">

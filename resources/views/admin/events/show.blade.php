@@ -59,7 +59,7 @@
                         <div class="d-flex align-items-center justify-between mb-2">
                             <div class="d-flex align-items-center gap-2">
                                 <i class="bi bi-lightning-charge-fill text-amber-600"></i>
-                                <strong class="text-amber-900">Speed Networking Configuration</strong>
+                                <strong class="text-amber-900">Speed Collaboration Configuration</strong>
                             </div>
                             <a href="{{ route('admin.speed-networking.show', $event->id) }}" class="btn btn-sm btn-warning text-dark fw-bold">
                                 Launch Live Room <i class="bi bi-arrow-right ms-1"></i>

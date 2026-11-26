@@ -133,7 +133,7 @@ CONTEXT;
         if ($this->isToolEnabled('get_speed_networking', 'get_active_speed_networking', $enabledTools)) {
             $declarations[] = [
                 'name' => 'get_active_speed_networking',
-                'description' => 'Get scheduled or live Speed Networking sessions.',
+                'description' => 'Get scheduled or live Speed Collaboration sessions.',
             ];
         }
 
@@ -831,4 +831,3 @@ CONTEXT;
         return in_array($shortKey, $enabledTools, true) || in_array($fnName, $enabledTools, true);
     }
 }
-

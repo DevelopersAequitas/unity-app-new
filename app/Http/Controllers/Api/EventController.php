@@ -492,9 +492,9 @@ class EventController extends BaseApiController
         Log::info('event_register_eligibility_check_start', $eligibilityContext);
 
         if (! $membership) {
-            // Speed Networking with a selected circle is strictly restricted to that circle's members
+            // Speed Collaboration with a selected circle is strictly restricted to that circle's members
             if ($event->event_type === 'speed_networking' && ! empty($eventCircleId)) {
-                return $this->error('Only members of this circle can join this Speed Networking event.', 403);
+                return $this->error('Only members of this circle can join this Speed Collaboration event.', 403);
             }
 
             Log::info('cross_circle_registration_attempt', $eligibilityContext);

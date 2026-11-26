@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Services\Events\EventQrService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 
 class EventRegistration extends Model
 {
@@ -245,14 +247,14 @@ class EventRegistration extends Model
             if (! empty($event->metadata['is_speed_networking']) || ($event->metadata['event_type'] ?? '') === 'speed_networking') {
                 return true;
             }
-            if (stripos((string) $event->title, 'speed networking') !== false) {
+            if (stripos((string) $event->title, 'speed networking') !== false || stripos((string) $event->title, 'speed collaboration') !== false) {
                 return true;
             }
         }
 
         if (! empty($this->event_id)) {
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events') && \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $this->event_id)->exists()) {
+                if (Schema::hasTable('speed_networking_events') && SpeedNetworkingEvent::where('id', $this->event_id)->exists()) {
                     return true;
                 }
             } catch (\Throwable $e) {
