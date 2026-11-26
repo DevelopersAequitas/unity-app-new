@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -179,11 +180,11 @@ class EventPassWhatsappAdminController extends Controller
             if (request()->wantsJson() || request()->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Speed Networking events are virtual sessions and do not use in-person QR passes.',
+                    'message' => 'Speed Collaboration events are virtual sessions and do not use in-person QR passes.',
                 ], 422);
             }
 
-            return back()->with('error', 'Speed Networking events are virtual sessions and do not use in-person QR passes.');
+            return back()->with('error', 'Speed Collaboration events are virtual sessions and do not use in-person QR passes.');
         }
 
         // Ensure QR code is generated (force = true for admin resend)
@@ -288,7 +289,7 @@ class EventPassWhatsappAdminController extends Controller
         $deliveryLogs = NotificationDeliveryLog::query()
             ->where(function ($q) use ($matchIds, $registration) {
                 $q->whereIn('provider_message_id', $matchIds);
-                if (\Illuminate\Support\Facades\Schema::hasColumn('notification_delivery_logs', 'request_payload')) {
+                if (Schema::hasColumn('notification_delivery_logs', 'request_payload')) {
                     $q->orWhere('request_payload->registration_id', (string) $registration->id);
                 }
             })
@@ -344,7 +345,7 @@ class EventPassWhatsappAdminController extends Controller
 
         $this->applyFilters($query, $filters);
 
-        $filename = 'event-whatsapp-passes-' . now()->format('Y-m-d-His') . '.csv';
+        $filename = 'event-whatsapp-passes-'.now()->format('Y-m-d-His').'.csv';
 
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');

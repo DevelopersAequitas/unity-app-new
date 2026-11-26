@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', $event->title . ' - Live Speed Networking')
+@section('title', $event->title . ' - Live Speed Collaboration')
 
 @include('admin.partials.grid-head')
 
@@ -213,7 +213,7 @@
 
         @if($event->status === 'in_progress')
           <!-- Pause Live Session -->
-          <form method="POST" action="{{ route('admin.speed-networking.pause', $event->id) }}" onsubmit="return confirm('Pause this live speed networking session?')" class="m-0">
+          <form method="POST" action="{{ route('admin.speed-networking.pause', $event->id) }}" onsubmit="return confirm('Pause this live speed collaboration session?')" class="m-0">
             @csrf
             <button type="submit" class="px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition">
               <i class="bi bi-pause-fill"></i> Pause Session
@@ -539,7 +539,7 @@
               <tr>
                 <td colspan="7" class="p-8 text-center text-slate-400 text-xs">
                   <i class="bi bi-chat-square-dots text-3xl text-slate-300 block mb-2"></i>
-                  No speed networking match pairings recorded yet.
+                  No speed collaboration match pairings recorded yet.
                 </td>
               </tr>
             @endforelse

@@ -21,14 +21,14 @@ class AutoStartSpeedNetworkingEventsCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Automatically start scheduled Speed Networking events whose scheduled start time has arrived.';
+    protected $description = 'Automatically start scheduled Speed Collaboration events whose scheduled start time has arrived.';
 
     /**
      * Execute the console command.
      */
     public function handle(SpeedNetworkingService $service): int
     {
-        $this->info('Checking for scheduled Speed Networking events to auto-start...');
+        $this->info('Checking for scheduled Speed Collaboration events to auto-start...');
 
         $started = $service->checkAndAutoStartScheduledEvents();
         $count = count($started);

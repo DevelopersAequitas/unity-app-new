@@ -6,21 +6,26 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Events\PendingRequestChangedEvent;
 use App\Http\Controllers\Controller;
+use App\Leader\Services\LeaderActivitiesService;
 use App\Leader\Services\LeaderPeersService;
 use App\Leader\Services\LeaderPermissionService;
+use App\Models\AdminUser;
 use App\Models\Certification;
 use App\Models\CertificationSubmission;
 use App\Models\CircleJoinRequest;
+use App\Models\Impact;
 use App\Models\Notification;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Certifications\CertificateGeneratorService;
 use App\Services\Circles\CircleJoinRequestService;
+use App\Services\Impacts\ImpactService;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -713,6 +718,16 @@ class PendingRequestAdminController extends Controller
         if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
             $impact = Impact::find($id);
             if ($impact) {
+                if (request()->attributes->get('leader_scope_forced') || request()->is('*leader/*', '*leaders/*')) {
+                    $result = app(LeaderActivitiesService::class)->approveLeaderImpact($id, request());
+
+                    return response()->json([
+                        'success' => $result['success'],
+                        'message' => $result['message'],
+                        'data' => $result['data'],
+                    ], $result['status_code']);
+                }
+
                 $user = request()->user() ?? Auth::guard('admin')->user() ?? Auth::guard('sanctum')->user();
                 $actor = $user ?? (AdminUser::query()->first() ?? User::query()->where('role', 'admin')->first() ?? (string) $impact->user_id);
                 $remarks = request()->input('remarks') ?? request()->input('review_remarks') ?? request()->input('admin_note');
@@ -984,6 +999,16 @@ class PendingRequestAdminController extends Controller
         if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
             $impact = Impact::find($id);
             if ($impact) {
+                if (request()->attributes->get('leader_scope_forced') || request()->is('*leader/*', '*leaders/*')) {
+                    $result = app(LeaderActivitiesService::class)->rejectLeaderImpact($id, request());
+
+                    return response()->json([
+                        'success' => $result['success'],
+                        'message' => $result['message'],
+                        'data' => $result['data'],
+                    ], $result['status_code']);
+                }
+
                 $user = request()->user() ?? Auth::guard('admin')->user() ?? Auth::guard('sanctum')->user();
                 $actor = $user ?? (AdminUser::query()->first() ?? User::query()->where('role', 'admin')->first() ?? (string) $impact->user_id);
                 $rejectedImpact = app(ImpactService::class)->rejectImpact($impact, $actor, $reason);
@@ -1592,6 +1617,44 @@ class PendingRequestAdminController extends Controller
 
         $record = DB::table('circle_join_requests')->where('id', $id)->first();
         if (! $record) {
+            // For non-circle-join requests (including impacts, coin claims, etc.), verify applicant's user_id belongs to leader scope
+            $applicantUserId = null;
+            foreach (['impacts', 'coin_claims', 'coin_claim_requests', 'visitor_registrations', 'event_registrations', 'event_joining_requests', 'introduction_requests', 'peer_referrals', 'circle_peer_referrals'] as $candidateTable) {
+                if (Schema::hasTable($candidateTable) && Schema::hasColumn($candidateTable, 'user_id')) {
+                    $row = DB::table($candidateTable)->where('id', $id)->first(['user_id']);
+                    if ($row && ! empty($row->user_id)) {
+                        $applicantUserId = (string) $row->user_id;
+                        break;
+                    }
+                }
+            }
+
+            if ($applicantUserId !== null) {
+                if (empty($scope['circle_ids'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This request does not belong to your authorized scope.',
+                    ], 403);
+                }
+
+                $applicantInScope = DB::table('circle_members')
+                    ->where('user_id', $applicantUserId)
+                    ->whereIn('circle_id', $scope['circle_ids'])
+                    ->whereNull('deleted_at')
+                    ->exists()
+                    || User::query()
+                        ->where('id', $applicantUserId)
+                        ->whereIn('active_circle_id', $scope['circle_ids'])
+                        ->exists();
+
+                if (! $applicantInScope) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This request belongs to a peer outside your authorized organizational scope.',
+                    ], 403);
+                }
+            }
+
             return null;
         }
 
@@ -2213,7 +2276,8 @@ class PendingRequestAdminController extends Controller
             $this->getUserNameExpression(),
             'users.email as applicant_email',
             'users.phone as applicant_phone',
-            'users.company_name'
+            'users.company_name',
+            'users.city as applicant_city'
         )->get()->map(function ($r) use ($status) {
             $impactStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
             if ($status === 'approved') {
@@ -2232,19 +2296,27 @@ class PendingRequestAdminController extends Controller
 
             return [
                 'id' => (string) $r->id,
+                'user_id' => ! empty($r->user_id) ? (string) $r->user_id : null,
+                'peer_id' => ! empty($r->user_id) ? (string) $r->user_id : null,
+                'impacted_peer_id' => ! empty($r->impacted_peer_id) ? (string) $r->impacted_peer_id : null,
                 'category' => 'pending_impacts',
                 'category_label' => 'Life Impact Proof',
                 'applicant_name' => $r->applicant_name ?: 'Contributor',
                 'applicant_email' => $r->applicant_email ?? '',
                 'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Member Partner',
+                'company_name' => $r->company_name ?? '',
+                'city' => $r->applicant_city ?? '',
                 'target_entity' => $targetEntity,
-                'details' => $this->formatDetailsText($detailsText, 'Life impact contract validation.'),
+                'details' => $this->formatDetailsText($detailsText, 'Life impact validation.'),
                 'story_to_share' => $story,
                 'additional_remarks' => $remarks,
                 'action' => $r->action ?? null,
                 'life_impacted' => $r->life_impacted ?? null,
+                'impact_date' => $r->impact_date ?? null,
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'approved_at' => $r->approved_at ?? null,
+                'rejected_at' => $r->rejected_at ?? null,
+                'review_remarks' => $r->review_remarks ?? null,
                 'status' => $impactStatus,
             ];
         });

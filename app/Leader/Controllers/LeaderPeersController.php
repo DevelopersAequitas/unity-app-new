@@ -9,6 +9,7 @@ use App\Leader\Requests\LeaderCreateP2pMeetingRequest;
 use App\Leader\Requests\LeaderSendWishRequest;
 use App\Leader\Requests\LeaderUpdatePeerRequest;
 use App\Leader\Services\LeaderDashboardService;
+use App\Leader\Services\LeaderMember360Service;
 use App\Leader\Services\LeaderPeersService;
 use App\Leader\Services\LeaderPermissionService;
 use App\Models\User;
@@ -86,6 +87,13 @@ class LeaderPeersController extends Controller
                 'message' => 'Peer not found.',
                 'error_code' => 'RESOURCE_NOT_FOUND',
             ], 404);
+        }
+
+        if ($request->user() instanceof User) {
+            $full = app(LeaderMember360Service::class)->getMemberProfile($id, $request->user());
+            if (! empty($full)) {
+                $data = $full;
+            }
         }
 
         return response()->json([
