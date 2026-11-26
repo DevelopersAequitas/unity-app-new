@@ -81,6 +81,19 @@ return [
         'redirect_uri' => env('LINKEDIN_REDIRECT_URI'),
     ],
 
+    'apple' => [
+        'client_id' => env('APPLE_CLIENT_ID'),
+        'bundle_id' => env('APPLE_BUNDLE_ID', 'com.brapps.pgu'),
+        'dev_bundle_id' => env('APPLE_DEV_BUNDLE_ID', 'com.brapps.pgu.dev'),
+        'allowed_audiences' => array_values(array_filter(array_map('trim', explode(',', (string) env('APPLE_ALLOWED_AUDIENCES', ''))))),
+        'team_id' => env('APPLE_TEAM_ID'),
+        'key_id' => env('APPLE_KEY_ID'),
+        'private_key' => env('APPLE_PRIVATE_KEY'),
+        'redirect_uri' => env('APPLE_REDIRECT_URI'),
+        'android_package' => env('APPLE_ANDROID_PACKAGE', 'com.peers.peersunity'),
+        'android_dev_package' => env('APPLE_ANDROID_DEV_PACKAGE', 'com.peers.peersunity.dev'),
+    ],
+
     'frontend_url' => env('FRONTEND_URL', 'https://peersglobal.com'),
     'voting_url' => env('FRONTEND_VOTING_URL'),
 
