@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Speed Networking Events')
+@section('title', 'Speed Collaboration Events')
 
 @include('admin.partials.grid-head')
 
@@ -31,7 +31,7 @@
     <div class="flex flex-wrap justify-between items-center gap-3 mb-2">
       <div>
         <h2 class="text-base font-bold tracking-wider uppercase text-indigo-600 font-display m-0 flex items-center gap-2">
-          <i class="bi bi-lightning-charge-fill text-lg text-amber-500"></i>Speed Networking
+          <i class="bi bi-lightning-charge-fill text-lg text-amber-500"></i>Speed Collaboration
         </h2>
         <p class="text-xs text-slate-500 m-0 mt-0.5">Automated 1-on-1 round-robin video networking with dynamic Agora rooms</p>
       </div>
@@ -190,7 +190,7 @@
                   <a href="{{ route('admin.speed-networking.show', $event->id) }}" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs no-underline flex items-center gap-1 transition">
                     <i class="bi bi-display"></i> Control Room
                   </a>
-                  <form method="POST" action="{{ route('admin.speed-networking.destroy', $event->id) }}" onsubmit="return confirm('Are you sure you want to delete this speed networking event?')" class="inline m-0">
+                  <form method="POST" action="{{ route('admin.speed-networking.destroy', $event->id) }}" onsubmit="return confirm('Are you sure you want to delete this speed collaboration event?')" class="inline m-0">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border-0 bg-transparent cursor-pointer" title="Delete">
@@ -204,7 +204,7 @@
             <tr>
               <td colspan="7" class="p-8 text-center text-slate-400 text-sm">
                 <i class="bi bi-lightning text-3xl text-slate-300 block mb-2"></i>
-                No Speed Networking events found. Click "Create Speed Event" above to create one.
+                No Speed Collaboration events found. Click "Create Speed Event" above to create one.
               </td>
             </tr>
           @endforelse
@@ -235,7 +235,7 @@
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
       <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-        <i class="bi bi-lightning-charge-fill text-amber-500"></i> Create Speed Networking Event
+        <i class="bi bi-lightning-charge-fill text-amber-500"></i> Create Speed Collaboration Event
       </h3>
       <button type="button" onclick="document.getElementById('createEventModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 border-0 bg-transparent text-lg cursor-pointer">&times;</button>
     </div>
@@ -243,7 +243,7 @@
       @csrf
       <div>
         <label class="block text-xs font-semibold text-slate-700 mb-1">Event Title *</label>
-        <input type="text" name="title" required placeholder="e.g., Global Founders 1-on-1 Speed Networking" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+        <input type="text" name="title" required placeholder="e.g., Global Founders 1-on-1 Speed Collaboration" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
       </div>
 
       <div>

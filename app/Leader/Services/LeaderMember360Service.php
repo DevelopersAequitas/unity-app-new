@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Leader\Services;
 
+use App\Leader\Models\LeaderReport;
 use App\Models\ActivityCreative;
+use App\Models\AdminUser;
+use App\Models\Circle;
 use App\Models\Event;
 use App\Models\EventRegistration;
+use App\Models\Finance\FinanceLeaderTenure;
+use App\Models\Impact;
 use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
@@ -100,7 +105,788 @@ class LeaderMember360Service
 
         $profile['summary'] = $this->buildSummary($memberId);
 
+        $member = User::query()
+            ->with([
+                'city',
+                'businessCategory',
+                'level4Category',
+                'introducedBy',
+                'circleMembers.circle',
+                'circleMembers.level1Category',
+                'circleMembers.level4Category',
+                'activeCircle',
+            ])
+            ->find($memberId);
+
+        if ($member) {
+            $sections = $this->buildFounderProfileSections($member, $leader, $profile);
+            $profile = array_merge($profile, $sections);
+        }
+
         return $profile;
+    }
+
+    /**
+     * Build complete data-driven Founder-level sections for a Peer Profile.
+     *
+     * @param  array<string, mixed>  $baseProfile
+     * @return array<string, mixed>
+     */
+    public function buildFounderProfileSections(User $member, User|AdminUser|null $leader, array $baseProfile): array
+    {
+        $memberId = (string) $member->id;
+        $leaderRoleInfo = $leader ? $this->permissionService->resolveUserRole($leader) : ['role' => 'guest'];
+        $leaderRole = (string) ($leaderRoleInfo['role'] ?? 'guest');
+        $leaderCaps = ($leader instanceof AdminUser)
+            ? ['access_dashboard', 'access_teams', 'access_finance', 'regional_data', 'view_peers', 'manage_peers', 'request_actions', 'view_reports', 'manage_finance', 'coin_payouts', 'manage_roles', 'system_configs']
+            : ($leader ? $this->permissionService->getEnabledCapabilitiesForRole($leaderRole) : []);
+        $isSuperAdmin = ($leaderRole === 'superAdmin');
+
+        $canViewFinance = $isSuperAdmin || in_array('access_finance', $leaderCaps, true) || in_array('manage_finance', $leaderCaps, true);
+        $canManagePeers = $isSuperAdmin || in_array('manage_peers', $leaderCaps, true);
+        $canViewCompliance = $isSuperAdmin
+            || in_array($leaderRole, ['globalFounder', 'countryDirector', 'districtExecDirector', 'circleFounder', 'circleDirector'], true)
+            || $canManagePeers
+            || $canViewFinance;
+        $canModerateImpacts = false;
+        if ($leader && (! ($leader instanceof User) || (string) $leader->id !== $memberId)) {
+            $canModerateImpacts = in_array($leaderRole, ['superAdmin', 'districtExecDirector'], true);
+            if ($canModerateImpacts && $leaderRole === 'districtExecDirector') {
+                $dedCircles = $this->peersService->resolveScopedCircleIds($leader) ?? [];
+                $memberCircles = $member->circleMembers->pluck('circle_id')->map(fn ($id) => (string) $id)->all();
+                if (! empty($member->active_circle_id)) {
+                    $memberCircles[] = (string) $member->active_circle_id;
+                }
+                $canModerateImpacts = ! empty(array_intersect($dedCircles, $memberCircles));
+            }
+        }
+
+        // Batch-load all circles and districts this peer is linked to
+        $circleIds = $member->circleMembers
+            ->pluck('circle_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->all();
+        if (! empty($member->active_circle_id)) {
+            $circleIds[] = (string) $member->active_circle_id;
+        }
+        $circleIds = array_values(array_unique($circleIds));
+
+        $circlesById = ! empty($circleIds)
+            ? Circle::query()->whereIn('id', $circleIds)->whereNull('deleted_at')->get()->keyBy(fn ($c) => (string) $c->id)
+            : collect();
+
+        $districtIds = $circlesById->pluck('district_id')->filter()->map(fn ($d) => (string) $d)->unique()->values()->all();
+        $districtsById = (! empty($districtIds) && Schema::hasTable('districts'))
+            ? DB::table('districts')->whereIn('id', $districtIds)->pluck('name', 'id')->all()
+            : [];
+
+        $primaryCircle = (! empty($member->active_circle_id) && $circlesById->has((string) $member->active_circle_id))
+            ? $circlesById->get((string) $member->active_circle_id)
+            : $circlesById->first();
+
+        $primaryDistrictId = $primaryCircle && ! empty($primaryCircle->district_id) ? (string) $primaryCircle->district_id : null;
+        $primaryDistrictName = $primaryDistrictId ? ($districtsById[$primaryDistrictId] ?? ($member->district ?? null)) : ($member->district ?? null);
+
+        // Batch-load assigned leaders on primary circle (no N+1)
+        $assignedLeadership = [];
+        $currentPositions = [];
+        $historicalPositions = [];
+        $positionDedupe = [];
+        $addPosition = static function (array &$target, array &$dedupe, array $pos): void {
+            $key = strtolower(($pos['role_key'] ?? '').'|'.($pos['circle_id'] ?? '').'|'.($pos['started_at'] ?? '').'|'.($pos['ended_at'] ?? ''));
+            if (isset($dedupe[$key])) {
+                return;
+            }
+            $dedupe[$key] = true;
+            $target[] = $pos;
+        };
+
+        $leadershipColumns = [
+            'circle_founder_user_id' => ['key' => 'circleFounder', 'label' => 'Circle Founder'],
+            'circle_director_user_id' => ['key' => 'circleDirector', 'label' => 'Circle Director'],
+            'chair_user_id' => ['key' => 'circleChair', 'label' => 'Circle Chair'],
+            'vice_chair_user_id' => ['key' => 'viceChair', 'label' => 'Vice Chair'],
+            'secretary_user_id' => ['key' => 'secretary', 'label' => 'Secretary'],
+            'industry_director_user_id' => ['key' => 'industryDirector', 'label' => 'Industry Director'],
+            'ded_user_id' => ['key' => 'districtExecDirector', 'label' => 'District Executive Director'],
+        ];
+
+        $leaderUserIdsToFetch = [];
+        if ($primaryCircle) {
+            foreach (array_keys($leadershipColumns) as $col) {
+                if (! empty($primaryCircle->{$col})) {
+                    $leaderUserIdsToFetch[] = (string) $primaryCircle->{$col};
+                }
+            }
+        }
+        if ($member->introduced_by) {
+            $leaderUserIdsToFetch[] = (string) $member->introduced_by;
+        }
+        $leaderUserIdsToFetch = array_values(array_unique(array_filter($leaderUserIdsToFetch)));
+        $resolvedLeaderUsers = ! empty($leaderUserIdsToFetch)
+            ? User::query()->whereIn('id', $leaderUserIdsToFetch)->get(['id', 'first_name', 'last_name', 'display_name', 'company_name', 'designation'])->keyBy(fn ($u) => (string) $u->id)
+            : collect();
+
+        $resolveUserLabel = static function (?User $u): string {
+            if (! $u) {
+                return '';
+            }
+            $n = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+
+            return $n !== '' ? $n : (string) ($u->display_name ?? '');
+        };
+
+        if ($primaryCircle) {
+            foreach ($leadershipColumns as $col => $meta) {
+                $uid = (string) ($primaryCircle->{$col} ?? '');
+                if ($uid !== '' && $resolvedLeaderUsers->has($uid)) {
+                    $lu = $resolvedLeaderUsers->get($uid);
+                    $assignedLeadership[] = [
+                        'role_key' => $meta['key'],
+                        'role_label' => $meta['label'],
+                        'user_id' => $uid,
+                        'name' => $resolveUserLabel($lu),
+                        'company_name' => (string) ($lu->company_name ?? ''),
+                    ];
+                }
+            }
+        }
+
+        // Check ALL circles where this peer holds a leadership position
+        $circleLeadershipQuery = Circle::query()->whereNull('deleted_at')->where(function ($q) use ($memberId): void {
+            $q->where('circle_founder_user_id', $memberId)
+                ->orWhere('circle_director_user_id', $memberId)
+                ->orWhere('chair_user_id', $memberId)
+                ->orWhere('vice_chair_user_id', $memberId)
+                ->orWhere('secretary_user_id', $memberId)
+                ->orWhere('industry_director_user_id', $memberId)
+                ->orWhere('ded_user_id', $memberId);
+        })->get();
+
+        foreach ($circleLeadershipQuery as $lc) {
+            foreach ($leadershipColumns as $col => $meta) {
+                if ((string) ($lc->{$col} ?? '') === $memberId) {
+                    $addPosition($currentPositions, $positionDedupe, [
+                        'role_key' => $meta['key'],
+                        'role_label' => $meta['label'],
+                        'scope_type' => 'circle',
+                        'circle_id' => (string) $lc->id,
+                        'circle_name' => (string) $lc->name,
+                        'started_at' => $lc->launch_date ? $lc->launch_date->toDateString() : ($lc->created_at ? $lc->created_at->toDateString() : null),
+                        'ended_at' => null,
+                        'status' => 'active',
+                        'is_current' => true,
+                    ]);
+                }
+            }
+        }
+
+        // Check circle_members for non-ordinary leadership roles ONLY (never treat 'member' / 'peer' as leadership)
+        foreach ($member->circleMembers as $cm) {
+            $rawRole = strtolower(trim((string) ($cm->role ?? '')));
+            if ($rawRole !== '' && ! in_array($rawRole, ['member', 'peer', 'guest', 'visitor'], true)) {
+                $cModel = $circlesById->get((string) $cm->circle_id);
+                $isActiveCm = empty($cm->left_at) && in_array(strtolower((string) ($cm->status ?? 'active')), ['active', 'approved', ''], true);
+                $roleLabel = ucwords(str_replace(['_', '-'], ' ', $rawRole));
+                $pos = [
+                    'role_key' => $rawRole,
+                    'role_label' => $roleLabel,
+                    'scope_type' => 'circle',
+                    'circle_id' => (string) ($cm->circle_id ?? ''),
+                    'circle_name' => $cModel ? (string) $cModel->name : '',
+                    'started_at' => $cm->joined_at ? $cm->joined_at->toDateString() : ($cm->created_at ? $cm->created_at->toDateString() : null),
+                    'ended_at' => $cm->left_at ? $cm->left_at->toDateString() : null,
+                    'status' => $isActiveCm ? 'active' : 'completed',
+                    'is_current' => $isActiveCm,
+                ];
+                if ($isActiveCm) {
+                    $addPosition($currentPositions, $positionDedupe, $pos);
+                } else {
+                    $addPosition($historicalPositions, $positionDedupe, $pos);
+                }
+            }
+        }
+
+        // Check FinanceLeaderTenure for historical and active tenures
+        if (Schema::hasTable('finance_leader_tenures')) {
+            $tenures = FinanceLeaderTenure::query()
+                ->with('role')
+                ->where('user_id', $memberId)
+                ->orderByDesc('tenure_start_at')
+                ->get();
+
+            foreach ($tenures as $t) {
+                $rKey = (string) ($t->role_key ?? $t->role?->key ?? '');
+                $rLabel = (string) ($t->role?->name ?? ucwords(str_replace(['_', '-'], ' ', $rKey)));
+                if ($rLabel === '' || in_array(strtolower($rKey), ['member', 'peer'], true)) {
+                    continue;
+                }
+                $isCurrent = (bool) $t->is_active && $t->tenure_end_at === null;
+                $pos = [
+                    'role_key' => $rKey,
+                    'role_label' => $rLabel,
+                    'scope_type' => (string) ($t->scope_type ?? ''),
+                    'circle_id' => (string) ($t->scope_id ?? ''),
+                    'circle_name' => (string) ($t->scope_name_snapshot ?? ''),
+                    'started_at' => $t->tenure_start_at ? $t->tenure_start_at->toDateString() : null,
+                    'ended_at' => $t->tenure_end_at ? $t->tenure_end_at->toDateString() : null,
+                    'status' => $isCurrent ? 'active' : 'completed',
+                    'is_current' => $isCurrent,
+                    'removal_reason' => $t->removal_reason ?: null,
+                ];
+                if ($isCurrent) {
+                    $addPosition($currentPositions, $positionDedupe, $pos);
+                } else {
+                    $addPosition($historicalPositions, $positionDedupe, $pos);
+                }
+            }
+        }
+
+        // Leadership reports submitted by this peer
+        $reportsSubmittedCount = 0;
+        $recentReports = [];
+        if (Schema::hasTable('leader_reports')) {
+            $reportsQuery = LeaderReport::query()
+                ->with('circle:id,name')
+                ->where('submitted_by_user_id', $memberId)
+                ->whereNull('deleted_at');
+            $reportsSubmittedCount = (clone $reportsQuery)->count();
+            $recentReports = $reportsQuery
+                ->orderByDesc('created_at')
+                ->limit(5)
+                ->get()
+                ->map(fn (LeaderReport $r): array => [
+                    'id' => (string) $r->id,
+                    'report_type' => (string) ($r->report_type ?? 'Report'),
+                    'period' => (string) ($r->period ?? ''),
+                    'circle_name' => (string) ($r->circle?->name ?? ''),
+                    'status' => (string) ($r->status ?? 'submitted'),
+                    'submitted_at' => $r->created_at ? $r->created_at->toIso8601String() : null,
+                ])
+                ->all();
+        }
+
+        // Leadership certifications
+        $leadershipCertifications = [];
+        if (Schema::hasTable('leadership_certification_submissions')) {
+            $leadershipCertifications = DB::table('leadership_certification_submissions')
+                ->where('user_id', $memberId)
+                ->orderByDesc('created_at')
+                ->limit(5)
+                ->get()
+                ->map(fn ($row): array => [
+                    'id' => (string) ($row->id ?? ''),
+                    'title' => (string) ($row->certification_title ?? $row->type ?? 'Leadership Certification'),
+                    'status' => ucfirst((string) ($row->status ?? 'submitted')),
+                    'date' => (string) ($row->created_at ?? ''),
+                ])
+                ->all();
+        }
+
+        // Business profile completeness calculation from real non-empty business attributes
+        $businessFieldsForCompleteness = [
+            $member->company_name ?? $member->business_name,
+            $member->designation,
+            $member->businessCategory?->name ?? $member->industry,
+            $member->level4Category?->name ?? $member->business_sub_category,
+            $member->short_bio ?? $member->experience_summary,
+            $member->products_services_offered,
+            $member->business_website ?? $member->website,
+            $member->business_city ?? $member->city,
+        ];
+        $filledBizCount = count(array_filter($businessFieldsForCompleteness, fn ($v) => ! empty(trim((string) ($v ?? '')))));
+        $completenessPercent = (int) round(($filledBizCount / count($businessFieldsForCompleteness)) * 100);
+
+        $stringList = static function (mixed $val): array {
+            if (is_array($val)) {
+                return array_values(array_filter(array_map(fn ($x) => trim((string) $x), $val)));
+            }
+            if (is_string($val) && trim($val) !== '') {
+                $decoded = json_decode($val, true);
+                if (is_array($decoded)) {
+                    return array_values(array_filter(array_map(fn ($x) => trim((string) $x), $decoded)));
+                }
+
+                return array_values(array_filter(array_map('trim', explode(',', $val))));
+            }
+
+            return [];
+        };
+
+        $yearsInBusiness = $member->experience_years;
+        if (empty($yearsInBusiness) && ! empty($member->year_of_establishment) && (int) $member->year_of_establishment > 1900) {
+            $yearsInBusiness = max(0, (int) date('Y') - (int) $member->year_of_establishment);
+        }
+
+        // Business & Collaboration activity
+        $dealsGivenCount = 0;
+        $dealsReceivedCount = 0;
+        $crossCircleDealsCount = 0;
+        $recentDeals = [];
+        if (Schema::hasTable('business_deals')) {
+            $allDeals = DB::table('business_deals as bd')
+                ->leftJoin('users as fu', 'fu.id', '=', 'bd.from_user_id')
+                ->leftJoin('users as tu', 'tu.id', '=', 'bd.to_user_id')
+                ->where(function ($q) use ($memberId): void {
+                    $q->where('bd.from_user_id', $memberId)
+                        ->orWhere('bd.to_user_id', $memberId);
+                })
+                ->whereNull('bd.deleted_at')
+                ->orderByDesc('bd.created_at')
+                ->select([
+                    'bd.id',
+                    'bd.from_user_id',
+                    'bd.to_user_id',
+                    'bd.deal_amount',
+                    'bd.business_type',
+                    'bd.deal_date',
+                    'bd.comment',
+                    'bd.created_at',
+                    'fu.first_name as from_first',
+                    'fu.last_name as from_last',
+                    'fu.active_circle_id as from_circle_id',
+                    'tu.first_name as to_first',
+                    'tu.last_name as to_last',
+                    'tu.active_circle_id as to_circle_id',
+                ])
+                ->get();
+
+            foreach ($allDeals as $d) {
+                $isGiver = (string) ($d->from_user_id ?? '') === $memberId;
+                if ($isGiver) {
+                    $dealsGivenCount++;
+                } else {
+                    $dealsReceivedCount++;
+                }
+                if (! empty($d->from_circle_id) && ! empty($d->to_circle_id) && (string) $d->from_circle_id !== (string) $d->to_circle_id) {
+                    $crossCircleDealsCount++;
+                }
+                if (count($recentDeals) < 10) {
+                    $counterpartName = $isGiver
+                        ? trim(($d->to_first ?? '').' '.($d->to_last ?? ''))
+                        : trim(($d->from_first ?? '').' '.($d->from_last ?? ''));
+                    $amt = (float) ($d->deal_amount ?? 0);
+                    $recentDeals[] = [
+                        'id' => (string) $d->id,
+                        'direction' => $isGiver ? 'given' : 'received',
+                        'counterpart_name' => $counterpartName !== '' ? $counterpartName : 'Peer',
+                        'amount' => $amt,
+                        'amount_formatted' => '₹'.number_format($amt, 0),
+                        'business_type' => (string) ($d->business_type ?? 'Business Deal'),
+                        'deal_date' => $d->deal_date ? (string) $d->deal_date : ($d->created_at ? Carbon::parse($d->created_at)->toDateString() : ''),
+                        'notes' => (string) ($d->comment ?? ''),
+                    ];
+                }
+            }
+        }
+
+        // Asks counts separated strictly from completed deals
+        $collabAsksCount = 0;
+        $referralAsksCount = 0;
+        $helpAsksCount = 0;
+        $recentAsks = [];
+        if (Schema::hasTable('asks') && Schema::hasTable('ask_flows')) {
+            $askRows = DB::table('asks as a')
+                ->leftJoin('ask_flows as af', 'af.id', '=', 'a.flow_id')
+                ->where('a.user_id', $memberId)
+                ->whereNull('a.deleted_at')
+                ->orderByDesc('a.created_at')
+                ->select(['a.id', 'a.title', 'a.status', 'a.created_at', 'af.code as flow_code', 'af.name as flow_name'])
+                ->get();
+
+            foreach ($askRows as $ar) {
+                $code = strtolower((string) ($ar->flow_code ?? ''));
+                if ($code === 'collaboration') {
+                    $collabAsksCount++;
+                } elseif ($code === 'referral') {
+                    $referralAsksCount++;
+                } elseif ($code === 'help') {
+                    $helpAsksCount++;
+                }
+                if (count($recentAsks) < 8) {
+                    $recentAsks[] = [
+                        'id' => (string) $ar->id,
+                        'flow_code' => $code,
+                        'flow_name' => (string) ($ar->flow_name ?? ucfirst($code)),
+                        'title' => (string) ($ar->title ?? 'Business Ask'),
+                        'status' => ucfirst((string) ($ar->status ?? 'open')),
+                        'created_at' => $ar->created_at ? Carbon::parse($ar->created_at)->toIso8601String() : null,
+                    ];
+                }
+            }
+        }
+
+        // Life Impact Submissions breakdown (real status + permission-aware details)
+        $impactPendingCount = 0;
+        $impactApprovedCount = 0;
+        $impactRejectedCount = 0;
+        $impactCategoriesMap = [];
+        $impactSubmissions = [];
+        $activitiesService = app(LeaderActivitiesService::class);
+
+        if (Schema::hasTable('impacts')) {
+            $impactsQuery = Impact::query()
+                ->with(['user', 'impactedPeer.circleMembers.circle', 'approvedBy', 'approvedByUser', 'rejectedBy', 'rejectedByUser'])
+                ->where('user_id', $memberId);
+            if (Schema::hasColumn('impacts', 'deleted_at')) {
+                $impactsQuery->whereNull('deleted_at');
+            }
+            $allImpacts = $impactsQuery->orderByDesc('created_at')->get();
+
+            foreach ($allImpacts as $imp) {
+                $st = strtolower(trim((string) ($imp->status ?? 'approved')));
+                if ($st === 'pending') {
+                    $impactPendingCount++;
+                } elseif ($st === 'rejected') {
+                    $impactRejectedCount++;
+                } else {
+                    $st = 'approved';
+                    $impactApprovedCount++;
+                }
+
+                $catName = trim((string) ($imp->action ?? 'Life Impact'));
+                $impactCategoriesMap[$catName] = ($impactCategoriesMap[$catName] ?? 0) + 1;
+
+                // Only expose non-approved submissions or private attachments if viewer can moderate or manage peers
+                if ($st === 'approved' || $canModerateImpacts || $canManagePeers) {
+                    $impactSubmissions[] = $activitiesService->formatImpactRecord(
+                        $imp,
+                        $leader,
+                        includeHistory: false,
+                        includeAttachments: ($canModerateImpacts || $canManagePeers || $st === 'approved')
+                    );
+                }
+            }
+        }
+
+        // Circle Attendance & Events Participation
+        $circleAttendance = ['attended' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0, 'total_recorded' => 0, 'attendance_rate_percent' => null];
+        if (Schema::hasTable('attendance_records')) {
+            $attRows = DB::table('attendance_records')->where('user_id', $memberId)->get(['status']);
+            foreach ($attRows as $ar) {
+                $circleAttendance['total_recorded']++;
+                $st = strtolower(trim((string) ($ar->status ?? '')));
+                if (in_array($st, ['present', 'attended'], true)) {
+                    $circleAttendance['attended']++;
+                } elseif ($st === 'late') {
+                    $circleAttendance['late']++;
+                } elseif ($st === 'excused') {
+                    $circleAttendance['excused']++;
+                } else {
+                    $circleAttendance['absent']++;
+                }
+            }
+            if ($circleAttendance['total_recorded'] > 0) {
+                $attendedPositive = $circleAttendance['attended'] + $circleAttendance['late'];
+                $circleAttendance['attendance_rate_percent'] = round(($attendedPositive / $circleAttendance['total_recorded']) * 100, 1);
+            }
+        }
+
+        $badgesResult = $this->getMemberBadges($memberId, ['per_page' => 20]);
+        $eventsResult = $this->getMemberEventRegistrations($memberId, ['per_page' => 10]);
+
+        $primaryRoleTitle = ! empty($currentPositions) ? (string) $currentPositions[0]['role_label'] : null;
+
+        // Membership renewal & compliance data (permission-protected)
+        $subs = $baseProfile['subscriptions'] ?? [];
+        $activeAppSub = is_array($subs) ? ($subs['active_app_subscription'] ?? null) : null;
+        $complianceData = ['is_visible' => false];
+        if ($canViewCompliance) {
+            $pendingActions = [];
+            if ($impactPendingCount > 0 && ($canModerateImpacts || $isSuperAdmin)) {
+                $pendingActions[] = "{$impactPendingCount} Life Impact submission(s) pending verification";
+            }
+            if (strtolower((string) ($member->approval_status ?? '')) === 'pending') {
+                $pendingActions[] = 'Account approval pending';
+            }
+
+            $sanitizedSub = null;
+            if (is_array($activeAppSub)) {
+                $sanitizedSub = [
+                    'plan_name' => $activeAppSub['plan_name'] ?? null,
+                    'status' => $activeAppSub['status'] ?? null,
+                    'starts_at' => $activeAppSub['starts_at'] ?? null,
+                    'ends_at' => $activeAppSub['ends_at'] ?? null,
+                    'days_left' => $activeAppSub['days_left'] ?? null,
+                ];
+                if ($canViewFinance) {
+                    $sanitizedSub['price'] = $activeAppSub['price'] ?? null;
+                    $sanitizedSub['payment_status'] = $activeAppSub['payment_status'] ?? null;
+                }
+            }
+
+            $complianceData = [
+                'is_visible' => true,
+                'account_status' => (string) ($baseProfile['status'] ?? 'Active'),
+                'approval_status' => $member->approval_status ? ucfirst((string) $member->approval_status) : null,
+                'membership_status' => $member->membership_status ? (string) $member->membership_status : ($activeAppSub['status'] ?? null),
+                'renewal_status' => $activeAppSub['status'] ?? null,
+                'starts_at' => $member->membership_starts_at ? $member->membership_starts_at->toDateString() : ($activeAppSub['starts_at'] ?? null),
+                'expires_at' => $member->membership_ends_at ? $member->membership_ends_at->toDateString() : ($activeAppSub['ends_at'] ?? null),
+                'days_remaining' => $activeAppSub['days_left'] ?? null,
+                'pending_actions' => $pendingActions,
+                'verification_flags' => [
+                    'is_verified' => (bool) ($member->is_verified ?? false),
+                    'has_profile_photo' => ! empty($baseProfile['profile_photo_url']),
+                    'has_company_info' => ! empty($baseProfile['company_name']),
+                    'has_bio' => ! empty($baseProfile['bio']),
+                ],
+                'admin_remarks' => $canManagePeers ? ($member->membership_expiry_date_remark ?: null) : null,
+                'subscription_summary' => $sanitizedSub,
+            ];
+        }
+
+        // Build real chronological timeline from actual records
+        $timeline = [];
+        if ($member->created_at) {
+            $timeline[] = [
+                'id' => 'joined_'.$memberId,
+                'event_type' => 'peer_joined',
+                'title' => 'Joined Peers Global Unity',
+                'subtitle' => $primaryCircle ? (string) $primaryCircle->name : 'Platform Membership',
+                'status' => 'Completed',
+                'date' => $member->created_at->toIso8601String(),
+                'reference_type' => null,
+                'reference_id' => null,
+            ];
+        }
+        foreach ($currentPositions as $cp) {
+            if (! empty($cp['started_at'])) {
+                $timeline[] = [
+                    'id' => 'role_'.md5(($cp['role_key'] ?? '').($cp['circle_id'] ?? '')),
+                    'event_type' => 'leadership_appointment',
+                    'title' => 'Appointed as '.($cp['role_label'] ?? 'Leader'),
+                    'subtitle' => $cp['circle_name'] ?? '',
+                    'status' => 'Active',
+                    'date' => Carbon::parse($cp['started_at'])->toIso8601String(),
+                    'reference_type' => 'circle',
+                    'reference_id' => $cp['circle_id'] ?? null,
+                ];
+            }
+        }
+        foreach (array_slice($impactSubmissions, 0, 10) as $impItem) {
+            if (! empty($impItem['submitted_at'])) {
+                $timeline[] = [
+                    'id' => 'impact_'.$impItem['id'],
+                    'event_type' => 'life_impact',
+                    'title' => 'Life Impact: '.($impItem['title'] ?: 'Impact Record'),
+                    'subtitle' => ($impItem['life_impacted'] ?? 1).' life impacted',
+                    'status' => $impItem['status_label'] ?? 'Pending',
+                    'date' => $impItem['submitted_at'],
+                    'reference_type' => 'life_impact',
+                    'reference_id' => $impItem['id'],
+                ];
+            }
+        }
+        foreach (array_slice($recentDeals, 0, 6) as $dealItem) {
+            if (! empty($dealItem['deal_date'])) {
+                $timeline[] = [
+                    'id' => 'deal_'.$dealItem['id'],
+                    'event_type' => 'business_deal',
+                    'title' => 'Business Deal '.$dealItem['amount_formatted'],
+                    'subtitle' => ($dealItem['direction'] === 'given' ? 'With ' : 'From ').$dealItem['counterpart_name'],
+                    'status' => 'Closed',
+                    'date' => Carbon::parse($dealItem['deal_date'])->toIso8601String(),
+                    'reference_type' => 'business_deal',
+                    'reference_id' => $dealItem['id'],
+                ];
+            }
+        }
+        foreach (array_slice($recentAsks, 0, 5) as $askItem) {
+            if (! empty($askItem['created_at'])) {
+                $timeline[] = [
+                    'id' => 'ask_'.$askItem['id'],
+                    'event_type' => 'collaboration_ask',
+                    'title' => $askItem['flow_name'].': '.$askItem['title'],
+                    'subtitle' => 'Business Ask',
+                    'status' => $askItem['status'],
+                    'date' => $askItem['created_at'],
+                    'reference_type' => 'ask',
+                    'reference_id' => $askItem['id'],
+                ];
+            }
+        }
+        usort($timeline, fn ($a, $b) => strtotime((string) ($b['date'] ?? '0')) <=> strtotime((string) ($a['date'] ?? '0')));
+
+        $introducedByUser = $member->introduced_by ? $resolvedLeaderUsers->get((string) $member->introduced_by) : null;
+
+        return [
+            'identity' => [
+                'id' => $memberId,
+                'peer_code' => $baseProfile['peer_code'] ?? ('PG-'.strtoupper(substr(str_replace('-', '', $memberId), 0, 8))),
+                'full_name' => $baseProfile['name'] ?? '',
+                'first_name' => $baseProfile['first_name'] ?? '',
+                'last_name' => $baseProfile['last_name'] ?? '',
+                'display_name' => (string) ($member->display_name ?? $baseProfile['name'] ?? ''),
+                'profile_photo_url' => $baseProfile['profile_photo_url'] ?? null,
+                'cover_photo_url' => $member->cover_photo_url ?? null,
+                'designation' => $baseProfile['designation'] ?? '',
+                'company_name' => $baseProfile['company_name'] ?? '',
+                'primary_category' => $baseProfile['business_category'] ?? '',
+                'sub_category' => $baseProfile['sub_industry'] ?? '',
+                'level4_category' => $baseProfile['level4_category'] ?? '',
+                'city' => $baseProfile['city'] ?? '',
+                'state' => (string) ($member->state ?? $member->business_state ?? ''),
+                'country' => (string) ($member->country ?? $member->business_country ?? ''),
+                'district_id' => $primaryDistrictId,
+                'district_name' => $primaryDistrictName,
+                'circle_id' => $primaryCircle ? (string) $primaryCircle->id : ($baseProfile['circle_id'] ?? ''),
+                'circle_name' => $primaryCircle ? (string) $primaryCircle->name : ($baseProfile['circle_name'] ?? ''),
+                'membership_status' => $member->membership_status ? (string) $member->membership_status : ($baseProfile['status'] ?? 'Active'),
+                'account_status' => $baseProfile['status'] ?? 'Active',
+                'approval_status' => $member->approval_status ? (string) $member->approval_status : null,
+                'is_verified' => (bool) ($member->is_verified ?? false),
+                'is_online' => (bool) ($member->is_online ?? false),
+                'last_seen_at' => $member->last_seen_at ? $member->last_seen_at->toIso8601String() : null,
+                'current_leadership_role' => $primaryRoleTitle,
+                'contact_authorized' => (bool) ($baseProfile['contact_authorized'] ?? true),
+                'contact' => $baseProfile['contact'] ?? [],
+            ],
+            'business' => [
+                'company_name' => (string) ($member->company_name ?? $member->business_name ?? ''),
+                'company_type' => (string) ($member->company_type ?? ''),
+                'designation' => (string) ($member->designation ?? ''),
+                'short_bio' => (string) ($member->short_bio ?? ''),
+                'experience_summary' => (string) ($member->experience_summary ?? ''),
+                'experience_years' => $member->experience_years !== null ? (int) $member->experience_years : null,
+                'year_of_establishment' => $member->year_of_establishment !== null ? (int) $member->year_of_establishment : null,
+                'years_in_business' => $yearsInBusiness !== null ? (int) $yearsInBusiness : null,
+                'industry' => (string) ($member->businessCategory?->name ?? $member->industry ?? ''),
+                'sub_industry' => (string) ($member->business_sub_category ?? ''),
+                'level4_category' => (string) ($member->level4Category?->name ?? ''),
+                'business_categories' => array_values(array_filter([
+                    $member->businessCategory?->name,
+                    $member->business_sub_category,
+                    $member->level4Category?->name,
+                ])),
+                'industry_tags' => $stringList($member->industry_tags),
+                'products_services_offered' => (string) ($member->products_services_offered ?? ''),
+                'number_of_employees' => $member->number_of_employees ? (string) $member->number_of_employees : '',
+                'annual_revenue_range' => ($canViewFinance || $canManagePeers) ? (string) ($member->annual_revenue_range ?? $member->turnover_range ?? '') : '',
+                'website' => (string) ($member->business_website ?? $member->website ?? $member->other_website ?? ''),
+                'business_address' => (string) ($member->business_address ?? ''),
+                'business_city' => (string) ($member->business_city ?? $member->city ?? ''),
+                'business_state' => (string) ($member->business_state ?? $member->state ?? ''),
+                'business_country' => (string) ($member->business_country ?? $member->country ?? ''),
+                'business_pincode' => (string) ($member->business_pincode ?? ''),
+                'skills' => $stringList($member->skills),
+                'superpower' => (string) ($member->superpower ?? ''),
+                'i_can_help_with' => $stringList($member->i_can_help_with),
+                'i_am_looking_for' => $stringList($member->i_am_looking_for),
+                'business_keywords' => $stringList($member->business_keywords),
+                'target_regions' => $stringList($member->target_regions),
+                'target_business_categories' => $stringList($member->target_business_categories),
+                'industries_of_interest' => $stringList($member->industries_of_interest),
+                'collaboration_goals' => $stringList($member->collaboration_goals),
+                'preferred_meeting_format' => (string) ($member->preferred_meeting_format ?? ''),
+                'willing_to_mentor' => (bool) ($member->willing_to_mentor ?? false),
+                'open_to_cross_city_collaboration' => (bool) ($member->open_to_cross_city_collaboration ?? false),
+                'open_to_speaking_at_events' => (bool) ($member->open_to_speaking_at_events ?? false),
+                'completeness_percent' => $completenessPercent,
+            ],
+            'organization' => [
+                'country' => (string) ($member->country ?? $member->business_country ?? $primaryCircle?->country ?? ''),
+                'state' => (string) ($member->state ?? $member->business_state ?? ''),
+                'district_id' => $primaryDistrictId,
+                'district_name' => $primaryDistrictName,
+                'city' => (string) ($member->city ?? $member->city_of_residence ?? ''),
+                'membership_type' => $member->membership_status ? (string) $member->membership_status : ($member->is_sponsored_member ? 'Sponsored Peer' : 'Peer Membership'),
+                'membership_status' => (string) ($baseProfile['status'] ?? 'Active'),
+                'is_sponsored_member' => (bool) ($member->is_sponsored_member ?? false),
+                'joining_date' => $member->created_at ? $member->created_at->format('d M Y') : '',
+                'circle_joined_at' => $member->circle_joined_at ? $member->circle_joined_at->format('d M Y') : '',
+                'renewal_expiry_date' => $member->membership_ends_at ? $member->membership_ends_at->format('d M Y') : ($activeAppSub['ends_at'] ?? ''),
+                'primary_circle' => $primaryCircle ? [
+                    'id' => (string) $primaryCircle->id,
+                    'name' => (string) $primaryCircle->name,
+                    'city' => (string) ($primaryCircle->city ?? ''),
+                    'country' => (string) ($primaryCircle->country ?? ''),
+                    'stage' => (string) ($primaryCircle->circle_stage ?? ''),
+                    'status' => (string) ($primaryCircle->status ?? 'active'),
+                ] : null,
+                'circles' => $member->circleMembers->map(function ($cm) use ($circlesById, $districtsById): array {
+                    $c = $circlesById->get((string) $cm->circle_id);
+                    $dId = $c && ! empty($c->district_id) ? (string) $c->district_id : null;
+
+                    return [
+                        'circle_id' => (string) ($cm->circle_id ?? ''),
+                        'circle_name' => $c ? (string) $c->name : '',
+                        'district_name' => $dId ? ($districtsById[$dId] ?? null) : null,
+                        'role' => ucwords(str_replace('_', ' ', (string) ($cm->role ?? 'member'))),
+                        'status' => ucfirst((string) ($cm->status ?? 'active')),
+                        'joined_at' => $cm->joined_at ? $cm->joined_at->format('d M Y') : null,
+                        'expires_at' => $cm->expires_at ? $cm->expires_at->format('d M Y') : null,
+                    ];
+                })->values()->all(),
+                'introduced_by' => $introducedByUser ? [
+                    'id' => (string) $introducedByUser->id,
+                    'name' => $resolveUserLabel($introducedByUser),
+                    'company_name' => (string) ($introducedByUser->company_name ?? ''),
+                ] : null,
+                'assigned_leadership' => $assignedLeadership,
+            ],
+            'leadership' => [
+                'has_leadership_history' => ! empty($currentPositions) || ! empty($historicalPositions) || $reportsSubmittedCount > 0 || ! empty($leadershipCertifications),
+                'current_positions' => $currentPositions,
+                'historical_positions' => $historicalPositions,
+                'reports_submitted_count' => $reportsSubmittedCount,
+                'recent_reports' => $recentReports,
+                'leadership_certifications' => $leadershipCertifications,
+            ],
+            'collaborations' => [
+                'deals_logged_count' => $dealsGivenCount + $dealsReceivedCount,
+                'deals_given_count' => $dealsGivenCount,
+                'deals_received_count' => $dealsReceivedCount,
+                'deals_given_value_formatted' => $baseProfile['metrics']['deals_given'] ?? '₹0',
+                'deals_received_value_formatted' => $baseProfile['metrics']['deals_received'] ?? '₹0',
+                'deals_total_value_formatted' => $baseProfile['metrics']['deals_closed'] ?? '₹0',
+                'cross_circle_deals_count' => $crossCircleDealsCount,
+                'referrals_given_count' => $baseProfile['summary']['referrals_given'] ?? ($baseProfile['metrics']['referrals_given'] ?? 0),
+                'referrals_received_count' => $baseProfile['summary']['referrals_received'] ?? ($baseProfile['metrics']['referrals_received'] ?? 0),
+                'collaboration_asks_count' => $collabAsksCount,
+                'referral_asks_count' => $referralAsksCount,
+                'help_asks_count' => $helpAsksCount,
+                'requirements_count' => $baseProfile['summary']['requirements'] ?? 0,
+                'introduced_peers_count' => $baseProfile['summary']['introduced_peers'] ?? 0,
+                'recent_deals' => $recentDeals,
+                'recent_asks' => $recentAsks,
+            ],
+            'life_impact' => [
+                'counts' => [
+                    'total' => $impactPendingCount + $impactApprovedCount + $impactRejectedCount,
+                    'pending' => ($canModerateImpacts || $canManagePeers) ? $impactPendingCount : 0,
+                    'approved' => $impactApprovedCount,
+                    'rejected' => ($canModerateImpacts || $canManagePeers) ? $impactRejectedCount : 0,
+                    'total_lives_impacted' => (int) ($baseProfile['life_impacted_count'] ?? 0),
+                ],
+                'can_moderate_impacts' => $canModerateImpacts,
+                'categories_breakdown' => collect($impactCategoriesMap)
+                    ->map(fn ($cnt, $cat) => ['category' => $cat, 'count' => $cnt])
+                    ->values()
+                    ->all(),
+                'submissions' => array_slice($impactSubmissions, 0, 20),
+            ],
+            'performance' => [
+                'circle_attendance' => $circleAttendance,
+                'events' => [
+                    'registered_count' => $baseProfile['summary']['event_registrations'] ?? 0,
+                    'attended_count' => $baseProfile['summary']['event_attendance'] ?? 0,
+                    'recent_events' => $eventsResult['data'] ?? [],
+                ],
+                'p2p_meetings_count' => $baseProfile['summary']['p2p_meetings'] ?? 0,
+                'testimonials_given_count' => $baseProfile['summary']['testimonials_given'] ?? 0,
+                'testimonials_received_count' => $baseProfile['summary']['testimonials_received'] ?? 0,
+                'posts_count' => $baseProfile['summary']['posts'] ?? 0,
+                'creatives_count' => $baseProfile['summary']['creatives'] ?? 0,
+                'reports_submitted_count' => $reportsSubmittedCount,
+                'badges' => $badgesResult['data'] ?? [],
+                'coin_milestone_title' => $member->coin_milestone_title ?: null,
+                'contribution_award_name' => $member->contribution_award_name ?: null,
+            ],
+            'compliance' => $complianceData,
+            'timeline' => array_slice($timeline, 0, 25),
+        ];
     }
 
     /**
@@ -1374,9 +2160,13 @@ class LeaderMember360Service
             return [];
         }
 
-        $q = DB::table('impacts')
-            ->where('user_id', $memberId)
-            ->whereNull('deleted_at');
+        $q = Impact::query()
+            ->with(['user', 'impactedPeer.circleMembers.circle', 'approvedBy', 'approvedByUser', 'rejectedBy', 'rejectedByUser'])
+            ->where('user_id', $memberId);
+
+        if (Schema::hasColumn('impacts', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
 
         $this->applyDateFilters($q, 'created_at', $fromDate, $toDate);
 
@@ -1387,33 +2177,29 @@ class LeaderMember360Service
             });
         }
 
+        $activitiesService = app(LeaderActivitiesService::class);
+
         return $q->orderByDesc('created_at')
             ->take($limit)
             ->get()
-            ->map(function ($row): array {
-                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+            ->map(function (Impact $impact) use ($activitiesService): array {
+                $formatted = $activitiesService->formatImpactRecord($impact, null, includeHistory: false);
+                $createdDate = $impact->created_at ? Carbon::parse($impact->created_at) : now();
                 $isoDate = $createdDate->toIso8601String();
                 $ts = $createdDate->timestamp;
 
                 return [
-                    'id' => (string) $row->id,
+                    'id' => (string) $impact->id,
                     'activity_type' => 'life_impact',
-                    'title' => 'Life Impact Created',
-                    'counterpart_name' => null,
-                    'counterpart' => null,
-                    'description' => (string) ($row->action ?? 'Provided mentorship'),
+                    'title' => $formatted['title'] ?: 'Life Impact',
+                    'counterpart_name' => $formatted['beneficiary']['name'] ?? null,
+                    'counterpart' => $formatted['beneficiary'] ?? null,
+                    'description' => $formatted['description'] ?: ($formatted['action'] ?: ''),
                     'amount' => null,
-                    'status' => ucfirst((string) ($row->status ?? 'approved')),
+                    'status' => $formatted['status_label'] ?? 'Approved',
                     'date' => $isoDate,
                     'created_at' => $isoDate,
-                    'data' => [
-                        'impact_id' => (string) $row->id,
-                        'action' => (string) ($row->action ?? ''),
-                        'story' => (string) ($row->story_to_share ?? ''),
-                        'lives_impacted' => (int) ($row->life_impacted ?? 1),
-                        'status' => ucfirst((string) ($row->status ?? 'approved')),
-                        'impact_date' => $row->impact_date ? (string) $row->impact_date : null,
-                    ],
+                    'data' => $formatted,
                     '_sort_ts' => $ts,
                 ];
             })->all();

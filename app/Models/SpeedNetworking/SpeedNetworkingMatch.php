@@ -67,6 +67,7 @@ class SpeedNetworkingMatch extends Model
         'preview_duration_seconds',
         'preview_expires_at',
         'call_started_at',
+        'call_expires_at',
         'duration_seconds',
         'user_a_notes',
         'user_b_notes',
@@ -86,6 +87,7 @@ class SpeedNetworkingMatch extends Model
             'preview_duration_seconds' => 'integer',
             'preview_expires_at' => 'datetime',
             'call_started_at' => 'datetime',
+            'call_expires_at' => 'datetime',
             'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
@@ -186,6 +188,25 @@ class SpeedNetworkingMatch extends Model
         }
 
         return $duration;
+    }
+
+    /**
+     * Resolve authoritative call expiration timestamp (UTC-compatible Carbon instance).
+     */
+    public function resolveCallExpiresAt(?int $roundDurationSeconds = null): ?Carbon
+    {
+        if ($this->call_expires_at !== null) {
+            return $this->call_expires_at->copy();
+        }
+
+        $callStart = $this->call_started_at ?? $this->started_at;
+        if (! $callStart) {
+            return null;
+        }
+
+        $duration = max(1, (int) ($roundDurationSeconds ?: 180));
+
+        return $callStart->copy()->addSeconds($duration);
     }
 
     /**

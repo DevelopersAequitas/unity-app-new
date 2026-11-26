@@ -41,6 +41,51 @@ class UpdateProfileRequest extends FormRequest
             $this->merge(['google_maps_longitude' => $this->input('longitude')]);
         }
 
+        if ($this->has('mobile') && (! $this->has('phone') || blank($this->input('phone')))) {
+            $this->merge(['phone' => $this->input('mobile')]);
+        }
+
+        foreach (['website', 'business_website'] as $websiteField) {
+            if ($this->has($websiteField) && is_string($this->input($websiteField))) {
+                $rawSite = trim((string) $this->input($websiteField));
+                if ($rawSite === '') {
+                    $this->merge([$websiteField => null]);
+                } elseif (! preg_match('#^https?://#i', $rawSite)) {
+                    $this->merge([$websiteField => 'https://'.$rawSite]);
+                } else {
+                    $this->merge([$websiteField => $rawSite]);
+                }
+            }
+        }
+
+        if ($this->has('website') && filled($this->input('website')) && (! $this->has('business_website') || blank($this->input('business_website')))) {
+            $this->merge(['business_website' => $this->input('website')]);
+        }
+
+        if ($this->has('location') && is_string($this->input('location'))) {
+            $trimmedLocation = trim((string) $this->input('location'));
+            if ($trimmedLocation !== '') {
+                if (! $this->has('city') || blank($this->input('city'))) {
+                    $this->merge(['city' => $trimmedLocation]);
+                }
+                if (! $this->has('city_of_residence') || blank($this->input('city_of_residence'))) {
+                    $this->merge(['city_of_residence' => $trimmedLocation]);
+                }
+            }
+        }
+
+        if ($this->has('address') && is_string($this->input('address'))) {
+            $trimmedAddress = trim((string) $this->input('address'));
+            if ($trimmedAddress !== '' && (! $this->has('business_address') || blank($this->input('business_address')))) {
+                $this->merge(['business_address' => $trimmedAddress]);
+            }
+        }
+
+        if ($this->exists('first_name') && blank($this->input('first_name'))) {
+            $this->offsetUnset('first_name');
+            $this->getInputSource()->remove('first_name');
+        }
+
         $rawBusinessCategory = $this->input('business_category');
         $rawBusinessCategoryId = $this->input('business_category_id');
 
@@ -77,6 +122,20 @@ class UpdateProfileRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function validationData(): array
+    {
+        $data = parent::validationData();
+
+        if (array_key_exists('first_name', $data) && blank($data['first_name'])) {
+            unset($data['first_name']);
+        }
+
+        return $data;
+    }
+
     public function rules(): array
     {
         $currentYear = (int) date('Y');
@@ -85,6 +144,12 @@ class UpdateProfileRequest extends FormRequest
             'first_name' => ['sometimes', 'required', 'string', 'max:100'],
             'last_name' => ['sometimes', 'nullable', 'string', 'max:100'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'mobile' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'phone_verification_token' => ['sometimes', 'nullable', 'string', 'max:512'],
+            'location' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'website' => ['sometimes', 'nullable', 'url', 'max:500'],
+            'referral_code' => ['sometimes', 'nullable', 'string', 'max:64'],
             'company_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'designation' => ['sometimes', 'nullable', 'string', 'max:255'],
             'about' => ['sometimes', 'nullable', 'string'],

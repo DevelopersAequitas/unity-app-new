@@ -22,6 +22,10 @@ class SpeedNetworkingParticipant extends Model
 
     public const STATUS_WAITING = 'waiting';
 
+    public const STATUS_NEXT_PEER_REQUIRED = 'next_peer_required';
+
+    public const STATUS_IDLE = 'idle';
+
     public const STATUS_PREVIEW = 'preview';
 
     public const STATUS_ACCEPTED = 'accepted';

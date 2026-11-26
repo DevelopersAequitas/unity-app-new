@@ -833,7 +833,8 @@ class LeaderNotificationPolicyService
     }
 
     /**
-     * Load dynamic active & historical roles from the `roles` table merged with canonical defaults.
+     * Load dynamic active & historical roles from the `roles` table matching Web Admin RBAC (`RbacController::roles`),
+     * merged with canonical leadership defaults.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -845,21 +846,44 @@ class LeaderNotificationPolicyService
 
         if (Schema::hasTable('roles')) {
             $cols = Schema::getColumnListing('roles');
-            $dbRoles = DB::table('roles')->orderBy('name')->get();
+            $query = DB::table('roles');
+
+            if (in_array('status', $cols, true)) {
+                $query->where(function ($q): void {
+                    $q->where('status', 'active')->orWhereNull('status');
+                });
+            }
+
+            if (in_array('hierarchy_depth', $cols, true)) {
+                $query->orderBy('hierarchy_depth');
+            }
+            $query->orderBy('name');
+
+            $dbRoles = $query->get();
             foreach ($dbRoles as $r) {
-                $rawKey = (string) ($r->key ?? $r->name ?? $r->id);
+                $rawKey = (string) ($r->key ?? $r->slug ?? $r->role_code ?? $r->name ?? $r->id);
                 $canon = $this->roleResolver->normalizeRoleKey($rawKey);
-                $snake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $canon));
-                $isActive = in_array('is_active', $cols, true) ? (bool) ($r->is_active ?? true) : true;
-                $seen[$snake] = true;
+                $snake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $rawKey));
+                $canonSnake = strtolower((string) preg_replace('/([a-z])([A-Z])/', '$1_$2', $canon));
+                $cfgKey = isset($defaults[$canonSnake]) ? $canonSnake : $snake;
+
+                $isActive = in_array('status', $cols, true)
+                    ? (($r->status ?? 'active') === 'active')
+                    : (in_array('is_active', $cols, true) ? (bool) ($r->is_active ?? true) : true);
+
+                $seen[$cfgKey] = true;
+                $seen[$canonSnake] = true;
+
                 $roles[] = [
                     'id' => (string) $r->id,
-                    'role_key' => $snake,
+                    'role_key' => $cfgKey,
                     'canonical_role' => $canon,
-                    'role_label' => (string) ($r->name ?? ($defaults[$snake]['role_label'] ?? $this->roleResolver->getRoleLabel($canon))),
-                    'description' => (string) ($defaults[$snake]['description'] ?? 'Dynamically configured leadership role.'),
+                    'role_code' => in_array('role_code', $cols, true) ? ($r->role_code ?? null) : null,
+                    'hierarchy_depth' => in_array('hierarchy_depth', $cols, true) ? (int) ($r->hierarchy_depth ?? 99) : 99,
+                    'role_label' => (string) ($r->name ?? ($defaults[$cfgKey]['role_label'] ?? $this->roleResolver->getRoleLabel($canon))),
+                    'description' => (string) (($r->description ?? '') !== '' ? $r->description : ($defaults[$cfgKey]['description'] ?? 'Dynamically configured Web Admin RBAC role.')),
                     'is_active' => $isActive,
-                    'is_system' => in_array($snake, array_keys($defaults), true),
+                    'is_system' => in_array($cfgKey, array_keys($defaults), true),
                 ];
             }
         }
@@ -871,6 +895,8 @@ class LeaderNotificationPolicyService
                     'id' => $snake,
                     'role_key' => $snake,
                     'canonical_role' => $canon,
+                    'role_code' => null,
+                    'hierarchy_depth' => 99,
                     'role_label' => (string) ($cfg['role_label'] ?? $canon),
                     'description' => (string) ($cfg['description'] ?? ''),
                     'is_active' => true,
@@ -883,23 +909,114 @@ class LeaderNotificationPolicyService
     }
 
     /**
-     * Get per-event flow enabled/disabled states stored in app_configs.
+     * Build a dynamic event matrix block for any Web Admin RBAC role not present in hardcoded defaults.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildRoleMatrixBlock(array $roleMeta): array
+    {
+        $canon = (string) ($roleMeta['canonical_role'] ?? $roleMeta['role_key'] ?? '');
+        $events = [];
+
+        foreach ($this->getEventCatalogue() as $eventKey => $spec) {
+            $primary = $spec['primary_roles'] ?? [];
+            $backup = $spec['backup_roles'] ?? [];
+            $info = $spec['info_roles'] ?? [];
+            $isCritical = $this->isCriticalNotification(
+                $eventKey,
+                (string) ($spec['priority'] ?? ''),
+                (string) ($spec['delivery_tier'] ?? '')
+            );
+
+            $defaultEnabled = in_array($canon, $primary, true)
+                || in_array($canon, $backup, true)
+                || in_array($canon, $info, true)
+                || ($canon === 'globalFounder' && ! empty($spec['global_founder']))
+                || ($canon === 'superAdmin' && (! empty($spec['super_admin_push']) || $isCritical));
+
+            $events[] = [
+                'key' => $eventKey,
+                'label' => ucwords(str_replace('_', ' ', $eventKey)),
+                'category' => (string) ($spec['category'] ?? 'system'),
+                'enabled' => $defaultEnabled,
+                'critical' => $isCritical,
+            ];
+        }
+
+        return [
+            'role_label' => (string) ($roleMeta['role_label'] ?? $canon),
+            'description' => (string) ($roleMeta['description'] ?? 'Dynamically configured Web Admin RBAC role.'),
+            'hierarchy_depth' => (int) ($roleMeta['hierarchy_depth'] ?? 99),
+            'events' => $events,
+        ];
+    }
+
+    /**
+     * Read a persisted governance JSON payload from `app_configs` or file fallback.
+     *
+     * @return array<string, mixed>|array<int, mixed>
+     */
+    public function readGovernanceStore(string $key, array $default = []): array
+    {
+        if (Schema::hasTable('app_configs')) {
+            $raw = DB::table('app_configs')->where('key', $key)->value('value');
+            $decoded = $raw ? json_decode((string) $raw, true) : null;
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        $safeKey = preg_replace('/[^a-zA-Z0-9_-]/', '_', $key);
+        $path = storage_path("app/leader_notifications/{$safeKey}.json");
+        if (is_file($path)) {
+            $raw = @file_get_contents($path);
+            $decoded = $raw ? json_decode($raw, true) : null;
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $default;
+    }
+
+    /**
+     * Write a governance JSON payload to `app_configs` or file fallback.
+     */
+    public function writeGovernanceStore(string $key, array $value): void
+    {
+        $encoded = json_encode($value);
+        if ($encoded === false) {
+            return;
+        }
+
+        if (Schema::hasTable('app_configs')) {
+            DB::table('app_configs')->updateOrInsert(
+                ['key' => $key],
+                [
+                    'value' => $encoded,
+                    'updated_at' => now(),
+                ]
+            );
+
+            return;
+        }
+
+        $safeKey = preg_replace('/[^a-zA-Z0-9_-]/', '_', $key);
+        $dir = storage_path('app/leader_notifications');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        @file_put_contents("{$dir}/{$safeKey}.json", $encoded, LOCK_EX);
+    }
+
+    /**
+     * Get per-event flow enabled/disabled states.
      *
      * @return array<string, array<string, mixed>>
      */
     public function getFlowStates(): array
     {
-        if (! Schema::hasTable('app_configs')) {
-            return [];
-        }
-
-        $raw = DB::table('app_configs')
-            ->where('key', 'leader_notification_flow_states')
-            ->value('value');
-
-        $decoded = $raw ? json_decode((string) $raw, true) : [];
-
-        return is_array($decoded) ? $decoded : [];
+        return $this->readGovernanceStore('leader_notification_flow_states', []);
     }
 
     public function isFlowEnabled(string $eventKey): bool
@@ -925,33 +1042,21 @@ class LeaderNotificationPolicyService
      */
     public function recordAdminAudit(array $entry): void
     {
-        if (! Schema::hasTable('app_configs')) {
-            return;
-        }
-
-        $raw = DB::table('app_configs')
-            ->where('key', 'leader_notification_audit_logs')
-            ->value('value');
-
-        $logs = $raw ? json_decode((string) $raw, true) : [];
+        $logs = $this->readGovernanceStore('leader_notification_audit_logs', []);
         if (! is_array($logs)) {
             $logs = [];
         }
 
+        $nowIso = now()->toIso8601String();
         array_unshift($logs, array_merge([
             'id' => (string) Str::uuid(),
-            'created_at' => now()->toIso8601String(),
+            'created_at' => $nowIso,
+            'timestamp' => $nowIso,
         ], $entry));
 
         $logs = array_slice($logs, 0, 500);
 
-        DB::table('app_configs')->updateOrInsert(
-            ['key' => 'leader_notification_audit_logs'],
-            [
-                'value' => json_encode($logs),
-                'updated_at' => now(),
-            ]
-        );
+        $this->writeGovernanceStore('leader_notification_audit_logs', $logs);
     }
 
     /**

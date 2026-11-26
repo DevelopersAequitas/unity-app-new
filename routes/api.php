@@ -1,11 +1,11 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
-use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\AiChatbotAdminController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppTutorialPopupsController;
+use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
 use App\Http\Controllers\Admin\CampaignPamphletController;
 use App\Http\Controllers\Admin\CommissionManagementController;
@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Admin\UserActivityLogWebController;
+use App\Http\Controllers\Admin\Web\InquiryAdminController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
 use App\Http\Controllers\Admin\WhatsApp\EventPassWhatsappAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
@@ -194,6 +195,7 @@ use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\ContactChangeController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
+use App\Http\Controllers\Api\V1\Public\PublicInquiryController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\RbacUserPermissionController;
@@ -286,6 +288,11 @@ Route::prefix('auth')->group(function () {
     Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
+    Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
+    Route::post('social/apple', [SocialAuthController::class, 'appleLogin']);
+    Route::post('apple/login', [SocialAuthController::class, 'appleLogin']);
+    Route::post('apple/verify', [SocialAuthController::class, 'appleLogin']);
+    Route::match(['get', 'post'], 'apple/callback', [SocialAuthController::class, 'appleCallback']);
     Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
@@ -414,14 +421,12 @@ Route::prefix('v1')->group(function () {
         Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
+        Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
+        Route::post('social/apple', [SocialAuthController::class, 'appleLogin']);
+        Route::post('apple/login', [SocialAuthController::class, 'appleLogin']);
+        Route::post('apple/verify', [SocialAuthController::class, 'appleLogin']);
+        Route::match(['get', 'post'], 'apple/callback', [SocialAuthController::class, 'appleCallback']);
         Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
-    Route::post('social/google', [SocialAuthController::class, 'googleLogin']);
-    Route::post('google/login', [SocialAuthController::class, 'googleLogin']);
-    Route::post('google/verify', [SocialAuthController::class, 'googleLogin']);
-    Route::post('social/facebook', [SocialAuthController::class, 'facebookLogin']);
-    Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
-    Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
-    Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
         Route::post('direct-login', [AuthController::class, 'directLogin']);
@@ -746,8 +751,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'getStatus']);
         Route::post('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'markPresented']);
         Route::post('/profile/update', [ProfileController::class, 'update']);
-        Route::get('/user/first-registration-paywall-status', [\App\Http\Controllers\Api\V1\RegistrationPaywallController::class, 'getStatus']);
-        Route::post('/user/first-registration-paywall-status', [\App\Http\Controllers\Api\V1\RegistrationPaywallController::class, 'markPresented']);
+        Route::get('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'getStatus']);
+        Route::post('/user/first-registration-paywall-status', [RegistrationPaywallController::class, 'markPresented']);
         Route::post('/profile/email/request-otp', [ContactChangeController::class, 'requestCurrentEmailOtp']);
         Route::post('/profile/email/verify-otp', [ContactChangeController::class, 'verifyCurrentEmailOtp']);
         Route::post('/profile/change-email/request-otp', [ContactChangeController::class, 'requestEmailOtp']);
@@ -2117,24 +2122,24 @@ Route::prefix('v1')->group(function () {
     Route::get('/web/ecosystem-metrics', [WebPublicApiController::class, 'ecosystemMetrics']);
 
     // Public Inquiries & Proposals Submissions (Peers Global Website)
-    Route::post('/public/proposals/partnership', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitPartnership']);
-    Route::post('/public/inquiries', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitInquiry']);
-    Route::post('/web-inquiries', [\App\Http\Controllers\Api\V1\Public\PublicInquiryController::class, 'submitInquiry']);
+    Route::post('/public/proposals/partnership', [PublicInquiryController::class, 'submitPartnership']);
+    Route::post('/public/inquiries', [PublicInquiryController::class, 'submitInquiry']);
+    Route::post('/web-inquiries', [PublicInquiryController::class, 'submitInquiry']);
 
     // Admin Inquiries & Proposals Management APIs
     Route::prefix('admin/web/inquiries')->group(function (): void {
-        Route::get('/stats', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getStats']);
-        Route::get('/partnerships', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getPartnerships']);
-        Route::get('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getPartnershipDetails'])->whereUuid('id');
-        Route::patch('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
-        Route::put('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
-        Route::delete('/partnerships/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'deletePartnership'])->whereUuid('id');
+        Route::get('/stats', [InquiryAdminController::class, 'getStats']);
+        Route::get('/partnerships', [InquiryAdminController::class, 'getPartnerships']);
+        Route::get('/partnerships/{id}', [InquiryAdminController::class, 'getPartnershipDetails'])->whereUuid('id');
+        Route::patch('/partnerships/{id}', [InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
+        Route::put('/partnerships/{id}', [InquiryAdminController::class, 'updatePartnership'])->whereUuid('id');
+        Route::delete('/partnerships/{id}', [InquiryAdminController::class, 'deletePartnership'])->whereUuid('id');
 
-        Route::get('/items', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getInquiries']);
-        Route::get('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'getInquiryDetails'])->whereUuid('id');
-        Route::patch('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
-        Route::put('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
-        Route::delete('/items/{id}', [\App\Http\Controllers\Admin\Web\InquiryAdminController::class, 'deleteInquiry'])->whereUuid('id');
+        Route::get('/items', [InquiryAdminController::class, 'getInquiries']);
+        Route::get('/items/{id}', [InquiryAdminController::class, 'getInquiryDetails'])->whereUuid('id');
+        Route::patch('/items/{id}', [InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
+        Route::put('/items/{id}', [InquiryAdminController::class, 'updateInquiry'])->whereUuid('id');
+        Route::delete('/items/{id}', [InquiryAdminController::class, 'deleteInquiry'])->whereUuid('id');
     });
 
     // Activity Video Management API for Flutter/Mobile
@@ -2235,6 +2240,7 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
         Route::post('events/{eventId}/verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment'])->whereUuid('eventId');
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
+        Route::get('events/{eventId}/state', [SpeedNetworkingApiController::class, 'state'])->whereUuid('eventId');
         Route::post('events/{eventId}/match-action', [SpeedNetworkingApiController::class, 'matchAction'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
@@ -2250,6 +2256,7 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
         Route::post('join', [SpeedNetworkingApiController::class, 'join']);
         Route::post('verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment']);
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
+        Route::get('state', [SpeedNetworkingApiController::class, 'state']);
         Route::post('match-action', [SpeedNetworkingApiController::class, 'matchAction']);
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
@@ -2274,9 +2281,12 @@ foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
         Route::post('events/{id}/pause', [SpeedNetworkingAdminController::class, 'pause'])->whereUuid('id');
         Route::post('events/{id}/resume', [SpeedNetworkingAdminController::class, 'resume'])->whereUuid('id');
         Route::post('events/{id}/rematch', [SpeedNetworkingAdminController::class, 'rematch'])->whereUuid('id');
+        Route::post('events/{id}/extend-time', [SpeedNetworkingAdminController::class, 'extendTime'])->whereUuid('id');
+        Route::post('events/{id}/reset-skips', [SpeedNetworkingAdminController::class, 'resetSkips'])->whereUuid('id');
         Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
         Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
         Route::get('events/{id}/matches', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
+        Route::get('events/{id}/moderation', [SpeedNetworkingAdminController::class, 'moderation'])->whereUuid('id');
         Route::get('events/{id}/connections', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
     });
 }

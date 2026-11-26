@@ -34,6 +34,8 @@ class UpdateSpeedNetworkingEventRequest extends FormRequest
             'duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:30'],
             'round_duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:10', 'max:3600'],
             'break_duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:1800'],
+            'max_skip_limit' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:20'],
+            'preview_duration_seconds' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:60'],
             'total_rounds' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'ticket_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'is_paid' => ['sometimes', 'nullable', 'boolean'],

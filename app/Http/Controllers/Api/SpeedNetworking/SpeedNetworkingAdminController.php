@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\SpeedNetworking;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SpeedNetworking\CreateSpeedNetworkingEventRequest;
+use App\Http\Requests\SpeedNetworking\ExtendSpeedNetworkingEventRequest;
 use App\Http\Requests\SpeedNetworking\UpdateSpeedNetworkingEventRequest;
 use App\Models\Event;
 use App\Models\EventRegistration;
@@ -603,6 +604,8 @@ class SpeedNetworkingAdminController extends Controller
                     'status' => $speedStatus,
                     'round_duration_seconds' => $roundDuration,
                     'break_duration_seconds' => $breakDuration,
+                    'max_skip_limit' => (int) ($meta['max_skip_limit'] ?? 2),
+                    'preview_duration_seconds' => (int) ($meta['preview_duration_seconds'] ?? 15),
                     'total_rounds' => $totalRounds,
                     'current_round' => $currentRound,
                     'duration_seconds' => $durationSec,
@@ -619,7 +622,7 @@ class SpeedNetworkingAdminController extends Controller
                 'active_participants_count' => count($participants),
                 'total_participants_count' => count($participants),
                 'remaining_seconds' => $remainingSeconds,
-                'is_paused' => false,
+                'is_paused' => $speedStatus === 'paused',
                 'tables' => $tableMatches,
             ],
         ]);
@@ -714,6 +717,90 @@ class SpeedNetworkingAdminController extends Controller
         }
 
         return $this->liveTables($id);
+    }
+
+    /**
+     * Extend event scheduled end time by N minutes live.
+     */
+    public function extendTime(ExtendSpeedNetworkingEventRequest $request, string $id): JsonResponse
+    {
+        $additionalMinutes = (int) $request->validated('additional_minutes');
+        $target = $this->findEventOrBaseEvent($id);
+
+        if ($target['type'] === 'sn') {
+            $updatedEvent = $this->speedNetworkingService->extendEventTime($target['event'], $additionalMinutes);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Event extended by {$additionalMinutes} minutes.",
+                'data' => [
+                    'id' => (string) $updatedEvent->id,
+                    'scheduled_end_time' => $updatedEvent->scheduled_end_time?->copy()->utc()->toISOString(),
+                ],
+            ]);
+        }
+
+        /** @var Event $baseEvent */
+        $baseEvent = $target['event'];
+        $baseEnd = $baseEvent->end_at ? Carbon::parse($baseEvent->end_at) : Carbon::now();
+        $newEnd = ($baseEnd->greaterThan(Carbon::now()) ? $baseEnd : Carbon::now())->addMinutes($additionalMinutes);
+        $baseEvent->end_at = $newEnd;
+        $baseEvent->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Event extended by {$additionalMinutes} minutes.",
+            'data' => [
+                'id' => (string) $baseEvent->id,
+                'scheduled_end_time' => $newEnd->copy()->utc()->toISOString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Reset all session skips for an event so skipped peers can re-enter the pool.
+     */
+    public function resetSkips(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            $deleted = $this->speedNetworkingService->resetEventSkips($target['event']);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Cleared {$deleted} session skip record(s).",
+                'data' => ['cleared_count' => $deleted],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'No active Speed Networking skip records to clear.',
+            'data' => ['cleared_count' => 0],
+        ]);
+    }
+
+    /**
+     * Get live skips and blocks moderation feed for this event.
+     */
+    public function moderation(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            return response()->json([
+                'success' => true,
+                'data' => $this->speedNetworkingService->getEventModerationData($target['event']),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'max_skip_limit' => 2,
+                'skips' => [],
+                'blocks' => [],
+            ],
+        ]);
     }
 
     /**
