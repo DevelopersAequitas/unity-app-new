@@ -764,23 +764,53 @@ class AdminNominationService
             try {
                 Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber, $reason) {
                     $html = "
-                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;'>
-                        <div style='text-align: center; margin-bottom: 24px;'>
-                            <h2 style='color: #0f172a; margin-bottom: 4px;'>Nomination Application Update</h2>
-                            <p style='color: #64748b; font-size: 14px;'>Peers Global Leadership Selection 2026</p>
-                        </div>
-                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
-                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
-                            Thank you for your interest and nomination application for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong>. Following review by the Scrutiny Committee, your application has not been approved at this stage.
-                        </p>
-                        <div style='background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 20px 0;'>
-                            <p style='margin: 4px 0; color: #991b1b; font-size: 14px;'><strong>Reason:</strong> {$reason}</p>
-                        </div>
-                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
-                        <p style='color: #94a3b8; font-size: 12px; text-align: center;'>
-                            Peers Global Unity Platform &bull; Election Governance Committee
-                        </p>
-                    </div>";
+                    <!DOCTYPE html>
+                    <html lang='en'>
+                    <head>
+                        <meta charset='UTF-8'>
+                        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                        <title>Nomination Application Update</title>
+                        <style>
+                            * { box-sizing: border-box; }
+                            body, table, td, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                            @media only screen and (max-width: 600px) {
+                                .email-wrapper { padding: 12px 6px !important; }
+                                .email-container { width: 100% !important; max-width: 100% !important; border-radius: 12px !important; }
+                                .email-body { padding: 22px 16px !important; }
+                            }
+                        </style>
+                    </head>
+                    <body style='margin:0; padding:0; background-color:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#e2e8f0;'>
+                        <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:24px 12px; background-color:#0b0f19; border-collapse:collapse;'>
+                            <tr>
+                                <td align='center'>
+                                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:560px; width:100%; margin:0 auto; background-color:#121824; border-radius:16px; overflow:hidden; border:1px solid #1e293b; box-shadow:0 10px 30px rgba(0,0,0,0.5); border-collapse:collapse;'>
+                                        <tr>
+                                            <td style='background:linear-gradient(135deg, #1e085a 0%, #2e1065 50%, #4338ca 100%); padding:24px 20px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.1);'>
+                                                <h2 style='color:#ffffff; margin:0 0 6px 0; font-size:20px; font-weight:800;'>Nomination Application Update</h2>
+                                                <div style='color:#c7d2fe; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; font-weight:600;'>Peers Global Leadership Selection 2026</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class='email-body' style='padding:28px 24px; color:#cbd5e1; font-size:15px; line-height:1.6;'>
+                                                <p style='margin:0 0 14px 0; font-size:16px; font-weight:600; color:#f1f5f9;'>Dear <strong>{$candidateName}</strong>,</p>
+                                                <p style='color:#cbd5e1; font-size:14.5px; line-height:1.6; margin:0 0 18px 0;'>
+                                                    Thank you for your interest and nomination application for <strong style='color:#38bdf8;'>{$roleName}</strong> in <strong>{$campaignName}</strong>. Following review by the Scrutiny Committee, your application has not been approved at this stage.
+                                                </p>
+                                                <div style='background-color:#1e1b2e; border-left:4px solid #ef4444; border-radius:8px; padding:14px 16px; margin:20px 0;'>
+                                                    <p style='margin:0; color:#fca5a5; font-size:13.5px; line-height:1.5;'><strong style='color:#ffffff;'>Reason:</strong> {$reason}</p>
+                                                </div>
+                                                <div style='border-top:1px solid #1e293b; margin-top:24px; padding-top:14px; font-size:11.5px; color:#64748b; text-align:center;'>
+                                                    Peers Global Unity Platform &bull; Election Governance Committee
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>";
 
                     $message->to($nomination->email)
                         ->subject("Update on Your Nomination Request - Peers Global ({$appNumber})")

@@ -664,13 +664,53 @@ class JuryAssignmentController extends LeadershipBaseController
             if (! empty($juror->email)) {
                 \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $portalUrl): void {
                     $html = "
-                    <div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 14px;'>
-                        <h2 style='color: #1e293b;'>Jury Evaluation Portal Access</h2>
-                        <p>Dear <strong>{$jurorName}</strong>,</p>
-                        <p>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
-                        <p style='margin: 24px 0;'><a href='{$portalUrl}' style='display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;'>Access Jury Evaluation Portal</a></p>
-                        <p style='font-size: 13px; color: #64748b;'>Login with your email: {$juror->email}</p>
-                    </div>";
+                    <!DOCTYPE html>
+                    <html lang='en'>
+                    <head>
+                        <meta charset='UTF-8'>
+                        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                        <title>Jury Evaluation Portal Access</title>
+                        <style>
+                            * { box-sizing: border-box; }
+                            body, table, td, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                            @media only screen and (max-width: 600px) {
+                                .email-wrapper { padding: 12px 6px !important; }
+                                .email-container { width: 100% !important; max-width: 100% !important; border-radius: 12px !important; }
+                                .email-body { padding: 22px 16px !important; }
+                                .mobile-btn { width: 100% !important; display: block !important; text-align: center !important; }
+                            }
+                        </style>
+                    </head>
+                    <body style='margin:0; padding:0; background-color:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#e2e8f0;'>
+                        <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:24px 12px; background-color:#0b0f19; border-collapse:collapse;'>
+                            <tr>
+                                <td align='center'>
+                                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:560px; width:100%; margin:0 auto; background-color:#121824; border-radius:16px; overflow:hidden; border:1px solid #1e293b; box-shadow:0 10px 30px rgba(0,0,0,0.5); border-collapse:collapse;'>
+                                        <tr>
+                                            <td style='background:linear-gradient(135deg, #1e085a 0%, #2e1065 50%, #4338ca 100%); padding:24px 20px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.1);'>
+                                                <h2 style='color:#ffffff; margin:0 0 6px 0; font-size:20px; font-weight:800;'>Jury Evaluation Portal Access</h2>
+                                                <div style='color:#c7d2fe; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; font-weight:600;'>Peers Global Leadership Selection</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class='email-body' style='padding:28px 24px; color:#cbd5e1; font-size:15px; line-height:1.6;'>
+                                                <p style='margin:0 0 14px 0; font-size:16px; font-weight:600; color:#f1f5f9;'>Dear <strong>{$jurorName}</strong>,</p>
+                                                <p style='margin:0 0 18px 0; color:#cbd5e1;'>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
+                                                <div style='text-align:center; margin:24px 0;'>
+                                                    <a href='{$portalUrl}' class='mobile-btn' style='display:inline-block; box-sizing:border-box; background:linear-gradient(135deg, #4f46e5, #6366f1); color:#ffffff; padding:13px 28px; border-radius:10px; text-decoration:none; font-weight:700; font-size:14.5px; box-shadow:0 4px 12px rgba(79, 70, 229, 0.35);'>Access Jury Evaluation Portal &rarr;</a>
+                                                </div>
+                                                <p style='font-size:13px; color:#94a3b8; margin:0 0 6px 0;'>Login with your registered email: <strong style='color:#ffffff;'>{$juror->email}</strong></p>
+                                                <div style='border-top:1px solid #1e293b; margin-top:24px; padding-top:14px; font-size:11.5px; color:#64748b; text-align:center;'>
+                                                    Peers Global Leadership Selection &amp; Governance Committee
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>";
                     $message->to($juror->email, $jurorName)
                         ->subject('Jury Evaluation Portal Access - Peers Global Leadership')
                         ->html($html);
