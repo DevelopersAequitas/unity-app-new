@@ -681,27 +681,38 @@ class JuryAssignmentController extends LeadershipBaseController
                             }
                         </style>
                     </head>
-                    <body style='margin:0; padding:0; background-color:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#e2e8f0;'>
-                        <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:24px 12px; background-color:#0b0f19; border-collapse:collapse;'>
+                    <body style='margin:0; padding:0; background-color:#f1f5f9; font-family:\"Segoe UI\", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; color:#334155;'>
+                        <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-wrapper' style='width:100%; margin:0; padding:32px 12px; background-color:#f1f5f9; border-collapse:collapse;'>
                             <tr>
                                 <td align='center'>
-                                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:560px; width:100%; margin:0 auto; background-color:#121824; border-radius:16px; overflow:hidden; border:1px solid #1e293b; box-shadow:0 10px 30px rgba(0,0,0,0.5); border-collapse:collapse;'>
+                                    <table role='presentation' cellpadding='0' cellspacing='0' width='100%' class='email-container' style='max-width:560px; width:100%; margin:0 auto; background-color:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 4px 25px rgba(0,0,0,0.06); border-collapse:collapse;'>
+                                        <!-- Top Brand Gradient Accent Bar -->
                                         <tr>
-                                            <td style='background:linear-gradient(135deg, #1e085a 0%, #2e1065 50%, #4338ca 100%); padding:24px 20px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.1);'>
-                                                <h2 style='color:#ffffff; margin:0 0 6px 0; font-size:20px; font-weight:800;'>Jury Evaluation Portal Access</h2>
-                                                <div style='color:#c7d2fe; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; font-weight:600;'>Peers Global Leadership Selection</div>
+                                            <td style='height:5px; background:linear-gradient(90deg, #4f46e5 0%, #9333ea 50%, #e11d48 100%); line-height:5px; font-size:1px;'>&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Clean Header -->
+                                        <tr>
+                                            <td style='background-color:#ffffff; padding:28px 20px 18px 20px; text-align:center; border-bottom:1px solid #f1f5f9;'>
+                                                <h2 style='color:#0f172a; margin:0 0 6px 0; font-size:20px; font-weight:800;'>Jury Evaluation Portal Access</h2>
+                                                <div style='display:inline-block; margin-top:4px;'>
+                                                    <span style='background-color:#f8fafc; color:#475569; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:4px 14px; border-radius:20px; border:1px solid #e2e8f0;'>
+                                                        Peers Global Leadership Selection
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td class='email-body' style='padding:28px 24px; color:#cbd5e1; font-size:15px; line-height:1.6;'>
-                                                <p style='margin:0 0 14px 0; font-size:16px; font-weight:600; color:#f1f5f9;'>Dear <strong>{$jurorName}</strong>,</p>
-                                                <p style='margin:0 0 18px 0; color:#cbd5e1;'>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
-                                                <div style='text-align:center; margin:24px 0;'>
-                                                    <a href='{$portalUrl}' class='mobile-btn' style='display:inline-block; box-sizing:border-box; background:linear-gradient(135deg, #4f46e5, #6366f1); color:#ffffff; padding:13px 28px; border-radius:10px; text-decoration:none; font-weight:700; font-size:14.5px; box-shadow:0 4px 12px rgba(79, 70, 229, 0.35);'>Access Jury Evaluation Portal &rarr;</a>
+                                            <td class='email-body' style='padding:30px 24px; color:#334155; font-size:15px; line-height:1.6;'>
+                                                <p style='margin:0 0 14px 0; font-size:17px; font-weight:700; color:#0f172a;'>Dear <strong>{$jurorName}</strong>,</p>
+                                                <p style='margin:0 0 18px 0; color:#334155; font-size:15px; line-height:1.6;'>You have been appointed as an official Jury Member for the Peers Global Leadership Selection.</p>
+                                                <div style='background-color:#eef2ff; border:1px solid #c7d2fe; border-radius:14px; padding:24px 20px; text-align:center; margin:22px 0;'>
+                                                    <a href='{$portalUrl}' class='mobile-btn' style='display:inline-block; box-sizing:border-box; background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#ffffff; padding:13px 28px; border-radius:10px; text-decoration:none; font-weight:700; font-size:14.5px; box-shadow:0 4px 14px rgba(79, 70, 229, 0.3);'>Access Jury Evaluation Portal &rarr;</a>
+                                                    <p style='font-size:13px; color:#64748b; margin:14px 0 0 0;'>Login with your registered email: <strong style='color:#0f172a;'>{$juror->email}</strong></p>
                                                 </div>
-                                                <p style='font-size:13px; color:#94a3b8; margin:0 0 6px 0;'>Login with your registered email: <strong style='color:#ffffff;'>{$juror->email}</strong></p>
-                                                <div style='border-top:1px solid #1e293b; margin-top:24px; padding-top:14px; font-size:11.5px; color:#64748b; text-align:center;'>
-                                                    Peers Global Leadership Selection &amp; Governance Committee
+                                                <div style='border-top:1px solid #e2e8f0; margin-top:24px; padding-top:16px; font-size:12px; color:#64748b; text-align:center; line-height:1.6;'>
+                                                    <strong style='color:#0f172a;'>Peers Global Leadership Selection &amp; Governance Committee</strong><br/>
+                                                    <span style='color:#94a3b8;'>Peers are partners in business and friends in life.</span>
                                                 </div>
                                             </td>
                                         </tr>
