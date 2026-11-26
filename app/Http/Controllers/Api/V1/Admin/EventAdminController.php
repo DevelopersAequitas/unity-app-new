@@ -37,6 +37,8 @@ class EventAdminController extends BaseApiController
                         'metadata' => [
                             'round_duration_seconds' => $sn->round_duration_seconds,
                             'break_duration_seconds' => $sn->break_duration_seconds,
+                            'max_skip_limit' => $sn->getEffectiveMaxSkipLimit(),
+                            'preview_duration_seconds' => $sn->getEffectivePreviewDurationSeconds(),
                             'total_rounds' => $sn->total_rounds,
                             'current_round' => $sn->current_round,
                             'speed_status' => $sn->status,
@@ -78,10 +80,14 @@ class EventAdminController extends BaseApiController
                 $meta = $event->metadata ?? [];
                 $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
                 $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $maxSkipLimit = max(0, min(20, (int) ($request->input('max_skip_limit') ?? $meta['max_skip_limit'] ?? 2)));
+                $previewDuration = max(5, min(60, (int) ($request->input('preview_duration_seconds') ?? $meta['preview_duration_seconds'] ?? 15)));
                 $totalRounds = (int) ($meta['total_rounds'] ?? 0);
 
                 $meta['round_duration_seconds'] = $roundDuration;
                 $meta['break_duration_seconds'] = $breakDuration;
+                $meta['max_skip_limit'] = $maxSkipLimit;
+                $meta['preview_duration_seconds'] = $previewDuration;
                 $meta['total_rounds'] = $totalRounds;
                 $meta['speed_status'] = 'scheduled';
                 $meta['is_speed_networking'] = true;
@@ -125,10 +131,18 @@ class EventAdminController extends BaseApiController
                     'scheduled_start_time' => $event->start_at,
                     'scheduled_end_time' => $scheduledEnd,
                 ];
+                if (Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+                    $snPayload['max_skip_limit'] = $maxSkipLimit;
+                }
+                if (Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+                    $snPayload['preview_duration_seconds'] = $previewDuration;
+                }
                 if (Schema::hasColumn('speed_networking_events', 'metadata')) {
                     $snPayload['metadata'] = [
                         'duration_seconds' => $durSeconds,
                         'duration_minutes' => (int) ceil($durSeconds / 60),
+                        'max_skip_limit' => $maxSkipLimit,
+                        'preview_duration_seconds' => $previewDuration,
                     ];
                 }
 
@@ -163,10 +177,14 @@ class EventAdminController extends BaseApiController
                 $meta = $event->metadata ?? [];
                 $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
                 $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $maxSkipLimit = max(0, min(20, (int) ($request->input('max_skip_limit') ?? $meta['max_skip_limit'] ?? 2)));
+                $previewDuration = max(5, min(60, (int) ($request->input('preview_duration_seconds') ?? $meta['preview_duration_seconds'] ?? 15)));
                 $totalRounds = (int) ($meta['total_rounds'] ?? 0);
 
                 $meta['round_duration_seconds'] = $roundDuration;
                 $meta['break_duration_seconds'] = $breakDuration;
+                $meta['max_skip_limit'] = $maxSkipLimit;
+                $meta['preview_duration_seconds'] = $previewDuration;
                 $meta['total_rounds'] = $totalRounds;
 
                 $startAt = $event->start_at ? Carbon::parse($event->start_at) : Carbon::now();
@@ -206,10 +224,18 @@ class EventAdminController extends BaseApiController
                     'scheduled_start_time' => $event->start_at,
                     'scheduled_end_time' => $scheduledEnd,
                 ];
+                if (Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+                    $snUpdatePayload['max_skip_limit'] = $maxSkipLimit;
+                }
+                if (Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+                    $snUpdatePayload['preview_duration_seconds'] = $previewDuration;
+                }
                 if (Schema::hasColumn('speed_networking_events', 'metadata')) {
                     $snUpdatePayload['metadata'] = [
                         'duration_seconds' => $durSeconds,
                         'duration_minutes' => (int) ceil($durSeconds / 60),
+                        'max_skip_limit' => $maxSkipLimit,
+                        'preview_duration_seconds' => $previewDuration,
                     ];
                 }
 

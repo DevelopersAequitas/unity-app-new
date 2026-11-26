@@ -48,6 +48,8 @@ class SpeedNetworkingEvent extends Model
         'status',
         'round_duration_seconds',
         'break_duration_seconds',
+        'max_skip_limit',
+        'preview_duration_seconds',
         'total_rounds',
         'current_round',
         'scheduled_start_time',
@@ -79,6 +81,8 @@ class SpeedNetworkingEvent extends Model
         return [
             'round_duration_seconds' => 'integer',
             'break_duration_seconds' => 'integer',
+            'max_skip_limit' => 'integer',
+            'preview_duration_seconds' => 'integer',
             'total_rounds' => 'integer',
             'current_round' => 'integer',
             'scheduled_start_time' => 'datetime',
@@ -283,6 +287,28 @@ class SpeedNetworkingEvent extends Model
         return Attribute::make(
             get: fn (): ?Carbon => $this->scheduled_end_time
         );
+    }
+
+    /**
+     * Resolve effective max skip limit before a skipped peer stops reappearing in this event.
+     */
+    public function getEffectiveMaxSkipLimit(): int
+    {
+        $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
+        $raw = $this->attributes['max_skip_limit'] ?? ($meta['max_skip_limit'] ?? 2);
+
+        return max(0, min(20, (int) $raw));
+    }
+
+    /**
+     * Resolve effective match preview countdown in seconds.
+     */
+    public function getEffectivePreviewDurationSeconds(): int
+    {
+        $meta = is_array($this->metadata) ? $this->metadata : (json_decode((string) $this->metadata, true) ?: []);
+        $raw = $this->attributes['preview_duration_seconds'] ?? ($meta['preview_duration_seconds'] ?? 15);
+
+        return max(5, min(60, (int) $raw));
     }
 
     /**

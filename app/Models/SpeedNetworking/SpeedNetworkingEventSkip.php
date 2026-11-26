@@ -27,7 +27,18 @@ class SpeedNetworkingEventSkip extends Model
         'event_id',
         'user_id',
         'skipped_peer_id',
+        'skip_count',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'skip_count' => 'integer',
+        ];
+    }
 
     protected static function booted(): void
     {

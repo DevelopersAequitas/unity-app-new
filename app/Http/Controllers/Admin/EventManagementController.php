@@ -358,20 +358,27 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
+                    $snStorePayload = [
+                        'title' => $event->title,
+                        'description' => $event->description,
+                        'banner_url' => $event->banner_url,
+                        'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
+                        'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                        'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                        'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
+                        'current_round' => 0,
+                        'scheduled_start_time' => $event->start_at,
+                        'scheduled_end_time' => $event->end_at,
+                    ];
+                    if (Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+                        $snStorePayload['max_skip_limit'] = max(0, min(20, (int) ($request->input('max_skip_limit') ?? $meta['max_skip_limit'] ?? 2)));
+                    }
+                    if (Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+                        $snStorePayload['preview_duration_seconds'] = max(5, min(60, (int) ($request->input('preview_duration_seconds') ?? $meta['preview_duration_seconds'] ?? 15)));
+                    }
                     SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
-                        [
-                            'title' => $event->title,
-                            'description' => $event->description,
-                            'banner_url' => $event->banner_url,
-                            'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
-                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
-                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
-                            'current_round' => 0,
-                            'scheduled_start_time' => $event->start_at,
-                            'scheduled_end_time' => $event->end_at,
-                        ]
+                        $snStorePayload
                     );
                 } catch (\Throwable $snEx) {
                     Log::warning('Could not sync SpeedNetworkingEvent on store: '.$snEx->getMessage());
@@ -416,20 +423,27 @@ class EventManagementController extends Controller
             if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
                 try {
                     $meta = (array) ($event->metadata ?? []);
+                    $snStorePayload = [
+                        'title' => $event->title,
+                        'description' => $event->description,
+                        'banner_url' => $event->banner_url,
+                        'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
+                        'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
+                        'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
+                        'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
+                        'current_round' => 0,
+                        'scheduled_start_time' => $event->start_at,
+                        'scheduled_end_time' => $event->end_at,
+                    ];
+                    if (Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+                        $snStorePayload['max_skip_limit'] = max(0, min(20, (int) ($request->input('max_skip_limit') ?? $meta['max_skip_limit'] ?? 2)));
+                    }
+                    if (Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+                        $snStorePayload['preview_duration_seconds'] = max(5, min(60, (int) ($request->input('preview_duration_seconds') ?? $meta['preview_duration_seconds'] ?? 15)));
+                    }
                     SpeedNetworkingEvent::updateOrCreate(
                         ['id' => $event->id],
-                        [
-                            'title' => $event->title,
-                            'description' => $event->description,
-                            'banner_url' => $event->banner_url,
-                            'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                            'round_duration_seconds' => (int) ($request->input('round_duration_seconds') ?? $meta['round_duration_seconds'] ?? 300),
-                            'break_duration_seconds' => (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20),
-                            'total_rounds' => (int) ($meta['total_rounds'] ?? 0),
-                            'current_round' => 0,
-                            'scheduled_start_time' => $event->start_at,
-                            'scheduled_end_time' => $event->end_at,
-                        ]
+                        $snStorePayload
                     );
                 } catch (\Throwable $snEx) {
                     Log::warning('Could not sync SpeedNetworkingEvent on update: '.$snEx->getMessage());
@@ -846,6 +860,8 @@ class EventManagementController extends Controller
             $metadata['is_speed_networking'] = true;
             $metadata['round_duration_seconds'] = (int) ($request->input('round_duration_seconds') ?? $metadata['round_duration_seconds'] ?? 300);
             $metadata['break_duration_seconds'] = (int) ($request->input('break_duration_seconds') ?? $metadata['break_duration_seconds'] ?? 20);
+            $metadata['max_skip_limit'] = max(0, min(20, (int) ($request->input('max_skip_limit') ?? $metadata['max_skip_limit'] ?? 2)));
+            $metadata['preview_duration_seconds'] = max(5, min(60, (int) ($request->input('preview_duration_seconds') ?? $metadata['preview_duration_seconds'] ?? 15)));
             $metadata['total_rounds'] = (int) ($metadata['total_rounds'] ?? 0);
             $metadata['speed_status'] = $metadata['speed_status'] ?? 'scheduled';
             $data['is_virtual'] = true;

@@ -24,6 +24,7 @@ class SpeedNetworkingMatchActionRequest extends FormRequest
             'channel_id' => ['nullable', 'string'],
             'match_id' => ['nullable', 'string'],
             'reason' => ['nullable', 'string', 'max:255'],
+            'idempotency_key' => ['nullable', 'string', 'max:128'],
         ];
     }
 }
