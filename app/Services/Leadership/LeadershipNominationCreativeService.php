@@ -66,6 +66,8 @@ class LeadershipNominationCreativeService
         $subSlate = imagecolorallocate($canvas, 51, 65, 85);   // #334155 Slate
 
         // 0. CLEAN DYNAMIC ZONES (Ensures zero text bleeding / ghosting)
+        // Clean Brand Logo zone (centered top above capsule pill): X = 200 to 620, Y = 0 to 75
+        imagefilledrectangle($canvas, 200, 0, 620, 75, $white);
         // Clean Role zone: Y = 165 to 275
         imagefilledrectangle($canvas, 0, 165, $width, 275, $white);
         // Clean inner circle area: Center = (406, 469), diameter = 340
@@ -74,6 +76,23 @@ class LeadershipNominationCreativeService
         imagefilledrectangle($canvas, 0, 670, $width, 738, $white);
         // Clean Industry • City zone: Y = 739 to 795
         imagefilledrectangle($canvas, 0, 739, $width, 795, $white);
+
+        // 0.1 OFFICIAL PEERSGLOBAL BRAND LOGO (Centered at top above "LEADERSHIP OPPORTUNITY" capsule)
+        $logoPath = public_path('images/logo-full.png');
+        if (file_exists($logoPath)) {
+            $logoSrc = @imagecreatefrompng($logoPath);
+            if ($logoSrc) {
+                imagealphablending($logoSrc, true);
+                $logoW = imagesx($logoSrc);
+                $logoH = imagesy($logoSrc);
+                $targetLogoH = 60;
+                $targetLogoW = (int) ($logoW * ($targetLogoH / $logoH));
+                $logoX = (int) (($width - $targetLogoW) / 2);
+                $logoY = 5;
+                imagecopyresampled($canvas, $logoSrc, $logoX, $logoY, 0, 0, $targetLogoW, $targetLogoH, $logoW, $logoH);
+                imagedestroy($logoSrc);
+            }
+        }
 
         // 1. DYNAMIC ROLE TITLE (Center top below "LEADERSHIP OPPORTUNITY" pill)
         $roleName = (string) ($nomination->applied_role_name ?? $nomination->campaign?->role?->name ?? 'LEADERSHIP ROLE');
