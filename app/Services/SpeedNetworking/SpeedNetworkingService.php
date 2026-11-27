@@ -45,8 +45,14 @@ class SpeedNetworkingService
             && Schema::hasTable('speed_networking_blocked_peers')
             && Schema::hasTable('speed_networking_event_skips')
             && Schema::hasColumn('speed_networking_event_skips', 'skip_count')
-            && (! Schema::hasTable('speed_networking_events') || (Schema::hasColumn('speed_networking_events', 'max_skip_limit') && Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')))
-            && (! Schema::hasTable('speed_networking_matches') || Schema::hasColumn('speed_networking_matches', 'call_expires_at'))
+            && (!Schema::hasTable('speed_networking_events') || (Schema::hasColumn('speed_networking_events', 'max_skip_limit') && Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')))
+            && (!Schema::hasTable('speed_networking_matches') || (
+                Schema::hasColumn('speed_networking_matches', 'call_expires_at')
+                && Schema::hasColumn('speed_networking_matches', 'extension_used')
+                && Schema::hasColumn('speed_networking_matches', 'extended_seconds')
+                && Schema::hasColumn('speed_networking_matches', 'extended_at')
+                && Schema::hasColumn('speed_networking_matches', 'extended_by_user_id')
+            ))
         ) {
             return;
         }
@@ -54,10 +60,10 @@ class SpeedNetworkingService
         try {
             if (Schema::hasTable('speed_networking_events')) {
                 Schema::table('speed_networking_events', function (Blueprint $table): void {
-                    if (! Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+                    if (!Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
                         $table->unsignedSmallInteger('max_skip_limit')->default(2);
                     }
-                    if (! Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+                    if (!Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
                         $table->unsignedSmallInteger('preview_duration_seconds')->default(15);
                     }
                 });
@@ -65,43 +71,55 @@ class SpeedNetworkingService
 
             if (Schema::hasTable('speed_networking_matches')) {
                 Schema::table('speed_networking_matches', function (Blueprint $table): void {
-                    if (! Schema::hasColumn('speed_networking_matches', 'match_status')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'match_status')) {
                         $table->string('match_status', 32)->default('preview')->index();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'user_a_decision')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'user_a_decision')) {
                         $table->string('user_a_decision', 16)->default('pending');
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'user_b_decision')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'user_b_decision')) {
                         $table->string('user_b_decision', 16)->default('pending');
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'preview_duration_seconds')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'preview_duration_seconds')) {
                         $table->integer('preview_duration_seconds')->default(15);
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'preview_expires_at')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'preview_expires_at')) {
                         $table->timestamp('preview_expires_at')->nullable();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'call_started_at')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'call_started_at')) {
                         $table->timestamp('call_started_at')->nullable();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'call_expires_at')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'call_expires_at')) {
                         $table->timestamp('call_expires_at')->nullable()->index();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'duration_seconds')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'extension_used')) {
+                        $table->boolean('extension_used')->default(false);
+                    }
+                    if (!Schema::hasColumn('speed_networking_matches', 'extended_seconds')) {
+                        $table->integer('extended_seconds')->default(0);
+                    }
+                    if (!Schema::hasColumn('speed_networking_matches', 'extended_at')) {
+                        $table->timestamp('extended_at')->nullable();
+                    }
+                    if (!Schema::hasColumn('speed_networking_matches', 'extended_by_user_id')) {
+                        $table->string('extended_by_user_id', 64)->nullable();
+                    }
+                    if (!Schema::hasColumn('speed_networking_matches', 'duration_seconds')) {
                         $table->integer('duration_seconds')->nullable();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'user_a_notes')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'user_a_notes')) {
                         $table->text('user_a_notes')->nullable();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'user_b_notes')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'user_b_notes')) {
                         $table->text('user_b_notes')->nullable();
                     }
-                    if (! Schema::hasColumn('speed_networking_matches', 'meeting_notes')) {
+                    if (!Schema::hasColumn('speed_networking_matches', 'meeting_notes')) {
                         $table->text('meeting_notes')->nullable();
                     }
                 });
             }
 
-            if (! Schema::hasTable('speed_networking_blocked_peers')) {
+            if (!Schema::hasTable('speed_networking_blocked_peers')) {
                 Schema::create('speed_networking_blocked_peers', function (Blueprint $table): void {
                     $table->uuid('id')->primary();
                     $table->string('blocker_id', 64)->index();
@@ -115,7 +133,7 @@ class SpeedNetworkingService
                 });
             }
 
-            if (! Schema::hasTable('speed_networking_event_skips')) {
+            if (!Schema::hasTable('speed_networking_event_skips')) {
                 Schema::create('speed_networking_event_skips', function (Blueprint $table): void {
                     $table->uuid('id')->primary();
                     $table->string('event_id', 64)->index();
@@ -127,7 +145,7 @@ class SpeedNetworkingService
                     $table->unique(['event_id', 'user_id', 'skipped_peer_id'], 'uq_sn_event_skip');
                     $table->index(['event_id', 'skipped_peer_id', 'user_id'], 'idx_sn_event_skip_reverse');
                 });
-            } elseif (! Schema::hasColumn('speed_networking_event_skips', 'skip_count')) {
+            } elseif (!Schema::hasColumn('speed_networking_event_skips', 'skip_count')) {
                 Schema::table('speed_networking_event_skips', function (Blueprint $table): void {
                     $table->unsignedSmallInteger('skip_count')->default(1);
                 });
@@ -135,7 +153,7 @@ class SpeedNetworkingService
 
             self::$schemaVerified = true;
         } catch (\Throwable $e) {
-            Log::warning('[SpeedNetworkingService] ensureSpeedNetworkingSchema warning: '.$e->getMessage());
+            Log::warning('[SpeedNetworkingService] ensureSpeedNetworkingSchema warning: ' . $e->getMessage());
         }
     }
 
@@ -199,12 +217,12 @@ class SpeedNetworkingService
         // Fetch user records if missing from relations
         $missingUserIds = [];
         foreach ($blockedMap as $tid => $data) {
-            if (! $data['user']) {
+            if (!$data['user']) {
                 $missingUserIds[] = $tid;
             }
         }
-        if (! empty($missingUserIds)) {
-            $fetchedUsers = User::whereIn('id', $missingUserIds)->get()->keyBy(fn ($u) => (string) $u->id);
+        if (!empty($missingUserIds)) {
+            $fetchedUsers = User::whereIn('id', $missingUserIds)->get()->keyBy(fn($u) => (string) $u->id);
             foreach ($missingUserIds as $muId) {
                 if (isset($fetchedUsers[$muId])) {
                     $blockedMap[$muId]['user'] = $fetchedUsers[$muId];
@@ -218,7 +236,7 @@ class SpeedNetworkingService
             $u = $entry['user'];
             $name = 'Peer';
             if ($u) {
-                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                $name = $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
                 if ($name === '') {
                     $name = (string) ($u->name ?? 'Peer');
                 }
@@ -382,7 +400,7 @@ class SpeedNetworkingService
                 ->where('blocker_id', $userId)
                 ->orWhere('blocked_id', $userId)
                 ->get(['blocker_id', 'blocked_id'])
-                ->map(fn (SpeedNetworkingBlockedPeer $b): string => (string) ((string) $b->blocker_id === $userId ? $b->blocked_id : $b->blocker_id))
+                ->map(fn(SpeedNetworkingBlockedPeer $b): string => (string) ((string) $b->blocker_id === $userId ? $b->blocked_id : $b->blocker_id))
                 ->filter()
                 ->all();
 
@@ -396,7 +414,7 @@ class SpeedNetworkingService
                     ->where('blocker_user_id', $userId)
                     ->orWhere('blocked_user_id', $userId)
                     ->get(['blocker_user_id', 'blocked_user_id'])
-                    ->map(fn ($b): string => (string) ((string) $b->blocker_user_id === $userId ? $b->blocked_user_id : $b->blocker_user_id))
+                    ->map(fn($b): string => (string) ((string) $b->blocker_user_id === $userId ? $b->blocked_user_id : $b->blocker_user_id))
                     ->filter()
                     ->all();
 
@@ -462,7 +480,7 @@ class SpeedNetworkingService
      */
     protected function recordEventSkip(string $eventId, string $userId, string $skippedPeerId): int
     {
-        if ($userId === '' || $skippedPeerId === '' || $userId === $skippedPeerId || ! Schema::hasTable('speed_networking_event_skips')) {
+        if ($userId === '' || $skippedPeerId === '' || $userId === $skippedPeerId || !Schema::hasTable('speed_networking_event_skips')) {
             return 0;
         }
 
@@ -520,7 +538,7 @@ class SpeedNetworkingService
      */
     protected function getPairSkipInfo(string $eventId, string $userId, string $peerId): array
     {
-        if ($userId === '' || $peerId === '' || ! Schema::hasTable('speed_networking_event_skips')) {
+        if ($userId === '' || $peerId === '' || !Schema::hasTable('speed_networking_event_skips')) {
             return ['is_recycled_skip' => false, 'skip_count' => 0];
         }
 
@@ -539,7 +557,7 @@ class SpeedNetworkingService
             return ['is_recycled_skip' => false, 'skip_count' => 0];
         }
 
-        $maxCount = (int) $rows->max(fn (SpeedNetworkingEventSkip $row): int => max(1, (int) ($row->skip_count ?? 1)));
+        $maxCount = (int) $rows->max(fn(SpeedNetworkingEventSkip $row): int => max(1, (int) ($row->skip_count ?? 1)));
 
         return [
             'is_recycled_skip' => true,
@@ -566,7 +584,7 @@ class SpeedNetworkingService
                         ->orWhere('skipped_peer_id', $userId);
                 })
                 ->get(['user_id', 'skipped_peer_id'])
-                ->map(fn (SpeedNetworkingEventSkip $s): string => (string) ((string) $s->user_id === $userId ? $s->skipped_peer_id : $s->user_id))
+                ->map(fn(SpeedNetworkingEventSkip $s): string => (string) ((string) $s->user_id === $userId ? $s->skipped_peer_id : $s->user_id))
                 ->filter()
                 ->all();
         }
@@ -586,7 +604,7 @@ class SpeedNetworkingService
                         ->orWhere('user_b_id', $userId);
                 })
                 ->get(['user_a_id', 'user_b_id'])
-                ->map(fn (SpeedNetworkingMatch $m): string => (string) ((string) $m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
+                ->map(fn(SpeedNetworkingMatch $m): string => (string) ((string) $m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
                 ->filter()
                 ->all();
 
@@ -606,7 +624,7 @@ class SpeedNetworkingService
         } catch (\Throwable) {
             $appId = config('services.agora.app_id') ?: env('AGORA_APP_ID');
 
-            return ! empty($appId) ? (string) $appId : null;
+            return !empty($appId) ? (string) $appId : null;
         }
     }
 
@@ -640,12 +658,12 @@ class SpeedNetworkingService
                     ])
                     ->latest('created_at');
 
-                if (! empty($filters['status'])) {
+                if (!empty($filters['status'])) {
                     $query->where('status', $filters['status']);
                 }
 
-                if (! empty($filters['search'])) {
-                    $search = '%'.trim((string) $filters['search']).'%';
+                if (!empty($filters['search'])) {
+                    $search = '%' . trim((string) $filters['search']) . '%';
                     $query->where('title', 'like', $search);
                 }
 
@@ -713,8 +731,8 @@ class SpeedNetworkingService
                 })
                 ->latest('created_at');
 
-            if (! empty($filters['search'])) {
-                $search = '%'.trim((string) $filters['search']).'%';
+            if (!empty($filters['search'])) {
+                $search = '%' . trim((string) $filters['search']) . '%';
                 $query->where('title', 'like', $search);
             }
 
@@ -727,11 +745,11 @@ class SpeedNetworkingService
                 $totalRounds = (int) ($meta['total_rounds'] ?? 5);
 
                 $durationSec = null;
-                if (! empty($meta['duration_seconds'])) {
+                if (!empty($meta['duration_seconds'])) {
                     $durationSec = (int) $meta['duration_seconds'];
-                } elseif (! empty($meta['duration_minutes'])) {
+                } elseif (!empty($meta['duration_minutes'])) {
                     $durationSec = (int) $meta['duration_minutes'] * 60;
-                } elseif (! empty($meta['duration'])) {
+                } elseif (!empty($meta['duration'])) {
                     $durationSec = (int) ($meta['duration'] * 60);
                 } else {
                     $durationSec = $totalRounds > 0
@@ -741,9 +759,9 @@ class SpeedNetworkingService
                 $durationMin = (int) ceil($durationSec / 60);
 
                 $startAt = $e->start_at ? Carbon::parse($e->start_at) : null;
-                $endAt = ! empty($meta['scheduled_end_time'])
+                $endAt = !empty($meta['scheduled_end_time'])
                     ? Carbon::parse($meta['scheduled_end_time'])
-                    : (! empty($e->end_at)
+                    : (!empty($e->end_at)
                         ? Carbon::parse($e->end_at)
                         : ($startAt ? $startAt->copy()->addSeconds($durationSec) : Carbon::now()->addSeconds($durationSec)));
 
@@ -772,7 +790,7 @@ class SpeedNetworkingService
                     'scheduled_start_time' => $schedStart->copy()->utc()->toISOString(),
                     'scheduled_end_time' => $endAt->copy()->utc()->toISOString(),
                     'end_time' => $endAt->copy()->utc()->toISOString(),
-                    'actual_start_time' => ! empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
+                    'actual_start_time' => !empty($meta['actual_start_time']) ? Carbon::parse($meta['actual_start_time'])->utc()->toISOString() : $startAt?->copy()->utc()->toISOString(),
                     'actual_end_time' => $meta['actual_end_time'] ?? null,
                     'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
                     'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
@@ -896,7 +914,7 @@ class SpeedNetworkingService
         $now = Carbon::now();
         $items = collect($paginated->items())->map(function (SpeedNetworkingParticipant $p) use ($now): array {
             $u = $p->user;
-            $name = $u ? ($u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''))) : 'Unknown';
+            $name = $u ? ($u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''))) : 'Unknown';
 
             $isOnline = $p->last_heartbeat_at && $p->last_heartbeat_at->diffInSeconds($now) <= 60;
 
@@ -924,7 +942,7 @@ class SpeedNetworkingService
         foreach ($registrations as $reg) {
             $u = $reg->user;
             if ($u) {
-                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                $name = $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')) ?: $u->name ?: 'Participant';
                 $items->push([
                     'participant_id' => (string) $reg->id,
                     'user_id' => (string) $reg->user_id,
@@ -977,12 +995,12 @@ class SpeedNetworkingService
         }
 
         $circleId = array_key_exists('circle_id', $data)
-            ? (! empty($data['circle_id']) ? (string) $data['circle_id'] : null)
+            ? (!empty($data['circle_id']) ? (string) $data['circle_id'] : null)
             : ($existingEvent?->circle_id ? (string) $existingEvent->circle_id : null);
         $circleRestricted = array_key_exists('circle_restricted', $data)
             ? (bool) $data['circle_restricted']
-            : ($existingEvent ? (bool) $existingEvent->circle_restricted : ! empty($circleId));
-        $currency = ! empty($data['currency']) ? (string) $data['currency'] : (string) ($existingEvent?->currency ?? 'INR');
+            : ($existingEvent ? (bool) $existingEvent->circle_restricted : !empty($circleId));
+        $currency = !empty($data['currency']) ? (string) $data['currency'] : (string) ($existingEvent?->currency ?? 'INR');
 
         $roundDuration = (int) ($data['round_duration_seconds'] ?? $existingEvent?->round_duration_seconds ?? config('services.speed_networking.default_round_seconds', 180));
         $breakDuration = (int) ($data['break_duration_seconds'] ?? $existingEvent?->break_duration_seconds ?? config('services.speed_networking.default_break_seconds', 20));
@@ -996,14 +1014,14 @@ class SpeedNetworkingService
             ? max(0, (int) $data['total_rounds'])
             : (int) ($existingEvent?->total_rounds ?? 0);
 
-        $hasExplicitDuration = ! empty($data['duration_seconds']) || ! empty($data['duration_minutes']) || ! empty($data['duration']);
+        $hasExplicitDuration = !empty($data['duration_seconds']) || !empty($data['duration_minutes']) || !empty($data['duration']);
 
         $durationSeconds = null;
-        if (! empty($data['duration_seconds'])) {
+        if (!empty($data['duration_seconds'])) {
             $durationSeconds = (int) $data['duration_seconds'];
-        } elseif (! empty($data['duration_minutes'])) {
+        } elseif (!empty($data['duration_minutes'])) {
             $durationSeconds = (int) $data['duration_minutes'] * 60;
-        } elseif (! empty($data['duration'])) {
+        } elseif (!empty($data['duration'])) {
             $durationSeconds = (int) ($data['duration'] * 60);
         } elseif ($existingEvent) {
             $durationSeconds = max(60, $existingEvent->calculateDurationSeconds());
@@ -1019,12 +1037,12 @@ class SpeedNetworkingService
             ?? request()?->input('_browser_timezone')
             ?? request()?->header('X-Timezone')
             ?? (config('app.timezone') ?: 'Asia/Kolkata');
-        if ($timezone === 'UTC' && empty($data['timezone']) && empty($data['_browser_timezone']) && ! request()?->has('timezone') && ! request()?->has('_browser_timezone')) {
+        if ($timezone === 'UTC' && empty($data['timezone']) && empty($data['_browser_timezone']) && !request()?->has('timezone') && !request()?->has('_browser_timezone')) {
             $timezone = 'Asia/Kolkata';
         }
 
         $scheduledStart = $existingEvent?->scheduled_start_time;
-        if (! empty($data['scheduled_start_time'])) {
+        if (!empty($data['scheduled_start_time'])) {
             $rawStartStr = trim((string) $data['scheduled_start_time']);
             $hasExplicitTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawStartStr);
             $scheduledStart = ($hasExplicitTz ? Carbon::parse($rawStartStr) : Carbon::parse($rawStartStr, $timezone))->utc();
@@ -1032,7 +1050,7 @@ class SpeedNetworkingService
 
         if ($hasExplicitDuration && $scheduledStart) {
             $scheduledEnd = $scheduledStart->copy()->addSeconds($durationSeconds);
-        } elseif (! empty($data['scheduled_end_time'])) {
+        } elseif (!empty($data['scheduled_end_time'])) {
             $rawEndStr = trim((string) $data['scheduled_end_time']);
             $hasExplicitEndTz = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $rawEndStr);
             $scheduledEnd = ($hasExplicitEndTz ? Carbon::parse($rawEndStr) : Carbon::parse($rawEndStr, $timezone))->utc();
@@ -1067,8 +1085,8 @@ class SpeedNetworkingService
             'total_rounds' => $totalRounds,
             'scheduled_start_time' => $scheduledStart,
             'scheduled_end_time' => $scheduledEnd,
-            'actual_start_time' => ! empty($data['actual_start_time']) ? Carbon::parse($data['actual_start_time']) : $existingEvent?->actual_start_time,
-            'actual_end_time' => ! empty($data['actual_end_time']) ? Carbon::parse($data['actual_end_time']) : $existingEvent?->actual_end_time,
+            'actual_start_time' => !empty($data['actual_start_time']) ? Carbon::parse($data['actual_start_time']) : $existingEvent?->actual_start_time,
+            'actual_end_time' => !empty($data['actual_end_time']) ? Carbon::parse($data['actual_end_time']) : $existingEvent?->actual_end_time,
             'ticket_price' => $ticketPrice,
             'is_paid' => $isPaid,
             'currency' => $currency,
@@ -1077,18 +1095,18 @@ class SpeedNetworkingService
             'metadata' => $metadata,
         ];
 
-        if (! empty($data['status'])) {
+        if (!empty($data['status'])) {
             $attributes['status'] = (string) $data['status'];
         }
 
         if (Schema::hasTable('speed_networking_events')) {
-            if (! Schema::hasColumn('speed_networking_events', 'metadata')) {
+            if (!Schema::hasColumn('speed_networking_events', 'metadata')) {
                 unset($attributes['metadata']);
             }
-            if (! Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
+            if (!Schema::hasColumn('speed_networking_events', 'max_skip_limit')) {
                 unset($attributes['max_skip_limit']);
             }
-            if (! Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
+            if (!Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')) {
                 unset($attributes['preview_duration_seconds']);
             }
         }
@@ -1150,9 +1168,9 @@ class SpeedNetworkingService
             return $event;
         }
 
-        $attributes['status'] = ! empty($data['status'])
+        $attributes['status'] = !empty($data['status'])
             ? (string) $data['status']
-            : (! empty($attributes['scheduled_start_time'])
+            : (!empty($attributes['scheduled_start_time'])
                 ? SpeedNetworkingEvent::STATUS_SCHEDULED
                 : SpeedNetworkingEvent::STATUS_DRAFT);
         $attributes['current_round'] = 0;
@@ -1280,7 +1298,7 @@ class SpeedNetworkingService
                 try {
                     $this->p2pService->completeAllMatchesForEvent($event);
                 } catch (\Throwable $p2pEx) {
-                    Log::warning('[SpeedNetworkingService] Could not process P2P meetings on round completion: '.$p2pEx->getMessage());
+                    Log::warning('[SpeedNetworkingService] Could not process P2P meetings on round completion: ' . $p2pEx->getMessage());
                 }
 
                 return $event;
@@ -1331,7 +1349,7 @@ class SpeedNetworkingService
             try {
                 $this->p2pService->completeAllMatchesForEvent($event);
             } catch (\Throwable $p2pEx) {
-                Log::warning('[SpeedNetworkingService] Could not process P2P meetings on endEvent: '.$p2pEx->getMessage());
+                Log::warning('[SpeedNetworkingService] Could not process P2P meetings on endEvent: ' . $p2pEx->getMessage());
             }
 
             return $event;
@@ -1458,7 +1476,7 @@ class SpeedNetworkingService
     {
         $this->ensureSpeedNetworkingSchema();
 
-        if (! Schema::hasTable('speed_networking_event_skips')) {
+        if (!Schema::hasTable('speed_networking_event_skips')) {
             return 0;
         }
 
@@ -1501,10 +1519,10 @@ class SpeedNetworkingService
             ->get(['user_a_id', 'user_b_id']);
         $previewUserSet = [];
         foreach ($activePreviewMatches as $pm) {
-            if (! empty($pm->user_a_id)) {
+            if (!empty($pm->user_a_id)) {
                 $previewUserSet[(string) $pm->user_a_id] = true;
             }
-            if (! empty($pm->user_b_id)) {
+            if (!empty($pm->user_b_id)) {
                 $previewUserSet[(string) $pm->user_b_id] = true;
             }
         }
@@ -1586,7 +1604,7 @@ class SpeedNetworkingService
         $maxSkipLimit = $event->getEffectiveMaxSkipLimit();
 
         $formatUserSummary = static function (?User $user, string $fallbackId): array {
-            if (! $user) {
+            if (!$user) {
                 return [
                     'id' => $fallbackId,
                     'name' => 'Peer',
@@ -1595,7 +1613,7 @@ class SpeedNetworkingService
                 ];
             }
 
-            $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->name ?: 'Peer';
+            $name = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: $user->name ?: 'Peer';
 
             return [
                 'id' => (string) $user->id,
@@ -1666,16 +1684,16 @@ class SpeedNetworkingService
             ->orderBy('round_number', 'desc')
             ->orderBy('table_number', 'asc');
 
-        if (! empty($filters['round_number'])) {
+        if (!empty($filters['round_number'])) {
             $query->where('round_number', (int) $filters['round_number']);
         }
 
-        if (! empty($filters['status'])) {
+        if (!empty($filters['status'])) {
             $query->where('status', (string) $filters['status']);
         }
 
-        if (! empty($filters['search'])) {
-            $search = '%'.trim((string) $filters['search']).'%';
+        if (!empty($filters['search'])) {
+            $search = '%' . trim((string) $filters['search']) . '%';
             $query->where(function ($q) use ($search): void {
                 $q->whereHas('userA', function ($uq) use ($search): void {
                     $uq->where('first_name', 'like', $search)
@@ -1729,7 +1747,7 @@ class SpeedNetworkingService
                 'duration_seconds' => $durationSeconds,
                 'user_a' => $ua ? [
                     'id' => (string) $ua->id,
-                    'name' => $ua->display_name ?: trim(($ua->first_name ?? '').' '.($ua->last_name ?? '')) ?: $ua->name,
+                    'name' => $ua->display_name ?: trim(($ua->first_name ?? '') . ' ' . ($ua->last_name ?? '')) ?: $ua->name,
                     'company' => (string) ($ua->company_name ?? 'Peers Member'),
                     'designation' => (string) ($ua->designation ?? ''),
                     'city' => (string) ($ua->city ?? ''),
@@ -1739,7 +1757,7 @@ class SpeedNetworkingService
                 ] : null,
                 'user_b' => $ub ? [
                     'id' => (string) $ub->id,
-                    'name' => $ub->display_name ?: trim(($ub->first_name ?? '').' '.($ub->last_name ?? '')) ?: $ub->name,
+                    'name' => $ub->display_name ?: trim(($ub->first_name ?? '') . ' ' . ($ub->last_name ?? '')) ?: $ub->name,
                     'company' => (string) ($ub->company_name ?? 'Peers Member'),
                     'designation' => (string) ($ub->designation ?? ''),
                     'city' => (string) ($ub->city ?? ''),
@@ -1829,11 +1847,13 @@ class SpeedNetworkingService
                 ->first();
 
             $initialStatus = SpeedNetworkingParticipant::STATUS_SEARCHING;
-            if ($existingParticipant && in_array($existingParticipant->status, [
-                SpeedNetworkingParticipant::STATUS_PREVIEW,
-                SpeedNetworkingParticipant::STATUS_ACCEPTED,
-                SpeedNetworkingParticipant::STATUS_IN_CALL,
-            ], true)) {
+            if (
+                $existingParticipant && in_array($existingParticipant->status, [
+                    SpeedNetworkingParticipant::STATUS_PREVIEW,
+                    SpeedNetworkingParticipant::STATUS_ACCEPTED,
+                    SpeedNetworkingParticipant::STATUS_IN_CALL,
+                ], true)
+            ) {
                 $initialStatus = $existingParticipant->status;
             }
 
@@ -1911,9 +1931,9 @@ class SpeedNetworkingService
                 if ($matchStatus === SpeedNetworkingMatch::MATCH_STATUS_PREVIEW) {
                     $isPreviewExpired = $activeMatch->preview_expires_at !== null
                         && Carbon::now()->greaterThanOrEqualTo($activeMatch->preview_expires_at)
-                        && ! ($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
+                        && !($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
 
-                    if (! $isPreviewExpired) {
+                    if (!$isPreviewExpired) {
                         $isUserA = ((string) $activeMatch->user_a_id === (string) $user->id);
                         $myDec = $isUserA ? $activeMatch->user_a_decision : $activeMatch->user_b_decision;
                         $participant->update([
@@ -1935,7 +1955,7 @@ class SpeedNetworkingService
                     $now = Carbon::now();
                     $isExpired = $expiresAt !== null && $now->greaterThanOrEqualTo($expiresAt);
 
-                    if (! $isExpired) {
+                    if (!$isExpired) {
                         $participant->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
 
                         return $this->formatMatchResponse($lockedEvent, $activeMatch, (string) $user->id);
@@ -1975,7 +1995,7 @@ class SpeedNetworkingService
                 ->lockForUpdate()
                 ->first();
 
-            if (! $locked) {
+            if (!$locked) {
                 return $match;
             }
 
@@ -2117,7 +2137,7 @@ class SpeedNetworkingService
     {
         $this->ensureSpeedNetworkingSchema();
 
-        if (! Schema::hasTable('speed_networking_matches')) {
+        if (!Schema::hasTable('speed_networking_matches')) {
             return ['expired_previews' => 0, 'auto_connected_previews' => 0, 'expired_calls' => 0];
         }
 
@@ -2168,7 +2188,7 @@ class SpeedNetworkingService
 
             $closed = DB::transaction(function () use ($callMatch, $expiresAt, $roundDuration): bool {
                 $locked = SpeedNetworkingMatch::where('id', $callMatch->id)->lockForUpdate()->first();
-                if (! $locked || $locked->status !== SpeedNetworkingMatch::STATUS_ACTIVE || $locked->match_status !== SpeedNetworkingMatch::MATCH_STATUS_IN_CALL) {
+                if (!$locked || $locked->status !== SpeedNetworkingMatch::STATUS_ACTIVE || $locked->match_status !== SpeedNetworkingMatch::MATCH_STATUS_IN_CALL) {
                     return false;
                 }
 
@@ -2213,7 +2233,7 @@ class SpeedNetworkingService
      */
     public function hasMetAllActivePeers(SpeedNetworkingEvent $event, string $userId): bool
     {
-        if (! $event->isCompleted()) {
+        if (!$event->isCompleted()) {
             return false;
         }
 
@@ -2227,7 +2247,7 @@ class SpeedNetworkingService
                     ->orWhere('joined_at', '>=', $cutoff);
             })
             ->pluck('user_id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->all();
 
         if (empty($otherActiveUserIds)) {
@@ -2245,7 +2265,7 @@ class SpeedNetworkingService
                 SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
             ])
             ->get()
-            ->map(fn (SpeedNetworkingMatch $m) => (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
+            ->map(fn(SpeedNetworkingMatch $m) => (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
             ->filter()
             ->unique()
             ->all();
@@ -2271,7 +2291,7 @@ class SpeedNetworkingService
 
         return DB::transaction(function () use ($event, $user, $isGetRequest): array {
             $lockedEvent = SpeedNetworkingEvent::where('id', $event->id)->lockForUpdate()->first() ?? $event;
-            if (! $isGetRequest) {
+            if (!$isGetRequest) {
                 $this->heartbeat($lockedEvent, $user);
             } else {
                 $this->heartbeat($lockedEvent, $user, null);
@@ -2316,9 +2336,9 @@ class SpeedNetworkingService
                 if ($matchStatus === SpeedNetworkingMatch::MATCH_STATUS_PREVIEW) {
                     $isPreviewExpired = $activeMatch->preview_expires_at !== null
                         && Carbon::now()->greaterThanOrEqualTo($activeMatch->preview_expires_at)
-                        && ! ($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
+                        && !($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
 
-                    if (! $isPreviewExpired) {
+                    if (!$isPreviewExpired) {
                         $isUserA = ((string) $activeMatch->user_a_id === (string) $user->id);
                         $myDec = (string) ($isUserA ? $activeMatch->user_a_decision : $activeMatch->user_b_decision);
 
@@ -2338,7 +2358,7 @@ class SpeedNetworkingService
                     $isExpired = $expiresAt !== null && $now->greaterThanOrEqualTo($expiresAt);
 
                     // If GET request and match is still within round duration, return active match
-                    if ($isGetRequest && ! $isExpired) {
+                    if ($isGetRequest && !$isExpired) {
                         if ($participant && $participant->status !== SpeedNetworkingParticipant::STATUS_IN_CALL) {
                             $participant->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
                         }
@@ -2455,7 +2475,7 @@ class SpeedNetworkingService
                     ->first();
             }
 
-            if ($match && ! $match->hasUser($userId)) {
+            if ($match && !$match->hasUser($userId)) {
                 return [
                     'http_status' => 403,
                     'status' => 'forbidden',
@@ -2465,7 +2485,7 @@ class SpeedNetworkingService
                 ];
             }
 
-            if (! $match) {
+            if (!$match) {
                 $match = SpeedNetworkingMatch::with(['userA', 'userB'])
                     ->where('event_id', $event->id)
                     ->where(function ($q) use ($userId): void {
@@ -2478,7 +2498,7 @@ class SpeedNetworkingService
                     ->first();
             }
 
-            if (! $match) {
+            if (!$match) {
                 if ($action === 'block' && $peerId !== '' && $peerId !== $userId) {
                     $this->blockPeerInSpeedNetworking($userId, $peerId, (string) $event->id, $reason);
 
@@ -2584,7 +2604,7 @@ class SpeedNetworkingService
                 }
 
                 $skipCount = 0;
-                if ($partnerId !== '' && ! in_array($match->match_status, [SpeedNetworkingMatch::MATCH_STATUS_BLOCKED, SpeedNetworkingMatch::MATCH_STATUS_COMPLETED], true) && Schema::hasTable('speed_networking_event_skips')) {
+                if ($partnerId !== '' && !in_array($match->match_status, [SpeedNetworkingMatch::MATCH_STATUS_BLOCKED, SpeedNetworkingMatch::MATCH_STATUS_COMPLETED], true) && Schema::hasTable('speed_networking_event_skips')) {
                     $skipCount = $this->recordEventSkip((string) $event->id, $userId, $partnerId);
                 }
 
@@ -2911,7 +2931,7 @@ class SpeedNetworkingService
 
         $isAlreadyLeft = $existing && $existing->status === SpeedNetworkingParticipant::STATUS_LEFT;
 
-        if (! $isAlreadyLeft && $normalized !== null && $normalized !== '') {
+        if (!$isAlreadyLeft && $normalized !== null && $normalized !== '') {
             if ($normalized === 'on_break' || $normalized === 'break') {
                 $updateFields['status'] = SpeedNetworkingParticipant::STATUS_BREAK;
                 $updateFields['break_remaining_seconds'] = max(0, $breakRemainingSeconds);
@@ -2931,13 +2951,13 @@ class SpeedNetworkingService
                 $updateFields['break_remaining_seconds'] = 0;
             } elseif ($normalized === SpeedNetworkingParticipant::STATUS_NEXT_PEER_REQUIRED || $normalized === SpeedNetworkingParticipant::STATUS_IDLE) {
                 $hasActiveMatch = $this->findActiveMatchForUser($event->id, (string) $user->id) !== null;
-                if (! $hasActiveMatch) {
+                if (!$hasActiveMatch) {
                     $updateFields['status'] = $normalized;
                     $updateFields['break_remaining_seconds'] = 0;
                 }
             } elseif ($normalized === 'waiting' || $normalized === 'searching') {
                 $hasActiveMatch = $this->findActiveMatchForUser($event->id, (string) $user->id) !== null;
-                if (! $hasActiveMatch) {
+                if (!$hasActiveMatch) {
                     $updateFields['status'] = SpeedNetworkingParticipant::STATUS_SEARCHING;
                     $updateFields['break_remaining_seconds'] = 0;
                 }
@@ -2974,7 +2994,7 @@ class SpeedNetworkingService
                     ->orWhere('joined_at', '>=', $activeCutoff);
             })
             ->pluck('user_id')
-            ->map(fn ($id): string => (string) $id)
+            ->map(fn($id): string => (string) $id)
             ->unique()
             ->values()
             ->all();
@@ -2997,19 +3017,19 @@ class SpeedNetworkingService
                 if ($expiresAt !== null && $now->greaterThanOrEqualTo($expiresAt)) {
                     continue;
                 }
-                if (! empty($match->user_a_id)) {
+                if (!empty($match->user_a_id)) {
                     $inCallUserIds[(string) $match->user_a_id] = true;
                     $busyUserIds[(string) $match->user_a_id] = true;
                 }
-                if (! empty($match->user_b_id)) {
+                if (!empty($match->user_b_id)) {
                     $inCallUserIds[(string) $match->user_b_id] = true;
                     $busyUserIds[(string) $match->user_b_id] = true;
                 }
             } else {
-                if (! empty($match->user_a_id)) {
+                if (!empty($match->user_a_id)) {
                     $busyUserIds[(string) $match->user_a_id] = true;
                 }
-                if (! empty($match->user_b_id)) {
+                if (!empty($match->user_b_id)) {
                     $busyUserIds[(string) $match->user_b_id] = true;
                 }
             }
@@ -3034,7 +3054,7 @@ class SpeedNetworkingService
             });
 
         $busyIdsList = array_keys($busyUserIds);
-        if (! empty($busyIdsList)) {
+        if (!empty($busyIdsList)) {
             $availablePeersQuery->whereNotIn('user_id', $busyIdsList);
         }
 
@@ -3066,7 +3086,7 @@ class SpeedNetworkingService
             })
             ->whereNotNull('user_b_id')
             ->get()
-            ->map(fn (SpeedNetworkingMatch $m) => (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
+            ->map(fn(SpeedNetworkingMatch $m) => (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
             ->filter()
             ->unique()
             ->all();
@@ -3090,17 +3110,17 @@ class SpeedNetworkingService
             ->where('last_heartbeat_at', '>=', Carbon::now()->subSeconds(45))
             ->first();
 
-        if (! $searchingPeer || ! $searchingPeer->user) {
+        if (!$searchingPeer || !$searchingPeer->user) {
             return null;
         }
 
         $peerUser = $searchingPeer->user;
-        $channelId = 'sn_invite_'.substr(md5($event->id.'_'.$userId.'_'.$peerUser->id), 0, 16);
+        $channelId = 'sn_invite_' . substr(md5($event->id . '_' . $userId . '_' . $peerUser->id), 0, 16);
         $agoraToken = '';
         try {
             $agoraToken = $this->agoraTokenService->generateToken($channelId, $userId);
         } catch (\Throwable) {
-            $agoraToken = 'demo_rtc_token_'.md5($channelId.$userId);
+            $agoraToken = 'demo_rtc_token_' . md5($channelId . $userId);
         }
 
         return [
@@ -3129,7 +3149,7 @@ class SpeedNetworkingService
             $u = $p->user;
             if ($u) {
                 $uid = (string) $u->id;
-                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                $name = $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
                 if (empty($name)) {
                     $name = $u->name ?? 'Participant';
                 }
@@ -3158,9 +3178,9 @@ class SpeedNetworkingService
                 $regList = $regQuery->get();
                 foreach ($regList as $reg) {
                     $u = $reg->user;
-                    if ($u && ! isset($participantsMap[(string) $u->id])) {
+                    if ($u && !isset($participantsMap[(string) $u->id])) {
                         $uid = (string) $u->id;
-                        $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                        $name = $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
                         if (empty($name)) {
                             $name = $u->name ?? 'Participant';
                         }
@@ -3183,7 +3203,7 @@ class SpeedNetworkingService
         $roundDuration = (int) ($event->round_duration_seconds ?: 300);
         $now = Carbon::now();
         $remainingSeconds = $roundDuration;
-        if ($event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS && ! empty($event->actual_start_time)) {
+        if ($event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS && !empty($event->actual_start_time)) {
             $started = Carbon::parse($event->actual_start_time);
             $elapsed = $now->diffInSeconds($started);
             $remainingSeconds = max(0, $roundDuration - $elapsed);
@@ -3217,7 +3237,7 @@ class SpeedNetworkingService
                 'match_id' => (string) $m->id,
                 'table_number' => (int) $m->table_number,
                 'round_number' => (int) ($m->round_number ?: 1),
-                'channel_id' => $m->channel_id ?: ('sn_room_table_'.$m->table_number),
+                'channel_id' => $m->channel_id ?: ('sn_room_table_' . $m->table_number),
                 'status' => $m->status,
                 'match_status' => $matchStatus,
                 'user_a_decision' => (string) ($m->user_a_decision ?: SpeedNetworkingMatch::DECISION_PENDING),
@@ -3229,14 +3249,14 @@ class SpeedNetworkingService
                 'preview_expires_at' => $m->preview_expires_at?->copy()->utc()->toISOString(),
                 'user_a' => $ua ? [
                     'id' => (string) $ua->id,
-                    'name' => $ua->display_name ?: trim(($ua->first_name ?? '').' '.($ua->last_name ?? '')) ?: $ua->name,
+                    'name' => $ua->display_name ?: trim(($ua->first_name ?? '') . ' ' . ($ua->last_name ?? '')) ?: $ua->name,
                     'company' => (string) ($ua->company_name ?? 'Peers Member'),
                     'industry' => (string) ($ua->business_sub_category ?? $ua->industry ?? 'Business'),
                     'avatar_url' => $ua->profile_photo_url ?? null,
                 ] : null,
                 'user_b' => $ub ? [
                     'id' => (string) $ub->id,
-                    'name' => $ub->display_name ?: trim(($ub->first_name ?? '').' '.($ub->last_name ?? '')) ?: $ub->name,
+                    'name' => $ub->display_name ?: trim(($ub->first_name ?? '') . ' ' . ($ub->last_name ?? '')) ?: $ub->name,
                     'company' => (string) ($ub->company_name ?? 'Peers Member'),
                     'industry' => (string) ($ub->business_sub_category ?? $ub->industry ?? 'Business'),
                     'avatar_url' => $ub->profile_photo_url ?? null,
@@ -3304,7 +3324,7 @@ class SpeedNetworkingService
                     ->orWhere('joined_at', '>=', $cutoff);
             })
             ->pluck('user_id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->unique()
             ->values()
             ->all();
@@ -3314,7 +3334,7 @@ class SpeedNetworkingService
             ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
             ->whereNotNull('user_b_id')
             ->get()
-            ->flatMap(fn (SpeedNetworkingMatch $m) => [(string) $m->user_a_id, (string) $m->user_b_id])
+            ->flatMap(fn(SpeedNetworkingMatch $m) => [(string) $m->user_a_id, (string) $m->user_b_id])
             ->filter()
             ->unique()
             ->values()
@@ -3385,7 +3405,7 @@ class SpeedNetworkingService
                 $paired[$u1] = true;
                 $paired[$partner] = true;
 
-                $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableIndex}_".Str::random(6);
+                $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableIndex}_" . Str::random(6);
 
                 SpeedNetworkingMatch::create([
                     'event_id' => $event->id,
@@ -3454,9 +3474,9 @@ class SpeedNetworkingService
                 if ($matchStatus === SpeedNetworkingMatch::MATCH_STATUS_PREVIEW) {
                     $isPreviewExpired = $existingMatch->preview_expires_at !== null
                         && Carbon::now()->greaterThanOrEqualTo($existingMatch->preview_expires_at)
-                        && ! ($existingMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $existingMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
+                        && !($existingMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $existingMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
 
-                    if (! $isPreviewExpired) {
+                    if (!$isPreviewExpired) {
                         $isUserA = ((string) $existingMatch->user_a_id === $userId);
                         $myDec = (string) ($isUserA ? $existingMatch->user_a_decision : $existingMatch->user_b_decision);
                         SpeedNetworkingParticipant::where('event_id', $event->id)
@@ -3611,7 +3631,7 @@ class SpeedNetworkingService
                     SpeedNetworkingMatch::MATCH_STATUS_COMPLETED,
                 ])
                 ->get()
-                ->map(fn (SpeedNetworkingMatch $m): string => (string) ((string) $m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
+                ->map(fn(SpeedNetworkingMatch $m): string => (string) ((string) $m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
                 ->filter()
                 ->unique()
                 ->values()
@@ -3628,7 +3648,7 @@ class SpeedNetworkingService
                 ])
                 ->whereNotNull('user_b_id')
                 ->get()
-                ->flatMap(fn (SpeedNetworkingMatch $m): array => [(string) $m->user_a_id, (string) $m->user_b_id])
+                ->flatMap(fn(SpeedNetworkingMatch $m): array => [(string) $m->user_a_id, (string) $m->user_b_id])
                 ->filter()
                 ->unique()
                 ->values()
@@ -3661,7 +3681,7 @@ class SpeedNetworkingService
                 ->orderBy('last_heartbeat_at', 'desc')
                 ->limit(15)
                 ->pluck('user_id')
-                ->map(fn ($id): string => (string) $id)
+                ->map(fn($id): string => (string) $id)
                 ->unique()
                 ->values()
                 ->all();
@@ -3699,7 +3719,7 @@ class SpeedNetworkingService
                     })
                     ->exists();
 
-                if (! $hasFreshOnlinePeers) {
+                if (!$hasFreshOnlinePeers) {
                     $skipRows = SpeedNetworkingEventSkip::where('event_id', $event->id)
                         ->where(function ($q) use ($userId): void {
                             $q->where('user_id', $userId)
@@ -3718,7 +3738,7 @@ class SpeedNetworkingService
                         }
                         $rowCount = max(1, (int) ($row->skip_count ?? 1));
                         $skipCountsByPeer[$peerCandidateId] = max($skipCountsByPeer[$peerCandidateId] ?? 0, $rowCount);
-                        if (! isset($fifoPeerOrder[$peerCandidateId])) {
+                        if (!isset($fifoPeerOrder[$peerCandidateId])) {
                             $fifoPeerOrder[$peerCandidateId] = true;
                         }
                     }
@@ -3742,7 +3762,7 @@ class SpeedNetworkingService
                         $recyclableCandidateIds[] = $candidatePeerId;
                     }
 
-                    if (! empty($recyclableCandidateIds)) {
+                    if (!empty($recyclableCandidateIds)) {
                         $onlineEligibleIds = SpeedNetworkingParticipant::where('event_id', $event->id)
                             ->whereIn('user_id', $recyclableCandidateIds)
                             ->whereIn('status', $eligibleStatuses)
@@ -3751,13 +3771,13 @@ class SpeedNetworkingService
                                     ->orWhere('joined_at', '>=', $cutoff);
                             })
                             ->pluck('user_id')
-                            ->map(fn ($id): string => (string) $id)
+                            ->map(fn($id): string => (string) $id)
                             ->all();
 
                         $onlineSet = array_flip($onlineEligibleIds);
 
                         foreach ($recyclableCandidateIds as $recycledCandidateId) {
-                            if (! isset($onlineSet[$recycledCandidateId])) {
+                            if (!isset($onlineSet[$recycledCandidateId])) {
                                 continue;
                             }
 
@@ -3854,7 +3874,7 @@ class SpeedNetworkingService
             ->orderBy('user_id', 'asc')
             ->lockForUpdate()
             ->get()
-            ->keyBy(fn (SpeedNetworkingParticipant $p): string => (string) $p->user_id);
+            ->keyBy(fn(SpeedNetworkingParticipant $p): string => (string) $p->user_id);
 
         // Re-check under lock: did another request already match $userId?
         $existingNow = $this->findActiveMatchForUser($event->id, $userId);
@@ -3864,7 +3884,7 @@ class SpeedNetworkingService
 
         /** @var SpeedNetworkingParticipant|null $lockedCandidate */
         $lockedCandidate = $lockedParticipants->get($candidateUserId);
-        if (! $lockedCandidate || ! in_array($lockedCandidate->status, $eligibleStatuses, true)) {
+        if (!$lockedCandidate || !in_array($lockedCandidate->status, $eligibleStatuses, true)) {
             return null;
         }
 
@@ -3881,7 +3901,7 @@ class SpeedNetworkingService
 
         $maxTable = (int) (SpeedNetworkingMatch::where('event_id', $event->id)->max('table_number') ?? 0);
         $tableNumber = $maxTable + 1;
-        $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableNumber}_".Str::random(6);
+        $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableNumber}_" . Str::random(6);
 
         $match = SpeedNetworkingMatch::create([
             'event_id' => $event->id,
@@ -3948,7 +3968,7 @@ class SpeedNetworkingService
             return trim((string) $value);
         };
 
-        $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+        $peerName = $peer->display_name ?: trim(($peer->first_name ?? '') . ' ' . ($peer->last_name ?? ''));
         if (empty($peerName)) {
             $peerName = (string) ($peer->getRawOriginal('display_name') ?? $peer->getAttributes()['display_name'] ?? '');
         }
@@ -3984,8 +4004,8 @@ class SpeedNetworkingService
             } else {
                 $connectionStatus = $isConnected ? 'connected' : 'pending';
             }
-            $isRequested = ! $isConnected && (string) $connection->requester_id === $currentUserId;
-            $canSendConnectionRequest = ! $isConnected && ! $isRequested;
+            $isRequested = !$isConnected && (string) $connection->requester_id === $currentUserId;
+            $canSendConnectionRequest = !$isConnected && !$isRequested;
         }
 
         // Follow status check
@@ -4003,7 +4023,7 @@ class SpeedNetworkingService
         }
 
         $skills = [];
-        if (! empty($peer->skills)) {
+        if (!empty($peer->skills)) {
             if (is_array($peer->skills)) {
                 $skills = array_values(array_filter(array_map(function ($s): string {
                     return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
@@ -4042,7 +4062,7 @@ class SpeedNetworkingService
         }
 
         $company = $resolveString($peer->company_name ?? $peer->company ?? '');
-        $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
+        $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (!empty($peer->is_pro));
         $isVerified = (bool) ($peer->is_verified ?? false);
 
         $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
@@ -4107,7 +4127,7 @@ class SpeedNetworkingService
         $hasMetAllPeers = $this->hasMetAllActivePeers($event, $currentUserId);
 
         $token = null;
-        if (! $isBreak && $match->channel_id) {
+        if (!$isBreak && $match->channel_id) {
             try {
                 $token = $this->agoraTokenService->generateToken(
                     $match->channel_id,
@@ -4115,7 +4135,7 @@ class SpeedNetworkingService
                     $event->round_duration_seconds + 300
                 );
             } catch (\Throwable) {
-                $token = 'demo_rtc_token_'.md5($match->channel_id.$currentUserId);
+                $token = 'demo_rtc_token_' . md5($match->channel_id . $currentUserId);
             }
         }
 
@@ -4158,6 +4178,15 @@ class SpeedNetworkingService
             $remainingSeconds = max(0, (int) $nowUtc->diffInSeconds($callExpiresAt->copy()->utc(), false));
         }
 
+        $extensionUsed = (bool) ($match->extension_used ?? false);
+        $extendedSeconds = (int) ($match->extended_seconds ?? 0);
+        $canExtend = !$isBreak
+            && $match->status === SpeedNetworkingMatch::STATUS_ACTIVE
+            && $matchStatus === SpeedNetworkingMatch::MATCH_STATUS_IN_CALL
+            && $match->ended_at === null
+            && !$extensionUsed
+            && $remainingSeconds > 0;
+
         $partnerId = (string) ($isUserA ? $match->user_b_id : $match->user_a_id);
         $pairSkipInfo = $partnerId !== ''
             ? $this->getPairSkipInfo((string) $event->id, $currentUserId, $partnerId)
@@ -4183,6 +4212,12 @@ class SpeedNetworkingService
             'preview_expires_at' => $match->preview_expires_at?->copy()->utc()->toISOString(),
             'call_started_at' => $callStartedAt?->copy()->utc()->toISOString(),
             'call_expires_at' => $callExpiresAt?->copy()->utc()->toISOString(),
+            'extension_used' => $extensionUsed,
+            'extended_seconds' => $extendedSeconds,
+            'extension_duration_seconds' => SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS,
+            'extended_at' => $match->extended_at?->copy()->utc()->toISOString(),
+            'extended_by_user_id' => $match->extended_by_user_id ? (string) $match->extended_by_user_id : null,
+            'can_extend' => $canExtend,
             'server_time' => $nowUtc->toISOString(),
             'channel_id' => $match->channel_id ?: '',
             'agora_app_id' => $this->getAgoraAppId(),
@@ -4224,7 +4259,7 @@ class SpeedNetworkingService
             if ($matchStatus === SpeedNetworkingMatch::MATCH_STATUS_PREVIEW) {
                 $isPreviewExpired = $activeMatch->preview_expires_at !== null
                     && $now->greaterThanOrEqualTo($activeMatch->preview_expires_at)
-                    && ! ($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
+                    && !($activeMatch->user_a_decision === SpeedNetworkingMatch::DECISION_ACCEPTED && $activeMatch->user_b_decision === SpeedNetworkingMatch::DECISION_ACCEPTED);
 
                 if ($isPreviewExpired) {
                     $refreshedMatch = $this->resolveExpiredPreviewMatch($activeMatch, $event);
@@ -4383,7 +4418,7 @@ class SpeedNetworkingService
             'status' => $isEnded ? 'event_ended' : 'waiting',
             'match_status' => $isEnded ? 'event_ended' : 'waiting',
             'is_break_round' => false,
-            'is_waiting' => ! $isEnded,
+            'is_waiting' => !$isEnded,
             'has_met_all_peers' => $isEnded,
             'completed' => $isEnded,
             'message' => $message,
@@ -4464,13 +4499,13 @@ class SpeedNetworkingService
                     return $pid !== '' ? $pid : null;
                 })->filter()->unique()->values()->all();
 
-                if (! empty($candidatePeerIds)) {
+                if (!empty($candidatePeerIds)) {
                     $followedPeerIds = DB::table('user_follows')
                         ->where('follower_id', $userId)
                         ->whereIn('following_id', $candidatePeerIds)
                         ->whereIn('status', ['accepted', 'pending'])
                         ->pluck('following_id')
-                        ->map(fn ($id): string => (string) $id)
+                        ->map(fn($id): string => (string) $id)
                         ->all();
                 }
             } catch (\Throwable) {
@@ -4489,7 +4524,7 @@ class SpeedNetworkingService
                     ->where('is_approved', true)
                     ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$userId])
                     ->pluck('conn_id')
-                    ->map(fn ($id): string => (string) $id)
+                    ->map(fn($id): string => (string) $id)
                     ->toArray();
             } catch (\Throwable) {
                 // ignore
@@ -4505,11 +4540,11 @@ class SpeedNetworkingService
                 continue;
             }
 
-            if (! $peer && $peerId !== '') {
+            if (!$peer && $peerId !== '') {
                 $peer = User::find($peerId);
             }
 
-            if (! $peer || isset($seenPeerIds[$peer->id])) {
+            if (!$peer || isset($seenPeerIds[$peer->id])) {
                 continue;
             }
 
@@ -4517,7 +4552,7 @@ class SpeedNetworkingService
 
             $peerName = $peer->display_name;
             if (empty($peerName)) {
-                $peerName = trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                $peerName = trim(($peer->first_name ?? '') . ' ' . ($peer->last_name ?? ''));
             }
             if (empty($peerName)) {
                 $peerName = (string) ($peer->getRawOriginal('display_name') ?? $peer->getAttributes()['display_name'] ?? '');
@@ -4551,15 +4586,15 @@ class SpeedNetworkingService
                 } else {
                     $connectionStatus = $isConnected ? 'connected' : 'pending';
                 }
-                $isRequested = ! $isConnected && (string) $connection->requester_id === $userId;
-                $canSendConnectionRequest = ! $isConnected && ! $isRequested;
+                $isRequested = !$isConnected && (string) $connection->requester_id === $userId;
+                $canSendConnectionRequest = !$isConnected && !$isRequested;
             }
 
             $isFollowing = in_array((string) $peer->id, $followedPeerIds, true);
             $isBookmark = in_array((string) $peer->id, $bookmarkIds, true);
 
             $mutualCount = 0;
-            if (! empty($authConnIds) && Schema::hasTable('connections')) {
+            if (!empty($authConnIds) && Schema::hasTable('connections')) {
                 try {
                     $peerIdStr = (string) $peer->id;
                     $peerConnIds = DB::table('connections')
@@ -4569,7 +4604,7 @@ class SpeedNetworkingService
                         ->where('is_approved', true)
                         ->selectRaw('CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as conn_id', [$peerIdStr])
                         ->pluck('conn_id')
-                        ->map(fn ($id): string => (string) $id)
+                        ->map(fn($id): string => (string) $id)
                         ->toArray();
 
                     $mutualCount = count(array_diff(array_intersect($authConnIds, $peerConnIds), [$userId, $peerIdStr]));
@@ -4616,7 +4651,7 @@ class SpeedNetworkingService
                         $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
                     }
                 } catch (\Throwable $p2pEx) {
-                    Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
+                    Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: ' . $p2pEx->getMessage());
                 }
             }
 
@@ -4629,8 +4664,8 @@ class SpeedNetworkingService
 
             $peerLifeImpact = $this->resolveUserLifeImpact($peer, $event);
 
-            $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (! empty($peer->is_pro));
-            $companyName = ! empty($peer->company_name) ? (string) $peer->company_name : (! empty($peer->company) ? (string) $peer->company : null);
+            $isPro = method_exists($peer, 'isPro') ? (bool) $peer->isPro() : (!empty($peer->is_pro));
+            $companyName = !empty($peer->company_name) ? (string) $peer->company_name : (!empty($peer->company) ? (string) $peer->company : null);
             $skillsList = is_array($peer->skills) ? array_values(array_filter(array_map('strval', $peer->skills))) : (is_string($peer->skills) ? (json_decode($peer->skills, true) ?: [trim($peer->skills)]) : []);
             $businessCategory = $peer->level4_category ?? $peer->business_category ?? null;
             $resolvedIndustry = $businessCategory ?: ($peer->business_sub_category ?: ($peer->company_type ?: ($skillsList[0] ?? 'Business & Entrepreneurship')));
@@ -4650,18 +4685,18 @@ class SpeedNetworkingService
                 'last_name' => (string) ($peer->last_name ?? ''),
                 'company' => $companyName,
                 'company_name' => $companyName,
-                'designation' => ! empty($peer->designation) ? (string) $peer->designation : null,
+                'designation' => !empty($peer->designation) ? (string) $peer->designation : null,
                 'business_category' => $resolvedCategory,
                 'business_category_name' => $resolvedCategory,
                 'level4_category' => $resolvedCategory,
                 'industry' => $resolvedIndustry,
                 'category' => $resolvedCategory,
                 'skills' => $skillsList,
-                'avatar_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
-                'profile_photo_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
-                'profile_image_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
-                'profile_photo_image' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
-                'city' => ! empty($peer->city) ? (string) $peer->city : null,
+                'avatar_url' => !empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'profile_photo_url' => !empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'profile_image_url' => !empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'profile_photo_image' => !empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'city' => !empty($peer->city) ? (string) $peer->city : null,
                 'bio' => $bio !== '' ? $bio : null,
                 'round' => (int) $match->round_number,
                 'interaction_duration_seconds' => $duration,
@@ -4714,7 +4749,7 @@ class SpeedNetworkingService
 
         $qualifyingPeersCount = count(array_filter(
             $interactedPeers,
-            static fn (array $peerItem): bool => ($peerItem['p2p_logged'] ?? false) === true
+            static fn(array $peerItem): bool => ($peerItem['p2p_logged'] ?? false) === true
                 && ((int) ($peerItem['interaction_duration_seconds'] ?? 0)) >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS
         ));
 
@@ -4902,7 +4937,7 @@ class SpeedNetworkingService
                     ->get();
 
                 $qualifyingEventMatchesCount = $eventMatches->filter(
-                    static fn (SpeedNetworkingMatch $m): bool => $m->qualifiesForP2pRewards((int) $event->round_duration_seconds)
+                    static fn(SpeedNetworkingMatch $m): bool => $m->qualifiesForP2pRewards((int) $event->round_duration_seconds)
                 )->count();
 
                 if ($qualifyingEventMatchesCount > 0) {
@@ -4952,7 +4987,7 @@ class SpeedNetworkingService
         if (Schema::hasTable('speed_networking_events')) {
             $query = SpeedNetworkingEvent::query()
                 ->where(function ($q) use ($eventIds): void {
-                    if (! empty($eventIds)) {
+                    if (!empty($eventIds)) {
                         $q->whereIn('id', $eventIds);
                     }
                     $q->orWhere('status', SpeedNetworkingEvent::STATUS_COMPLETED)
@@ -5038,7 +5073,7 @@ class SpeedNetworkingService
      */
     public function getAdminHistory(array $filters = [], int $perPage = 15): array
     {
-        if (! Schema::hasTable('speed_networking_events')) {
+        if (!Schema::hasTable('speed_networking_events')) {
             return [
                 'data' => [],
                 'pagination' => [
@@ -5059,7 +5094,7 @@ class SpeedNetworkingService
             ->orderBy('scheduled_start_time', 'desc')
             ->orderBy('created_at', 'desc');
 
-        if (! empty($filters['search'])) {
+        if (!empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function ($q) use ($search): void {
                 $q->where('title', 'like', "%{$search}%")
@@ -5223,14 +5258,14 @@ class SpeedNetworkingService
                     try {
                         $pushService->storeAndSend($user, $title, $body, $payload, $payload);
                     } catch (\Throwable $pe) {
-                        Log::warning('[SpeedNetworkingService] Push failed for user '.$user->id.': '.$pe->getMessage());
+                        Log::warning('[SpeedNetworkingService] Push failed for user ' . $user->id . ': ' . $pe->getMessage());
                     }
                 }
             }
 
-            Log::info('[SpeedNetworkingService] Sent live notification to '.count($users).' attendees for event '.$event->id);
+            Log::info('[SpeedNetworkingService] Sent live notification to ' . count($users) . ' attendees for event ' . $event->id);
         } catch (\Throwable $e) {
-            Log::error('[SpeedNetworkingService] notifyAttendeesEventStarted error: '.$e->getMessage());
+            Log::error('[SpeedNetworkingService] notifyAttendeesEventStarted error: ' . $e->getMessage());
         }
     }
 
@@ -5242,7 +5277,7 @@ class SpeedNetworkingService
      */
     public function checkAndAutoStartScheduledEvents(): array
     {
-        if (! Schema::hasTable('speed_networking_events')) {
+        if (!Schema::hasTable('speed_networking_events')) {
             return [];
         }
 
@@ -5269,8 +5304,8 @@ class SpeedNetworkingService
                         $baseEnd = Carbon::parse($baseEvent->end_at);
                         if ($baseEnd->greaterThan($baseStart)) {
                             $baseDurSec = max(60, (int) abs($baseStart->diffInSeconds($baseEnd, true)));
-                            $needsSync = ! $candidate->scheduled_start_time
-                                || ! $candidate->scheduled_end_time
+                            $needsSync = !$candidate->scheduled_start_time
+                                || !$candidate->scheduled_end_time
                                 || $candidate->scheduled_start_time->ne($baseStart)
                                 || $candidate->scheduled_end_time->ne($baseEnd);
 
@@ -5299,9 +5334,9 @@ class SpeedNetworkingService
             if ($schedEnd && $now->greaterThanOrEqualTo($schedEnd)) {
                 try {
                     $this->endEvent($candidate);
-                    Log::info('[SpeedNetworkingService] Auto-ended expired event '.$candidate->id.' at scheduled_end_time '.$schedEnd);
+                    Log::info('[SpeedNetworkingService] Auto-ended expired event ' . $candidate->id . ' at scheduled_end_time ' . $schedEnd);
                 } catch (\Throwable $th) {
-                    Log::error('[SpeedNetworkingService] Failed to auto-end event '.$candidate->id.': '.$th->getMessage());
+                    Log::error('[SpeedNetworkingService] Failed to auto-end event ' . $candidate->id . ': ' . $th->getMessage());
                 }
             }
         }
@@ -5326,12 +5361,183 @@ class SpeedNetworkingService
             try {
                 $startedEvent = $this->startEvent($event);
                 $started[] = $startedEvent;
-                Log::info('[SpeedNetworkingService] Auto-started event '.$event->id.' at scheduled time '.$event->scheduled_start_time);
+                Log::info('[SpeedNetworkingService] Auto-started event ' . $event->id . ' at scheduled time ' . $event->scheduled_start_time);
             } catch (\Throwable $th) {
-                Log::error('[SpeedNetworkingService] Failed to auto-start event '.$event->id.': '.$th->getMessage());
+                Log::error('[SpeedNetworkingService] Failed to auto-start event ' . $event->id . ': ' . $th->getMessage());
             }
         }
 
         return $started;
+    }
+
+    /**
+     * Extend an active 1-on-1 P2P Speed Collaboration connection by exactly 60 seconds.
+     *
+     * Rules enforced authoritatively on the server:
+     * - Permitted at ANY time while the connection is active and valid (no remaining-time threshold).
+     * - Initial duration is resolved dynamically from event configuration.
+     * - Adds exactly 60 seconds to existing call_expires_at (preserving remaining time).
+     * - Strictly ONE extension per connection shared by both participants (atomic row lock + conditional update).
+     *
+     * @return array<string, mixed>
+     */
+    public function extendMatchConnection(SpeedNetworkingEvent $event, User $user, ?string $matchId = null): array
+    {
+        $this->ensureSpeedNetworkingSchema();
+
+        $userId = (string) $user->id;
+        $now = Carbon::now();
+        $nowUtc = $now->copy()->utc();
+        $roundDuration = max(1, (int) $event->round_duration_seconds);
+
+        return DB::transaction(function () use ($event, $userId, $matchId, $now, $nowUtc, $roundDuration): array {
+            $query = SpeedNetworkingMatch::query()
+                ->where('event_id', $event->id)
+                ->where(function ($q) use ($userId): void {
+                    $q->where('user_a_id', $userId)
+                        ->orWhere('user_b_id', $userId);
+                });
+
+            if ($matchId !== null && $matchId !== '') {
+                $query->where('id', $matchId);
+            } else {
+                $query->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+                    ->where('match_status', SpeedNetworkingMatch::MATCH_STATUS_IN_CALL)
+                    ->whereNotNull('user_b_id')
+                    ->latest('created_at');
+            }
+
+            /** @var SpeedNetworkingMatch|null $locked */
+            $locked = $query->lockForUpdate()->first();
+
+            if (!$locked) {
+                return [
+                    'ok' => false,
+                    'http_status' => 404,
+                    'code' => 'connection_not_found',
+                    'message' => 'No active Speed Collaboration connection found to extend.',
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            if (
+                $locked->isBreakRound()
+                || $locked->status !== SpeedNetworkingMatch::STATUS_ACTIVE
+                || $locked->match_status !== SpeedNetworkingMatch::MATCH_STATUS_IN_CALL
+                || $locked->ended_at !== null
+            ) {
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'connection_inactive',
+                    'message' => 'This connection is no longer active and cannot be extended.',
+                    'match_id' => (string) $locked->id,
+                    'match_status' => (string) ($locked->match_status ?: $locked->status),
+                    'extension_used' => (bool) ($locked->extension_used ?? false),
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $currentExpiresAt = $locked->resolveCallExpiresAt($roundDuration);
+            if ($currentExpiresAt === null || $now->greaterThanOrEqualTo($currentExpiresAt)) {
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'connection_expired',
+                    'message' => 'This connection has already expired and cannot be extended.',
+                    'match_id' => (string) $locked->id,
+                    'match_status' => (string) $locked->match_status,
+                    'call_expires_at' => $currentExpiresAt?->copy()->utc()->toISOString(),
+                    'remaining_seconds' => 0,
+                    'extension_used' => (bool) ($locked->extension_used ?? false),
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            if ((bool) ($locked->extension_used ?? false)) {
+                $payload = $this->formatMatchResponse($event, $locked, $userId);
+
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'already_extended',
+                    'message' => 'This connection has already been extended once.',
+                    'match_id' => (string) $locked->id,
+                    'match' => $payload,
+                    'call_expires_at' => $payload['call_expires_at'],
+                    'remaining_seconds' => $payload['remaining_seconds'],
+                    'extension_used' => true,
+                    'extended_seconds' => (int) ($locked->extended_seconds ?: SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS),
+                    'extended_at' => $locked->extended_at?->copy()->utc()->toISOString(),
+                    'extended_by_user_id' => $locked->extended_by_user_id ? (string) $locked->extended_by_user_id : null,
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $extensionSeconds = SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS;
+            $newExpiresAt = $currentExpiresAt->copy()->addSeconds($extensionSeconds);
+
+            $updatedRows = SpeedNetworkingMatch::query()
+                ->where('id', $locked->id)
+                ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+                ->where('match_status', SpeedNetworkingMatch::MATCH_STATUS_IN_CALL)
+                ->where(function ($q): void {
+                    $q->where('extension_used', false)
+                        ->orWhereNull('extension_used');
+                })
+                ->update([
+                    'call_expires_at' => $newExpiresAt,
+                    'extension_used' => true,
+                    'extended_seconds' => $extensionSeconds,
+                    'extended_at' => $now,
+                    'extended_by_user_id' => $userId,
+                ]);
+
+            $refreshed = SpeedNetworkingMatch::find($locked->id) ?? $locked->fresh();
+
+            if ($updatedRows === 0) {
+                $payload = $this->formatMatchResponse($event, $refreshed, $userId);
+
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'already_extended',
+                    'message' => 'This connection has already been extended once.',
+                    'match_id' => (string) $refreshed->id,
+                    'match' => $payload,
+                    'call_expires_at' => $payload['call_expires_at'],
+                    'remaining_seconds' => $payload['remaining_seconds'],
+                    'extension_used' => true,
+                    'extended_seconds' => (int) ($refreshed->extended_seconds ?: $extensionSeconds),
+                    'extended_at' => $refreshed->extended_at?->copy()->utc()->toISOString(),
+                    'extended_by_user_id' => $refreshed->extended_by_user_id ? (string) $refreshed->extended_by_user_id : null,
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $payload = $this->formatMatchResponse($event, $refreshed, $userId);
+
+            return [
+                'ok' => true,
+                'http_status' => 200,
+                'code' => 'extended',
+                'message' => 'Connection extended by 60 seconds.',
+                'match_id' => (string) $refreshed->id,
+                'match' => $payload,
+                'previous_call_expires_at' => $currentExpiresAt->copy()->utc()->toISOString(),
+                'call_expires_at' => $payload['call_expires_at'],
+                'remaining_seconds' => $payload['remaining_seconds'],
+                'extension_used' => true,
+                'extended_seconds' => $extensionSeconds,
+                'extended_at' => $refreshed->extended_at?->copy()->utc()->toISOString(),
+                'extended_by_user_id' => $userId,
+                'can_extend' => false,
+                'server_time' => $payload['server_time'],
+            ];
+        });
     }
 }

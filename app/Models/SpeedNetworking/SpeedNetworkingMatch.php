@@ -43,6 +43,10 @@ class SpeedNetworkingMatch extends Model
 
     public const MIN_QUALIFYING_DURATION_SECONDS = 120;
 
+    public const EXTENSION_DURATION_SECONDS = 60;
+
+    public const MAX_EXTENSIONS_PER_MATCH = 1;
+
     protected $table = 'speed_networking_matches';
 
     protected $primaryKey = 'id';
@@ -68,6 +72,10 @@ class SpeedNetworkingMatch extends Model
         'preview_expires_at',
         'call_started_at',
         'call_expires_at',
+        'extension_used',
+        'extended_seconds',
+        'extended_at',
+        'extended_by_user_id',
         'duration_seconds',
         'user_a_notes',
         'user_b_notes',
@@ -88,6 +96,9 @@ class SpeedNetworkingMatch extends Model
             'preview_expires_at' => 'datetime',
             'call_started_at' => 'datetime',
             'call_expires_at' => 'datetime',
+            'extension_used' => 'boolean',
+            'extended_seconds' => 'integer',
+            'extended_at' => 'datetime',
             'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
