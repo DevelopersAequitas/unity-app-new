@@ -182,6 +182,84 @@ class FcmService
         return $this->sendToDevice($token, $title, $body, $data, null, 1, $context, $imageUrl);
     }
 
+    /**
+     * Send a high-priority data-only FCM v1 message (no notification block),
+     * allowing Android to wake Flutter's background handler even when terminated.
+     */
+    public function sendDataOnlyToDevice(string $deviceToken, array $data = [], array $context = []): array
+    {
+        try {
+            $projectId = $this->projectId();
+            if ($projectId === '') {
+                throw new RuntimeException('Firebase project id is not configured.');
+            }
+
+            $accessToken = $this->getAccessToken();
+            $endpoint = sprintf('https://fcm.googleapis.com/v1/projects/%s/messages:send', $projectId);
+            $normalizedData = $this->normalizeData($data);
+
+            $payload = [
+                'message' => [
+                    'token' => $deviceToken,
+                    'android' => [
+                        'priority' => 'HIGH',
+                    ],
+                    'data' => $normalizedData === [] ? (object) [] : $normalizedData,
+                ],
+            ];
+
+            $response = Http::withToken($accessToken)
+                ->acceptJson()
+                ->post($endpoint, $payload);
+
+            $firebaseResponse = $response->json();
+            if (! is_array($firebaseResponse)) {
+                $firebaseResponse = ['raw_body' => $response->body()];
+            }
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'firebase_response' => $firebaseResponse,
+                    'error' => null,
+                ];
+            }
+
+            if ($this->isInvalidTokenResponse($firebaseResponse)) {
+                $tokenUpdates = [];
+                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                    $tokenUpdates['is_active'] = false;
+                }
+                if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                    $tokenUpdates['failed_at'] = now();
+                }
+                if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                    $tokenUpdates['failure_reason'] = ($firebaseResponse['error']['message'] ?? null) ?: 'Invalid Firebase token';
+                }
+                if ($tokenUpdates !== []) {
+                    UserPushToken::where('token', $deviceToken)->update($tokenUpdates);
+                }
+            }
+
+            return [
+                'success' => false,
+                'firebase_response' => $firebaseResponse,
+                'error' => 'FCM data-only send failed with HTTP status '.$response->status().'.',
+            ];
+        } catch (Throwable $throwable) {
+            Log::warning('FCM data-only send exception: '.$throwable->getMessage(), [
+                'token_masked' => $this->maskToken($deviceToken),
+                'context' => $context,
+            ]);
+
+            return [
+                'success' => false,
+                'firebase_response' => null,
+                'error' => $throwable->getMessage(),
+            ];
+        }
+    }
+
     public function buildMessagePayload(
         string $deviceToken,
         string $title,

@@ -33,6 +33,9 @@ class UserPushToken extends Model
         'last_update_notification_sent_at',
         'failed_at',
         'failure_reason',
+        'live_activity_push_to_start_token',
+        'live_activity_token',
+        'live_activity_event_id',
     ];
 
     protected $casts = [
