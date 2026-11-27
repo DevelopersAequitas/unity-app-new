@@ -14,6 +14,7 @@ use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
+use App\Services\Peers\PeerNoteService;
 use App\Services\SpeedNetworking\AgoraTokenService;
 use App\Services\SpeedNetworking\SpeedNetworkingP2pService;
 use App\Services\SpeedNetworking\SpeedNetworkingService;
@@ -288,6 +289,12 @@ class SpeedNetworkingApiController extends Controller
             'preview_expires_at' => $data['preview_expires_at'] ?? null,
             'call_started_at' => $data['call_started_at'] ?? null,
             'call_expires_at' => $data['call_expires_at'] ?? null,
+            'extension_used' => (bool) ($data['extension_used'] ?? false),
+            'extended_seconds' => (int) ($data['extended_seconds'] ?? 0),
+            'extension_duration_seconds' => (int) ($data['extension_duration_seconds'] ?? SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS),
+            'extended_at' => $data['extended_at'] ?? null,
+            'extended_by_user_id' => $data['extended_by_user_id'] ?? null,
+            'can_extend' => (bool) ($data['can_extend'] ?? false),
             'server_time' => $serverTime,
             'match_status' => (string) ($data['match_status'] ?? 'preview'),
             'my_decision' => (string) ($data['my_decision'] ?? 'pending'),
@@ -2490,6 +2497,16 @@ class SpeedNetworkingApiController extends Controller
                     $match = $match->fresh() ?? $match;
                 }
 
+                if ($notes !== '') {
+                    $resolvedPeerId = $peerId !== ''
+                        ? $peerId
+                        : (string) ($isUserA ? $match->user_b_id : $match->user_a_id);
+
+                    if ($resolvedPeerId !== '' && $resolvedPeerId !== $userId) {
+                        app(PeerNoteService::class)->syncFromSpeedNetworking($userId, $resolvedPeerId, $notes);
+                    }
+                }
+
                 $qualifies = $effectiveDuration >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS && $logP2p;
 
                 if (! $qualifies) {
@@ -2588,5 +2605,94 @@ class SpeedNetworkingApiController extends Controller
             'data' => $result['data'],
             'pagination' => $result['pagination'],
         ]);
+    }
+
+    /**
+     * Extend an active 1-on-1 Speed Collaboration connection by 60 seconds (once per connection, at any time).
+     */
+    public function extendConnection(Request $request, string $eventId): JsonResponse
+    {
+        return $this->withIdempotency($request, $eventId, 'extend_connection', function () use ($request, $eventId): JsonResponse {
+            $user = $request->user();
+            if (! $user) {
+                return response()->json([
+                    'status' => 'error',
+                    'success' => false,
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
+
+            $validated = $request->validate([
+                'match_id' => ['nullable', 'uuid'],
+            ]);
+
+            $event = $this->resolveSpeedNetworkingEvent($eventId);
+            if (! $event) {
+                return response()->json([
+                    'status' => 'error',
+                    'success' => false,
+                    'code' => 'event_not_found',
+                    'message' => 'Speed Collaboration event not found.',
+                ], 404);
+            }
+
+            if ($denied = $this->authorizeEventAccess($event, $user)) {
+                return $denied;
+            }
+
+            $matchId = isset($validated['match_id']) ? (string) $validated['match_id'] : null;
+            $result = $this->speedNetworkingService->extendMatchConnection($event, $user, $matchId);
+            $httpStatus = (int) ($result['http_status'] ?? 200);
+            $agoraAppId = $this->getAgoraAppId();
+
+            $formattedMatch = isset($result['match']) && is_array($result['match'])
+                ? $this->formatControllerMatchPayload($event, $result['match'], $agoraAppId)
+                : null;
+
+            if (! ($result['ok'] ?? false)) {
+                return response()->json([
+                    'status' => (string) ($result['code'] ?? 'error'),
+                    'success' => false,
+                    'code' => (string) ($result['code'] ?? 'error'),
+                    'message' => (string) ($result['message'] ?? 'Unable to extend connection.'),
+                    'data' => [
+                        'event_id' => (string) $event->id,
+                        'match_id' => $result['match_id'] ?? $matchId,
+                        'call_expires_at' => $result['call_expires_at'] ?? null,
+                        'remaining_seconds' => $result['remaining_seconds'] ?? null,
+                        'extension_used' => (bool) ($result['extension_used'] ?? false),
+                        'extended_seconds' => (int) ($result['extended_seconds'] ?? 0),
+                        'extension_duration_seconds' => SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS,
+                        'extended_at' => $result['extended_at'] ?? null,
+                        'extended_by_user_id' => $result['extended_by_user_id'] ?? null,
+                        'can_extend' => false,
+                        'server_time' => $result['server_time'] ?? Carbon::now()->utc()->toISOString(),
+                        'match' => $formattedMatch,
+                    ],
+                ], $httpStatus);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'code' => 'extended',
+                'message' => (string) $result['message'],
+                'data' => [
+                    'event_id' => (string) $event->id,
+                    'match_id' => (string) $result['match_id'],
+                    'previous_call_expires_at' => $result['previous_call_expires_at'],
+                    'call_expires_at' => $result['call_expires_at'],
+                    'remaining_seconds' => (int) $result['remaining_seconds'],
+                    'extension_used' => true,
+                    'extended_seconds' => (int) $result['extended_seconds'],
+                    'extension_duration_seconds' => SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS,
+                    'extended_at' => $result['extended_at'],
+                    'extended_by_user_id' => $result['extended_by_user_id'],
+                    'can_extend' => false,
+                    'server_time' => $result['server_time'],
+                    'match' => $formattedMatch,
+                ],
+            ], 200);
+        });
     }
 }

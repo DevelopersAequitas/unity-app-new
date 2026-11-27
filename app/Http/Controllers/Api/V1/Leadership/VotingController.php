@@ -217,6 +217,62 @@ class VotingController extends LeadershipBaseController
                     }
                 }
 
+                // 4.5. Strict Duplicate Vote Guard: One Vote per Nominee per Email
+                $targetNominationId = $leadershipNominationId ?? $rawCandId;
+
+                $hasDuplicateInLeadVotes = false;
+                if (\Illuminate\Support\Facades\Schema::hasTable('web_leadership_votes')) {
+                    $hasDuplicateInLeadVotes = \App\Models\Leadership\LeadershipVote::query()
+                        ->where(function ($q) use ($contactHash, $vEmail): void {
+                            $q->where('voter_contact_hash', $contactHash)
+                                ->orWhereRaw("LOWER(metadata->>'voter_email') = ?", [$vEmail]);
+                        })
+                        ->where(function ($q) use ($targetNominationId, $candidateEmail, $candidateName): void {
+                            if ($targetNominationId) {
+                                $q->where('nomination_id', $targetNominationId)
+                                    ->orWhereRaw("metadata->>'nomination_reference' = ?", [(string) $targetNominationId]);
+                            }
+                            if ($candidateEmail) {
+                                $q->orWhereRaw("LOWER(metadata->>'candidate_email') = ?", [strtolower($candidateEmail)]);
+                            }
+                            if ($candidateName) {
+                                $q->orWhereRaw("LOWER(metadata->>'candidate_name') = ?", [strtolower($candidateName)]);
+                            }
+                        })
+                        ->exists();
+                }
+
+                $hasDuplicateInWebVotes = false;
+                if (! $hasDuplicateInLeadVotes && \Illuminate\Support\Facades\Schema::hasTable('web_votes')) {
+                    $hasDuplicateInWebVotes = \App\Models\Web\WebVote::query()
+                        ->whereRaw('LOWER(voter_email) = ?', [$vEmail])
+                        ->where(function ($q) use ($targetNominationId, $candidateEmail, $candidateName): void {
+                            if ($targetNominationId) {
+                                $q->where('nomination_id', $targetNominationId);
+                            }
+                            if ($candidateEmail) {
+                                $q->orWhereRaw('LOWER(candidate_email) = ?', [strtolower($candidateEmail)]);
+                            }
+                            if ($candidateName) {
+                                $q->orWhereRaw('LOWER(candidate_name) = ?', [strtolower($candidateName)]);
+                            }
+                        })
+                        ->exists();
+                }
+
+                if ($hasDuplicateInLeadVotes || $hasDuplicateInWebVotes) {
+                    return response()->json([
+                        'success' => false,
+                        'already_voted' => true,
+                        'message' => "You have already voted for this nominee with {$vEmail}. In accordance with Peers Global election governance rules, only one vote per member is permitted for each leadership role.",
+                        'data' => [
+                            'already_voted' => true,
+                            'voter_email' => $vEmail,
+                            'candidate_name' => $candidateName,
+                        ],
+                    ], 422);
+                }
+
                 // 5. Record into web_votes if table exists
                 if (\Illuminate\Support\Facades\Schema::hasTable('web_votes')) {
                     try {

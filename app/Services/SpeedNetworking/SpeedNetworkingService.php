@@ -46,7 +46,13 @@ class SpeedNetworkingService
             && Schema::hasTable('speed_networking_event_skips')
             && Schema::hasColumn('speed_networking_event_skips', 'skip_count')
             && (! Schema::hasTable('speed_networking_events') || (Schema::hasColumn('speed_networking_events', 'max_skip_limit') && Schema::hasColumn('speed_networking_events', 'preview_duration_seconds')))
-            && (! Schema::hasTable('speed_networking_matches') || Schema::hasColumn('speed_networking_matches', 'call_expires_at'))
+            && (! Schema::hasTable('speed_networking_matches') || (
+                Schema::hasColumn('speed_networking_matches', 'call_expires_at')
+                && Schema::hasColumn('speed_networking_matches', 'extension_used')
+                && Schema::hasColumn('speed_networking_matches', 'extended_seconds')
+                && Schema::hasColumn('speed_networking_matches', 'extended_at')
+                && Schema::hasColumn('speed_networking_matches', 'extended_by_user_id')
+            ))
         ) {
             return;
         }
@@ -85,6 +91,18 @@ class SpeedNetworkingService
                     }
                     if (! Schema::hasColumn('speed_networking_matches', 'call_expires_at')) {
                         $table->timestamp('call_expires_at')->nullable()->index();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'extension_used')) {
+                        $table->boolean('extension_used')->default(false);
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'extended_seconds')) {
+                        $table->integer('extended_seconds')->default(0);
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'extended_at')) {
+                        $table->timestamp('extended_at')->nullable();
+                    }
+                    if (! Schema::hasColumn('speed_networking_matches', 'extended_by_user_id')) {
+                        $table->string('extended_by_user_id', 64)->nullable();
                     }
                     if (! Schema::hasColumn('speed_networking_matches', 'duration_seconds')) {
                         $table->integer('duration_seconds')->nullable();
@@ -4158,6 +4176,15 @@ class SpeedNetworkingService
             $remainingSeconds = max(0, (int) $nowUtc->diffInSeconds($callExpiresAt->copy()->utc(), false));
         }
 
+        $extensionUsed = (bool) ($match->extension_used ?? false);
+        $extendedSeconds = (int) ($match->extended_seconds ?? 0);
+        $canExtend = ! $isBreak
+            && $match->status === SpeedNetworkingMatch::STATUS_ACTIVE
+            && $matchStatus === SpeedNetworkingMatch::MATCH_STATUS_IN_CALL
+            && $match->ended_at === null
+            && ! $extensionUsed
+            && $remainingSeconds > 0;
+
         $partnerId = (string) ($isUserA ? $match->user_b_id : $match->user_a_id);
         $pairSkipInfo = $partnerId !== ''
             ? $this->getPairSkipInfo((string) $event->id, $currentUserId, $partnerId)
@@ -4183,6 +4210,12 @@ class SpeedNetworkingService
             'preview_expires_at' => $match->preview_expires_at?->copy()->utc()->toISOString(),
             'call_started_at' => $callStartedAt?->copy()->utc()->toISOString(),
             'call_expires_at' => $callExpiresAt?->copy()->utc()->toISOString(),
+            'extension_used' => $extensionUsed,
+            'extended_seconds' => $extendedSeconds,
+            'extension_duration_seconds' => SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS,
+            'extended_at' => $match->extended_at?->copy()->utc()->toISOString(),
+            'extended_by_user_id' => $match->extended_by_user_id ? (string) $match->extended_by_user_id : null,
+            'can_extend' => $canExtend,
             'server_time' => $nowUtc->toISOString(),
             'channel_id' => $match->channel_id ?: '',
             'agora_app_id' => $this->getAgoraAppId(),
@@ -5333,5 +5366,176 @@ class SpeedNetworkingService
         }
 
         return $started;
+    }
+
+    /**
+     * Extend an active 1-on-1 P2P Speed Collaboration connection by exactly 60 seconds.
+     *
+     * Rules enforced authoritatively on the server:
+     * - Permitted at ANY time while the connection is active and valid (no remaining-time threshold).
+     * - Initial duration is resolved dynamically from event configuration.
+     * - Adds exactly 60 seconds to existing call_expires_at (preserving remaining time).
+     * - Strictly ONE extension per connection shared by both participants (atomic row lock + conditional update).
+     *
+     * @return array<string, mixed>
+     */
+    public function extendMatchConnection(SpeedNetworkingEvent $event, User $user, ?string $matchId = null): array
+    {
+        $this->ensureSpeedNetworkingSchema();
+
+        $userId = (string) $user->id;
+        $now = Carbon::now();
+        $nowUtc = $now->copy()->utc();
+        $roundDuration = max(1, (int) $event->round_duration_seconds);
+
+        return DB::transaction(function () use ($event, $userId, $matchId, $now, $nowUtc, $roundDuration): array {
+            $query = SpeedNetworkingMatch::query()
+                ->where('event_id', $event->id)
+                ->where(function ($q) use ($userId): void {
+                    $q->where('user_a_id', $userId)
+                        ->orWhere('user_b_id', $userId);
+                });
+
+            if ($matchId !== null && $matchId !== '') {
+                $query->where('id', $matchId);
+            } else {
+                $query->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+                    ->where('match_status', SpeedNetworkingMatch::MATCH_STATUS_IN_CALL)
+                    ->whereNotNull('user_b_id')
+                    ->latest('created_at');
+            }
+
+            /** @var SpeedNetworkingMatch|null $locked */
+            $locked = $query->lockForUpdate()->first();
+
+            if (! $locked) {
+                return [
+                    'ok' => false,
+                    'http_status' => 404,
+                    'code' => 'connection_not_found',
+                    'message' => 'No active Speed Collaboration connection found to extend.',
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            if (
+                $locked->isBreakRound()
+                || $locked->status !== SpeedNetworkingMatch::STATUS_ACTIVE
+                || $locked->match_status !== SpeedNetworkingMatch::MATCH_STATUS_IN_CALL
+                || $locked->ended_at !== null
+            ) {
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'connection_inactive',
+                    'message' => 'This connection is no longer active and cannot be extended.',
+                    'match_id' => (string) $locked->id,
+                    'match_status' => (string) ($locked->match_status ?: $locked->status),
+                    'extension_used' => (bool) ($locked->extension_used ?? false),
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $currentExpiresAt = $locked->resolveCallExpiresAt($roundDuration);
+            if ($currentExpiresAt === null || $now->greaterThanOrEqualTo($currentExpiresAt)) {
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'connection_expired',
+                    'message' => 'This connection has already expired and cannot be extended.',
+                    'match_id' => (string) $locked->id,
+                    'match_status' => (string) $locked->match_status,
+                    'call_expires_at' => $currentExpiresAt?->copy()->utc()->toISOString(),
+                    'remaining_seconds' => 0,
+                    'extension_used' => (bool) ($locked->extension_used ?? false),
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            if ((bool) ($locked->extension_used ?? false)) {
+                $payload = $this->formatMatchResponse($event, $locked, $userId);
+
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'already_extended',
+                    'message' => 'This connection has already been extended once.',
+                    'match_id' => (string) $locked->id,
+                    'match' => $payload,
+                    'call_expires_at' => $payload['call_expires_at'],
+                    'remaining_seconds' => $payload['remaining_seconds'],
+                    'extension_used' => true,
+                    'extended_seconds' => (int) ($locked->extended_seconds ?: SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS),
+                    'extended_at' => $locked->extended_at?->copy()->utc()->toISOString(),
+                    'extended_by_user_id' => $locked->extended_by_user_id ? (string) $locked->extended_by_user_id : null,
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $extensionSeconds = SpeedNetworkingMatch::EXTENSION_DURATION_SECONDS;
+            $newExpiresAt = $currentExpiresAt->copy()->addSeconds($extensionSeconds);
+
+            $updatedRows = SpeedNetworkingMatch::query()
+                ->where('id', $locked->id)
+                ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+                ->where('match_status', SpeedNetworkingMatch::MATCH_STATUS_IN_CALL)
+                ->where(function ($q): void {
+                    $q->where('extension_used', false)
+                        ->orWhereNull('extension_used');
+                })
+                ->update([
+                    'call_expires_at' => $newExpiresAt,
+                    'extension_used' => true,
+                    'extended_seconds' => $extensionSeconds,
+                    'extended_at' => $now,
+                    'extended_by_user_id' => $userId,
+                ]);
+
+            $refreshed = SpeedNetworkingMatch::find($locked->id) ?? $locked->fresh();
+
+            if ($updatedRows === 0) {
+                $payload = $this->formatMatchResponse($event, $refreshed, $userId);
+
+                return [
+                    'ok' => false,
+                    'http_status' => 409,
+                    'code' => 'already_extended',
+                    'message' => 'This connection has already been extended once.',
+                    'match_id' => (string) $refreshed->id,
+                    'match' => $payload,
+                    'call_expires_at' => $payload['call_expires_at'],
+                    'remaining_seconds' => $payload['remaining_seconds'],
+                    'extension_used' => true,
+                    'extended_seconds' => (int) ($refreshed->extended_seconds ?: $extensionSeconds),
+                    'extended_at' => $refreshed->extended_at?->copy()->utc()->toISOString(),
+                    'extended_by_user_id' => $refreshed->extended_by_user_id ? (string) $refreshed->extended_by_user_id : null,
+                    'can_extend' => false,
+                    'server_time' => $nowUtc->toISOString(),
+                ];
+            }
+
+            $payload = $this->formatMatchResponse($event, $refreshed, $userId);
+
+            return [
+                'ok' => true,
+                'http_status' => 200,
+                'code' => 'extended',
+                'message' => 'Connection extended by 60 seconds.',
+                'match_id' => (string) $refreshed->id,
+                'match' => $payload,
+                'previous_call_expires_at' => $currentExpiresAt->copy()->utc()->toISOString(),
+                'call_expires_at' => $payload['call_expires_at'],
+                'remaining_seconds' => $payload['remaining_seconds'],
+                'extension_used' => true,
+                'extended_seconds' => $extensionSeconds,
+                'extended_at' => $refreshed->extended_at?->copy()->utc()->toISOString(),
+                'extended_by_user_id' => $userId,
+                'can_extend' => false,
+                'server_time' => $payload['server_time'],
+            ];
+        });
     }
 }
