@@ -91,6 +91,9 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
         }
 
         $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $creativeId = $this->nomination->id;
+        $creativeViewUrl = "{$frontendUrl}/api/leadership/creative/{$creativeId}?action=view";
+        $creativeDownloadUrl = "{$frontendUrl}/api/leadership/creative/{$creativeId}?action=download";
 
         return new Content(
             view: 'emails.leadership.nomination_approved',
@@ -108,6 +111,8 @@ class LeadershipNominationApprovedMail extends Mailable implements ShouldQueue
                 'applicationNumber' => $this->nomination->application_number,
                 'logoUrl' => $logoUrl,
                 'creativeUrl' => $creativeUrlWithVersion ?: $creativeUrl,
+                'creativeViewUrl' => $creativeViewUrl,
+                'creativeDownloadUrl' => $creativeDownloadUrl,
                 'creativePath' => $path,
                 'websiteUrl' => $frontendUrl,
             ],

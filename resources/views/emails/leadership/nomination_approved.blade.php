@@ -128,16 +128,16 @@
 
                                 @if (!empty($embedCreativeSrc))
                                 <div style="text-align:center; margin:18px 0;">
-                                    <a href="{{ $creativeUrl ?? '#' }}" target="_blank" style="text-decoration:none; display:inline-block; max-width:420px; width:100%;">
+                                    <a href="{{ $creativeViewUrl ?? $creativeUrl ?? '#' }}" target="_blank" style="text-decoration:none; display:inline-block; max-width:420px; width:100%;">
                                         <img src="{{ $embedCreativeSrc }}" alt="Official Leadership Announcement Creative" width="420" style="max-width:100%; height:auto; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.08); border:1px solid #e2e8f0; display:block; margin:0 auto;" />
                                     </a>
                                 </div>
                                 @endif
 
                                 <div style="text-align:center; margin-top:14px;">
-                                    <span style="font-size:13.5px; color:#334155; font-weight:500;">Ready-to-share creative and message:</span><br>
-                                    @if (!empty($creativeUrl))
-                                    <a href="{{ $creativeUrl }}" target="_blank" style="display:inline-block; margin-top:10px; background-color:#ffffff; border:1px solid #cbd5e1; color:#0f172a; font-size:13.5px; font-weight:600; text-decoration:none; padding:9px 22px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+                                    <span style="font-size:13.5px; color:#334155; font-weight:500;">Ready-to-share creative</span><br>
+                                    @if (!empty($creativeDownloadUrl) || !empty($creativeUrl))
+                                    <a href="{{ $creativeDownloadUrl ?? $creativeUrl }}" target="_blank" style="display:inline-block; margin-top:10px; background-color:#ffffff; border:1px solid #cbd5e1; color:#0f172a; font-size:13.5px; font-weight:600; text-decoration:none; padding:9px 22px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
                                         Download Creative
                                     </a>
                                     @else
