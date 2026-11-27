@@ -952,7 +952,7 @@ class AdminNominationService
                     'role_name' => $roleName,
                     'application_number' => $appNumber,
                     'form_2_link' => $form2Link,
-                    'message' => "Congratulations {$candidateName}! You have been shortlisted for the Jury Evaluation phase for {$roleName} in {$campaignName}. Please complete your detailed Form 2 (Jury Evaluation Data Form): {$form2Link}",
+                    'message' => "Congratulations {$candidateName}! You have been shortlisted for the Jury Evaluation stage for {$roleName} in {$campaignName}. Please complete your Jury Form: {$form2Link}",
                 ];
 
                 $this->whatsappService->send(
