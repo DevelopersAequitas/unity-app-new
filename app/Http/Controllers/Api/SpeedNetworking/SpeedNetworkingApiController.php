@@ -14,6 +14,7 @@ use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
+use App\Services\Peers\PeerNoteService;
 use App\Services\SpeedNetworking\AgoraTokenService;
 use App\Services\SpeedNetworking\SpeedNetworkingP2pService;
 use App\Services\SpeedNetworking\SpeedNetworkingService;
@@ -2488,6 +2489,16 @@ class SpeedNetworkingApiController extends Controller
                 if (! empty($notesUpdates)) {
                     $match->update($notesUpdates);
                     $match = $match->fresh() ?? $match;
+                }
+
+                if ($notes !== '') {
+                    $resolvedPeerId = $peerId !== ''
+                        ? $peerId
+                        : (string) ($isUserA ? $match->user_b_id : $match->user_a_id);
+
+                    if ($resolvedPeerId !== '' && $resolvedPeerId !== $userId) {
+                        app(PeerNoteService::class)->syncFromSpeedNetworking($userId, $resolvedPeerId, $notes);
+                    }
                 }
 
                 $qualifies = $effectiveDuration >= SpeedNetworkingMatch::MIN_QUALIFYING_DURATION_SECONDS && $logP2p;

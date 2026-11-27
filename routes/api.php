@@ -189,6 +189,7 @@ use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\Peers\PeerBadgeController;
+use App\Http\Controllers\Api\V1\Peers\PeerNoteController;
 use App\Http\Controllers\Api\V1\Peers\TopPeersController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
@@ -786,6 +787,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/members/{member_id}/introduced-peers', [ProfileController::class, 'memberIntroducedPeers'])
             ->whereUuid('member_id');
         Route::get('/members/{peerId}/badges', [PeerBadgeController::class, 'index'])->whereUuid('peerId');
+        Route::get('/members/{peerId}/note', [PeerNoteController::class, 'show'])->whereUuid('peerId');
+        Route::match(['put', 'post'], '/members/{peerId}/note', [PeerNoteController::class, 'upsert'])->whereUuid('peerId');
         Route::get('/users/{peerId}/badges', [PeerBadgeController::class, 'index'])->whereUuid('peerId');
         Route::get('members/names', [MemberController::class, 'names']);
         Route::get('members/limited', [MemberController::class, 'limitedList']);
