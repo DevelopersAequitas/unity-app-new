@@ -289,6 +289,10 @@ Route::prefix('auth')->group(function () {
     Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
     Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
+    Route::post('social/apple', [SocialAuthController::class, 'appleLogin']);
+    Route::post('apple/login', [SocialAuthController::class, 'appleLogin']);
+    Route::post('apple/verify', [SocialAuthController::class, 'appleLogin']);
+    Route::match(['get', 'post'], 'apple/callback', [SocialAuthController::class, 'appleCallback']);
     Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
@@ -418,6 +422,10 @@ Route::prefix('v1')->group(function () {
         Route::post('facebook/login', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/verify', [SocialAuthController::class, 'facebookLogin']);
         Route::post('facebook/data-deletion', [SocialAuthController::class, 'facebookDataDeletion']);
+        Route::post('social/apple', [SocialAuthController::class, 'appleLogin']);
+        Route::post('apple/login', [SocialAuthController::class, 'appleLogin']);
+        Route::post('apple/verify', [SocialAuthController::class, 'appleLogin']);
+        Route::match(['get', 'post'], 'apple/callback', [SocialAuthController::class, 'appleCallback']);
         Route::post('register/social-complete', [SocialAuthController::class, 'completeSocialRegistration']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);

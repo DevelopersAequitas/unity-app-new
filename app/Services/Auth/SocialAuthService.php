@@ -29,6 +29,7 @@ class SocialAuthService
             'google' => $this->verifyGoogle($token),
             'facebook' => $this->verifyFacebook($token),
             'linkedin' => $this->verifyLinkedIn($token),
+            'apple' => $this->verifyApple($token),
             default => throw new RuntimeException("Unsupported social provider: {$provider}"),
         };
 
@@ -236,5 +237,24 @@ class SocialAuthService
     public function verifyLinkedIn(string $codeOrToken): array
     {
         return app(LinkedInAuthService::class)->verifyLinkedIn($codeOrToken);
+    }
+
+    /**
+     * Verify Sign in with Apple OIDC identityToken JWT.
+     *
+     * @return array{
+     *     id: string,
+     *     email: ?string,
+     *     email_verified: bool,
+     *     is_private_email: bool,
+     *     first_name: string,
+     *     last_name: string,
+     *     name: string,
+     *     avatar: ?string
+     * }
+     */
+    public function verifyApple(string $identityToken, ?string $nonce = null): array
+    {
+        return app(AppleAuthService::class)->verifyIdentityToken($identityToken, $nonce);
     }
 }
