@@ -330,48 +330,11 @@ class PostResource extends JsonResource
                 }
 
                 // Resolve counterpart peer for Referral
-                if ($sourceType === 'referral' || in_array('referral', $tags, true) || $postType === 'referral') {
+                if ($sourceType === 'referral' || $postType === 'referral') {
                     $refId = $this->source_id ?? $this->id;
                     $ref = $refId ? Referral::find($refId) : null;
                     if ($ref && ! empty($ref->to_user_id) && (string) $ref->to_user_id !== $authorId) {
                         $candidatePeerIds[] = (string) $ref->to_user_id;
-                    }
-                }
-
-                // Resolve matched peers and responders for Ask
-                if ($sourceType === 'ask' || in_array('ask', $tags, true) || $postType === 'ask') {
-                    $askId = $this->source_id;
-                    if (! $askId) {
-                        $link = AskTimelineLink::query()->where('post_id', $this->id)->first();
-                        $askId = $link?->ask_id;
-                    }
-                    if ($askId) {
-                        $ask = Ask::query()
-                            ->with([
-                                'matches:id,ask_id,matched_user_id',
-                                'responses:id,ask_id,responder_user_id,introduced_user_id,status',
-                            ])
-                            ->find($askId);
-
-                        if ($ask) {
-                            if ($ask->relationLoaded('responses') && $ask->responses) {
-                                foreach ($ask->responses as $resp) {
-                                    if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
-                                        $candidatePeerIds[] = (string) $resp->responder_user_id;
-                                    }
-                                    if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
-                                        $candidatePeerIds[] = (string) $resp->introduced_user_id;
-                                    }
-                                }
-                            }
-                            if ($ask->relationLoaded('matches') && $ask->matches) {
-                                foreach ($ask->matches as $match) {
-                                    if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
-                                        $candidatePeerIds[] = (string) $match->matched_user_id;
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 

@@ -238,6 +238,14 @@ class PostController extends BaseApiController
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('posts.source_type')
+                    ->orWhere('posts.source_type', '!=', 'referral');
+            })
+            ->where(function ($q): void {
+                $q->whereNull('posts.post_type')
+                    ->orWhere('posts.post_type', '!=', 'referral');
+            })
             ->where(function ($authorOrSystemQuery): void {
                 $authorOrSystemQuery->whereIn('posts.post_type', [
                     'genie_birthday',
@@ -325,63 +333,6 @@ class PostController extends BaseApiController
                 });
 
             $union = $union->unionAll($impactRows);
-        }
-
-        if (Schema::hasTable('referrals')) {
-            $referralRows = DB::table('referrals')
-                ->leftJoin('users as to_users', 'to_users.id', '=', 'referrals.to_user_id')
-                ->selectRaw('referrals.id as id')
-                ->selectRaw('referrals.from_user_id as author_id')
-                ->selectRaw('NULL::uuid as circle_id')
-                ->selectRaw("COALESCE(referrals.remarks, 'Shared a referral for ' || referrals.referral_of) as content_text")
-                ->selectRaw("'[]'::jsonb as media")
-                ->selectRaw("'[\"referral\"]'::jsonb as tags")
-                ->selectRaw("'public' as visibility")
-                ->selectRaw("'approved' as moderation_status")
-                ->selectRaw('0 as likes_count')
-                ->selectRaw('0 as comments_count')
-                ->selectRaw('0 as saves_count')
-                ->selectRaw('false as is_liked_by_me')
-                ->selectRaw('false as is_saved_by_me')
-                ->selectRaw('false as is_wished_by_me')
-                ->selectRaw('referrals.created_at as created_at')
-                ->selectRaw('referrals.updated_at as updated_at')
-                ->selectRaw('referrals.created_at as sort_at')
-                ->selectRaw("'post' as source_type")
-                ->selectRaw("'referral' as post_source_type")
-                ->selectRaw('referrals.id as post_source_id')
-                ->selectRaw("'referral_created' as post_source_event")
-                ->selectRaw('to_users.id as accepted_by_id')
-                ->selectRaw('to_users.display_name as accepted_by_display_name')
-                ->selectRaw('to_users.first_name as accepted_by_first_name')
-                ->selectRaw('to_users.last_name as accepted_by_last_name')
-                ->selectRaw('to_users.company_name as accepted_by_company_name')
-                ->selectRaw('to_users.city as accepted_by_city')
-                ->selectRaw('referrals.to_user_id as impacted_peer_id')
-                ->selectRaw('referrals.referral_date as impact_date')
-                ->selectRaw('referrals.referral_of as impact_action')
-                ->selectRaw('1 as life_impacted')
-                ->selectRaw("'referral' as post_type")
-                ->selectRaw('NULL::text as post_image')
-                ->where('referrals.is_deleted', false)
-                ->whereNull('referrals.deleted_at')
-                ->whereNotExists(function ($q): void {
-                    $q->select(DB::raw(1))
-                        ->from('posts')
-                        ->whereColumn('posts.source_id', 'referrals.id')
-                        ->where('posts.source_type', 'referral');
-                })
-                ->whereExists(function ($authorQuery): void {
-                    $authorQuery->select(DB::raw(1))
-                        ->from('users as author_filter')
-                        ->whereColumn('author_filter.id', 'referrals.from_user_id')
-                        ->where(function ($sq): void {
-                            $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
-                        })
-                        ->whereNull('author_filter.deleted_at');
-                });
-
-            $union = $union->unionAll($referralRows);
         }
 
         $orderedRows = DB::query()->fromSub($union, 'feed_rows')->orderByDesc('sort_at');
@@ -996,7 +947,6 @@ class PostController extends BaseApiController
 
         $asksByPostId = collect();
         $asksById = collect();
-        $askPeerIdsByPostId = [];
 
         if (! empty($askPostIds) || ! empty($askSourceIds)) {
             $timelineLinks = AskTimelineLink::query()
@@ -1021,8 +971,6 @@ class PostController extends BaseApiController
                         'district',
                         'circle',
                         'user',
-                        'matches:id,ask_id,matched_user_id',
-                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
                     ])
                     ->withCount(['responses', 'matches'])
                     ->get();
@@ -1034,44 +982,6 @@ class PostController extends BaseApiController
                         $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
                     }
                 }
-
-                foreach ($pageRows as $row) {
-                    $postId = (string) $row->id;
-                    $authorId = (string) ($row->author_id ?? '');
-                    $ask = (! empty($row->post_source_id) ? $asksById->get((string) $row->post_source_id) : null)
-                        ?? $asksByPostId->get($postId);
-
-                    if ($ask) {
-                        $askPeers = [];
-                        if ($ask->relationLoaded('responses') && $ask->responses) {
-                            foreach ($ask->responses as $resp) {
-                                if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
-                                    $askPeers[] = (string) $resp->responder_user_id;
-                                }
-                                if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
-                                    $askPeers[] = (string) $resp->introduced_user_id;
-                                }
-                            }
-                        }
-                        if ($ask->relationLoaded('matches') && $ask->matches) {
-                            foreach ($ask->matches as $match) {
-                                if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
-                                    $askPeers[] = (string) $match->matched_user_id;
-                                }
-                            }
-                        }
-                        if ($askPeers !== []) {
-                            $askPeerIdsByPostId[$postId] = array_values(array_unique($askPeers));
-                        }
-                    }
-                }
-            }
-        }
-
-        $allAskPeerIds = [];
-        foreach ($askPeerIdsByPostId as $pIds) {
-            foreach ($pIds as $pId) {
-                $allAskPeerIds[] = $pId;
             }
         }
 
@@ -1087,7 +997,6 @@ class PostController extends BaseApiController
             $impactedPeerIds,
             $acceptedByIds,
             array_values($counterpartPeerIdByPostId),
-            $allAskPeerIds,
             $storedMentionPeerIds
         ))
             ->filter()
@@ -1219,7 +1128,7 @@ class PostController extends BaseApiController
             }
         }
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes, $recentLikesByPostId, $latestCommentsByPostId) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $activityCreativesByPostId, $celebrationSchedulesByPostId, $upgradedBirthdayMediaByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes, $recentLikesByPostId, $latestCommentsByPostId) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -1275,14 +1184,6 @@ class PostController extends BaseApiController
             $counterpartId = $counterpartPeerIdByPostId[(string) $row->id] ?? null;
             if ($counterpartId && (string) $counterpartId !== $authorId) {
                 $candidatePeerIds[] = (string) $counterpartId;
-            }
-
-            if (isset($askPeerIdsByPostId[(string) $row->id])) {
-                foreach ($askPeerIdsByPostId[(string) $row->id] as $askPeerId) {
-                    if ($askPeerId !== $authorId) {
-                        $candidatePeerIds[] = $askPeerId;
-                    }
-                }
             }
 
             $postSourceType = (string) ($row->post_source_type ?? '');
@@ -1891,6 +1792,14 @@ class PostController extends BaseApiController
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('posts.source_type')
+                    ->orWhere('posts.source_type', '!=', 'referral');
+            })
+            ->where(function ($q): void {
+                $q->whereNull('posts.post_type')
+                    ->orWhere('posts.post_type', '!=', 'referral');
+            })
             ->with([
                 'author:id,display_name,first_name,last_name,profile_photo_file_id',
                 'circle:id,name',
@@ -2789,48 +2698,11 @@ class PostController extends BaseApiController
         }
 
         // Resolve counterpart peer for Referral
-        if ($sourceType === 'referral' || in_array('referral', $tags, true) || $postType === 'referral') {
+        if ($sourceType === 'referral' || $postType === 'referral') {
             $refId = $post->source_id ?? $post->id;
             $ref = $refId ? Referral::find($refId) : null;
             if ($ref && ! empty($ref->to_user_id) && (string) $ref->to_user_id !== $authorId) {
                 $candidatePeerIds[] = (string) $ref->to_user_id;
-            }
-        }
-
-        // Resolve matched peers and responders for Ask
-        if ($sourceType === 'ask' || in_array('ask', $tags, true) || $postType === 'ask') {
-            $askId = $post->source_id;
-            if (! $askId) {
-                $link = AskTimelineLink::query()->where('post_id', $post->id)->first();
-                $askId = $link?->ask_id;
-            }
-            if ($askId) {
-                $ask = Ask::query()
-                    ->with([
-                        'matches:id,ask_id,matched_user_id',
-                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
-                    ])
-                    ->find($askId);
-
-                if ($ask) {
-                    if ($ask->relationLoaded('responses') && $ask->responses) {
-                        foreach ($ask->responses as $resp) {
-                            if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
-                                $candidatePeerIds[] = (string) $resp->responder_user_id;
-                            }
-                            if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
-                                $candidatePeerIds[] = (string) $resp->introduced_user_id;
-                            }
-                        }
-                    }
-                    if ($ask->relationLoaded('matches') && $ask->matches) {
-                        foreach ($ask->matches as $match) {
-                            if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
-                                $candidatePeerIds[] = (string) $match->matched_user_id;
-                            }
-                        }
-                    }
-                }
             }
         }
 

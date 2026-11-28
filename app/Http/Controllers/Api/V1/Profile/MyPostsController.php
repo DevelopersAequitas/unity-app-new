@@ -21,6 +21,14 @@ class MyPostsController extends BaseApiController
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('posts.source_type')
+                    ->orWhere('posts.source_type', '!=', 'referral');
+            })
+            ->where(function ($q): void {
+                $q->whereNull('posts.post_type')
+                    ->orWhere('posts.post_type', '!=', 'referral');
+            })
             ->with([
                 'author:id,display_name,profile_photo_file_id',
                 'comments' => function ($query) {

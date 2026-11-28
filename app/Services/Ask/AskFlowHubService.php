@@ -129,43 +129,11 @@ class AskFlowHubService
         }
 
         if ($normalizedFlow === 'referral') {
-            // Also retrieve peer referrals from referrals table
-            $refQuery = Referral::query()
-                ->where(function (Builder $q): void {
-                    $q->where('is_deleted', false)
-                        ->orWhereNull('is_deleted');
-                })
-                ->whereNull('deleted_at')
-                ->with(['fromUser', 'toUser', 'status'])
-                ->orderByDesc('created_at');
-
-            if ($search !== null) {
-                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-                $refQuery->where(function (Builder $sq) use ($like): void {
-                    $sq->where('referral_of', 'ILIKE', $like)
-                        ->orWhere('remarks', 'ILIKE', $like)
-                        ->orWhere('referral_type', 'ILIKE', $like)
-                        ->orWhereHas('fromUser', function (Builder $uq) use ($like): void {
-                            $uq->where('display_name', 'ILIKE', $like)
-                                ->orWhere('first_name', 'ILIKE', $like)
-                                ->orWhere('last_name', 'ILIKE', $like)
-                                ->orWhere('company_name', 'ILIKE', $like);
-                        })
-                        ->orWhereHas('toUser', function (Builder $uq) use ($like): void {
-                            $uq->where('display_name', 'ILIKE', $like)
-                                ->orWhere('first_name', 'ILIKE', $like)
-                                ->orWhere('last_name', 'ILIKE', $like)
-                                ->orWhere('company_name', 'ILIKE', $like);
-                        });
-                });
-            }
-
-            $referralRecords = $refQuery->get();
-            $askRecords = $query->get();
+            $paginator = $query->paginate(perPage: $limit, page: $page);
 
             // Lookup bookmarks/saves
             $postIds = [];
-            foreach ($askRecords as $ask) {
+            foreach ($paginator->items() as $ask) {
                 if ($ask->timelineLink?->post_id) {
                     $postIds[] = $ask->timelineLink->post_id;
                 }
@@ -180,9 +148,8 @@ class AskFlowHubService
                     ->all();
             }
 
-            $combinedItems = [];
-
-            foreach ($askRecords as $ask) {
+            $items = [];
+            foreach ($paginator->items() as $ask) {
                 /** @var Ask $ask */
                 $author = $this->formatAuthor($ask->user);
                 $description = $ask->answers->firstWhere('field_key', 'details')?->value_text
@@ -196,7 +163,7 @@ class AskFlowHubService
                 $postId = $ask->timelineLink?->post_id;
                 $isSaved = $postId ? isset($savedPostIds[$postId]) : false;
 
-                $combinedItems[] = [
+                $items[] = [
                     'id' => (string) $ask->id,
                     'flow_code' => 'referral',
                     'title' => (string) $ask->title,
@@ -216,52 +183,13 @@ class AskFlowHubService
                 ];
             }
 
-            foreach ($referralRecords as $ref) {
-                /** @var Referral $ref */
-                $author = $this->formatAuthor($ref->fromUser);
-                $recipient = $this->formatAuthor($ref->toUser);
-
-                $statusName = $ref->status?->name ?? 'Open';
-
-                $combinedItems[] = [
-                    'id' => (string) $ref->id,
-                    'flow_code' => 'referral',
-                    'title' => (string) ($ref->referral_of ?: 'Business Referral'),
-                    'referral_of' => (string) ($ref->referral_of ?: 'Business Referral'),
-                    'description' => (string) ($ref->remarks ?: ('Referral for '.$ref->referral_of)),
-                    'remarks' => (string) ($ref->remarks ?? ''),
-                    'offering_in_return' => (string) ($ref->referral_type === 'b2b_referral' ? 'B2B Referral' : ($ref->referral_type ?: 'Direct business referral')),
-                    'referral_type' => (string) ($ref->referral_type ?? 'b2b_referral'),
-                    'status' => strtolower($statusName) === 'deal_closed' ? 'fulfilled' : 'open',
-                    'status_id' => (int) ($ref->status_id ?? 1),
-                    'status_label' => (string) $statusName,
-                    'hot_value' => (int) ($ref->hot_value ?? 1),
-                    'phone' => (string) ($ref->phone ?? ''),
-                    'email' => (string) ($ref->email ?? ''),
-                    'address' => (string) ($ref->address ?? ''),
-                    'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
-                    'author' => $author,
-                    'from_user' => $author,
-                    'to_user' => $recipient,
-                    'recipient' => $recipient,
-                    'responses_count' => $ref->to_user_id ? 1 : 0,
-                    'is_saved' => false,
-                ];
-            }
-
-            usort($combinedItems, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
-
-            $total = count($combinedItems);
-            $pagedItems = array_slice($combinedItems, ($page - 1) * $limit, $limit);
-            $hasMore = ($page * $limit) < $total;
-
             return [
-                'items' => $pagedItems,
-                'data' => $pagedItems,
+                'items' => $items,
+                'data' => $items,
                 'pagination' => [
-                    'current_page' => $page,
-                    'has_more' => $hasMore,
-                    'total' => $total,
+                    'current_page' => $paginator->currentPage(),
+                    'has_more' => $paginator->hasMorePages(),
+                    'total' => $paginator->total(),
                 ],
             ];
         }
@@ -1288,81 +1216,10 @@ class AskFlowHubService
             $myAsks[] = $formatted;
         }
 
-        // Given Referrals from referrals table (where from_user_id = target user)
-        $givenReferralsQuery = Referral::query()
-            ->where('from_user_id', $targetUserId)
-            ->where(function (Builder $q): void {
-                $q->where('is_deleted', false)
-                    ->orWhereNull('is_deleted');
-            })
-            ->whereNull('deleted_at')
-            ->with(['toUser', 'status'])
-            ->orderByDesc('created_at')
-            ->get();
-
-        $givenReferrals = [];
-        foreach ($givenReferralsQuery as $ref) {
-            /** @var Referral $ref */
-            $toUser = $ref->toUser;
-            $recipientName = $toUser ? ($toUser->display_name ?: trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? ''))) : 'Peer Member';
-            $recipientAvatar = $toUser?->profile_photo_file_id
-                ? url('/api/v1/files/'.$toUser->profile_photo_file_id)
-                : ($toUser?->profile_photo_url ?? null);
-
-            $statusName = $ref->status?->name ?? 'Contacted';
-            $responseObj = [
-                'response_id' => (string) $ref->id,
-                'responder' => [
-                    'id' => (string) ($toUser?->id ?? ''),
-                    'display_name' => $recipientName,
-                    'avatar_url' => $recipientAvatar,
-                    'company_name' => (string) ($toUser?->company_name ?? ''),
-                ],
-                'contact_name' => (string) ($ref->referral_of ?: 'Contact Person'),
-                'contact_phone' => (string) ($ref->phone ?? ''),
-                'contact_email' => (string) ($ref->email ?? ''),
-                'contact_designation' => (string) ($ref->referral_type ?? 'Referral Contact'),
-                'status' => in_array(strtolower($statusName), ['accepted', 'completed', 'deal_closed', 'connected'], true) ? 'connected' : strtolower($statusName),
-                'status_id' => (int) ($ref->status_id ?? 1),
-                'status_label' => (string) $statusName,
-            ];
-
-            $item = [
-                'id' => (string) $ref->id,
-                'flow_code' => 'referral',
-                'title' => (string) ($ref->referral_of ?: 'Business Referral'),
-                'referral_of' => (string) ($ref->referral_of ?: 'Business Referral'),
-                'description' => (string) ($ref->remarks ?: ('Referral for '.$ref->referral_of)),
-                'remarks' => (string) ($ref->remarks ?? ''),
-                'referral_type' => (string) ($ref->referral_type ?? 'b2b_referral'),
-                'phone' => (string) ($ref->phone ?? ''),
-                'email' => (string) ($ref->email ?? ''),
-                'address' => (string) ($ref->address ?? ''),
-                'hot_value' => (int) ($ref->hot_value ?? 1),
-                'status' => strtolower($statusName) === 'deal_closed' ? 'fulfilled' : 'in_progress',
-                'status_id' => (int) ($ref->status_id ?? 1),
-                'status_label' => (string) $statusName,
-                'responses' => [$responseObj],
-                'responses_count' => 1,
-                'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
-                'to_user' => [
-                    'id' => (string) ($toUser?->id ?? ''),
-                    'display_name' => $recipientName,
-                    'avatar_url' => $recipientAvatar,
-                ],
-                'recipient' => [
-                    'id' => (string) ($toUser?->id ?? ''),
-                    'display_name' => $recipientName,
-                    'avatar_url' => $recipientAvatar,
-                ],
-            ];
-
-            $givenReferrals[] = $item;
-        }
-
         // Responses user provided to other peers' Referral Asks
+        $givenReferrals = [];
         $respondedAsks = AskResponse::query()
-            ->where('responder_user_id', $user->id)
+            ->where('responder_user_id', $targetUserId)
             ->where(function (Builder $q): void {
                 $q->whereHas('ask.flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
                     ->orWhereIn('response_type', [AskResponse::TYPE_CAN_INTRODUCE_PEER, AskResponse::TYPE_KNOW_SOMEONE]);
@@ -1429,52 +1286,10 @@ class AskFlowHubService
             }
         }
 
-        // Received Introductions from referrals table (where to_user_id = auth user)
-        $referrals = Referral::query()
-            ->where('to_user_id', $user->id)
-            ->where(function (Builder $q): void {
-                $q->where('is_deleted', false)
-                    ->orWhereNull('is_deleted');
-            })
-            ->whereNull('deleted_at')
-            ->with(['fromUser', 'status'])
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get();
-
-        $receivedIntroductions = [];
-        foreach ($referrals as $ref) {
-            /** @var Referral $ref */
-            $introducedBy = $ref->fromUser;
-            $statusName = $ref->status?->name ?? 'Contacted';
-
-            $receivedIntroductions[] = [
-                'id' => (string) $ref->id,
-                'flow_code' => 'referral',
-                'referral_of' => (string) ($ref->referral_of ?? 'Business Referral'),
-                'title' => (string) ($ref->referral_of ?? 'Business Referral'),
-                'remarks' => (string) ($ref->remarks ?? ''),
-                'phone' => (string) ($ref->phone ?? ''),
-                'email' => (string) ($ref->email ?? ''),
-                'address' => (string) ($ref->address ?? ''),
-                'hot_value' => (int) ($ref->hot_value ?? 1),
-                'introduced_by' => [
-                    'id' => (string) ($introducedBy?->id ?? ''),
-                    'display_name' => $introducedBy ? ($introducedBy->display_name ?: trim(($introducedBy->first_name ?? '').' '.($introducedBy->last_name ?? ''))) : 'Peer Member',
-                    'avatar_url' => $introducedBy?->profile_photo_file_id
-                        ? url('/api/v1/files/'.$introducedBy->profile_photo_file_id)
-                        : ($introducedBy?->profile_photo_url ?? null),
-                ],
-                'status_id' => (int) ($ref->status_id ?? 1),
-                'status_label' => (string) $statusName,
-                'status' => strtolower($statusName),
-                'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
-            ];
-        }
-
         // Introductions received where auth user was introduced to an Ask
+        $receivedIntroductions = [];
         $introducedToMe = AskResponse::query()
-            ->where('introduced_user_id', $user->id)
+            ->where('introduced_user_id', $targetUserId)
             ->with(['ask', 'responder'])
             ->orderByDesc('created_at')
             ->get();
