@@ -30,6 +30,7 @@ class AskFeedService
     public function __construct(
         protected AskService $askService
     ) {}
+
     /**
      * Retrieve feed items for other peers (open asks, fulfilled stories, giver spotlights).
      *
@@ -44,6 +45,7 @@ class AskFeedService
 
         // 1. Gather other peers' asks (Open Status Only)
         $asksQuery = Ask::query()
+            ->withoutDeletedTimelinePost()
             ->where('user_id', '!=', $user->id)
             ->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active'])
             ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed', Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, Ask::STATUS_DRAFT])
@@ -223,6 +225,7 @@ class AskFeedService
         $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 15)));
 
         $query = Ask::query()
+            ->withoutDeletedTimelinePost()
             ->where('user_id', $user->id)
             ->with(['flow', 'type', 'responses' => fn ($q) => $q->orderByDesc('created_at')])
             ->withCount(['matches', 'responses'])

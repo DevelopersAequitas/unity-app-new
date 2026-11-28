@@ -502,6 +502,7 @@ class AskService
         $perPage = (int) ($filters['per_page'] ?? 15);
 
         $query = Ask::query()
+            ->withoutDeletedTimelinePost()
             ->where('user_id', $user->id)
             ->when(! empty($filters['flow']), function (Builder $q) use ($filters) {
                 $q->whereHas('flow', function (Builder $fq) use ($filters): void {

@@ -504,6 +504,143 @@ class PostFeedAskMentionsAndReferralIsolationTest extends TestCase
         $this->assertContains($birthdayPeerId, $latestComment['tagged_peer_ids']);
     }
 
+    public function test_deleting_ask_timeline_post_removes_ask_from_global_feed_and_my_asks_history(): void
+    {
+        $ask = Ask::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'flow_id' => $this->referralFlow->id,
+            'type_id' => $this->referralType->id,
+            'title' => 'Who is ready to invest in game development',
+            'status' => Ask::STATUS_PUBLISHED,
+            'visibility_type' => Ask::VISIBILITY_ALL_PEERS,
+            'publish_to_timeline' => true,
+            'published_at' => now(),
+        ]);
+
+        $post = Post::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'title' => $ask->title,
+            'content_text' => $ask->title,
+            'media' => [],
+            'tags' => ['ask', 'referral'],
+            'visibility' => 'public',
+            'moderation_status' => 'approved',
+            'sponsored' => false,
+            'is_deleted' => false,
+            'active' => true,
+            'status' => 'active',
+            'source_type' => 'ask',
+            'source_id' => $ask->id,
+            'source_event' => 'published',
+            'post_type' => 'ask',
+        ]);
+
+        AskTimelineLink::query()->create([
+            'id' => (string) Str::uuid(),
+            'ask_id' => $ask->id,
+            'post_id' => $post->id,
+        ]);
+
+        Sanctum::actingAs($this->author);
+        $this->assertContains($post->id, collect($this->getJson('/api/v1/posts/feed')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertContains($ask->id, collect($this->getJson('/api/v1/asks/referral/global')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertContains($ask->id, collect($this->getJson('/api/v1/asks/referral/my')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertContains($ask->id, collect($this->getJson('/api/v1/asks')->assertOk()->json('data.items'))->pluck('id')->all());
+
+        Sanctum::actingAs($this->recipient);
+        $this->assertContains($ask->id, collect($this->getJson('/api/v1/asks/referral/global')->assertOk()->json('data.items'))->pluck('id')->all());
+
+        Sanctum::actingAs($this->author);
+        $this->deleteJson("/api/v1/posts/{$post->id}")->assertOk();
+
+        $freshAsk = Ask::withTrashed()->find($ask->id);
+        $this->assertNotNull($freshAsk);
+        $this->assertNotNull($freshAsk->deleted_at);
+        $this->assertSame(Ask::STATUS_CANCELLED, $freshAsk->status);
+
+        $this->assertNotContains($post->id, collect($this->getJson('/api/v1/posts/feed')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertNotContains($ask->id, collect($this->getJson('/api/v1/asks/referral/global')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertNotContains($ask->id, collect($this->getJson('/api/v1/asks/referral/my')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertNotContains($ask->id, collect($this->getJson('/api/v1/asks')->assertOk()->json('data.items'))->pluck('id')->all());
+
+        Sanctum::actingAs($this->recipient);
+        $this->assertNotContains($ask->id, collect($this->getJson('/api/v1/asks/referral/global')->assertOk()->json('data.items'))->pluck('id')->all());
+        $this->assertNotContains($ask->id, collect($this->getJson('/api/v1/asks/feed')->assertOk()->json('data.items'))->pluck('id')->all());
+    }
+
+    public function test_legacy_ask_whose_timeline_post_was_already_deleted_is_excluded_from_global_feed_and_history(): void
+    {
+        $legacyAsk = Ask::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'flow_id' => $this->referralFlow->id,
+            'type_id' => $this->referralType->id,
+            'title' => 'Legacy deleted timeline post ask',
+            'status' => Ask::STATUS_PUBLISHED,
+            'visibility_type' => Ask::VISIBILITY_ALL_PEERS,
+            'publish_to_timeline' => true,
+            'published_at' => now(),
+        ]);
+
+        $deletedPost = Post::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'title' => $legacyAsk->title,
+            'content_text' => $legacyAsk->title,
+            'media' => [],
+            'tags' => ['ask', 'referral'],
+            'visibility' => 'public',
+            'moderation_status' => 'approved',
+            'sponsored' => false,
+            'is_deleted' => true,
+            'active' => false,
+            'status' => 'inactive',
+            'source_type' => 'ask',
+            'source_id' => $legacyAsk->id,
+            'source_event' => 'published',
+            'post_type' => 'ask',
+        ]);
+        $deletedPost->delete();
+
+        AskTimelineLink::query()->create([
+            'id' => (string) Str::uuid(),
+            'ask_id' => $legacyAsk->id,
+            'post_id' => $deletedPost->id,
+        ]);
+
+        $privateAsk = Ask::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'flow_id' => $this->referralFlow->id,
+            'type_id' => $this->referralType->id,
+            'title' => 'Private ask without timeline post',
+            'status' => Ask::STATUS_PUBLISHED,
+            'visibility_type' => Ask::VISIBILITY_ALL_PEERS,
+            'publish_to_timeline' => false,
+            'published_at' => now(),
+        ]);
+
+        Sanctum::actingAs($this->author);
+        $myReferralIds = collect($this->getJson('/api/v1/asks/referral/my')->assertOk()->json('data.items'))->pluck('id')->all();
+        $this->assertNotContains($legacyAsk->id, $myReferralIds);
+        $this->assertContains($privateAsk->id, $myReferralIds);
+
+        $myAsksIds = collect($this->getJson('/api/v1/asks')->assertOk()->json('data.items'))->pluck('id')->all();
+        $this->assertNotContains($legacyAsk->id, $myAsksIds);
+        $this->assertContains($privateAsk->id, $myAsksIds);
+
+        Sanctum::actingAs($this->recipient);
+        $globalIds = collect($this->getJson('/api/v1/asks/referral/global')->assertOk()->json('data.items'))->pluck('id')->all();
+        $this->assertNotContains($legacyAsk->id, $globalIds);
+        $this->assertContains($privateAsk->id, $globalIds);
+
+        $feedIds = collect($this->getJson('/api/v1/asks/feed')->assertOk()->json('data.items'))->pluck('id')->all();
+        $this->assertNotContains($legacyAsk->id, $feedIds);
+        $this->assertContains($privateAsk->id, $feedIds);
+    }
+
     private function createUser(string $displayName): User
     {
         $parts = explode(' ', $displayName, 2);

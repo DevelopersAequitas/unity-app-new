@@ -7,12 +7,15 @@ namespace App\Models\Ask;
 use App\Models\Circle;
 use App\Models\District;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Ask extends Model
@@ -146,5 +149,43 @@ class Ask extends Model
     public function timelineLink(): HasOne
     {
         return $this->hasOne(AskTimelineLink::class, 'ask_id');
+    }
+
+    /**
+     * Exclude Asks whose published timeline Ask post has been deleted.
+     */
+    public function scopeWithoutDeletedTimelinePost(Builder $query): Builder
+    {
+        if (! Schema::hasTable('posts')) {
+            return $query;
+        }
+
+        return $query->whereNotExists(function ($sub): void {
+            $sub->select(DB::raw(1))
+                ->from('posts')
+                ->where(function ($linkQ): void {
+                    $linkQ->where(function ($srcQ): void {
+                        $srcQ->where('posts.source_type', 'ask')
+                            ->whereColumn('posts.source_id', 'asks.id');
+                    });
+
+                    if (Schema::hasTable('ask_timeline_links')) {
+                        $linkQ->orWhereExists(function ($tlQ): void {
+                            $tlQ->select(DB::raw(1))
+                                ->from('ask_timeline_links')
+                                ->whereColumn('ask_timeline_links.post_id', 'posts.id')
+                                ->whereColumn('ask_timeline_links.ask_id', 'asks.id');
+                        });
+                    }
+                })
+                ->where(function ($typeQ): void {
+                    $typeQ->where('posts.post_type', 'ask')
+                        ->orWhere('posts.source_event', 'published');
+                })
+                ->where(function ($delQ): void {
+                    $delQ->where('posts.is_deleted', true)
+                        ->orWhereNotNull('posts.deleted_at');
+                });
+        });
     }
 }

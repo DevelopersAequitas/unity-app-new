@@ -2277,6 +2277,36 @@ class PostController extends BaseApiController
         $post->save();
         $post->delete(); // respects SoftDeletes if used on the model
 
+        $isAskTimelinePost = (string) ($post->post_type ?? '') === 'ask'
+            || (
+                (string) ($post->source_type ?? '') === 'ask'
+                && ! in_array((string) ($post->source_event ?? ''), ['fulfilled', 'completed'], true)
+                && ! in_array((string) ($post->post_type ?? ''), ['story', 'deal_closed'], true)
+            );
+
+        if ($isAskTimelinePost && Schema::hasTable('asks')) {
+            $askId = ! empty($post->source_id) ? (string) $post->source_id : null;
+            if ($askId === null && Schema::hasTable('ask_timeline_links')) {
+                $linkedAskId = AskTimelineLink::query()->where('post_id', $post->id)->value('ask_id');
+                $askId = $linkedAskId ? (string) $linkedAskId : null;
+            }
+
+            if ($askId !== null) {
+                $ask = Ask::query()
+                    ->where('id', $askId)
+                    ->where('user_id', $user->id)
+                    ->first();
+
+                if ($ask) {
+                    $ask->status = Ask::STATUS_CANCELLED;
+                    $ask->closed_at = now();
+                    $ask->publish_to_timeline = false;
+                    $ask->save();
+                    $ask->delete();
+                }
+            }
+        }
+
         return $this->success(null, 'Post deleted successfully');
     }
 

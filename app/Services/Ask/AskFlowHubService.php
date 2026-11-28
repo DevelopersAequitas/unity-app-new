@@ -83,6 +83,7 @@ class AskFlowHubService
         $search = filled($params['search'] ?? null) ? trim((string) $params['search']) : null;
 
         $query = Ask::query()
+            ->withoutDeletedTimelinePost()
             ->whereHas('flow', function (Builder $fq) use ($normalizedFlow): void {
                 $fq->where('code', $normalizedFlow);
             })
@@ -319,6 +320,7 @@ class AskFlowHubService
             $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
             $q->where('user_id', $targetUserId)
+                ->withoutDeletedTimelinePost()
                 ->with([
                     'flow',
                     'type',
@@ -381,12 +383,6 @@ class AskFlowHubService
         };
 
         $asks = $buildAllQuery(false)->get();
-        if ($asks->isEmpty()) {
-            $trashed = $buildAllQuery(true)->get();
-            if ($trashed->isNotEmpty()) {
-                $asks = $trashed;
-            }
-        }
 
         $items = [];
         $isFull = ($params['format'] ?? null) === 'full';
@@ -931,6 +927,7 @@ class AskFlowHubService
             $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
             $q->where('user_id', $targetUserId)
+                ->withoutDeletedTimelinePost()
                 ->where(function (Builder $sq) use ($collabFlowIds, $excludeFlowIds): void {
                     $sq->whereIn('flow_id', $collabFlowIds)
                         ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
@@ -1011,13 +1008,6 @@ class AskFlowHubService
         };
 
         $asks = $buildCollabQuery(false)->get();
-
-        if ($asks->isEmpty()) {
-            $trashedAsks = $buildCollabQuery(true)->get();
-            if ($trashedAsks->isNotEmpty()) {
-                $asks = $trashedAsks;
-            }
-        }
 
         $items = [];
         foreach ($asks as $ask) {
@@ -1114,6 +1104,7 @@ class AskFlowHubService
             $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
             $q->where('user_id', $targetUserId)
+                ->withoutDeletedTimelinePost()
                 ->where(function (Builder $sq) use ($refFlowIds): void {
                     $sq->whereIn('flow_id', $refFlowIds)
                         ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['referral', 'referrals', 'ask_for_referral']))
@@ -1190,13 +1181,6 @@ class AskFlowHubService
         };
 
         $asks = $buildRefQuery(false)->get();
-
-        if ($asks->isEmpty()) {
-            $trashedRefAsks = $buildRefQuery(true)->get();
-            if ($trashedRefAsks->isNotEmpty()) {
-                $asks = $trashedRefAsks;
-            }
-        }
 
         $myAsks = [];
         $isFull = ($params['format'] ?? null) === 'full';
@@ -1399,6 +1383,7 @@ class AskFlowHubService
             $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
             $q->where('user_id', $targetUserId)
+                ->withoutDeletedTimelinePost()
                 ->where(function (Builder $sq) use ($helpFlowIds): void {
                     $sq->whereIn('flow_id', $helpFlowIds)
                         ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['help', 'get_help', 'guidance']))
@@ -1475,13 +1460,6 @@ class AskFlowHubService
         };
 
         $asks = $buildHelpQuery(false)->get();
-
-        if ($asks->isEmpty()) {
-            $trashedHelpAsks = $buildHelpQuery(true)->get();
-            if ($trashedHelpAsks->isNotEmpty()) {
-                $asks = $trashedHelpAsks;
-            }
-        }
 
         $items = [];
         foreach ($asks as $ask) {
