@@ -1120,7 +1120,7 @@ class PostController extends BaseApiController
                             'user_id' => (string) $cRow->user_id,
                             'display_name' => $displayName ?: 'User',
                             'profile_photo_url' => $photo,
-                            'content' => (string) ($cRow->content ?? ''),
+                            'content' => (string) ($this->formatCommentPreviewText($cRow->content !== null ? (string) $cRow->content : '') ?? ''),
                             'created_at' => $this->formatToDefaultDateTime($cRow->created_at),
                         ];
                     }, $cRows);
@@ -2203,7 +2203,7 @@ class PostController extends BaseApiController
                         'user_id' => (string) ($comment->user_id ?? $u?->id),
                         'display_name' => $displayName ?: 'User',
                         'profile_photo_url' => $photo,
-                        'content' => (string) ($comment->content ?? ''),
+                        'content' => (string) ($this->formatCommentPreviewText($comment->content !== null ? (string) $comment->content : '') ?? ''),
                         'created_at' => $this->formatToDefaultDateTime($comment->created_at),
                     ];
                 })->values()->all()
@@ -2231,7 +2231,7 @@ class PostController extends BaseApiController
                 })()
                 : null,
             'preview_comment_text' => ($post->relationLoaded('comments') && $post->comments->isNotEmpty())
-                ? (string) ($post->comments->first()?->content ?? null)
+                ? $this->formatCommentPreviewText($post->comments->first()?->content !== null ? (string) $post->comments->first()->content : null)
                 : null,
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
@@ -2452,6 +2452,7 @@ class PostController extends BaseApiController
     private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment, array $mentionedPeerIds = []): void
     {
         $text = $text ?? '';
+        $cleanPreviewText = $this->formatCommentPreviewText($text) ?? '';
         $mentionedUsers = $this->mentionedUsers($text, $mentionedPeerIds)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
         if ($mentionedUsers->isEmpty()) {
             return;
@@ -2460,7 +2461,7 @@ class PostController extends BaseApiController
             $notifications->sendCampaignNotification(
                 'user_mention_notification',
                 $mentionedUsers,
-                ['person' => $this->displayName($actor), 'post_preview_content' => Str::limit($text, 120), 'comment_preview_content' => Str::limit($text, 120)],
+                ['person' => $this->displayName($actor), 'post_preview_content' => Str::limit($cleanPreviewText, 120), 'comment_preview_content' => Str::limit($cleanPreviewText, 120)],
                 ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => $comment?->id, 'mentioned_by' => (string) $actor->id, 'type' => 'mention'],
                 $actor,
                 $comment ?: $post,
@@ -3041,6 +3042,18 @@ class PostController extends BaseApiController
         }
     }
 
+    private function formatCommentPreviewText(?string $content): ?string
+    {
+        if ($content === null) {
+            return null;
+        }
+
+        $formatted = preg_replace('/@\[([^\]]+)\]\([0-9a-fA-F-]{36}\)/', '$1', $content) ?? $content;
+        $formatted = preg_replace('/@\{[0-9a-fA-F-]{36}:([^\}]+)\}/', '$1', $formatted) ?? $formatted;
+
+        return trim($formatted);
+    }
+
     /**
      * @return array<int, string> Notified recipient user IDs
      */
@@ -3049,7 +3062,7 @@ class PostController extends BaseApiController
         $targets = [];
         $notifiedUserIds = [];
         $commenterName = $this->displayName($authUser);
-        $preview = Str::limit(trim((string) $comment->content), 120);
+        $preview = Str::limit(trim((string) ($this->formatCommentPreviewText($comment->content !== null ? (string) $comment->content : '') ?? '')), 120);
 
         if (in_array($post->post_type, ['introduction', 'birthday', 'genie_birthday', 'anniversary', 'genie_anniversary', 'global_peer_certificate'], true)) {
             $subjectUser = User::find($post->source_id);

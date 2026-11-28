@@ -12,6 +12,7 @@ use App\Models\Ask\AskResponse;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\Ask\AskType;
 use App\Models\Post;
+use App\Models\PostComment;
 use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\ReferralStatus;
@@ -440,6 +441,69 @@ class PostFeedAskMentionsAndReferralIsolationTest extends TestCase
         $this->assertNotContains($directReferral->id, collect($myAllResponse->json('data.received_introductions'))->pluck('id')->all());
     }
 
+    public function test_timeline_comment_preview_formats_inline_mention_markup_cleanly(): void
+    {
+        $birthdayPeerId = 'e67280f5-758c-42e4-a747-8c32e94c400c';
+
+        $post = Post::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->author->id,
+            'content_text' => 'Happy Birthday!',
+            'media' => [],
+            'tags' => ['genie_birthday', 'birthday'],
+            'visibility' => 'public',
+            'moderation_status' => 'approved',
+            'sponsored' => false,
+            'is_deleted' => false,
+            'active' => true,
+            'status' => 'active',
+            'source_type' => 'birthday',
+            'source_id' => $birthdayPeerId,
+            'post_type' => 'genie_birthday',
+        ]);
+
+        $olderComment = PostComment::query()->create([
+            'id' => (string) Str::uuid(),
+            'post_id' => $post->id,
+            'user_id' => $this->recipient->id,
+            'content' => "Many happy returns, @{{$birthdayPeerId}:V Gowrisankar Velaiyen}!",
+        ]);
+        $olderComment->created_at = now()->subMinute();
+        $olderComment->save();
+
+        PostComment::query()->create([
+            'id' => (string) Str::uuid(),
+            'post_id' => $post->id,
+            'user_id' => $this->recipient->id,
+            'content' => "🎂 Happy Birthday, @[V Gowrisankar Velaiyen]({$birthdayPeerId})!",
+        ]);
+
+        Sanctum::actingAs($this->author);
+
+        $feedResponse = $this->getJson('/api/v1/posts/feed')->assertOk();
+        $feedItem = collect($feedResponse->json('data.items'))->firstWhere('id', $post->id);
+        $this->assertNotNull($feedItem);
+        $this->assertSame('🎂 Happy Birthday, V Gowrisankar Velaiyen!', $feedItem['preview_comment_text']);
+        $this->assertSame('🎂 Happy Birthday, V Gowrisankar Velaiyen!', $feedItem['latest_comments'][0]['content']);
+        $this->assertSame('Many happy returns, V Gowrisankar Velaiyen!', $feedItem['latest_comments'][1]['content']);
+
+        $showResponse = $this->getJson("/api/v1/posts/{$post->id}")->assertOk();
+        $this->assertSame('🎂 Happy Birthday, V Gowrisankar Velaiyen!', $showResponse->json('data.preview_comment_text'));
+        $this->assertSame('🎂 Happy Birthday, V Gowrisankar Velaiyen!', $showResponse->json('data.latest_comments.0.content'));
+        $this->assertSame('Many happy returns, V Gowrisankar Velaiyen!', $showResponse->json('data.latest_comments.1.content'));
+
+        $profilePostsResponse = $this->getJson('/api/v1/profile/posts')->assertOk();
+        $profilePostItem = collect($profilePostsResponse->json('data.items'))->firstWhere('id', $post->id);
+        $this->assertNotNull($profilePostItem);
+        $this->assertSame('🎂 Happy Birthday, V Gowrisankar Velaiyen!', $profilePostItem['latest_comments'][0]['body']);
+
+        $commentsResponse = $this->getJson("/api/v1/posts/{$post->id}/comments")->assertOk();
+        $latestComment = collect($commentsResponse->json('data.items'))->last();
+        $this->assertNotNull($latestComment);
+        $this->assertSame($birthdayPeerId, $latestComment['mentions'][0]['id']);
+        $this->assertContains($birthdayPeerId, $latestComment['tagged_peer_ids']);
+    }
+
     private function createUser(string $displayName): User
     {
         $parts = explode(' ', $displayName, 2);
@@ -533,6 +597,7 @@ class PostFeedAskMentionsAndReferralIsolationTest extends TestCase
             $table->uuid('id')->primary();
             $table->uuid('post_id');
             $table->uuid('user_id');
+            $table->uuid('parent_id')->nullable();
             $table->text('content')->nullable();
             $table->timestamps();
             $table->softDeletes();
