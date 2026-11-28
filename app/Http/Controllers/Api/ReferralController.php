@@ -11,8 +11,6 @@ use App\Http\Resources\ReferralEventVisitorResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\CircleMember;
 use App\Models\EventRegistration;
-use App\Models\Post;
-use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\ReferralStatus;
 use App\Models\User;
@@ -472,8 +470,6 @@ class ReferralController extends BaseApiController
                 'remarks' => $remarks,
             ]);
 
-            $this->createPostForReferral($referral, $authUser);
-
             try {
                 $coinsLedger = app(CoinsService::class)->rewardForActivity(
                     $authUser,
@@ -673,53 +669,6 @@ class ReferralController extends BaseApiController
         }
 
         return $this->success($referral, 'Referral status updated successfully.');
-    }
-
-    protected function createPostForReferral(Referral $referral, ?User $authUser = null): void
-    {
-        try {
-            $fromUser = $authUser ?? User::find($referral->from_user_id);
-            $toUser = User::find($referral->to_user_id);
-            $peerName = $this->resolveDisplayName($toUser);
-
-            $referralTopic = $referral->referral_of ?: 'business';
-            $contentText = "Hey Peers, I gave a business referral for {$referralTopic} to {$peerName}.";
-            if (! empty($referral->remarks)) {
-                $contentText .= "\nNote: ".$referral->remarks;
-            }
-
-            $circleId = $fromUser?->active_circle_id ?? $fromUser?->circle_id ?? null;
-
-            $post = Post::create([
-                'user_id' => $referral->from_user_id,
-                'circle_id' => $circleId,
-                'content_text' => $contentText,
-                'media' => [],
-                'tags' => ['referral'],
-                'visibility' => 'public',
-                'moderation_status' => 'approved',
-                'sponsored' => false,
-                'is_deleted' => false,
-                'source_type' => 'referral',
-                'source_id' => $referral->id,
-                'source_event' => 'referral_created',
-                'active' => 1,
-                'status' => 'active',
-                'post_type' => 'referral',
-            ]);
-
-            if ($toUser && $post) {
-                PostMention::create([
-                    'post_id' => $post->id,
-                    'peer_id' => $toUser->id,
-                ]);
-            }
-        } catch (Throwable $e) {
-            Log::error('Failed to create post for referral', [
-                'referral_id' => (string) $referral->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     public function storeLink(Request $request, ReferralService $referralService)
