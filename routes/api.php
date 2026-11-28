@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostSaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\SpeedNetworking\SpeedCollaborationAnalyticsController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingAdminController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingApiController;
 use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingBlockController;
@@ -2293,6 +2294,19 @@ foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
         Route::get('events/{id}/matches', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
         Route::get('events/{id}/moderation', [SpeedNetworkingAdminController::class, 'moderation'])->whereUuid('id');
         Route::get('events/{id}/connections', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
+
+        // Speed Collaboration Analytics, Live Monitor, Reports & Exports
+        Route::get('events-analytics', [SpeedCollaborationAnalyticsController::class, 'eventsAnalytics']);
+        Route::get('events-comparison', [SpeedCollaborationAnalyticsController::class, 'eventsComparison']);
+        Route::get('events/{id}/analytics/overview', [SpeedCollaborationAnalyticsController::class, 'overview'])->whereUuid('id');
+        Route::get('events/{id}/analytics/live-monitor', [SpeedCollaborationAnalyticsController::class, 'liveMonitor'])->whereUuid('id');
+        Route::get('events/{id}/analytics/attendees', [SpeedCollaborationAnalyticsController::class, 'attendees'])->whereUuid('id');
+        Route::get('events/{id}/analytics/peers/{userId}', [SpeedCollaborationAnalyticsController::class, 'peerAnalytics'])->whereUuid('id')->whereUuid('userId');
+        Route::get('events/{id}/analytics/connections', [SpeedCollaborationAnalyticsController::class, 'connections'])->whereUuid('id');
+        Route::get('events/{id}/analytics/rewards', [SpeedCollaborationAnalyticsController::class, 'rewards'])->whereUuid('id');
+        Route::get('events/{id}/analytics/reports', [SpeedCollaborationAnalyticsController::class, 'reports'])->whereUuid('id');
+        Route::get('events/{id}/analytics/export/excel', [SpeedCollaborationAnalyticsController::class, 'exportExcel'])->whereUuid('id');
+        Route::get('events/{id}/analytics/export/pdf', [SpeedCollaborationAnalyticsController::class, 'exportPdf'])->whereUuid('id');
     });
 }
 
