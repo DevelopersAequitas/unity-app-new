@@ -512,7 +512,7 @@ class PostResource extends JsonResource
                         'user_id' => (string) ($comment->user_id ?? $u?->id),
                         'display_name' => $displayName ?: 'User',
                         'profile_photo_url' => $profilePhoto,
-                        'content' => (string) ($comment->content ?? ''),
+                        'content' => (string) ($this->formatCommentPreviewText($comment->content !== null ? (string) $comment->content : '') ?? ''),
                         'created_at' => $this->formatToDefaultDateTime($comment->created_at),
                     ];
                 })->values()->all()
@@ -543,7 +543,7 @@ class PostResource extends JsonResource
                 : null,
 
             'preview_comment_text' => ($this->relationLoaded('comments') && $this->comments->isNotEmpty())
-                ? (string) ($this->comments->first()?->content ?? null)
+                ? $this->formatCommentPreviewText($this->comments->first()?->content !== null ? (string) $this->comments->first()->content : null)
                 : null,
 
             'created_at' => $this->formatToDefaultDateTime($this->created_at),
@@ -592,5 +592,17 @@ class PostResource extends JsonResource
         return Carbon::parse((string) $value)
             ->timezone(config('app.timezone', 'UTC'))
             ->format('Y-m-d H:i:s');
+    }
+
+    private function formatCommentPreviewText(?string $content): ?string
+    {
+        if ($content === null) {
+            return null;
+        }
+
+        $formatted = preg_replace('/@\[([^\]]+)\]\([0-9a-fA-F-]{36}\)/', '$1', $content) ?? $content;
+        $formatted = preg_replace('/@\{[0-9a-fA-F-]{36}:([^\}]+)\}/', '$1', $formatted) ?? $formatted;
+
+        return trim($formatted);
     }
 }
